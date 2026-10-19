@@ -1,0 +1,11 @@
+{
+  "factors": [
+    {"name": "Temperature", "low": 150, "high": 180},
+    {"name": "Pressure", "low": 2.0, "high": 3.5},
+    {"name": "Time", "low": 20, "high": 40}
+  ],
+  "replicates": 1,
+  "center_points": 2,
+  "randomize": true,
+  "seed": 42
+}

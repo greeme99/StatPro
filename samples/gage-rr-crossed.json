@@ -1,0 +1,13 @@
+{
+  "study_variation_multiplier": 6,
+  "records": [
+    {"part": "P1", "operator": "A", "measurement": 10},
+    {"part": "P1", "operator": "A", "measurement": 12},
+    {"part": "P1", "operator": "B", "measurement": 11},
+    {"part": "P1", "operator": "B", "measurement": 13},
+    {"part": "P2", "operator": "A", "measurement": 20},
+    {"part": "P2", "operator": "A", "measurement": 22},
+    {"part": "P2", "operator": "B", "measurement": 19},
+    {"part": "P2", "operator": "B", "measurement": 21}
+  ]
+}

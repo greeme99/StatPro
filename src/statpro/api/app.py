@@ -1,0 +1,472 @@
+"""FastAPI adapter over the StatPro statistical core and document seam."""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Annotated, Any
+
+from fastapi import FastAPI, Query, Response
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, ConfigDict, Field
+
+from statpro.analyses.capability import normal_process_capability
+from statpro.analyses.doe import FactorDefinition, full_factorial_2level
+from statpro.analyses.msa import MeasurementRecord, gage_rr_crossed
+from statpro.analyses.spc import individuals_moving_range, xbar_r
+from statpro.application.documents import (
+    AtomicJsonDocumentRepository,
+    DocumentConflictError,
+    DocumentNotFoundError,
+    DocumentRepository,
+    DocumentStoreError,
+    InvalidDocumentKeyError,
+    StoredDocument,
+)
+from statpro.domain.errors import DomainInputError
+from statpro.domain.models import ResultBundle
+from statpro.domain.schema import result_bundle_schema
+from statpro.fmea import (
+    FmeaStudySnapshot,
+    RiskRatings,
+    StudyType,
+    add_failure_analysis,
+    create_fmea_study,
+    submit_for_review,
+)
+from statpro.version import ENGINE_VERSION
+
+ANALYSIS_RUNS = "analysis-runs"
+FMEA_STUDIES = "fmea-studies"
+RunId = Annotated[str, Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")]
+
+
+class ApiModel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class ImrRunRequest(ApiModel):
+    run_id: RunId
+    values: list[float]
+    target: float | None = None
+
+
+class XbarRRunRequest(ApiModel):
+    run_id: RunId
+    subgroups: list[list[float]]
+
+
+class CapabilityRunRequest(ApiModel):
+    run_id: RunId
+    values: list[float]
+    lsl: float | None = None
+    usl: float | None = None
+    target: float | None = None
+
+
+class FactorRequest(ApiModel):
+    name: str
+    low: float
+    high: float
+
+
+class FullFactorialRunRequest(ApiModel):
+    run_id: RunId
+    factors: list[FactorRequest]
+    replicates: int = 1
+    center_points: int = 0
+    randomize: bool = True
+    seed: int = 0
+
+
+class MeasurementRequest(ApiModel):
+    part: str
+    operator: str
+    measurement: float
+
+
+class GageRrRunRequest(ApiModel):
+    run_id: RunId
+    records: list[MeasurementRequest]
+    study_variation_multiplier: float = 6.0
+
+
+class StoredRunResponse(ApiModel):
+    run_id: str
+    storage_version: int
+    etag: str
+    result: dict[str, Any]
+
+
+class RiskRatingsRequest(ApiModel):
+    severity: int = Field(ge=1, le=10)
+    occurrence: int = Field(ge=1, le=10)
+    detection: int = Field(ge=1, le=10)
+
+
+class CreateFmeaStudyRequest(ApiModel):
+    study_id: RunId
+    name: str
+    study_type: StudyType
+    standard_version: str
+    actor: str
+    occurred_at: str
+
+
+class AddFailureAnalysisRequest(ApiModel):
+    expected_storage_version: int = Field(ge=1)
+    item_id: RunId
+    structure_element: str
+    function: str
+    requirement: str
+    failure_mode: str
+    effect: str
+    cause: str
+    prevention_control: str
+    detection_control: str
+    ratings: RiskRatingsRequest
+    actor: str
+    occurred_at: str
+
+
+class FmeaTransitionRequest(ApiModel):
+    expected_storage_version: int = Field(ge=1)
+    actor: str
+    occurred_at: str
+
+
+class StoredFmeaStudyResponse(ApiModel):
+    study_id: str
+    storage_version: int
+    etag: str
+    study: dict[str, Any]
+
+
+def _response(stored: StoredDocument) -> StoredRunResponse:
+    return StoredRunResponse(
+        run_id=stored.key,
+        storage_version=stored.storage_version,
+        etag=stored.etag,
+        result=stored.document["result"],
+    )
+
+
+def _fmea_response(stored: StoredDocument) -> StoredFmeaStudyResponse:
+    return StoredFmeaStudyResponse(
+        study_id=stored.key,
+        storage_version=stored.storage_version,
+        etag=stored.etag,
+        study=stored.document["study"],
+    )
+
+
+def _load_fmea_study(repository: DocumentRepository, study_id: str) -> tuple[StoredDocument, FmeaStudySnapshot]:
+    stored = repository.load(FMEA_STUDIES, study_id)
+    try:
+        study = FmeaStudySnapshot.from_dict(stored.document["study"])
+    except (KeyError, TypeError, ValueError) as error:
+        raise DocumentStoreError(
+            f"Stored FMEA study {study_id} does not match its owned format."
+        ) from error
+    return stored, study
+
+
+def _save_fmea_study(
+    repository: DocumentRepository,
+    study: FmeaStudySnapshot,
+    *,
+    expected_version: int,
+) -> StoredDocument:
+    return repository.save(
+        FMEA_STUDIES,
+        study.study_id,
+        {"kind": "fmea_study", "study_id": study.study_id, "study": study.to_dict()},
+        expected_version=expected_version,
+    )
+
+
+def _save_run(
+    repository: DocumentRepository, run_id: str, result: ResultBundle
+) -> StoredDocument:
+    return repository.save(
+        ANALYSIS_RUNS,
+        run_id,
+        {
+            "kind": "analysis_run",
+            "run_id": run_id,
+            "result": result.to_dict(),
+        },
+        expected_version=0,
+    )
+
+
+def create_app(repository: DocumentRepository) -> FastAPI:
+    """Create a testable local API with an injected persistence adapter."""
+
+    app = FastAPI(
+        title="StatPro Local API",
+        version=ENGINE_VERSION,
+        docs_url="/docs",
+        redoc_url=None,
+    )
+
+    @app.exception_handler(DomainInputError)
+    async def domain_error_handler(_request: object, error: DomainInputError) -> JSONResponse:
+        return JSONResponse(status_code=422, content={"ok": False, "error": error.to_dict()})
+
+    @app.exception_handler(RequestValidationError)
+    async def request_error_handler(
+        _request: object, error: RequestValidationError
+    ) -> JSONResponse:
+        details = [
+            {
+                key: value
+                for key, value in issue.items()
+                if key in {"type", "loc", "msg"}
+            }
+            for issue in error.errors()
+        ]
+        return JSONResponse(
+            status_code=422,
+            content={
+                "ok": False,
+                "error": {
+                    "code": "invalid_request",
+                    "message": "Request does not match the declared contract.",
+                    "details": jsonable_encoder(details),
+                },
+            },
+        )
+
+    @app.exception_handler(DocumentNotFoundError)
+    async def not_found_handler(_request: object, error: DocumentNotFoundError) -> JSONResponse:
+        return JSONResponse(
+            status_code=404,
+            content={"ok": False, "error": {"code": "not_found", "message": str(error)}},
+        )
+
+    @app.exception_handler(DocumentConflictError)
+    async def conflict_handler(_request: object, error: DocumentConflictError) -> JSONResponse:
+        return JSONResponse(
+            status_code=409,
+            content={"ok": False, "error": {"code": "storage_conflict", "message": str(error)}},
+        )
+
+    @app.exception_handler(InvalidDocumentKeyError)
+    async def key_error_handler(_request: object, error: InvalidDocumentKeyError) -> JSONResponse:
+        return JSONResponse(
+            status_code=422,
+            content={"ok": False, "error": {"code": "invalid_identifier", "message": str(error)}},
+        )
+
+    @app.exception_handler(DocumentStoreError)
+    async def store_error_handler(_request: object, _error: DocumentStoreError) -> JSONResponse:
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": {
+                    "code": "storage_failure",
+                    "message": "The local document store could not complete the request.",
+                },
+            },
+        )
+
+    @app.get("/health")
+    def health() -> dict[str, object]:
+        return {"ok": True, "engine_version": ENGINE_VERSION, "local_only": True}
+
+    @app.get("/v1/schemas/result-bundle")
+    def get_result_bundle_schema() -> dict[str, Any]:
+        return result_bundle_schema()
+
+    @app.post("/v1/analysis-runs/imr", status_code=201, response_model=StoredRunResponse)
+    def run_imr(request: ImrRunRequest, response: Response) -> StoredRunResponse:
+        stored = _save_run(
+            repository,
+            request.run_id,
+            individuals_moving_range(request.values, target=request.target),
+        )
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _response(stored)
+
+    @app.post("/v1/analysis-runs/xbar-r", status_code=201, response_model=StoredRunResponse)
+    def run_xbar_r(request: XbarRRunRequest, response: Response) -> StoredRunResponse:
+        stored = _save_run(repository, request.run_id, xbar_r(request.subgroups))
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _response(stored)
+
+    @app.post(
+        "/v1/analysis-runs/capability-normal",
+        status_code=201,
+        response_model=StoredRunResponse,
+    )
+    def run_capability(
+        request: CapabilityRunRequest, response: Response
+    ) -> StoredRunResponse:
+        stored = _save_run(
+            repository,
+            request.run_id,
+            normal_process_capability(
+                request.values, lsl=request.lsl, usl=request.usl, target=request.target
+            ),
+        )
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _response(stored)
+
+    @app.post(
+        "/v1/analysis-runs/doe-full-factorial",
+        status_code=201,
+        response_model=StoredRunResponse,
+    )
+    def run_doe(request: FullFactorialRunRequest, response: Response) -> StoredRunResponse:
+        factors = [FactorDefinition(**factor.model_dump()) for factor in request.factors]
+        stored = _save_run(
+            repository,
+            request.run_id,
+            full_factorial_2level(
+                factors,
+                replicates=request.replicates,
+                center_points=request.center_points,
+                randomize=request.randomize,
+                seed=request.seed,
+            ),
+        )
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _response(stored)
+
+    @app.post(
+        "/v1/analysis-runs/gage-rr-crossed",
+        status_code=201,
+        response_model=StoredRunResponse,
+    )
+    def run_gage_rr(request: GageRrRunRequest, response: Response) -> StoredRunResponse:
+        records = [MeasurementRecord(**record.model_dump()) for record in request.records]
+        stored = _save_run(
+            repository,
+            request.run_id,
+            gage_rr_crossed(
+                records, study_variation_multiplier=request.study_variation_multiplier
+            ),
+        )
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _response(stored)
+
+    @app.get("/v1/analysis-runs/{run_id}", response_model=StoredRunResponse)
+    def get_run(run_id: RunId, response: Response) -> StoredRunResponse:
+        stored = repository.load(ANALYSIS_RUNS, run_id)
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _response(stored)
+
+    @app.get("/v1/analysis-runs")
+    def list_runs(
+        limit: Annotated[int, Query(ge=1, le=100)] = 50,
+        after: Annotated[str | None, Query(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")] = None,
+    ) -> dict[str, Any]:
+        stored = repository.list_documents(
+            ANALYSIS_RUNS, after=after, limit=limit + 1
+        )
+        has_more = len(stored) > limit
+        page = stored[:limit]
+        return {
+            "items": [_response(item).model_dump() for item in page],
+            "next_after": page[-1].key if has_more and page else None,
+        }
+
+    @app.post("/v1/fmea-studies", status_code=201, response_model=StoredFmeaStudyResponse)
+    def create_study(
+        request: CreateFmeaStudyRequest, response: Response
+    ) -> StoredFmeaStudyResponse:
+        study = create_fmea_study(
+            study_id=request.study_id,
+            name=request.name,
+            study_type=request.study_type,
+            standard_version=request.standard_version,
+            actor=request.actor,
+            occurred_at=request.occurred_at,
+        )
+        stored = _save_fmea_study(repository, study, expected_version=0)
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _fmea_response(stored)
+
+    @app.get("/v1/fmea-studies")
+    def list_fmea_studies(
+        limit: Annotated[int, Query(ge=1, le=100)] = 50,
+        after: Annotated[str | None, Query(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")] = None,
+    ) -> dict[str, Any]:
+        stored = repository.list_documents(FMEA_STUDIES, after=after, limit=limit + 1)
+        has_more = len(stored) > limit
+        page = stored[:limit]
+        return {
+            "items": [_fmea_response(item).model_dump() for item in page],
+            "next_after": page[-1].key if has_more and page else None,
+        }
+
+    @app.get("/v1/fmea-studies/{study_id}", response_model=StoredFmeaStudyResponse)
+    def get_fmea_study(study_id: RunId, response: Response) -> StoredFmeaStudyResponse:
+        stored, _study = _load_fmea_study(repository, study_id)
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _fmea_response(stored)
+
+    @app.post(
+        "/v1/fmea-studies/{study_id}/failure-analyses",
+        response_model=StoredFmeaStudyResponse,
+    )
+    def add_fmea_failure(
+        study_id: RunId,
+        request: AddFailureAnalysisRequest,
+        response: Response,
+    ) -> StoredFmeaStudyResponse:
+        stored, study = _load_fmea_study(repository, study_id)
+        revised = add_failure_analysis(
+            study,
+            item_id=request.item_id,
+            structure_element=request.structure_element,
+            function=request.function,
+            requirement=request.requirement,
+            failure_mode=request.failure_mode,
+            effect=request.effect,
+            cause=request.cause,
+            prevention_control=request.prevention_control,
+            detection_control=request.detection_control,
+            ratings=RiskRatings(**request.ratings.model_dump()),
+            actor=request.actor,
+            occurred_at=request.occurred_at,
+        )
+        saved = _save_fmea_study(
+            repository,
+            revised,
+            expected_version=request.expected_storage_version,
+        )
+        response.headers["ETag"] = f'"{saved.etag}"'
+        return _fmea_response(saved)
+
+    @app.post(
+        "/v1/fmea-studies/{study_id}/submit-review",
+        response_model=StoredFmeaStudyResponse,
+    )
+    def submit_fmea_study(
+        study_id: RunId,
+        request: FmeaTransitionRequest,
+        response: Response,
+    ) -> StoredFmeaStudyResponse:
+        _stored, study = _load_fmea_study(repository, study_id)
+        revised = submit_for_review(
+            study,
+            actor=request.actor,
+            occurred_at=request.occurred_at,
+        )
+        saved = _save_fmea_study(
+            repository,
+            revised,
+            expected_version=request.expected_storage_version,
+        )
+        response.headers["ETag"] = f'"{saved.etag}"'
+        return _fmea_response(saved)
+
+    return app
+
+
+def create_local_app(storage_root: Path) -> FastAPI:
+    return create_app(AtomicJsonDocumentRepository(storage_root))

@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://statpro.local/schemas/result-bundle.schema.json",
+  "title": "StatPro ResultBundle",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "analysis_type",
+    "engine_version",
+    "input_digest",
+    "parameters",
+    "tables",
+    "plots",
+    "diagnostics",
+    "assumptions",
+    "warnings",
+    "provenance"
+  ],
+  "properties": {
+    "analysis_type": {"type": "string", "minLength": 1},
+    "engine_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$"
+    },
+    "input_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "parameters": {"type": "object"},
+    "tables": {"type": "object"},
+    "plots": {"type": "object"},
+    "diagnostics": {"type": "object"},
+    "assumptions": {"type": "array", "items": {"type": "string"}},
+    "warnings": {"type": "array", "items": {"type": "string"}},
+    "provenance": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["title", "url", "authority"],
+        "properties": {
+          "title": {"type": "string", "minLength": 1},
+          "url": {"type": "string", "format": "uri"},
+          "authority": {"type": "string", "minLength": 1}
+        }
+      }
+    }
+  }
+}
