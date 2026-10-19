@@ -89,6 +89,47 @@ export function submitFmeaForReview(studyId: string, payload: {
   });
 }
 
+export function addFmeaAction(studyId: string, payload: {
+  expected_storage_version: number;
+  action_id: string;
+  item_id: string;
+  description: string;
+  owner: string;
+  due_date: string;
+  actor: string;
+  occurred_at: string;
+}): Promise<StoredFmeaStudy> {
+  return request(`/v1/fmea-studies/${encodeURIComponent(studyId)}/recommended-actions`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function completeFmeaAction(studyId: string, actionId: string, payload: {
+  expected_storage_version: number;
+  result: string;
+  evidence_refs: string[];
+  revised_ratings: { severity: number; occurrence: number; detection: number };
+  actor: string;
+  occurred_at: string;
+}): Promise<StoredFmeaStudy> {
+  return request(`/v1/fmea-studies/${encodeURIComponent(studyId)}/recommended-actions/${encodeURIComponent(actionId)}/complete`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function approveFmeaStudy(studyId: string, payload: {
+  expected_storage_version: number;
+  actor: string;
+  occurred_at: string;
+}): Promise<StoredFmeaStudy> {
+  return request(`/v1/fmea-studies/${encodeURIComponent(studyId)}/approve`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function listWorksheets(limit = 50): Promise<WorksheetPage> {
   return request(`/v1/worksheets?limit=${limit}`);
 }

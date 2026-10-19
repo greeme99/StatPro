@@ -14,7 +14,7 @@ The repository starts with a dependency-free Python statistical core so formulas
 - Balanced crossed Gage R&R using two-way random-effects ANOVA variance components
 - Immutable CSV Dataset snapshots and revisioned Worksheet cell edits
 - Packaged Draft 2020-12 `ResultBundle` JSON Schema
-- Immutable Design/Process FMEA study revisions with actions, review, approval, and audit history
+- Immutable Design/Process FMEA study revisions with action ownership, completion evidence, risk reassessment, review, approval, and audit history
 - Versioned external Action Priority policy contract without bundled proprietary decision tables
 - Loopback-only FastAPI adapter with Analysis Run, revisioned Worksheet/FMEA storage, ETags, optimistic concurrency, and cursor paging
 - Atomic local JSON document adapter plus an in-memory contract-test adapter
@@ -56,7 +56,7 @@ npm ci
 npm run dev -- --host 127.0.0.1
 ```
 
-Open `http://127.0.0.1:5173`. Vite proxies `/api` to the loopback API on port 8765. Use `npm run check` for the nine UI tests, TypeScript check, and production build.
+Open `http://127.0.0.1:5173`. Vite proxies `/api` to the loopback API on port 8765. Use `npm run check` for the eleven UI tests, TypeScript check, and production build.
 
 ## Principles
 

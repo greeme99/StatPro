@@ -42,6 +42,9 @@ from statpro.fmea import (
     RiskRatings,
     StudyType,
     add_failure_analysis,
+    add_recommended_action,
+    approve_study,
+    complete_action,
     create_fmea_study,
     submit_for_review,
 )
@@ -138,6 +141,26 @@ class AddFailureAnalysisRequest(ApiModel):
     prevention_control: str
     detection_control: str
     ratings: RiskRatingsRequest
+    actor: str
+    occurred_at: str
+
+
+class AddRecommendedActionRequest(ApiModel):
+    expected_storage_version: int = Field(ge=1)
+    action_id: RunId
+    item_id: RunId
+    description: str
+    owner: str
+    due_date: str
+    actor: str
+    occurred_at: str
+
+
+class CompleteRecommendedActionRequest(ApiModel):
+    expected_storage_version: int = Field(ge=1)
+    result: str
+    evidence_refs: list[str] = Field(default_factory=list)
+    revised_ratings: RiskRatingsRequest
     actor: str
     occurred_at: str
 
@@ -622,6 +645,62 @@ def create_app(repository: DocumentRepository) -> FastAPI:
         return _fmea_response(saved)
 
     @app.post(
+        "/v1/fmea-studies/{study_id}/recommended-actions",
+        response_model=StoredFmeaStudyResponse,
+    )
+    def add_fmea_action(
+        study_id: RunId,
+        request: AddRecommendedActionRequest,
+        response: Response,
+    ) -> StoredFmeaStudyResponse:
+        _stored, study = _load_fmea_study(repository, study_id)
+        revised = add_recommended_action(
+            study,
+            action_id=request.action_id,
+            item_id=request.item_id,
+            description=request.description,
+            owner=request.owner,
+            due_date=request.due_date,
+            actor=request.actor,
+            occurred_at=request.occurred_at,
+        )
+        saved = _save_fmea_study(
+            repository,
+            revised,
+            expected_version=request.expected_storage_version,
+        )
+        response.headers["ETag"] = f'"{saved.etag}"'
+        return _fmea_response(saved)
+
+    @app.post(
+        "/v1/fmea-studies/{study_id}/recommended-actions/{action_id}/complete",
+        response_model=StoredFmeaStudyResponse,
+    )
+    def complete_fmea_action(
+        study_id: RunId,
+        action_id: RunId,
+        request: CompleteRecommendedActionRequest,
+        response: Response,
+    ) -> StoredFmeaStudyResponse:
+        _stored, study = _load_fmea_study(repository, study_id)
+        revised = complete_action(
+            study,
+            action_id=action_id,
+            result=request.result,
+            evidence_refs=tuple(request.evidence_refs),
+            revised_ratings=RiskRatings(**request.revised_ratings.model_dump()),
+            actor=request.actor,
+            occurred_at=request.occurred_at,
+        )
+        saved = _save_fmea_study(
+            repository,
+            revised,
+            expected_version=request.expected_storage_version,
+        )
+        response.headers["ETag"] = f'"{saved.etag}"'
+        return _fmea_response(saved)
+
+    @app.post(
         "/v1/fmea-studies/{study_id}/submit-review",
         response_model=StoredFmeaStudyResponse,
     )
@@ -632,6 +711,29 @@ def create_app(repository: DocumentRepository) -> FastAPI:
     ) -> StoredFmeaStudyResponse:
         _stored, study = _load_fmea_study(repository, study_id)
         revised = submit_for_review(
+            study,
+            actor=request.actor,
+            occurred_at=request.occurred_at,
+        )
+        saved = _save_fmea_study(
+            repository,
+            revised,
+            expected_version=request.expected_storage_version,
+        )
+        response.headers["ETag"] = f'"{saved.etag}"'
+        return _fmea_response(saved)
+
+    @app.post(
+        "/v1/fmea-studies/{study_id}/approve",
+        response_model=StoredFmeaStudyResponse,
+    )
+    def approve_fmea_study(
+        study_id: RunId,
+        request: FmeaTransitionRequest,
+        response: Response,
+    ) -> StoredFmeaStudyResponse:
+        _stored, study = _load_fmea_study(repository, study_id)
+        revised = approve_study(
             study,
             actor=request.actor,
             occurred_at=request.occurred_at,

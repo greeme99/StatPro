@@ -51,6 +51,17 @@ export type FailureAnalysis = {
   action_priority_reason: string | null;
 };
 
+export type RecommendedAction = {
+  action_id: string;
+  item_id: string;
+  description: string;
+  owner: string;
+  due_date: string;
+  status: "open" | "in_progress" | "complete" | "cancelled";
+  result: string | null;
+  evidence_refs: string[];
+};
+
 export type FmeaStudy = {
   study_id: string;
   name: string;
@@ -61,7 +72,7 @@ export type FmeaStudy = {
   parent_digest: string | null;
   digest: string;
   items: FailureAnalysis[];
-  actions: Array<Record<string, unknown>>;
+  actions: RecommendedAction[];
   audit_events: Array<{
     sequence: number;
     event_type: string;

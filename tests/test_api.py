@@ -189,6 +189,105 @@ class LocalApiContractTests(unittest.TestCase):
         self.assertEqual(submitted.json()["study"]["status"], "in_review")
         self.assertEqual(submitted.json()["study"]["revision"], 3)
 
+    def test_fmea_action_is_completed_reassessed_and_study_approved(self) -> None:
+        created = self.client.post(
+            "/v1/fmea-studies",
+            json={
+                "study_id": "PFMEA-ACTIONS",
+                "name": "Action Lifecycle",
+                "study_type": "process",
+                "standard_version": "customer-standard-2026",
+                "actor": "quality.engineer",
+                "occurred_at": "2026-10-20T10:00:00+09:00",
+            },
+        )
+        self.assertEqual(created.status_code, 201)
+        failure = self.client.post(
+            "/v1/fmea-studies/PFMEA-ACTIONS/failure-analyses",
+            json={
+                "expected_storage_version": 1,
+                "item_id": "FA-001",
+                "structure_element": "Connector",
+                "function": "Maintain contact",
+                "requirement": "Resistance within specification",
+                "failure_mode": "Incomplete insertion",
+                "effect": "Open circuit",
+                "cause": "Fixture drift",
+                "prevention_control": "Setup checklist",
+                "detection_control": "Continuity test",
+                "ratings": {"severity": 8, "occurrence": 4, "detection": 5},
+                "actor": "quality.engineer",
+                "occurred_at": "2026-10-20T10:10:00+09:00",
+            },
+        )
+        self.assertEqual(failure.status_code, 200)
+
+        action = self.client.post(
+            "/v1/fmea-studies/PFMEA-ACTIONS/recommended-actions",
+            json={
+                "expected_storage_version": 2,
+                "action_id": "ACT-001",
+                "item_id": "FA-001",
+                "description": "Add fixture verification sensor",
+                "owner": "process.engineer",
+                "due_date": "2026-11-30",
+                "actor": "quality.engineer",
+                "occurred_at": "2026-10-20T10:20:00+09:00",
+            },
+        )
+        self.assertEqual(action.status_code, 200)
+        self.assertEqual(action.json()["study"]["actions"][0]["status"], "open")
+
+        completed = self.client.post(
+            "/v1/fmea-studies/PFMEA-ACTIONS/recommended-actions/ACT-001/complete",
+            json={
+                "expected_storage_version": 3,
+                "result": "Sensor interlock validated on line 2",
+                "evidence_refs": ["VAL-2026-014"],
+                "revised_ratings": {"severity": 8, "occurrence": 2, "detection": 2},
+                "actor": "process.engineer",
+                "occurred_at": "2026-10-21T09:00:00+09:00",
+            },
+        )
+        self.assertEqual(completed.status_code, 200)
+        completed_study = completed.json()["study"]
+        self.assertEqual(completed_study["actions"][0]["status"], "complete")
+        self.assertEqual(completed_study["actions"][0]["evidence_refs"], ["VAL-2026-014"])
+        self.assertEqual(completed_study["items"][0]["initial_ratings"]["rpn"], 160)
+        self.assertEqual(completed_study["items"][0]["current_ratings"]["rpn"], 32)
+
+        submitted = self.client.post(
+            "/v1/fmea-studies/PFMEA-ACTIONS/submit-review",
+            json={
+                "expected_storage_version": 4,
+                "actor": "quality.reviewer",
+                "occurred_at": "2026-10-21T10:00:00+09:00",
+            },
+        )
+        self.assertEqual(submitted.status_code, 200)
+        approved = self.client.post(
+            "/v1/fmea-studies/PFMEA-ACTIONS/approve",
+            json={
+                "expected_storage_version": 5,
+                "actor": "quality.approver",
+                "occurred_at": "2026-10-21T11:00:00+09:00",
+            },
+        )
+        self.assertEqual(approved.status_code, 200)
+        self.assertEqual(approved.json()["storage_version"], 6)
+        self.assertEqual(approved.json()["study"]["status"], "approved")
+        self.assertEqual(
+            [event["event_type"] for event in approved.json()["study"]["audit_events"]],
+            [
+                "study_created",
+                "failure_analysis_added",
+                "recommended_action_added",
+                "recommended_action_completed",
+                "study_submitted",
+                "study_approved",
+            ],
+        )
+
     def test_csv_worksheet_is_imported_revised_and_cursor_listed(self) -> None:
         content = base64.b64encode(
             b"value,accepted,note\n10.5,true,ok\n,false,check\n"

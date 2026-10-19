@@ -104,6 +104,59 @@ describe("StatPro UI", () => {
     expect(JSON.parse(String((reviewCall?.[1] as RequestInit).body)).expected_storage_version).toBe(2);
   });
 
+  it("adds and completes an FMEA action with revised risk ratings", async () => {
+    const item = {
+      item_id: "FA-001", structure_element: "Connector", function: "Maintain contact", requirement: "Resistance", failure_mode: "Incomplete insertion", effect: "Open circuit", cause: "Fixture drift", prevention_control: "Checklist", detection_control: "Continuity test",
+      initial_ratings: { severity: 8, occurrence: 4, detection: 5, rpn: 160 }, current_ratings: { severity: 8, occurrence: 4, detection: 5, rpn: 160 }, action_priority: null, action_priority_reason: "policy_not_supplied",
+    };
+    const baseStudy = { study_id: "PFMEA-001", name: "Connector Assembly", study_type: "process", standard_version: "customer-standard-2026", status: "draft", revision: 2, parent_digest: "a", digest: "b".repeat(64), items: [item], actions: [], audit_events: [], action_priority_policy_id: null, action_priority_policy_digest: null };
+    const openAction = { action_id: "ACT-001", item_id: "FA-001", description: "Add fixture sensor", owner: "process.engineer", due_date: "2026-11-30", status: "open", result: null, evidence_refs: [] };
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url.endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      if (url.endsWith("/recommended-actions") && init?.method === "POST") return new Response(JSON.stringify({ study_id: "PFMEA-001", storage_version: 3, etag: "c".repeat(64), study: { ...baseStudy, revision: 3, actions: [openAction] } }), { status: 200 });
+      if (url.endsWith("/recommended-actions/ACT-001/complete") && init?.method === "POST") return new Response(JSON.stringify({ study_id: "PFMEA-001", storage_version: 4, etag: "d".repeat(64), study: { ...baseStudy, revision: 4, items: [{ ...item, current_ratings: { severity: 8, occurrence: 2, detection: 2, rpn: 32 } }], actions: [{ ...openAction, status: "complete", result: "Validated", evidence_refs: ["VAL-014"] }] } }), { status: 200 });
+      return new Response(JSON.stringify({ study_id: "PFMEA-001", storage_version: 2, etag: "a".repeat(64), study: baseStudy }), { status: 200 });
+    });
+
+    render(<MemoryRouter initialEntries={["/fmea/PFMEA-001"]}><App /></MemoryRouter>);
+    await userEvent.click(await screen.findByRole("button", { name: "권고조치 추가" }));
+    await userEvent.type(screen.getByRole("textbox", { name: "권고조치" }), "Add fixture sensor");
+    await userEvent.type(screen.getByRole("textbox", { name: "담당자" }), "process.engineer");
+    await userEvent.type(screen.getByLabelText("완료 예정일"), "2026-11-30");
+    await userEvent.click(screen.getByRole("button", { name: "권고조치 저장" }));
+    expect(await screen.findByText(/ACT-001 · Add fixture sensor/)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "완료 및 재평가" }));
+    await userEvent.type(screen.getByRole("textbox", { name: "실행 결과" }), "Validated");
+    await userEvent.type(screen.getByRole("textbox", { name: /증거 참조/ }), "VAL-014");
+    const occurrence = screen.getByRole("spinbutton", { name: "재평가 O" });
+    const detection = screen.getByRole("spinbutton", { name: "재평가 D" });
+    await userEvent.clear(occurrence); await userEvent.type(occurrence, "2");
+    await userEvent.clear(detection); await userEvent.type(detection, "2");
+    await userEvent.click(screen.getByRole("button", { name: "완료 저장" }));
+    expect(await screen.findByText("완료")).toBeInTheDocument();
+    expect(await screen.findByText(/결과:/)).toBeInTheDocument();
+
+    const completeCall = fetchMock.mock.calls.find(([url]) => String(url).endsWith("/recommended-actions/ACT-001/complete"));
+    expect(JSON.parse(String((completeCall?.[1] as RequestInit).body))).toMatchObject({ expected_storage_version: 3, evidence_refs: ["VAL-014"], revised_ratings: { severity: 8, occurrence: 2, detection: 2 } });
+  });
+
+  it("approves an in-review FMEA revision", async () => {
+    const study = { study_id: "PFMEA-001", name: "Connector Assembly", study_type: "process", standard_version: "customer-standard-2026", status: "in_review", revision: 5, parent_digest: "a", digest: "b".repeat(64), items: [], actions: [], audit_events: [], action_priority_policy_id: null, action_priority_policy_digest: null };
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      if (init?.method === "POST") return new Response(JSON.stringify({ study_id: "PFMEA-001", storage_version: 6, etag: "c".repeat(64), study: { ...study, status: "approved", revision: 6 } }), { status: 200 });
+      return new Response(JSON.stringify({ study_id: "PFMEA-001", storage_version: 5, etag: "a".repeat(64), study }), { status: 200 });
+    });
+
+    render(<MemoryRouter initialEntries={["/fmea/PFMEA-001"]}><App /></MemoryRouter>);
+    await userEvent.click(await screen.findByRole("button", { name: "승인" }));
+    expect(await screen.findByText("승인됨")).toBeInTheDocument();
+    const approveCall = fetchMock.mock.calls.find(([url, init]) => String(url).endsWith("/approve") && (init as RequestInit | undefined)?.method === "POST");
+    expect(JSON.parse(String((approveCall?.[1] as RequestInit).body)).expected_storage_version).toBe(5);
+  });
+
   it("renders persisted worksheets with typed shape metadata", async () => {
     const worksheet = { worksheet_id: "ws-001", name: "Process Measurements", base_dataset_digest: "d".repeat(64), digest: "e".repeat(64), revision: 1, parent_digest: null, row_count: 2, columns: [{ name: "value", data_type: "numeric", nullable: true, missing_count: 1, values: [10.5, null] }], transformations: [] };
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
