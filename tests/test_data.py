@@ -10,6 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from statpro.domain.data import (
     DataType,
     create_worksheet,
+    import_csv_bytes,
     import_csv_dataset,
     replace_worksheet_cell,
 )
@@ -17,6 +18,15 @@ from statpro.domain.errors import AnalysisInputError
 
 
 class DatasetImportTests(unittest.TestCase):
+    def test_csv_bytes_preserve_caller_source_identity_without_a_temp_file(self) -> None:
+        source = b"value,accepted\n10.5,true\n,false\n"
+        dataset = import_csv_bytes(source, location="browser-upload.csv")
+
+        self.assertEqual(dataset.source.location, "browser-upload.csv")
+        self.assertEqual(dataset.source.kind, "csv")
+        self.assertEqual(dataset.row_count, 2)
+        self.assertEqual(dataset.columns[0].values, (10.5, None))
+
     def test_csv_import_infers_types_and_preserves_missing_values(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "process.csv"

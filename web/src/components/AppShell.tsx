@@ -6,7 +6,7 @@ import { getHealth } from "../api";
 const navigation = [
   { to: "/", label: "홈", icon: Home },
   { to: "/analyses/imr/new", label: "분석", icon: BarChart3 },
-  { to: "/data", label: "데이터", icon: Database, disabled: true },
+  { to: "/data", label: "데이터", icon: Database },
   { to: "/fmea", label: "FMEA", icon: FileWarning },
 ];
 
@@ -53,21 +53,15 @@ export function AppShell({ children }: { children: ReactNode }) {
       </header>
       <aside className="sidebar" aria-label="주 메뉴">
         <nav>
-          {navigation.map(({ to, label, icon: Icon, disabled }) =>
-            disabled ? (
-              <span className="nav-item is-disabled" key={to} aria-disabled="true">
-                <Icon aria-hidden="true" /><span>{label}</span><small>준비 중</small>
-              </span>
-            ) : (
-              <NavLink
-                className={({ isActive }) => `nav-item${isActive ? " is-active" : ""}`}
-                to={to}
-                key={to}
-              >
-                <Icon aria-hidden="true" /><span>{label}</span>
-              </NavLink>
-            ),
-          )}
+          {navigation.map(({ to, label, icon: Icon }) => (
+            <NavLink
+              className={({ isActive }) => `nav-item${isActive ? " is-active" : ""}`}
+              to={to}
+              key={to}
+            >
+              <Icon aria-hidden="true" /><span>{label}</span>
+            </NavLink>
+          ))}
         </nav>
         <div className="sidebar-foot">
           <span className="utility-label">ENGINE</span>

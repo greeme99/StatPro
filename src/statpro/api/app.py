@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import base64
+import binascii
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -24,7 +26,15 @@ from statpro.application.documents import (
     InvalidDocumentKeyError,
     StoredDocument,
 )
-from statpro.domain.errors import DomainInputError
+from statpro.domain.errors import AnalysisInputError, DomainInputError
+from statpro.domain.data import (
+    DataType,
+    DatasetSnapshot,
+    WorksheetSnapshot,
+    create_worksheet,
+    import_csv_bytes,
+    replace_worksheet_cell,
+)
 from statpro.domain.models import ResultBundle
 from statpro.domain.schema import result_bundle_schema
 from statpro.fmea import (
@@ -38,6 +48,8 @@ from statpro.fmea import (
 from statpro.version import ENGINE_VERSION
 
 ANALYSIS_RUNS = "analysis-runs"
+DATASETS = "datasets"
+WORKSHEETS = "worksheets"
 FMEA_STUDIES = "fmea-studies"
 RunId = Annotated[str, Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")]
 
@@ -143,6 +155,29 @@ class StoredFmeaStudyResponse(ApiModel):
     study: dict[str, Any]
 
 
+class ImportCsvWorksheetRequest(ApiModel):
+    file_name: str = Field(min_length=1, max_length=255)
+    worksheet_name: str = Field(min_length=1, max_length=255)
+    content_base64: str = Field(min_length=1, max_length=28_000_000)
+    type_hints: dict[str, DataType] = Field(default_factory=dict)
+    missing_tokens: list[str] = Field(default_factory=lambda: [""])
+
+
+class ReplaceWorksheetCellRequest(ApiModel):
+    expected_storage_version: int = Field(ge=1)
+    row_index: int = Field(ge=0)
+    column_name: str = Field(min_length=1)
+    value: str | float | bool | None
+
+
+class StoredWorksheetResponse(ApiModel):
+    worksheet_id: str
+    storage_version: int
+    etag: str
+    worksheet: dict[str, Any]
+    dataset: dict[str, Any] | None = None
+
+
 def _response(stored: StoredDocument) -> StoredRunResponse:
     return StoredRunResponse(
         run_id=stored.key,
@@ -184,6 +219,70 @@ def _save_fmea_study(
         {"kind": "fmea_study", "study_id": study.study_id, "study": study.to_dict()},
         expected_version=expected_version,
     )
+
+
+def _worksheet_response(
+    stored: StoredDocument,
+    *,
+    dataset: DatasetSnapshot | None = None,
+) -> StoredWorksheetResponse:
+    return StoredWorksheetResponse(
+        worksheet_id=stored.key,
+        storage_version=stored.storage_version,
+        etag=stored.etag,
+        worksheet=stored.document["worksheet"],
+        dataset=None if dataset is None else dataset.to_dict(),
+    )
+
+
+def _load_worksheet(
+    repository: DocumentRepository, worksheet_id: str
+) -> tuple[StoredDocument, WorksheetSnapshot]:
+    stored = repository.load(WORKSHEETS, worksheet_id)
+    try:
+        worksheet = WorksheetSnapshot.from_dict(stored.document["worksheet"])
+    except (KeyError, TypeError, ValueError) as error:
+        raise DocumentStoreError(
+            f"Stored worksheet {worksheet_id} does not match its owned format."
+        ) from error
+    return stored, worksheet
+
+
+def _save_worksheet(
+    repository: DocumentRepository,
+    worksheet: WorksheetSnapshot,
+    *,
+    expected_version: int,
+) -> StoredDocument:
+    return repository.save(
+        WORKSHEETS,
+        worksheet.worksheet_id,
+        {
+            "kind": "worksheet",
+            "worksheet_id": worksheet.worksheet_id,
+            "worksheet": worksheet.to_dict(),
+        },
+        expected_version=expected_version,
+    )
+
+
+def _ensure_dataset(
+    repository: DocumentRepository, dataset: DatasetSnapshot
+) -> StoredDocument:
+    document = {
+        "kind": "dataset",
+        "dataset_id": dataset.dataset_id,
+        "dataset": dataset.to_dict(),
+    }
+    try:
+        stored = repository.load(DATASETS, dataset.dataset_id)
+    except DocumentNotFoundError:
+        return repository.save(DATASETS, dataset.dataset_id, document, expected_version=0)
+    if stored.document != document:
+        raise DocumentStoreError(
+            f"Stored Dataset {dataset.dataset_id} conflicts with its content identity."
+        )
+    return stored
 
 
 def _save_run(
@@ -373,6 +472,86 @@ def create_app(repository: DocumentRepository) -> FastAPI:
             "items": [_response(item).model_dump() for item in page],
             "next_after": page[-1].key if has_more and page else None,
         }
+
+    @app.post(
+        "/v1/worksheets/import-csv",
+        status_code=201,
+        response_model=StoredWorksheetResponse,
+    )
+    def import_worksheet_csv(
+        request: ImportCsvWorksheetRequest, response: Response
+    ) -> StoredWorksheetResponse:
+        try:
+            source_bytes = base64.b64decode(request.content_base64, validate=True)
+        except (binascii.Error, ValueError) as error:
+            raise AnalysisInputError(
+                "invalid_base64", "CSV content is not valid base64.", "content_base64"
+            ) from error
+        if len(source_bytes) > 20_000_000:
+            raise AnalysisInputError(
+                "dataset_too_large",
+                "CSV upload supports at most 20,000,000 bytes.",
+                "content_base64",
+            )
+        dataset = import_csv_bytes(
+            source_bytes,
+            location=request.file_name,
+            type_hints=request.type_hints,
+            missing_tokens=request.missing_tokens,
+        )
+        _ensure_dataset(repository, dataset)
+        worksheet = create_worksheet(dataset, name=request.worksheet_name)
+        stored = _save_worksheet(repository, worksheet, expected_version=0)
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _worksheet_response(stored, dataset=dataset)
+
+    @app.get("/v1/worksheets")
+    def list_worksheets(
+        limit: Annotated[int, Query(ge=1, le=100)] = 50,
+        after: Annotated[
+            str | None,
+            Query(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"),
+        ] = None,
+    ) -> dict[str, Any]:
+        stored = repository.list_documents(WORKSHEETS, after=after, limit=limit + 1)
+        has_more = len(stored) > limit
+        page = stored[:limit]
+        return {
+            "items": [_worksheet_response(item).model_dump() for item in page],
+            "next_after": page[-1].key if has_more and page else None,
+        }
+
+    @app.get("/v1/worksheets/{worksheet_id}", response_model=StoredWorksheetResponse)
+    def get_worksheet(
+        worksheet_id: RunId, response: Response
+    ) -> StoredWorksheetResponse:
+        stored, _worksheet = _load_worksheet(repository, worksheet_id)
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _worksheet_response(stored)
+
+    @app.patch(
+        "/v1/worksheets/{worksheet_id}/cells",
+        response_model=StoredWorksheetResponse,
+    )
+    def replace_cell(
+        worksheet_id: RunId,
+        request: ReplaceWorksheetCellRequest,
+        response: Response,
+    ) -> StoredWorksheetResponse:
+        _stored, worksheet = _load_worksheet(repository, worksheet_id)
+        revised = replace_worksheet_cell(
+            worksheet,
+            row_index=request.row_index,
+            column_name=request.column_name,
+            value=request.value,
+        )
+        saved = _save_worksheet(
+            repository,
+            revised,
+            expected_version=request.expected_storage_version,
+        )
+        response.headers["ETag"] = f'"{saved.etag}"'
+        return _worksheet_response(saved)
 
     @app.post("/v1/fmea-studies", status_code=201, response_model=StoredFmeaStudyResponse)
     def create_study(

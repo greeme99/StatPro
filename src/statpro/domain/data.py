@@ -53,6 +53,14 @@ class DataColumn:
             "values": list(self.values),
         }
 
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> "DataColumn":
+        return cls(
+            name=payload["name"],
+            data_type=DataType(payload["data_type"]),
+            values=tuple(payload["values"]),
+        )
+
 
 @dataclass(frozen=True, slots=True)
 class DatasetSnapshot:
@@ -76,6 +84,22 @@ class DatasetSnapshot:
             "column_count": len(self.columns),
             "columns": [column.to_dict() for column in self.columns],
         }
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> "DatasetSnapshot":
+        source = payload["source"]
+        return cls(
+            dataset_id=payload["dataset_id"],
+            digest=payload["digest"],
+            source=DatasetSource(
+                kind=source["kind"],
+                location=source["location"],
+                media_type=source["media_type"],
+                content_digest=source["content_digest"],
+            ),
+            columns=tuple(DataColumn.from_dict(column) for column in payload["columns"]),
+            row_count=payload["row_count"],
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -105,6 +129,19 @@ class WorksheetSnapshot:
             "columns": [column.to_dict() for column in self.columns],
             "transformations": list(self.transformations),
         }
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> "WorksheetSnapshot":
+        return cls(
+            worksheet_id=payload["worksheet_id"],
+            name=payload["name"],
+            base_dataset_digest=payload["base_dataset_digest"],
+            digest=payload["digest"],
+            revision=payload["revision"],
+            parent_digest=payload["parent_digest"],
+            columns=tuple(DataColumn.from_dict(column) for column in payload["columns"]),
+            transformations=tuple(payload["transformations"]),
+        )
 
 
 def _parse_value(value: str, data_type: DataType, field: str) -> CellValue:
@@ -168,13 +205,38 @@ def import_csv_dataset(
 
     try:
         source_bytes = path.read_bytes()
-        text = source_bytes.decode(encoding)
-    except (OSError, UnicodeError) as error:
+    except OSError as error:
         raise AnalysisInputError("csv_read_failed", str(error), "path") from error
+
+    return import_csv_bytes(
+        source_bytes,
+        location=str(path.resolve()),
+        type_hints=type_hints,
+        missing_tokens=missing_tokens,
+        encoding=encoding,
+        error_field="path",
+    )
+
+
+def import_csv_bytes(
+    source_bytes: bytes,
+    *,
+    location: str,
+    type_hints: Mapping[str, DataType] | None = None,
+    missing_tokens: Sequence[str] = ("",),
+    encoding: str = "utf-8-sig",
+    error_field: str = "content",
+) -> DatasetSnapshot:
+    """Import caller-owned CSV bytes without requiring a temporary filesystem path."""
+
+    try:
+        text = source_bytes.decode(encoding)
+    except UnicodeError as error:
+        raise AnalysisInputError("csv_read_failed", str(error), error_field) from error
 
     rows = list(csv.reader(io.StringIO(text, newline="")))
     if not rows or not rows[0]:
-        raise AnalysisInputError("empty_csv", "CSV input requires a header row.", "path")
+        raise AnalysisInputError("empty_csv", "CSV input requires a header row.", error_field)
     headers = [header.strip() for header in rows[0]]
     if any(not header for header in headers):
         raise AnalysisInputError("empty_column_name", "Every CSV column needs a name.", "header")
@@ -183,7 +245,7 @@ def import_csv_dataset(
     data_rows = rows[1:]
     if len(data_rows) > 1_000_000:
         raise AnalysisInputError(
-            "dataset_too_large", "CSV import supports at most 1,000,000 rows.", "path"
+            "dataset_too_large", "CSV import supports at most 1,000,000 rows.", error_field
         )
     for row_index, row in enumerate(data_rows, start=2):
         if len(row) != len(headers):
@@ -227,7 +289,7 @@ def import_csv_dataset(
         digest=digest,
         source=DatasetSource(
             kind="csv",
-            location=str(path.resolve()),
+            location=location,
             media_type="text/csv",
             content_digest=source_digest,
         ),

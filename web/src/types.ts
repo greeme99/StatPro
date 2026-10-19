@@ -84,3 +84,52 @@ export type FmeaStudyPage = {
   items: StoredFmeaStudy[];
   next_after: string | null;
 };
+
+export type CellValue = number | boolean | string | null;
+
+export type DataColumn = {
+  name: string;
+  data_type: "numeric" | "categorical" | "text" | "datetime" | "logical";
+  nullable: boolean;
+  missing_count: number;
+  values: CellValue[];
+};
+
+export type DatasetSnapshot = {
+  dataset_id: string;
+  digest: string;
+  source: {
+    kind: string;
+    location: string;
+    media_type: string;
+    content_digest: string;
+  };
+  row_count: number;
+  column_count: number;
+  columns: DataColumn[];
+};
+
+export type WorksheetSnapshot = {
+  worksheet_id: string;
+  name: string;
+  base_dataset_digest: string;
+  digest: string;
+  revision: number;
+  parent_digest: string | null;
+  row_count: number;
+  columns: DataColumn[];
+  transformations: Array<Record<string, unknown>>;
+};
+
+export type StoredWorksheet = {
+  worksheet_id: string;
+  storage_version: number;
+  etag: string;
+  worksheet: WorksheetSnapshot;
+  dataset: DatasetSnapshot | null;
+};
+
+export type WorksheetPage = {
+  items: StoredWorksheet[];
+  next_after: string | null;
+};

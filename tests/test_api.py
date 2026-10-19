@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import sys
 import unittest
 from pathlib import Path
@@ -187,3 +188,69 @@ class LocalApiContractTests(unittest.TestCase):
         self.assertEqual(submitted.status_code, 200)
         self.assertEqual(submitted.json()["study"]["status"], "in_review")
         self.assertEqual(submitted.json()["study"]["revision"], 3)
+
+    def test_csv_worksheet_is_imported_revised_and_cursor_listed(self) -> None:
+        content = base64.b64encode(
+            b"value,accepted,note\n10.5,true,ok\n,false,check\n"
+        ).decode("ascii")
+        created = self.client.post(
+            "/v1/worksheets/import-csv",
+            json={
+                "file_name": "process.csv",
+                "worksheet_name": "Process Measurements",
+                "content_base64": content,
+            },
+        )
+
+        self.assertEqual(created.status_code, 201)
+        payload = created.json()
+        worksheet_id = payload["worksheet_id"]
+        self.assertEqual(payload["worksheet"]["revision"], 1)
+        self.assertEqual(payload["worksheet"]["columns"][0]["values"], [10.5, None])
+        self.assertEqual(payload["dataset"]["source"]["location"], "process.csv")
+
+        listed = self.client.get("/v1/worksheets", params={"limit": 1}).json()
+        retrieved = self.client.get(f"/v1/worksheets/{worksheet_id}")
+        self.assertEqual([item["worksheet_id"] for item in listed["items"]], [worksheet_id])
+        self.assertEqual(retrieved.status_code, 200)
+
+        revised = self.client.patch(
+            f"/v1/worksheets/{worksheet_id}/cells",
+            json={
+                "expected_storage_version": 1,
+                "row_index": 0,
+                "column_name": "value",
+                "value": 11.25,
+            },
+        )
+        self.assertEqual(revised.status_code, 200)
+        self.assertEqual(revised.json()["storage_version"], 2)
+        self.assertEqual(revised.json()["worksheet"]["revision"], 2)
+        self.assertEqual(revised.json()["worksheet"]["columns"][0]["values"][0], 11.25)
+        self.assertEqual(
+            revised.json()["worksheet"]["parent_digest"], payload["worksheet"]["digest"]
+        )
+
+        stale = self.client.patch(
+            f"/v1/worksheets/{worksheet_id}/cells",
+            json={
+                "expected_storage_version": 1,
+                "row_index": 0,
+                "column_name": "value",
+                "value": 12,
+            },
+        )
+        self.assertEqual(stale.status_code, 409)
+        self.assertEqual(stale.json()["error"]["code"], "storage_conflict")
+
+    def test_csv_worksheet_rejects_invalid_base64(self) -> None:
+        response = self.client.post(
+            "/v1/worksheets/import-csv",
+            json={
+                "file_name": "bad.csv",
+                "worksheet_name": "Bad",
+                "content_base64": "not base64!",
+            },
+        )
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.json()["error"]["code"], "invalid_base64")

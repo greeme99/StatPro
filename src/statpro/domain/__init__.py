@@ -7,6 +7,7 @@ from statpro.domain.data import (
     DataType,
     WorksheetSnapshot,
     create_worksheet,
+    import_csv_bytes,
     import_csv_dataset,
     replace_worksheet_cell,
 )
@@ -21,6 +22,7 @@ __all__ = [
     "ResultBundle",
     "WorksheetSnapshot",
     "create_worksheet",
+    "import_csv_bytes",
     "import_csv_dataset",
     "replace_worksheet_cell",
     "result_bundle_schema",

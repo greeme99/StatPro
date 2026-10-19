@@ -132,6 +132,7 @@ dd { margin: var(--space-0); }
 .generic-result-panel dl, .generic-result-panel > p { margin: var(--card-pad); }
 .viewport-warning { display: none; }
 .fmea-list-layout { display: grid; grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr); gap: var(--grid-gap); align-items: start; }
+.data-list-layout { display: grid; grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr); gap: var(--grid-gap); align-items: start; }
 .compact-form { position: sticky; top: calc(var(--header-height) + var(--space-5)); }
 .form-stack { display: grid; gap: var(--space-4); padding: var(--card-pad); }
 .field select { width: 100%; min-height: var(--control-height); padding: var(--space-2) var(--space-3); color: var(--color-text-primary); background: var(--color-bg-surface); border: var(--border-width) solid var(--color-border-strong); border-radius: var(--radius-md); }
@@ -158,11 +159,29 @@ dd { margin: var(--space-0); }
 .status-text.is-muted { color: var(--color-text-secondary); }
 .policy-note { display: flex; align-items: flex-start; gap: var(--space-2); margin-top: var(--space-4) !important; padding: var(--space-3); color: var(--color-text-secondary); background: var(--color-bg-subtle); border-radius: var(--radius-md); }
 .policy-note svg { flex: 0 0 auto; color: var(--color-status-warning); }
+.worksheet-layout { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(0, 4fr); gap: var(--grid-gap); align-items: start; }
+.column-profile { position: sticky; top: calc(var(--header-height) + var(--space-5)); }
+.column-profile dl { padding: var(--card-pad); }
+.worksheet-scroll { max-height: calc(100vh - 270px); overflow: auto; }
+.worksheet-table { width: max-content; min-width: 100%; }
+.worksheet-table th, .worksheet-table td { min-width: 140px; padding: var(--space-0); text-align: left; background: var(--color-bg-surface); }
+.worksheet-table thead th { position: sticky; z-index: 2; top: var(--space-0); background: var(--color-bg-subtle); }
+.worksheet-table th:first-child { position: sticky; z-index: 3; left: var(--space-0); min-width: 64px; width: 64px; padding: var(--space-2); text-align: right; color: var(--color-text-secondary); background: var(--color-bg-subtle); }
+.worksheet-table thead th:first-child { z-index: 4; }
+.worksheet-table thead button { width: 100%; min-height: var(--row-h); display: grid; gap: var(--space-1); padding: var(--space-2) var(--space-3); text-align: left; color: var(--color-text-primary); background: transparent; border: 0; cursor: pointer; }
+.worksheet-table thead button:hover { color: var(--color-action); background: var(--color-bg-hover); }
+.worksheet-table thead small { color: var(--color-text-secondary); font-size: 11px; font-weight: 400; }
+.cell-button { width: 100%; min-height: var(--row-h); padding: var(--space-2) var(--space-3); text-align: left; color: var(--color-text-primary); background: transparent; border: 0; cursor: pointer; font-variant-numeric: tabular-nums; }
+.cell-button:hover, .cell-button:focus-visible { background: var(--color-bg-selected); }
+.missing-value { color: var(--color-text-muted); font-style: italic; }
+.table-limit-note { padding: var(--space-3) var(--card-pad); border-top: var(--border-width) solid var(--color-border); }
+.cell-editor form { display: grid; gap: var(--space-5); padding: var(--space-5) var(--space-0); }
+.cell-editor .method-note { display: flex; gap: var(--space-2); align-items: flex-start; }
 
 @media (max-width: 1439px) {
   .page { padding: var(--space-6); }
   .dashboard-grid { grid-template-columns: 1fr; }
-  .fmea-list-layout { grid-template-columns: minmax(0, 3fr) minmax(300px, 2fr); }
+  .fmea-list-layout, .data-list-layout { grid-template-columns: minmax(0, 3fr) minmax(300px, 2fr); }
 }
 @media (max-width: 1023px) {
   .sidebar { width: var(--sidebar-compact-width); padding-inline: var(--space-2); }
@@ -171,8 +190,9 @@ dd { margin: var(--space-0); }
   .main-content { margin-left: var(--sidebar-compact-width); }
   .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .form-panel { grid-template-columns: 1fr; gap: var(--space-5); }
-  .fmea-list-layout, .fmea-workbench { grid-template-columns: 1fr; }
+  .fmea-list-layout, .data-list-layout, .fmea-workbench, .worksheet-layout { grid-template-columns: 1fr; }
   .compact-form { position: static; }
+  .column-profile { position: static; }
   .failure-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 767px) {

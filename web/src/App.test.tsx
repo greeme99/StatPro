@@ -103,4 +103,67 @@ describe("StatPro UI", () => {
     const reviewCall = fetchMock.mock.calls.find(([url, init]) => String(url).includes("submit-review") && (init as RequestInit | undefined)?.method === "POST");
     expect(JSON.parse(String((reviewCall?.[1] as RequestInit).body)).expected_storage_version).toBe(2);
   });
+
+  it("renders persisted worksheets with typed shape metadata", async () => {
+    const worksheet = { worksheet_id: "ws-001", name: "Process Measurements", base_dataset_digest: "d".repeat(64), digest: "e".repeat(64), revision: 1, parent_digest: null, row_count: 2, columns: [{ name: "value", data_type: "numeric", nullable: true, missing_count: 1, values: [10.5, null] }], transformations: [] };
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const payload = String(input).endsWith("/health")
+        ? { ok: true, engine_version: "0.6.0", local_only: true }
+        : { items: [{ worksheet_id: "ws-001", storage_version: 1, etag: "a".repeat(64), worksheet, dataset: null }], next_after: null };
+      return new Response(JSON.stringify(payload), { status: 200 });
+    });
+
+    render(<MemoryRouter initialEntries={["/data"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "워크시트" })).toBeInTheDocument();
+    expect(await screen.findByText("Process Measurements")).toBeInTheDocument();
+    expect(screen.getByText("ws-001")).toBeInTheDocument();
+  });
+
+  it("imports a CSV file and opens its worksheet", async () => {
+    const worksheet = { worksheet_id: "ws-new", name: "Incoming Data", base_dataset_digest: "d".repeat(64), digest: "e".repeat(64), revision: 1, parent_digest: null, row_count: 1, columns: [{ name: "value", data_type: "numeric", nullable: false, missing_count: 0, values: [10.5] }], transformations: [] };
+    const stored = { worksheet_id: "ws-new", storage_version: 1, etag: "a".repeat(64), worksheet, dataset: null };
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url.endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      if (init?.method === "POST") return new Response(JSON.stringify(stored), { status: 201 });
+      if (url.includes("/v1/worksheets/ws-new")) return new Response(JSON.stringify(stored), { status: 200 });
+      return new Response(JSON.stringify({ items: [], next_after: null }), { status: 200 });
+    });
+
+    render(<MemoryRouter initialEntries={["/data"]}><App /></MemoryRouter>);
+    await userEvent.clear(await screen.findByRole("textbox", { name: "워크시트 이름" }));
+    await userEvent.type(screen.getByRole("textbox", { name: "워크시트 이름" }), "Incoming Data");
+    await userEvent.upload(screen.getByLabelText(/CSV 파일/), new File(["value\n10.5\n"], "incoming.csv", { type: "text/csv" }));
+    await userEvent.click(screen.getByRole("button", { name: "가져오기" }));
+
+    expect(await screen.findByRole("heading", { name: "Incoming Data" })).toBeInTheDocument();
+    const importCall = fetchMock.mock.calls.find(([url, init]) => String(url).endsWith("/v1/worksheets/import-csv") && (init as RequestInit | undefined)?.method === "POST");
+    const body = JSON.parse(String((importCall?.[1] as RequestInit).body));
+    expect(body.file_name).toBe("incoming.csv");
+    expect(atob(body.content_base64)).toBe("value\n10.5\n");
+  });
+
+  it("edits a worksheet cell as a new revision", async () => {
+    const column = { name: "value", data_type: "numeric", nullable: false, missing_count: 0, values: [10.5] };
+    const worksheet = { worksheet_id: "ws-001", name: "Process Measurements", base_dataset_digest: "d".repeat(64), digest: "e".repeat(64), revision: 1, parent_digest: null, row_count: 1, columns: [column], transformations: [] };
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      if (init?.method === "PATCH") return new Response(JSON.stringify({ worksheet_id: "ws-001", storage_version: 2, etag: "b".repeat(64), worksheet: { ...worksheet, revision: 2, parent_digest: worksheet.digest, columns: [{ ...column, values: [11.25] }] }, dataset: null }), { status: 200 });
+      return new Response(JSON.stringify({ worksheet_id: "ws-001", storage_version: 1, etag: "a".repeat(64), worksheet, dataset: null }), { status: 200 });
+    });
+
+    render(<MemoryRouter initialEntries={["/data/ws-001"]}><App /></MemoryRouter>);
+    const trigger = await screen.findByRole("button", { name: /행 1, 열 value, 값 10.5 편집/ });
+    await userEvent.click(trigger);
+    const editor = screen.getByRole("textbox", { name: /^새 값/ });
+    expect(editor).toHaveFocus();
+    await userEvent.clear(editor);
+    await userEvent.type(editor, "11.25");
+    await userEvent.click(screen.getByRole("button", { name: "새 revision으로 저장" }));
+
+    expect(await screen.findByText(/revision 2/)).toBeInTheDocument();
+    const patchCall = fetchMock.mock.calls.find(([, init]) => (init as RequestInit | undefined)?.method === "PATCH");
+    const body = JSON.parse(String((patchCall?.[1] as RequestInit).body));
+    expect(body).toMatchObject({ expected_storage_version: 1, row_index: 0, column_name: "value", value: "11.25" });
+  });
 });

@@ -1,4 +1,4 @@
-import type { ApiError, FmeaStudyPage, StoredFmeaStudy, RunPage, StoredRun } from "./types";
+import type { ApiError, CellValue, FmeaStudyPage, StoredFmeaStudy, RunPage, StoredRun, StoredWorksheet, WorksheetPage } from "./types";
 
 const API_BASE = import.meta.env.VITE_STATPRO_API_URL ?? "/api";
 
@@ -85,6 +85,37 @@ export function submitFmeaForReview(studyId: string, payload: {
 }): Promise<StoredFmeaStudy> {
   return request(`/v1/fmea-studies/${encodeURIComponent(studyId)}/submit-review`, {
     method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function listWorksheets(limit = 50): Promise<WorksheetPage> {
+  return request(`/v1/worksheets?limit=${limit}`);
+}
+
+export function getWorksheet(worksheetId: string): Promise<StoredWorksheet> {
+  return request(`/v1/worksheets/${encodeURIComponent(worksheetId)}`);
+}
+
+export function importCsvWorksheet(payload: {
+  file_name: string;
+  worksheet_name: string;
+  content_base64: string;
+}): Promise<StoredWorksheet> {
+  return request("/v1/worksheets/import-csv", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function replaceWorksheetCell(worksheetId: string, payload: {
+  expected_storage_version: number;
+  row_index: number;
+  column_name: string;
+  value: CellValue;
+}): Promise<StoredWorksheet> {
+  return request(`/v1/worksheets/${encodeURIComponent(worksheetId)}/cells`, {
+    method: "PATCH",
     body: JSON.stringify(payload),
   });
 }
