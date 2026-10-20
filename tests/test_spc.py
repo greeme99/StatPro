@@ -7,7 +7,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from statpro.analyses.spc import individuals_moving_range, xbar_r
+from statpro.analyses.spc import (
+    individuals_moving_range,
+    western_electric_signals,
+    xbar_r,
+)
 from statpro.domain.errors import AnalysisInputError
 
 
@@ -35,6 +39,37 @@ class IndividualsMovingRangeTests(unittest.TestCase):
         first = individuals_moving_range([1, 2, 3])
         second = individuals_moving_range([1.0, 2.0, 3.0])
         self.assertEqual(first.input_digest, second.input_digest)
+
+    def test_western_electric_and_trend_rules_match_published_windows(self) -> None:
+        fixtures = {
+            "WECO-1": [3.1],
+            "WECO-2": [2.1, 0.0, 2.2],
+            "WECO-3": [1.1, 1.2, 0.0, 1.3, 1.4],
+            "WECO-4": [0.1] * 8,
+            "TREND-6": [1, 2, 3, 4, 5, 6],
+            "ALTERNATING-14": [1 if index % 2 == 0 else -1 for index in range(14)],
+        }
+        for expected, values in fixtures.items():
+            with self.subTest(rule=expected):
+                signals = western_electric_signals(values, center=0.0, sigma=1.0)
+                self.assertIn(expected, {signal["rule"] for signal in signals})
+
+    def test_rule_set_can_be_bounded_to_basic_limits(self) -> None:
+        values = [1, 2, 3, 4, 5, 6]
+        western = individuals_moving_range(values, rules="western_electric")
+        basic = individuals_moving_range(values, rules="basic")
+
+        self.assertIn(
+            "TREND-6",
+            {signal["rule"] for signal in western.diagnostics["individual_rule_signals"]},
+        )
+        self.assertEqual(basic.diagnostics["individual_rule_signals"], [])
+        self.assertNotEqual(western.input_digest, basic.input_digest)
+
+    def test_rejects_unknown_control_rule_set(self) -> None:
+        with self.assertRaises(AnalysisInputError) as context:
+            individuals_moving_range([1, 2, 3], rules="nelson-all")
+        self.assertEqual(context.exception.detail.code, "invalid_control_rule_set")
 
 
 class XbarRTests(unittest.TestCase):

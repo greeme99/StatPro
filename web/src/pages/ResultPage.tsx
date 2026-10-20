@@ -65,7 +65,7 @@ export function ResultPage() {
         <article className="metric-card"><span>평균</span><strong>{imr.center.toFixed(3)}</strong><small>개별값 중심선</small></article>
         <article className="metric-card"><span>관리상한 UCL</span><strong>{imr.ucl.toFixed(3)}</strong><small>3-sigma</small></article>
         <article className="metric-card"><span>관리하한 LCL</span><strong>{imr.lcl.toFixed(3)}</strong><small>3-sigma</small></article>
-        <article className="metric-card"><span>한계 이탈</span><strong>{signalCount}</strong><small>{signalCount ? "검토 필요" : "신호 없음"}</small></article>
+        <article className="metric-card"><span>신호 관측값</span><strong>{signalCount}</strong><small>{signalCount ? "검토 필요" : "신호 없음"}</small></article>
       </section>
       <section className="panel result-chart-panel">
         <header className="panel-heading"><div><span className="eyebrow">INDIVIDUALS CHART</span><h2>개별값 관리도</h2></div><span className="run-version">ENGINE {result.engine_version}</span></header>
@@ -73,7 +73,7 @@ export function ResultPage() {
       </section>
       <section className="panel table-panel">
         <header className="panel-heading"><div><span className="eyebrow">ACCESSIBLE DATA</span><h2>관리도 원본 표</h2></div></header>
-        <div className="table-scroll"><table><thead><tr><th scope="col">순서</th><th scope="col">관측값</th><th scope="col">상태</th></tr></thead><tbody>{imr.points.map((point) => <tr key={point.index}><td>{point.index}</td><td>{point.value.toFixed(4)}</td><td>{point.signal ? <span className="status-text is-danger"><AlertTriangle aria-hidden="true" /> 한계 이탈</span> : <span className="status-text is-success"><CheckCircle2 aria-hidden="true" /> 정상</span>}</td></tr>)}</tbody></table></div>
+        <div className="table-scroll"><table><thead><tr><th scope="col">순서</th><th scope="col">관측값</th><th scope="col">상태</th></tr></thead><tbody>{imr.points.map((point) => <tr key={point.index}><td>{point.index}</td><td>{point.value.toFixed(4)}</td><td>{point.signal ? <span className="status-text is-danger"><AlertTriangle aria-hidden="true" /> {point.rules.length ? point.rules.join(", ") : "3σ 한계 이탈"}</span> : <span className="status-text is-success"><CheckCircle2 aria-hidden="true" /> 정상</span>}</td></tr>)}</tbody></table></div>
       </section>
       </> : doe ? <DoeResult doe={doe} /> : <section className="panel generic-result-panel"><header className="panel-heading"><div><span className="eyebrow">RESULT BUNDLE</span><h2>분석 결과 요약</h2></div></header><dl><div><dt>분석 유형</dt><dd>{result.analysis_type}</dd></div><div><dt>진단 항목</dt><dd>{Object.keys(result.diagnostics).length}개</dd></div><div><dt>결과 표</dt><dd>{Object.keys(result.tables).join(", ") || "없음"}</dd></div></dl><p>이 분석의 전용 시각화는 다음 개발 증분에서 제공됩니다. 계산 근거와 원본 ResultBundle은 보존되어 있습니다.</p></section>}
       {result.warnings.length > 0 && <section className="warning-panel"><AlertTriangle aria-hidden="true" /><div><h2>해석 전 확인</h2><ul>{result.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></div></section>}

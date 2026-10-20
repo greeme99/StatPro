@@ -14,6 +14,35 @@ from statpro.cli import main
 
 
 class CliBoundaryTests(unittest.TestCase):
+    def test_imr_returns_selected_supplementary_rule_signals(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "imr.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "values": [1, 2, 3, 4, 5, 6],
+                        "rules": "western_electric",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            output = io.StringIO()
+
+            with redirect_stdout(output):
+                exit_code = main(["imr", "--input", str(path)])
+
+        response = json.loads(output.getvalue())
+        self.assertEqual(exit_code, 0)
+        self.assertTrue(response["ok"])
+        self.assertEqual(response["result"]["parameters"]["rules"], "western_electric")
+        self.assertIn(
+            "TREND-6",
+            [
+                signal["rule"]
+                for signal in response["result"]["plots"]["individuals"]["rule_signals"]
+            ],
+        )
+
     def test_doe_analysis_returns_effects_anova_and_residuals(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "doe-analysis.json"

@@ -69,6 +69,7 @@ class ImrRunRequest(ApiModel):
     run_id: RunId
     values: list[float]
     target: float | None = None
+    rules: Literal["basic", "western_electric"] = "western_electric"
 
 
 class XbarRRunRequest(ApiModel):
@@ -420,7 +421,11 @@ def create_app(repository: DocumentRepository) -> FastAPI:
         stored = _save_run(
             repository,
             request.run_id,
-            individuals_moving_range(request.values, target=request.target),
+            individuals_moving_range(
+                request.values,
+                target=request.target,
+                rules=request.rules,
+            ),
         )
         response.headers["ETag"] = f'"{stored.etag}"'
         return _response(stored)

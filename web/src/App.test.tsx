@@ -35,6 +35,17 @@ describe("StatPro UI", () => {
     await waitFor(() => expect(values).toHaveFocus());
   });
 
+  it("submits the selected I-MR rule set", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({}), { status: 201, headers: { "Content-Type": "application/json" } }));
+    render(<MemoryRouter initialEntries={["/analyses/imr/new"]}><App /></MemoryRouter>);
+
+    await userEvent.selectOptions(await screen.findByRole("combobox", { name: "규칙 세트" }), "basic");
+    await userEvent.click(screen.getByRole("button", { name: "분석 실행" }));
+    await waitFor(() => expect(fetchMock.mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === "POST")).toBe(true));
+    const post = fetchMock.mock.calls.find(([, init]) => (init as RequestInit | undefined)?.method === "POST");
+    expect(JSON.parse(String((post?.[1] as RequestInit).body)).rules).toBe("basic");
+  });
+
   it("toggles dark theme with an accessible control", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ items: [], next_after: null }), { status: 200, headers: { "Content-Type": "application/json" } }));
     render(<MemoryRouter><App /></MemoryRouter>);
@@ -61,6 +72,20 @@ describe("StatPro UI", () => {
     await userEvent.keyboard("{Escape}");
     expect(screen.queryByRole("dialog", { name: "계산 근거" })).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
+  });
+
+  it("renders supplementary I-MR rule identifiers for involved observations", async () => {
+    const result = {
+      analysis_type: "spc.imr", engine_version: "0.6.0", input_digest: "b".repeat(64),
+      warnings: [], assumptions: [], provenance: [], parameters: { rules: "western_electric" }, diagnostics: {},
+      tables: { limits: { individuals: { center: 3.5, ucl: 8.82, lcl: -1.82 } } },
+      plots: { individuals: { values: [1, 2, 3, 4, 5, 6], signals: [0, 1, 2, 3, 4, 5], rule_signals: [{ rule: "TREND-6", involved_indices: [0, 1, 2, 3, 4, 5] }] } },
+    };
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ run_id: "run-trend", storage_version: 1, etag: "a".repeat(64), result }), { status: 200, headers: { "Content-Type": "application/json" } }));
+
+    render(<MemoryRouter initialEntries={["/runs/run-trend"]}><App /></MemoryRouter>);
+    expect(await screen.findByText("신호 관측값")).toBeInTheDocument();
+    expect(screen.getAllByText("TREND-6").length).toBeGreaterThan(0);
   });
 
   it("renders persisted FMEA studies in the risk workbench", async () => {

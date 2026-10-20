@@ -18,6 +18,10 @@ NIST_XBAR_R_SOURCE = ProvenanceSource(
     title="NIST/SEMATECH 6.3.1.1 Shewhart X bar and R and S Control Charts",
     url="https://www.itl.nist.gov/div898/handbook/pmc/section3/pmc311.htm",
 )
+NIST_WECO_SOURCE = ProvenanceSource(
+    title="NIST/SEMATECH 6.3.2 Variables Control Charts and WECO Rules",
+    url="https://www.itl.nist.gov/div898/handbook/pmc/section3/pmc32.htm",
+)
 
 _XBAR_R_CONSTANTS: dict[int, tuple[float, float, float]] = {
     2: (1.880, 0.000, 3.267),
@@ -32,10 +36,97 @@ _XBAR_R_CONSTANTS: dict[int, tuple[float, float, float]] = {
 }
 
 
+def western_electric_signals(
+    values: Sequence[float], *, center: float, sigma: float
+) -> list[dict[str, object]]:
+    """Evaluate the four NIST WECO rules and two published trend rules."""
+
+    observations = finite_values(values, "values")
+    normalized_center = finite_values([center], "center")[0]
+    normalized_sigma = finite_values([sigma], "sigma")[0]
+    if normalized_sigma <= 0.0:
+        return []
+
+    signals: list[dict[str, object]] = []
+
+    def append(
+        rule: str,
+        start: int,
+        end: int,
+        side: str,
+        involved: list[int],
+    ) -> None:
+        signals.append(
+            {
+                "rule": rule,
+                "window_start": start,
+                "window_end": end,
+                "trigger_index": end,
+                "side": side,
+                "involved_indices": involved,
+            }
+        )
+
+    for index, value in enumerate(observations):
+        if value > normalized_center + 3.0 * normalized_sigma:
+            append("WECO-1", index, index, "above", [index])
+        elif value < normalized_center - 3.0 * normalized_sigma:
+            append("WECO-1", index, index, "below", [index])
+
+    for end in range(2, len(observations)):
+        start = end - 2
+        window = observations[start : end + 1]
+        above = [start + offset for offset, value in enumerate(window) if value > normalized_center + 2.0 * normalized_sigma]
+        below = [start + offset for offset, value in enumerate(window) if value < normalized_center - 2.0 * normalized_sigma]
+        if len(above) >= 2:
+            append("WECO-2", start, end, "above", above)
+        if len(below) >= 2:
+            append("WECO-2", start, end, "below", below)
+
+    for end in range(4, len(observations)):
+        start = end - 4
+        window = observations[start : end + 1]
+        above = [start + offset for offset, value in enumerate(window) if value > normalized_center + normalized_sigma]
+        below = [start + offset for offset, value in enumerate(window) if value < normalized_center - normalized_sigma]
+        if len(above) >= 4:
+            append("WECO-3", start, end, "above", above)
+        if len(below) >= 4:
+            append("WECO-3", start, end, "below", below)
+
+    for end in range(7, len(observations)):
+        start = end - 7
+        window = observations[start : end + 1]
+        if all(value > normalized_center for value in window):
+            append("WECO-4", start, end, "above", list(range(start, end + 1)))
+        elif all(value < normalized_center for value in window):
+            append("WECO-4", start, end, "below", list(range(start, end + 1)))
+
+    for end in range(5, len(observations)):
+        start = end - 5
+        window = observations[start : end + 1]
+        if all(left < right for left, right in zip(window, window[1:])):
+            append("TREND-6", start, end, "increasing", list(range(start, end + 1)))
+        elif all(left > right for left, right in zip(window, window[1:])):
+            append("TREND-6", start, end, "decreasing", list(range(start, end + 1)))
+
+    for end in range(13, len(observations)):
+        start = end - 13
+        window = observations[start : end + 1]
+        differences = [right - left for left, right in zip(window, window[1:])]
+        if all(
+            current != 0.0 and following != 0.0 and current * following < 0.0
+            for current, following in zip(differences, differences[1:])
+        ):
+            append("ALTERNATING-14", start, end, "alternating", list(range(start, end + 1)))
+
+    return signals
+
+
 def individuals_moving_range(
     values: Sequence[float],
     *,
     target: float | None = None,
+    rules: str = "western_electric",
 ) -> ResultBundle:
     """Calculate an Individuals and two-point Moving Range chart."""
 
@@ -46,6 +137,12 @@ def individuals_moving_range(
             "I-MR requires at least two finite observations.",
             "values",
         )
+    if rules not in {"basic", "western_electric"}:
+        raise AnalysisInputError(
+            "invalid_control_rule_set",
+            "Rules must be 'basic' or 'western_electric'.",
+            "rules",
+        )
 
     center = fmean(observations) if target is None else finite_values([target], "target")[0]
     moving_ranges = [abs(current - previous) for previous, current in zip(observations, observations[1:])]
@@ -55,24 +152,52 @@ def individuals_moving_range(
     individuals_lcl = center - 3.0 * estimated_sigma
     moving_range_ucl = average_moving_range * 3.267
 
-    individual_signals = [
+    limit_signals = [
         index
         for index, value in enumerate(observations)
         if value > individuals_ucl or value < individuals_lcl
     ]
+    rule_signals = (
+        western_electric_signals(
+            observations, center=center, sigma=estimated_sigma
+        )
+        if rules == "western_electric"
+        else [
+            {
+                "rule": "WECO-1",
+                "window_start": index,
+                "window_end": index,
+                "trigger_index": index,
+                "side": "above" if observations[index] > center else "below",
+                "involved_indices": [index],
+            }
+            for index in limit_signals
+        ]
+    )
+    individual_signals = sorted(
+        {
+            index
+            for signal in rule_signals
+            for index in signal["involved_indices"]
+        }
+    )
     moving_range_signals = [
         index + 1 for index, value in enumerate(moving_ranges) if value > moving_range_ucl
     ]
     warnings: list[str] = []
     if average_moving_range == 0.0:
         warnings.append("All consecutive observations are equal; estimated short-term variation is zero.")
+    if rules == "western_electric":
+        warnings.append(
+            "WECO and trend rules increase sensitivity and false-alarm frequency; a signal requires investigation and is not proof of a special cause."
+        )
 
-    payload = {"values": observations, "target": target}
+    payload = {"values": observations, "target": target, "rules": rules}
     return ResultBundle(
         analysis_type="spc.imr",
         engine_version=ENGINE_VERSION,
         input_digest=input_digest(payload),
-        parameters={"moving_range_length": 2, "d2": 1.128, "d4": 3.267, "target": target},
+        parameters={"moving_range_length": 2, "d2": 1.128, "d4": 3.267, "target": target, "rules": rules},
         tables={
             "observations": observations,
             "moving_ranges": moving_ranges,
@@ -82,11 +207,18 @@ def individuals_moving_range(
             },
         },
         plots={
-            "individuals": {"values": observations, "signals": individual_signals},
+            "individuals": {
+                "values": observations,
+                "signals": individual_signals,
+                "rule_signals": rule_signals,
+            },
             "moving_range": {"values": moving_ranges, "signals": moving_range_signals},
         },
         diagnostics={
             "individual_signal_indices": individual_signals,
+            "individual_limit_signal_indices": limit_signals,
+            "individual_rule_signals": rule_signals,
+            "individual_rule_signal_count": len(rule_signals),
             "moving_range_signal_indices": moving_range_signals,
             "estimated_sigma": estimated_sigma,
         },
@@ -94,9 +226,10 @@ def individuals_moving_range(
             "Observations are ordered in process time.",
             "Successive observations provide a meaningful estimate of short-term variation.",
             "Default limits use the two-point moving range and three-sigma convention.",
+            "Supplementary rules are evaluated in observation order and mark investigation candidates, not confirmed special causes.",
         ),
         warnings=tuple(warnings),
-        provenance=(NIST_IMR_SOURCE,),
+        provenance=(NIST_IMR_SOURCE, NIST_WECO_SOURCE),
     )
 
 

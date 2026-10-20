@@ -7,7 +7,7 @@ The repository starts with a dependency-free Python statistical core so formulas
 ## Implemented
 
 - Reproducible `ResultBundle` with input SHA-256, engine version, warnings, and public-source provenance
-- Individuals and Moving Range (I-MR) control chart
+- Individuals and Moving Range (I-MR) control chart with selectable 3-sigma-only or NIST/Western Electric supplementary rules
 - Xbar-R control chart for constant subgroup sizes 2–10
 - Normal capability for individual observations with within/overall variation kept distinct
 - Reproducible two-level full factorial DOE generation plus coded effects, coefficients, ANOVA, lack-of-fit/pure-error partitioning, residual diagnostics, in-region prediction, and bounded vertex optimization
@@ -57,7 +57,7 @@ npm ci
 npm run dev -- --host 127.0.0.1
 ```
 
-Open `http://127.0.0.1:5173`. Vite proxies `/api` to the loopback API on port 8765. Use `npm run check` for the thirteen UI tests, TypeScript check, and production build.
+Open `http://127.0.0.1:5173`. Vite proxies `/api` to the loopback API on port 8765. Use `npm run check` for the UI tests, TypeScript check, and production build.
 
 ## Principles
 

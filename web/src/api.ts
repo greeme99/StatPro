@@ -31,6 +31,7 @@ export function createImrRun(payload: {
   run_id: string;
   values: number[];
   target?: number;
+  rules: "basic" | "western_electric";
 }): Promise<StoredRun> {
   return request("/v1/analysis-runs/imr", {
     method: "POST",

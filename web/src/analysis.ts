@@ -1,6 +1,11 @@
 import type { ResultBundle } from "./types";
 
-export type ProcessPoint = { index: number; value: number; signal: boolean };
+export type ProcessPoint = { index: number; value: number; signal: boolean; rules: string[] };
+
+type RuleSignal = {
+  rule?: unknown;
+  involved_indices?: unknown;
+};
 
 export type ImrView = {
   points: ProcessPoint[];
@@ -14,17 +19,31 @@ export function toImrView(result: ResultBundle | undefined): ImrView | null {
 
   const values = result.plots.individuals?.values;
   const signals = result.plots.individuals?.signals;
+  const ruleSignals = result.plots.individuals?.rule_signals;
   const limits = result.tables.limits?.individuals;
   if (!Array.isArray(values) || !Array.isArray(signals) || !limits) return null;
   if (![limits.center, limits.ucl, limits.lcl].every(Number.isFinite)) return null;
 
   const signalIndices = new Set<number>(signals);
+  const rulesByIndex = new Map<number, Set<string>>();
+  if (Array.isArray(ruleSignals)) {
+    for (const event of ruleSignals as RuleSignal[]) {
+      if (typeof event?.rule !== "string" || !Array.isArray(event.involved_indices)) continue;
+      for (const index of event.involved_indices) {
+        if (typeof index !== "number" || !Number.isInteger(index) || index < 0) continue;
+        const rules = rulesByIndex.get(index) ?? new Set<string>();
+        rules.add(event.rule);
+        rulesByIndex.set(index, rules);
+      }
+    }
+  }
   const points = values
     .filter((value: unknown): value is number => typeof value === "number" && Number.isFinite(value))
     .map((value: number, zeroBasedIndex: number) => ({
       index: zeroBasedIndex + 1,
       value,
       signal: signalIndices.has(zeroBasedIndex),
+      rules: [...(rulesByIndex.get(zeroBasedIndex) ?? [])].sort(),
     }));
 
   return { points, center: limits.center, ucl: limits.ucl, lcl: limits.lcl };

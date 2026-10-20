@@ -45,7 +45,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 0
         payload = json.loads(args.input.read_text(encoding="utf-8"))
         if args.command == "imr":
-            result = individuals_moving_range(payload["values"], target=payload.get("target"))
+            result = individuals_moving_range(
+                payload["values"],
+                target=payload.get("target"),
+                rules=payload.get("rules", "western_electric"),
+            )
         elif args.command == "xbar-r":
             result = xbar_r(payload["subgroups"])
         elif args.command == "capability-normal":

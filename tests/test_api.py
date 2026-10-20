@@ -32,12 +32,24 @@ class LocalApiContractTests(unittest.TestCase):
     def test_imr_run_is_created_then_retrieved_with_same_etag(self) -> None:
         created = self.client.post(
             "/v1/analysis-runs/imr",
-            json={"run_id": "run-001", "values": [1, 2, 3]},
+            json={
+                "run_id": "run-001",
+                "values": [1, 2, 3, 4, 5, 6],
+                "rules": "western_electric",
+            },
         )
         retrieved = self.client.get("/v1/analysis-runs/run-001")
 
         self.assertEqual(created.status_code, 201)
         self.assertEqual(created.json()["result"]["analysis_type"], "spc.imr")
+        self.assertEqual(created.json()["result"]["parameters"]["rules"], "western_electric")
+        self.assertIn(
+            "TREND-6",
+            [
+                signal["rule"]
+                for signal in created.json()["result"]["plots"]["individuals"]["rule_signals"]
+            ],
+        )
         self.assertEqual(created.headers["etag"], retrieved.headers["etag"])
         self.assertEqual(created.json(), retrieved.json())
 
