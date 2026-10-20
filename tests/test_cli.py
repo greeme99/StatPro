@@ -28,6 +28,8 @@ class CliBoundaryTests(unittest.TestCase):
                         "replicates": 2,
                         "randomize": False,
                         "interaction_order": 2,
+                        "prediction_points": [{"A": 0.75, "B": 15}],
+                        "optimization_goal": "maximize",
                     }
                 ),
                 encoding="utf-8",
@@ -46,6 +48,14 @@ class CliBoundaryTests(unittest.TestCase):
         )
         self.assertEqual(len(response["result"]["tables"]["coefficients"]), 4)
         self.assertEqual(len(response["result"]["tables"]["residuals"]), 8)
+        self.assertAlmostEqual(
+            response["result"]["tables"]["predictions"][0]["predicted_response"],
+            16.25,
+        )
+        self.assertEqual(
+            response["result"]["tables"]["optimization"][0]["actual"],
+            {"A": 1.0, "B": 20.0},
+        )
 
     def test_dataset_import_csv_returns_typed_snapshot(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

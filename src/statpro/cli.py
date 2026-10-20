@@ -74,6 +74,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                     randomize=payload.get("randomize", True),
                     seed=payload.get("seed", 0),
                     interaction_order=payload.get("interaction_order", 2),
+                    prediction_points=payload.get("prediction_points", []),
+                    optimization_goal=payload.get("optimization_goal"),
                 )
             else:
                 result = full_factorial_2level(

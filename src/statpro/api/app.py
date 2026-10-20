@@ -5,7 +5,7 @@ from __future__ import annotations
 import base64
 import binascii
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from fastapi import FastAPI, Query, Response
 from fastapi.encoders import jsonable_encoder
@@ -103,6 +103,8 @@ class FullFactorialAnalysisRunRequest(FullFactorialRunRequest):
     responses: list[float]
     response_name: str = "Response"
     interaction_order: int = Field(default=2, ge=1)
+    prediction_points: list[dict[str, float]] = Field(default_factory=list, max_length=100)
+    optimization_goal: Literal["maximize", "minimize"] | None = None
 
 
 class MeasurementRequest(ApiModel):
@@ -489,6 +491,8 @@ def create_app(repository: DocumentRepository) -> FastAPI:
                 randomize=request.randomize,
                 seed=request.seed,
                 interaction_order=request.interaction_order,
+                prediction_points=request.prediction_points,
+                optimization_goal=request.optimization_goal,
             ),
         )
         response.headers["ETag"] = f'"{stored.etag}"'

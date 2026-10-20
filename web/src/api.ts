@@ -48,6 +48,8 @@ export function createDoeAnalysisRun(payload: {
   randomize: boolean;
   seed: number;
   interaction_order: number;
+  prediction_points: Array<Record<string, number>>;
+  optimization_goal: "maximize" | "minimize";
 }): Promise<StoredRun> {
   return request("/v1/analysis-runs/doe-full-factorial-analysis", {
     method: "POST",

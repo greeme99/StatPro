@@ -170,6 +170,21 @@ describe("StatPro UI", () => {
     expect(responses).toHaveFocus();
   });
 
+  it("submits DOE prediction settings and a bounded optimization goal", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      return new Response(JSON.stringify({}), { status: init?.method === "POST" ? 201 : 200, headers: { "Content-Type": "application/json" } });
+    });
+    render(<MemoryRouter initialEntries={["/analyses/doe/full-factorial"]}><App /></MemoryRouter>);
+
+    await userEvent.click(await screen.findByRole("button", { name: "DOE 분석 실행" }));
+    await waitFor(() => expect(fetchMock.mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === "POST")).toBe(true));
+    const post = fetchMock.mock.calls.find(([, init]) => (init as RequestInit | undefined)?.method === "POST");
+    const body = JSON.parse(String((post?.[1] as RequestInit).body));
+    expect(body.prediction_points).toEqual([{ A: 0.75, B: 15 }]);
+    expect(body.optimization_goal).toBe("maximize");
+  });
+
   it("renders DOE effects, ANOVA, and residual diagnostics", async () => {
     const result = {
       analysis_type: "doe.full_factorial_2level_analysis", engine_version: "0.6.0", input_digest: "b".repeat(64), warnings: [], assumptions: [], provenance: [], parameters: {},
@@ -183,6 +198,8 @@ describe("StatPro UI", () => {
         ],
         anova: [{ source: "Model", degrees_of_freedom: 3, sum_of_squares: 134, mean_square: 44.6667, f_value: 22.3333, p_value: 0.0059 }],
         residuals: [{ run_order: 1, standard_order: 1, point_type: "factorial", observed: 10, fitted: 11, residual: -1, scaled_residual: -0.7071 }],
+        predictions: [{ point: 1, actual: { A: 0.75, B: 15 }, coded: { A: 0.5, B: 0 }, predicted_response: 16.25 }],
+        optimization: [{ goal: "maximize", standard_order: 4, actual: { A: 1, B: 20 }, coded: { A: 1, B: 1 }, predicted_response: 21, candidate_count: 4 }],
       },
       plots: {},
     };
@@ -196,6 +213,8 @@ describe("StatPro UI", () => {
     expect(screen.getByRole("img", { name: /가장 큰 절대 효과는 A/ })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "ANOVA" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "적합값과 잔차" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "조건별 예측" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "최적 설정" })).toBeInTheDocument();
     expect(screen.getAllByText("A:B").length).toBeGreaterThan(0);
   });
 

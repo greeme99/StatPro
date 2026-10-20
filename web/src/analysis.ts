@@ -59,10 +59,28 @@ export type DoeResidual = {
   scaled_residual: number | null;
 };
 
+export type DoePrediction = {
+  point: number;
+  actual: Record<string, number>;
+  coded: Record<string, number>;
+  predicted_response: number;
+};
+
+export type DoeOptimization = {
+  goal: "maximize" | "minimize";
+  standard_order: number;
+  actual: Record<string, number>;
+  coded: Record<string, number>;
+  predicted_response: number;
+  candidate_count: number;
+};
+
 export type DoeView = {
   coefficients: DoeCoefficient[];
   anova: DoeAnovaRow[];
   residuals: DoeResidual[];
+  predictions: DoePrediction[];
+  optimization: DoeOptimization[];
   rSquared: number | null;
   adjustedRSquared: number | null;
   residualStandardDeviation: number | null;
@@ -74,11 +92,15 @@ export function toDoeView(result: ResultBundle | undefined): DoeView | null {
   const coefficients = result.tables.coefficients;
   const anova = result.tables.anova;
   const residuals = result.tables.residuals;
-  if (!Array.isArray(coefficients) || !Array.isArray(anova) || !Array.isArray(residuals)) return null;
+  const predictions = result.tables.predictions ?? [];
+  const optimization = result.tables.optimization ?? [];
+  if (!Array.isArray(coefficients) || !Array.isArray(anova) || !Array.isArray(residuals) || !Array.isArray(predictions) || !Array.isArray(optimization)) return null;
   return {
     coefficients: coefficients as DoeCoefficient[],
     anova: anova as DoeAnovaRow[],
     residuals: residuals as DoeResidual[],
+    predictions: predictions as DoePrediction[],
+    optimization: optimization as DoeOptimization[],
     rSquared: typeof result.diagnostics.r_squared === "number" ? result.diagnostics.r_squared : null,
     adjustedRSquared: typeof result.diagnostics.adjusted_r_squared === "number" ? result.diagnostics.adjusted_r_squared : null,
     residualStandardDeviation: typeof result.diagnostics.residual_standard_deviation === "number" ? result.diagnostics.residual_standard_deviation : null,

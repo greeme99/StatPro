@@ -10,7 +10,7 @@ The repository starts with a dependency-free Python statistical core so formulas
 - Individuals and Moving Range (I-MR) control chart
 - Xbar-R control chart for constant subgroup sizes 2–10
 - Normal capability for individual observations with within/overall variation kept distinct
-- Reproducible two-level full factorial DOE generation plus coded effects, coefficients, ANOVA, lack-of-fit/pure-error partitioning, and residual diagnostics
+- Reproducible two-level full factorial DOE generation plus coded effects, coefficients, ANOVA, lack-of-fit/pure-error partitioning, residual diagnostics, in-region prediction, and bounded vertex optimization
 - Balanced crossed Gage R&R using two-way random-effects ANOVA variance components
 - Immutable CSV Dataset snapshots and revisioned Worksheet cell edits
 - Packaged Draft 2020-12 `ResultBundle` JSON Schema

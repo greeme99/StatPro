@@ -9,5 +9,9 @@
   "center_points": 0,
   "randomize": false,
   "seed": 0,
-  "interaction_order": 2
+  "interaction_order": 2,
+  "prediction_points": [
+    { "A": 0.75, "B": 15 }
+  ],
+  "optimization_goal": "maximize"
 }

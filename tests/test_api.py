@@ -100,6 +100,8 @@ class LocalApiContractTests(unittest.TestCase):
                     "replicates": 2,
                     "randomize": False,
                     "interaction_order": 2,
+                    "prediction_points": [{"A": 0.75, "B": 15}],
+                    "optimization_goal": "maximize",
                 },
                 "doe.full_factorial_2level_analysis",
             ),
@@ -126,6 +128,15 @@ class LocalApiContractTests(unittest.TestCase):
                 response = self.client.post(path, json=payload)
                 self.assertEqual(response.status_code, 201)
                 self.assertEqual(response.json()["result"]["analysis_type"], analysis_type)
+                if analysis_type == "doe.full_factorial_2level_analysis":
+                    tables = response.json()["result"]["tables"]
+                    self.assertAlmostEqual(
+                        tables["predictions"][0]["predicted_response"], 16.25
+                    )
+                    self.assertEqual(
+                        tables["optimization"][0]["actual"],
+                        {"A": 1.0, "B": 20.0},
+                    )
 
     def test_analysis_run_listing_is_bounded_and_cursor_paged(self) -> None:
         for run_id in ("run-001", "run-002", "run-003"):

@@ -126,3 +126,67 @@ class FullFactorialAnalysisTests(unittest.TestCase):
                 factors, [1, 2, 3, 4], randomize=False, interaction_order=3
             )
         self.assertEqual(order_context.exception.detail.code, "invalid_interaction_order")
+
+    def test_predicts_inside_design_region_and_optimizes_factorial_vertices(self) -> None:
+        factors = [FactorDefinition("A", 0, 1), FactorDefinition("B", 10, 20)]
+        responses = [10, 14, 12, 20, 12, 16, 10, 22]
+        maximize = analyze_full_factorial_2level(
+            factors,
+            responses,
+            replicates=2,
+            randomize=False,
+            prediction_points=[{"A": 0.75, "B": 15}],
+            optimization_goal="maximize",
+        )
+
+        prediction = maximize.tables["predictions"][0]
+        self.assertEqual(prediction["coded"], {"A": 0.5, "B": 0.0})
+        self.assertAlmostEqual(prediction["predicted_response"], 16.25)
+        optimum = maximize.tables["optimization"][0]
+        self.assertEqual(optimum["actual"], {"A": 1.0, "B": 20.0})
+        self.assertAlmostEqual(optimum["predicted_response"], 21.0)
+        self.assertEqual(optimum["candidate_count"], 4)
+
+        minimize = analyze_full_factorial_2level(
+            factors,
+            responses,
+            replicates=2,
+            randomize=False,
+            optimization_goal="minimize",
+        )
+        self.assertEqual(minimize.tables["optimization"][0]["standard_order"], 1)
+        self.assertAlmostEqual(
+            minimize.tables["optimization"][0]["predicted_response"], 11.0
+        )
+
+    def test_rejects_invalid_prediction_points_and_optimization_goal(self) -> None:
+        factors = [FactorDefinition("A", 0, 1), FactorDefinition("B", 10, 20)]
+        responses = [11, 15, 11, 21]
+        with self.assertRaises(AnalysisInputError) as missing_context:
+            analyze_full_factorial_2level(
+                factors,
+                responses,
+                randomize=False,
+                prediction_points=[{"A": 0.5}],
+            )
+        self.assertEqual(missing_context.exception.detail.code, "invalid_prediction_point")
+
+        with self.assertRaises(AnalysisInputError) as region_context:
+            analyze_full_factorial_2level(
+                factors,
+                responses,
+                randomize=False,
+                prediction_points=[{"A": 2, "B": 15}],
+            )
+        self.assertEqual(
+            region_context.exception.detail.code, "prediction_outside_design_region"
+        )
+
+        with self.assertRaises(AnalysisInputError) as goal_context:
+            analyze_full_factorial_2level(
+                factors,
+                responses,
+                randomize=False,
+                optimization_goal="target",
+            )
+        self.assertEqual(goal_context.exception.detail.code, "invalid_optimization_goal")

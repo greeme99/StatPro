@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import random
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import asdict, dataclass
 from itertools import combinations
 from math import exp, isfinite, lgamma, log, log1p, sqrt
@@ -28,6 +28,11 @@ NIST_DOE_MODEL_SOURCE = ProvenanceSource(
 NIST_RESIDUAL_SOURCE = ProvenanceSource(
     title="NIST/SEMATECH 5.2.4 Are the model residuals well-behaved?",
     url="https://www.itl.nist.gov/div898/handbook/pri/section2/pri24.htm",
+)
+
+NIST_FITTED_MODEL_SOURCE = ProvenanceSource(
+    title="NIST/SEMATECH 5.6.1.10 Using the Fitted Model",
+    url="https://www.itl.nist.gov/div898/handbook/pri/section6/pri61a.htm",
 )
 
 
@@ -288,6 +293,8 @@ def analyze_full_factorial_2level(
     randomize: bool = True,
     seed: int = 0,
     interaction_order: int = 2,
+    prediction_points: Sequence[Mapping[str, float]] = (),
+    optimization_goal: str | None = None,
 ) -> ResultBundle:
     """Fit an orthogonal coded model to a generated two-level full factorial design."""
 
@@ -321,6 +328,16 @@ def analyze_full_factorial_2level(
             "invalid_interaction_order",
             f"Interaction order must be an integer from 1 to {len(factor_names)}.",
             "interaction_order",
+        )
+
+    normalized_prediction_points = _normalize_prediction_points(
+        prediction_points, design.parameters["factors"]
+    )
+    if optimization_goal not in {None, "maximize", "minimize"}:
+        raise AnalysisInputError(
+            "invalid_optimization_goal",
+            "Optimization goal must be 'maximize', 'minimize', or omitted.",
+            "optimization_goal",
         )
 
     terms = [
@@ -366,6 +383,45 @@ def analyze_full_factorial_2level(
         observed - predicted
         for observed, predicted in zip(values, fitted, strict=True)
     ]
+
+    prediction_rows = [
+        {
+            "point": index,
+            "actual": point["actual"],
+            "coded": point["coded"],
+            "predicted_response": _predict_response(
+                point["coded"], intercept, coefficients
+            ),
+        }
+        for index, point in enumerate(normalized_prediction_points, start=1)
+    ]
+    optimization_rows: list[dict[str, object]] = []
+    if optimization_goal is not None:
+        candidates = _factorial_vertex_candidates(design.parameters["factors"])
+        scored = [
+            {
+                **candidate,
+                "predicted_response": _predict_response(
+                    candidate["coded"], intercept, coefficients
+                ),
+            }
+            for candidate in candidates
+        ]
+        best = (
+            max(scored, key=lambda row: row["predicted_response"])
+            if optimization_goal == "maximize"
+            else min(scored, key=lambda row: row["predicted_response"])
+        )
+        optimization_rows.append(
+            {
+                "goal": optimization_goal,
+                "standard_order": best["standard_order"],
+                "actual": best["actual"],
+                "coded": best["coded"],
+                "predicted_response": best["predicted_response"],
+                "candidate_count": len(scored),
+            }
+        )
     residual_ss = sum(value * value for value in residuals)
     total_ss = sum((value - intercept) ** 2 for value in values)
     model_ss = sum(term_sums_of_squares.values())
@@ -490,11 +546,21 @@ def analyze_full_factorial_2level(
         warnings.append(
             "No replicated factor settings are available, so pure error and lack-of-fit testing are unavailable."
         )
+    if prediction_rows:
+        warnings.append(
+            "Predictions are fitted means inside the experimental region and do not include confidence or prediction intervals."
+        )
+    if optimization_rows:
+        warnings.append(
+            "Optimization compares all factorial vertices for the selected fitted model; confirm the setting experimentally before use."
+        )
     payload = {
         **design.parameters,
         "responses": values,
         "response_name": normalized_name,
         "interaction_order": interaction_order,
+        "prediction_points": [point["actual"] for point in normalized_prediction_points],
+        "optimization_goal": optimization_goal,
     }
     return ResultBundle(
         analysis_type="doe.full_factorial_2level_analysis",
@@ -505,6 +571,8 @@ def analyze_full_factorial_2level(
             "coefficients": coefficient_rows,
             "anova": anova,
             "residuals": residual_table,
+            "predictions": prediction_rows,
+            "optimization": optimization_rows,
         },
         plots={
             "effects": {
@@ -531,22 +599,112 @@ def analyze_full_factorial_2level(
             "adjusted_r_squared": adjusted_r_squared,
             "pure_error_degrees_of_freedom": pure_error_df,
             "lack_of_fit_degrees_of_freedom": lack_of_fit_df,
+            "prediction_count": len(prediction_rows),
+            "optimization_goal": optimization_goal,
+            "optimization_candidate_count": (
+                optimization_rows[0]["candidate_count"] if optimization_rows else 0
+            ),
         },
         assumptions=(
             "Responses correspond one-for-one to the generated design run order.",
             "The coded model is linear in the selected main effects and interactions.",
             "Residuals are expected to be independent with constant variance and "
             "approximately normal when inferential statistics are interpreted.",
+            "Prediction points are restricted to the fitted experimental region.",
+            "For this multilinear two-level model, maximum and minimum searches evaluate every factorial vertex.",
         ),
         warnings=tuple(warnings),
-        provenance=(NIST_FACTORIAL_SOURCE, NIST_DOE_MODEL_SOURCE, NIST_RESIDUAL_SOURCE),
+        provenance=(
+            NIST_FACTORIAL_SOURCE,
+            NIST_DOE_MODEL_SOURCE,
+            NIST_RESIDUAL_SOURCE,
+            NIST_FITTED_MODEL_SOURCE,
+        ),
     )
 
 
-def _product(values: Iterable[int]) -> int:
-    result = 1
+def _normalize_prediction_points(
+    points: Sequence[Mapping[str, float]], factors: Sequence[Mapping[str, object]]
+) -> list[dict[str, dict[str, float]]]:
+    if len(points) > 100:
+        raise AnalysisInputError(
+            "too_many_prediction_points",
+            "At most 100 prediction points can be evaluated in one analysis.",
+            "prediction_points",
+        )
+    names = [str(factor["name"]) for factor in factors]
+    expected = set(names)
+    normalized: list[dict[str, dict[str, float]]] = []
+    for index, point in enumerate(points):
+        if not isinstance(point, Mapping) or set(point) != expected:
+            raise AnalysisInputError(
+                "invalid_prediction_point",
+                f"Prediction point {index + 1} must contain exactly: {', '.join(names)}.",
+                f"prediction_points[{index}]",
+            )
+        actual: dict[str, float] = {}
+        coded: dict[str, float] = {}
+        for factor in factors:
+            name = str(factor["name"])
+            low = float(factor["low"])
+            high = float(factor["high"])
+            value = finite_values([point[name]], f"prediction_points[{index}].{name}")[0]
+            if value < low or value > high:
+                raise AnalysisInputError(
+                    "prediction_outside_design_region",
+                    f"Prediction value for '{name}' must be between {low} and {high}.",
+                    f"prediction_points[{index}].{name}",
+                )
+            actual[name] = value
+            coded[name] = -1.0 + 2.0 * (value - low) / (high - low)
+        normalized.append({"actual": actual, "coded": coded})
+    return normalized
+
+
+def _factorial_vertex_candidates(
+    factors: Sequence[Mapping[str, object]],
+) -> list[dict[str, object]]:
+    candidates: list[dict[str, object]] = []
+    for standard_index in range(2 ** len(factors)):
+        coded = {
+            str(factor["name"]): (
+                1.0 if standard_index & (1 << factor_index) else -1.0
+            )
+            for factor_index, factor in enumerate(factors)
+        }
+        actual = {
+            str(factor["name"]): (
+                float(factor["high"])
+                if coded[str(factor["name"])] == 1.0
+                else float(factor["low"])
+            )
+            for factor in factors
+        }
+        candidates.append(
+            {
+                "standard_order": standard_index + 1,
+                "actual": actual,
+                "coded": coded,
+            }
+        )
+    return candidates
+
+
+def _predict_response(
+    coded: Mapping[str, float],
+    intercept: float,
+    coefficients: Mapping[tuple[str, ...], float],
+) -> float:
+    return intercept + sum(
+        coefficient * _product(coded[name] for name in term)
+        for term, coefficient in coefficients.items()
+    )
+
+
+def _product(values: Iterable[float]) -> float:
+    result = 1.0
     for value in values:
-        result *= int(value)
+        result *= value
     return result
 
 
