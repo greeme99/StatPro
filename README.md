@@ -10,7 +10,7 @@ The repository starts with a dependency-free Python statistical core so formulas
 - Individuals and Moving Range (I-MR) control chart
 - Xbar-R control chart for constant subgroup sizes 2–10
 - Normal capability for individual observations with within/overall variation kept distinct
-- Reproducible two-level full factorial DOE generation with replication and center points
+- Reproducible two-level full factorial DOE generation plus coded effects, coefficients, ANOVA, lack-of-fit/pure-error partitioning, and residual diagnostics
 - Balanced crossed Gage R&R using two-way random-effects ANOVA variance components
 - Immutable CSV Dataset snapshots and revisioned Worksheet cell edits
 - Packaged Draft 2020-12 `ResultBundle` JSON Schema
@@ -33,6 +33,7 @@ py -3.12 -m statpro.cli imr --input samples\imr-nist.json
 py -3.12 -m statpro.cli xbar-r --input samples\xbar-r.json
 py -3.12 -m statpro.cli capability-normal --input samples\capability-normal.json
 py -3.12 -m statpro.cli doe-full-factorial --input samples\doe-full-factorial.json
+py -3.12 -m statpro.cli doe-analyze-full-factorial --input samples\doe-full-factorial-analysis.json
 py -3.12 -m statpro.cli gage-rr-crossed --input samples\gage-rr-crossed.json
 py -3.12 -m statpro.cli dataset-import-csv --input samples\process-data.csv
 ```
@@ -56,7 +57,7 @@ npm ci
 npm run dev -- --host 127.0.0.1
 ```
 
-Open `http://127.0.0.1:5173`. Vite proxies `/api` to the loopback API on port 8765. Use `npm run check` for the eleven UI tests, TypeScript check, and production build.
+Open `http://127.0.0.1:5173`. Vite proxies `/api` to the loopback API on port 8765. Use `npm run check` for the thirteen UI tests, TypeScript check, and production build.
 
 ## Principles
 

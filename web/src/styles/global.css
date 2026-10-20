@@ -189,6 +189,19 @@ dd { margin: var(--space-0); }
 .table-limit-note { padding: var(--space-3) var(--card-pad); border-top: var(--border-width) solid var(--color-border); }
 .cell-editor form { display: grid; gap: var(--space-5); padding: var(--space-5) var(--space-0); }
 .cell-editor .method-note { display: flex; gap: var(--space-2); align-items: flex-start; }
+.page-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-3); }
+.inline-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-4); }
+.factor-editor { display: grid; gap: var(--space-2); }
+.factor-editor-head, .factor-editor-row { display: grid; grid-template-columns: minmax(0, 2fr) repeat(2, minmax(0, 1fr)) var(--touch-target); gap: var(--space-2); align-items: center; }
+.factor-editor-head { color: var(--color-text-secondary); font-size: var(--body-size); font-weight: 600; }
+.factor-editor-row input { width: 100%; min-height: var(--control-height); padding: var(--space-2) var(--space-3); color: var(--color-text-primary); background: var(--color-bg-surface); border: var(--border-width) solid var(--color-border-strong); border-radius: var(--radius-md); }
+.doe-effect-panel { margin-bottom: var(--space-5); }
+.effect-bars { display: grid; gap: var(--space-3); padding: var(--card-pad); border-bottom: var(--border-width) solid var(--color-border); }
+.effect-bar-row { display: grid; grid-template-columns: minmax(var(--space-12), 1fr) minmax(0, 5fr) minmax(var(--space-12), 1fr); gap: var(--space-3); align-items: center; font-variant-numeric: tabular-nums; }
+.effect-bar-row > span:last-child { text-align: right; }
+.effect-track { height: var(--space-3); overflow: hidden; background: var(--color-bg-subtle); border-radius: var(--radius-pill); }
+.effect-track i { display: block; height: 100%; background: var(--color-fill-brand); border-radius: inherit; }
+.effect-track.is-negative i { background: var(--danger-500); }
 
 @media (max-width: 1439px) {
   .page { padding: var(--space-6); }
@@ -207,6 +220,7 @@ dd { margin: var(--space-0); }
   .column-profile { position: static; }
   .failure-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .action-complete-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .inline-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 767px) {
   body { min-width: 0; }

@@ -14,7 +14,11 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from statpro.analyses.capability import normal_process_capability
-from statpro.analyses.doe import FactorDefinition, full_factorial_2level
+from statpro.analyses.doe import (
+    FactorDefinition,
+    analyze_full_factorial_2level,
+    full_factorial_2level,
+)
 from statpro.analyses.msa import MeasurementRecord, gage_rr_crossed
 from statpro.analyses.spc import individuals_moving_range, xbar_r
 from statpro.application.documents import (
@@ -93,6 +97,12 @@ class FullFactorialRunRequest(ApiModel):
     center_points: int = 0
     randomize: bool = True
     seed: int = 0
+
+
+class FullFactorialAnalysisRunRequest(FullFactorialRunRequest):
+    responses: list[float]
+    response_name: str = "Response"
+    interaction_order: int = Field(default=2, ge=1)
 
 
 class MeasurementRequest(ApiModel):
@@ -453,6 +463,32 @@ def create_app(repository: DocumentRepository) -> FastAPI:
                 center_points=request.center_points,
                 randomize=request.randomize,
                 seed=request.seed,
+            ),
+        )
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _response(stored)
+
+    @app.post(
+        "/v1/analysis-runs/doe-full-factorial-analysis",
+        status_code=201,
+        response_model=StoredRunResponse,
+    )
+    def analyze_doe(
+        request: FullFactorialAnalysisRunRequest, response: Response
+    ) -> StoredRunResponse:
+        factors = [FactorDefinition(**factor.model_dump()) for factor in request.factors]
+        stored = _save_run(
+            repository,
+            request.run_id,
+            analyze_full_factorial_2level(
+                factors,
+                request.responses,
+                response_name=request.response_name,
+                replicates=request.replicates,
+                center_points=request.center_points,
+                randomize=request.randomize,
+                seed=request.seed,
+                interaction_order=request.interaction_order,
             ),
         )
         response.headers["ETag"] = f'"{stored.etag}"'

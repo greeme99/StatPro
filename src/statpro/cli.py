@@ -8,7 +8,11 @@ from pathlib import Path
 from typing import Sequence
 
 from statpro.analyses.capability import normal_process_capability
-from statpro.analyses.doe import FactorDefinition, full_factorial_2level
+from statpro.analyses.doe import (
+    FactorDefinition,
+    analyze_full_factorial_2level,
+    full_factorial_2level,
+)
 from statpro.analyses.msa import MeasurementRecord, gage_rr_crossed
 from statpro.analyses.spc import individuals_moving_range, xbar_r
 from statpro.domain.errors import AnalysisInputError
@@ -23,6 +27,7 @@ def _parser() -> argparse.ArgumentParser:
         "xbar-r",
         "capability-normal",
         "doe-full-factorial",
+        "doe-analyze-full-factorial",
         "gage-rr-crossed",
         "dataset-import-csv",
     ):
@@ -50,7 +55,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 usl=payload.get("usl"),
                 target=payload.get("target"),
             )
-        elif args.command == "doe-full-factorial":
+        elif args.command in {"doe-full-factorial", "doe-analyze-full-factorial"}:
             try:
                 factors = [FactorDefinition(**factor) for factor in payload["factors"]]
             except TypeError as error:
@@ -59,13 +64,25 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "Each factor requires name, low, and high fields.",
                     "factors",
                 ) from error
-            result = full_factorial_2level(
-                factors,
-                replicates=payload.get("replicates", 1),
-                center_points=payload.get("center_points", 0),
-                randomize=payload.get("randomize", True),
-                seed=payload.get("seed", 0),
-            )
+            if args.command == "doe-analyze-full-factorial":
+                result = analyze_full_factorial_2level(
+                    factors,
+                    payload["responses"],
+                    response_name=payload.get("response_name", "Response"),
+                    replicates=payload.get("replicates", 1),
+                    center_points=payload.get("center_points", 0),
+                    randomize=payload.get("randomize", True),
+                    seed=payload.get("seed", 0),
+                    interaction_order=payload.get("interaction_order", 2),
+                )
+            else:
+                result = full_factorial_2level(
+                    factors,
+                    replicates=payload.get("replicates", 1),
+                    center_points=payload.get("center_points", 0),
+                    randomize=payload.get("randomize", True),
+                    seed=payload.get("seed", 0),
+                )
         else:
             try:
                 records = [MeasurementRecord(**record) for record in payload["records"]]

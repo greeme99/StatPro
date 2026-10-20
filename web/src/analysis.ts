@@ -29,3 +29,59 @@ export function toImrView(result: ResultBundle | undefined): ImrView | null {
 
   return { points, center: limits.center, ucl: limits.ucl, lcl: limits.lcl };
 }
+
+export type DoeCoefficient = {
+  term: string;
+  order: number;
+  coefficient: number;
+  effect: number | null;
+  sum_of_squares: number | null;
+  f_value: number | null;
+  p_value: number | null;
+};
+
+export type DoeAnovaRow = {
+  source: string;
+  degrees_of_freedom: number;
+  sum_of_squares: number;
+  mean_square: number | null;
+  f_value: number | null;
+  p_value: number | null;
+};
+
+export type DoeResidual = {
+  run_order: number;
+  standard_order: number | null;
+  point_type: string;
+  observed: number;
+  fitted: number;
+  residual: number;
+  scaled_residual: number | null;
+};
+
+export type DoeView = {
+  coefficients: DoeCoefficient[];
+  anova: DoeAnovaRow[];
+  residuals: DoeResidual[];
+  rSquared: number | null;
+  adjustedRSquared: number | null;
+  residualStandardDeviation: number | null;
+  responseName: string;
+};
+
+export function toDoeView(result: ResultBundle | undefined): DoeView | null {
+  if (!result || result.analysis_type !== "doe.full_factorial_2level_analysis") return null;
+  const coefficients = result.tables.coefficients;
+  const anova = result.tables.anova;
+  const residuals = result.tables.residuals;
+  if (!Array.isArray(coefficients) || !Array.isArray(anova) || !Array.isArray(residuals)) return null;
+  return {
+    coefficients: coefficients as DoeCoefficient[],
+    anova: anova as DoeAnovaRow[],
+    residuals: residuals as DoeResidual[],
+    rSquared: typeof result.diagnostics.r_squared === "number" ? result.diagnostics.r_squared : null,
+    adjustedRSquared: typeof result.diagnostics.adjusted_r_squared === "number" ? result.diagnostics.adjusted_r_squared : null,
+    residualStandardDeviation: typeof result.diagnostics.residual_standard_deviation === "number" ? result.diagnostics.residual_standard_deviation : null,
+    responseName: typeof result.diagnostics.response_name === "string" ? result.diagnostics.response_name : "Response",
+  };
+}

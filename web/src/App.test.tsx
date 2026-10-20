@@ -157,6 +157,48 @@ describe("StatPro UI", () => {
     expect(JSON.parse(String((approveCall?.[1] as RequestInit).body)).expected_storage_version).toBe(5);
   });
 
+  it("validates the DOE response count before creating an analysis run", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 }));
+    render(<MemoryRouter initialEntries={["/analyses/doe/full-factorial"]}><App /></MemoryRouter>);
+    const responses = await screen.findByRole("textbox", { name: /^응답값/ });
+    await userEvent.clear(responses);
+    await userEvent.type(responses, "10 11 12");
+    await userEvent.click(screen.getByRole("button", { name: "DOE 분석 실행" }));
+
+    expect(await screen.findByText(/응답값 8개가 필요합니다/)).toBeInTheDocument();
+    expect(fetchMock.mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === "POST")).toBe(false);
+    expect(responses).toHaveFocus();
+  });
+
+  it("renders DOE effects, ANOVA, and residual diagnostics", async () => {
+    const result = {
+      analysis_type: "doe.full_factorial_2level_analysis", engine_version: "0.6.0", input_digest: "b".repeat(64), warnings: [], assumptions: [], provenance: [], parameters: {},
+      diagnostics: { response_name: "Strength", r_squared: 0.94366, adjusted_r_squared: 0.90141, residual_standard_deviation: 1.4142 },
+      tables: {
+        coefficients: [
+          { term: "Constant", order: 0, coefficient: 14.5, effect: null, sum_of_squares: null, f_value: null, p_value: null },
+          { term: "A", order: 1, coefficient: 3.5, effect: 7, sum_of_squares: 98, f_value: 49, p_value: 0.002192 },
+          { term: "B", order: 1, coefficient: 1.5, effect: 3, sum_of_squares: 18, f_value: 9, p_value: 0.03994 },
+          { term: "A:B", order: 2, coefficient: 1.5, effect: 3, sum_of_squares: 18, f_value: 9, p_value: 0.03994 },
+        ],
+        anova: [{ source: "Model", degrees_of_freedom: 3, sum_of_squares: 134, mean_square: 44.6667, f_value: 22.3333, p_value: 0.0059 }],
+        residuals: [{ run_order: 1, standard_order: 1, point_type: "factorial", observed: 10, fitted: 11, residual: -1, scaled_residual: -0.7071 }],
+      },
+      plots: {},
+    };
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      return new Response(JSON.stringify({ run_id: "doe-001", storage_version: 1, etag: "a".repeat(64), result }), { status: 200 });
+    });
+
+    render(<MemoryRouter initialEntries={["/runs/doe-001"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "효과 크기" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: /가장 큰 절대 효과는 A/ })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "ANOVA" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "적합값과 잔차" })).toBeInTheDocument();
+    expect(screen.getAllByText("A:B").length).toBeGreaterThan(0);
+  });
+
   it("renders persisted worksheets with typed shape metadata", async () => {
     const worksheet = { worksheet_id: "ws-001", name: "Process Measurements", base_dataset_digest: "d".repeat(64), digest: "e".repeat(64), revision: 1, parent_digest: null, row_count: 2, columns: [{ name: "value", data_type: "numeric", nullable: true, missing_count: 1, values: [10.5, null] }], transformations: [] };
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {

@@ -14,6 +14,39 @@ from statpro.cli import main
 
 
 class CliBoundaryTests(unittest.TestCase):
+    def test_doe_analysis_returns_effects_anova_and_residuals(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "doe-analysis.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "factors": [
+                            {"name": "A", "low": 0, "high": 1},
+                            {"name": "B", "low": 10, "high": 20},
+                        ],
+                        "responses": [10, 14, 12, 20, 12, 16, 10, 22],
+                        "replicates": 2,
+                        "randomize": False,
+                        "interaction_order": 2,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            output = io.StringIO()
+
+            with redirect_stdout(output):
+                exit_code = main(["doe-analyze-full-factorial", "--input", str(path)])
+
+        response = json.loads(output.getvalue())
+        self.assertEqual(exit_code, 0)
+        self.assertTrue(response["ok"])
+        self.assertEqual(
+            response["result"]["analysis_type"],
+            "doe.full_factorial_2level_analysis",
+        )
+        self.assertEqual(len(response["result"]["tables"]["coefficients"]), 4)
+        self.assertEqual(len(response["result"]["tables"]["residuals"]), 8)
+
     def test_dataset_import_csv_returns_typed_snapshot(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "process.csv"

@@ -2,7 +2,7 @@ import { AlertTriangle, ArrowLeft, BookOpen, CheckCircle2, X } from "lucide-reac
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { getRun } from "../api";
-import { toImrView } from "../analysis";
+import { toDoeView, toImrView, type DoeView } from "../analysis";
 import { Button } from "../components/Button";
 import type { StoredRun } from "../types";
 
@@ -46,6 +46,7 @@ export function ResultPage() {
 
   const result = run?.result;
   const imr = toImrView(result);
+  const doe = toDoeView(result);
   const signalCount = useMemo(() => imr?.points.filter((point) => point.signal).length ?? 0, [imr]);
   const closeDrawer = () => { setSearch({}); drawerTrigger.current?.focus(); };
 
@@ -74,9 +75,37 @@ export function ResultPage() {
         <header className="panel-heading"><div><span className="eyebrow">ACCESSIBLE DATA</span><h2>관리도 원본 표</h2></div></header>
         <div className="table-scroll"><table><thead><tr><th scope="col">순서</th><th scope="col">관측값</th><th scope="col">상태</th></tr></thead><tbody>{imr.points.map((point) => <tr key={point.index}><td>{point.index}</td><td>{point.value.toFixed(4)}</td><td>{point.signal ? <span className="status-text is-danger"><AlertTriangle aria-hidden="true" /> 한계 이탈</span> : <span className="status-text is-success"><CheckCircle2 aria-hidden="true" /> 정상</span>}</td></tr>)}</tbody></table></div>
       </section>
-      </> : <section className="panel generic-result-panel"><header className="panel-heading"><div><span className="eyebrow">RESULT BUNDLE</span><h2>분석 결과 요약</h2></div></header><dl><div><dt>분석 유형</dt><dd>{result.analysis_type}</dd></div><div><dt>진단 항목</dt><dd>{Object.keys(result.diagnostics).length}개</dd></div><div><dt>결과 표</dt><dd>{Object.keys(result.tables).join(", ") || "없음"}</dd></div></dl><p>이 분석의 전용 시각화는 다음 개발 증분에서 제공됩니다. 계산 근거와 원본 ResultBundle은 보존되어 있습니다.</p></section>}
+      </> : doe ? <DoeResult doe={doe} /> : <section className="panel generic-result-panel"><header className="panel-heading"><div><span className="eyebrow">RESULT BUNDLE</span><h2>분석 결과 요약</h2></div></header><dl><div><dt>분석 유형</dt><dd>{result.analysis_type}</dd></div><div><dt>진단 항목</dt><dd>{Object.keys(result.diagnostics).length}개</dd></div><div><dt>결과 표</dt><dd>{Object.keys(result.tables).join(", ") || "없음"}</dd></div></dl><p>이 분석의 전용 시각화는 다음 개발 증분에서 제공됩니다. 계산 근거와 원본 ResultBundle은 보존되어 있습니다.</p></section>}
       {result.warnings.length > 0 && <section className="warning-panel"><AlertTriangle aria-hidden="true" /><div><h2>해석 전 확인</h2><ul>{result.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></div></section>}
       {drawerOpen && <><button className="drawer-scrim" aria-label="계산 근거 닫기" onClick={closeDrawer} /><aside ref={drawer} className="detail-drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title"><header><div><span className="eyebrow">EVIDENCE</span><h2 id="drawer-title">계산 근거</h2></div><button ref={closeButton} className="icon-button" aria-label="닫기" onClick={closeDrawer}><X /></button></header><section><h3>분석 가정</h3><ul>{result.assumptions.map((item) => <li key={item}>{item}</li>)}</ul></section><section><h3>공개 출처</h3>{result.provenance.map((source) => <a className="source-link" href={source.url} target="_blank" rel="noreferrer" key={source.url}><strong>{source.title}</strong><span>{source.authority}</span></a>)}</section><section><h3>재현 정보</h3><dl><div><dt>엔진</dt><dd>{result.engine_version}</dd></div><div><dt>Storage version</dt><dd>{run.storage_version}</dd></div><div><dt>ETag</dt><dd className="digest">{run.etag}</dd></div></dl></section></aside></>}
     </div>
   );
+}
+
+function statistic(value: number | null, digits = 4) {
+  if (value === null) return "—";
+  if (!Number.isFinite(value)) return value > 0 ? "∞" : "—";
+  return value.toFixed(digits);
+}
+
+function DoeResult({ doe }: { doe: DoeView }) {
+  const effects = doe.coefficients.filter((row) => row.effect !== null);
+  const ranked = [...effects].sort((left, right) => Math.abs(right.effect ?? 0) - Math.abs(left.effect ?? 0));
+  const maxEffect = Math.max(...ranked.map((row) => Math.abs(row.effect ?? 0)), 1);
+  const strongest = ranked[0];
+  return <>
+    <section className="metric-grid result-metrics" aria-label="DOE 결과 요약">
+      <article className="metric-card"><span>응답</span><strong className="metric-text">{doe.responseName}</strong><small>분석 대상</small></article>
+      <article className="metric-card"><span>R²</span><strong>{statistic(doe.rSquared, 3)}</strong><small>설명된 변동 비율</small></article>
+      <article className="metric-card"><span>수정 R²</span><strong>{statistic(doe.adjustedRSquared, 3)}</strong><small>모델 크기 보정</small></article>
+      <article className="metric-card"><span>잔차 표준편차</span><strong>{statistic(doe.residualStandardDeviation, 3)}</strong><small>오차 규모</small></article>
+    </section>
+    <section className="panel doe-effect-panel">
+      <header className="panel-heading"><div><span className="eyebrow">CODED DESIGN EFFECTS</span><h2>효과 크기</h2></div><span>{effects.length}개 항</span></header>
+      <div className="effect-bars" role="img" aria-label={strongest ? `가장 큰 절대 효과는 ${strongest.term}, 효과 ${statistic(strongest.effect)}` : "추정된 효과 없음"}>{ranked.map((row) => <div className="effect-bar-row" key={row.term}><strong>{row.term}</strong><span className={Number(row.effect) < 0 ? "effect-track is-negative" : "effect-track"}><i style={{ width: `${Math.abs(Number(row.effect)) / maxEffect * 100}%` }} /></span><span>{statistic(row.effect)}</span></div>)}</div>
+      <div className="table-scroll"><table><thead><tr><th scope="col">항</th><th scope="col">차수</th><th scope="col">계수</th><th scope="col">효과</th><th scope="col">F</th><th scope="col">p</th></tr></thead><tbody>{effects.map((row) => <tr key={row.term}><td>{row.term}</td><td>{row.order}</td><td>{statistic(row.coefficient)}</td><td>{statistic(row.effect)}</td><td>{statistic(row.f_value)}</td><td>{statistic(row.p_value)}</td></tr>)}</tbody></table></div>
+    </section>
+    <section className="panel table-panel"><header className="panel-heading"><div><span className="eyebrow">ANALYSIS OF VARIANCE</span><h2>ANOVA</h2></div></header><div className="table-scroll"><table><thead><tr><th scope="col">변동원</th><th scope="col">DF</th><th scope="col">SS</th><th scope="col">MS</th><th scope="col">F</th><th scope="col">p</th></tr></thead><tbody>{doe.anova.map((row) => <tr key={row.source}><td>{row.source}</td><td>{row.degrees_of_freedom}</td><td>{statistic(row.sum_of_squares)}</td><td>{statistic(row.mean_square)}</td><td>{statistic(row.f_value)}</td><td>{statistic(row.p_value)}</td></tr>)}</tbody></table></div></section>
+    <section className="panel table-panel"><header className="panel-heading"><div><span className="eyebrow">RESIDUAL DIAGNOSTICS</span><h2>적합값과 잔차</h2></div></header><div className="table-scroll"><table><thead><tr><th scope="col">실행순서</th><th scope="col">표준순서</th><th scope="col">관측값</th><th scope="col">적합값</th><th scope="col">잔차</th><th scope="col">척도화 잔차</th></tr></thead><tbody>{doe.residuals.map((row) => <tr key={row.run_order}><td>{row.run_order}</td><td>{row.standard_order ?? "중심점"}</td><td>{statistic(row.observed)}</td><td>{statistic(row.fitted)}</td><td>{statistic(row.residual)}</td><td>{statistic(row.scaled_residual)}</td></tr>)}</tbody></table></div></section>
+  </>;
 }

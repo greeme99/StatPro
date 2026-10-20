@@ -7,6 +7,7 @@ import { FmeaListPage } from "./pages/FmeaListPage";
 import { FmeaStudyPage } from "./pages/FmeaStudyPage";
 import { DataPage } from "./pages/DataPage";
 import { WorksheetPage } from "./pages/WorksheetPage";
+import { DoeSetupPage } from "./pages/DoeSetupPage";
 
 export default function App() {
   return (
@@ -14,6 +15,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<DashboardPage />} />
         <Route path="/analyses/imr/new" element={<ImrSetupPage />} />
+        <Route path="/analyses/doe/full-factorial" element={<DoeSetupPage />} />
         <Route path="/runs/:runId" element={<ResultPage />} />
         <Route path="/data" element={<DataPage />} />
         <Route path="/data/:worksheetId" element={<WorksheetPage />} />

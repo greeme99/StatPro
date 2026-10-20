@@ -1,0 +1,13 @@
+{
+  "factors": [
+    { "name": "A", "low": 0, "high": 1 },
+    { "name": "B", "low": 10, "high": 20 }
+  ],
+  "responses": [10, 14, 12, 20, 12, 16, 10, 22],
+  "response_name": "Strength",
+  "replicates": 2,
+  "center_points": 0,
+  "randomize": false,
+  "seed": 0,
+  "interaction_order": 2
+}

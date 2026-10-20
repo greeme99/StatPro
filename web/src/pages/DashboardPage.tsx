@@ -13,6 +13,7 @@ const labels: Record<string, string> = {
   "spc.xbar_r": "Xbar-R 관리도",
   "capability.normal_individuals": "정규 공정능력",
   "doe.full_factorial_2level": "2수준 완전요인 DOE",
+  "doe.full_factorial_2level_analysis": "2수준 완전요인 DOE 분석",
   "msa.gage_rr_crossed": "교차 Gage R&R",
 };
 
@@ -40,7 +41,7 @@ export function DashboardPage() {
           <h1>공정 판단을 한 화면에서</h1>
           <p>분석 실행부터 관리한계, 경고, 계산 근거까지 같은 기록으로 확인합니다.</p>
         </div>
-        <Link to="/analyses/imr/new"><Button variant="primary" icon={<FlaskConical />}>새 I-MR 분석</Button></Link>
+        <div className="page-actions"><Link to="/analyses/doe/full-factorial"><Button icon={<FlaskConical />}>새 DOE 분석</Button></Link><Link to="/analyses/imr/new"><Button variant="primary" icon={<FlaskConical />}>새 I-MR 분석</Button></Link></div>
       </section>
 
       <section className="metric-grid" aria-label="분석 현황">

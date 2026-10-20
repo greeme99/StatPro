@@ -38,6 +38,23 @@ export function createImrRun(payload: {
   });
 }
 
+export function createDoeAnalysisRun(payload: {
+  run_id: string;
+  factors: Array<{ name: string; low: number; high: number }>;
+  responses: number[];
+  response_name: string;
+  replicates: number;
+  center_points: number;
+  randomize: boolean;
+  seed: number;
+  interaction_order: number;
+}): Promise<StoredRun> {
+  return request("/v1/analysis-runs/doe-full-factorial-analysis", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function listFmeaStudies(limit = 50): Promise<FmeaStudyPage> {
   return request(`/v1/fmea-studies?limit=${limit}`);
 }

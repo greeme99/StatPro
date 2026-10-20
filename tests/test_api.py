@@ -89,6 +89,21 @@ class LocalApiContractTests(unittest.TestCase):
                 "doe.full_factorial_2level",
             ),
             (
+                "/v1/analysis-runs/doe-full-factorial-analysis",
+                {
+                    "run_id": "doe-analysis",
+                    "factors": [
+                        {"name": "A", "low": 0, "high": 1},
+                        {"name": "B", "low": 10, "high": 20},
+                    ],
+                    "responses": [10, 14, 12, 20, 12, 16, 10, 22],
+                    "replicates": 2,
+                    "randomize": False,
+                    "interaction_order": 2,
+                },
+                "doe.full_factorial_2level_analysis",
+            ),
+            (
                 "/v1/analysis-runs/gage-rr-crossed",
                 {
                     "run_id": "gage",
