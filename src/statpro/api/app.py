@@ -16,8 +16,10 @@ from pydantic import BaseModel, ConfigDict, Field
 from statpro.analyses.capability import normal_process_capability
 from statpro.analyses.doe import (
     FactorDefinition,
+    ResponseObjective,
     analyze_full_factorial_2level,
     full_factorial_2level,
+    optimize_full_factorial_desirability,
 )
 from statpro.analyses.msa import MeasurementRecord, gage_rr_crossed
 from statpro.analyses.spc import individuals_moving_range, xbar_r
@@ -107,6 +109,22 @@ class FullFactorialAnalysisRunRequest(FullFactorialRunRequest):
     interaction_order: int = Field(default=2, ge=1)
     prediction_points: list[dict[str, float]] = Field(default_factory=list, max_length=100)
     optimization_goal: Literal["maximize", "minimize"] | None = None
+
+
+class ResponseObjectiveRequest(ApiModel):
+    name: str
+    responses: list[float]
+    goal: Literal["maximize", "minimize", "target"]
+    target: float
+    lower: float | None = None
+    upper: float | None = None
+    weight: float = 1.0
+    importance: float = 1.0
+
+
+class FullFactorialOptimizerRunRequest(FullFactorialRunRequest):
+    objectives: list[ResponseObjectiveRequest] = Field(min_length=1, max_length=10)
+    interaction_order: int = Field(default=2, ge=1)
 
 
 class MeasurementRequest(ApiModel):
@@ -503,6 +521,35 @@ def create_app(repository: DocumentRepository) -> FastAPI:
                 interaction_order=request.interaction_order,
                 prediction_points=request.prediction_points,
                 optimization_goal=request.optimization_goal,
+            ),
+        )
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _response(stored)
+
+    @app.post(
+        "/v1/analysis-runs/doe-response-optimizer",
+        status_code=201,
+        response_model=StoredRunResponse,
+    )
+    def optimize_doe_responses(
+        request: FullFactorialOptimizerRunRequest, response: Response
+    ) -> StoredRunResponse:
+        factors = [FactorDefinition(**factor.model_dump()) for factor in request.factors]
+        objectives = [
+            ResponseObjective(**objective.model_dump())
+            for objective in request.objectives
+        ]
+        stored = _save_run(
+            repository,
+            request.run_id,
+            optimize_full_factorial_desirability(
+                factors,
+                objectives,
+                replicates=request.replicates,
+                center_points=request.center_points,
+                randomize=request.randomize,
+                seed=request.seed,
+                interaction_order=request.interaction_order,
             ),
         )
         response.headers["ETag"] = f'"{stored.etag}"'

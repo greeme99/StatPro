@@ -9,8 +9,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from statpro.analyses.doe import (
     FactorDefinition,
+    ResponseObjective,
     analyze_full_factorial_2level,
+    composite_desirability,
     full_factorial_2level,
+    individual_desirability,
+    optimize_full_factorial_desirability,
 )
 from statpro.domain.errors import AnalysisInputError
 
@@ -190,3 +194,125 @@ class FullFactorialAnalysisTests(unittest.TestCase):
                 optimization_goal="target",
             )
         self.assertEqual(goal_context.exception.detail.code, "invalid_optimization_goal")
+
+
+class FullFactorialDesirabilityTests(unittest.TestCase):
+    def test_individual_and_composite_desirability_match_hand_calculation(self) -> None:
+        maximize = individual_desirability(
+            75, goal="maximize", lower=50, target=100, weight=1
+        )
+        minimize = individual_desirability(
+            25, goal="minimize", target=0, upper=100, weight=1
+        )
+        target = individual_desirability(
+            60, goal="target", lower=0, target=50, upper=100, weight=2
+        )
+
+        self.assertAlmostEqual(maximize, 0.5)
+        self.assertAlmostEqual(minimize, 0.75)
+        self.assertAlmostEqual(target, 0.64)
+        self.assertAlmostEqual(
+            composite_desirability([maximize, minimize], [1, 3]),
+            (0.5 * 0.75**3) ** 0.25,
+        )
+
+    def test_multiple_responses_find_joint_vertex_solution(self) -> None:
+        result = optimize_full_factorial_desirability(
+            [FactorDefinition("A", 0, 1), FactorDefinition("B", 0, 1)],
+            [
+                ResponseObjective(
+                    name="Yield",
+                    responses=[0, 10, 0, 10],
+                    goal="maximize",
+                    lower=0,
+                    target=10,
+                ),
+                ResponseObjective(
+                    name="Cost",
+                    responses=[0, 0, 10, 10],
+                    goal="minimize",
+                    target=0,
+                    upper=10,
+                    importance=2,
+                ),
+            ],
+            randomize=False,
+            interaction_order=1,
+        )
+
+        solution = result.tables["solution"][0]
+        self.assertEqual(solution["actual"], {"A": 1.0, "B": 0.0})
+        self.assertAlmostEqual(solution["composite_desirability"], 1.0)
+        self.assertEqual(
+            [row["desirability"] for row in result.tables["response_desirabilities"]],
+            [1.0, 1.0],
+        )
+        self.assertFalse(result.diagnostics["global_optimum_proven"])
+        json.dumps(result.to_dict(), allow_nan=False)
+
+    def test_target_objective_can_find_interior_setting(self) -> None:
+        result = optimize_full_factorial_desirability(
+            [FactorDefinition("A", 0, 1), FactorDefinition("B", 0, 1)],
+            [
+                ResponseObjective(
+                    name="Dimension",
+                    responses=[0, 10, 0, 10],
+                    goal="target",
+                    lower=0,
+                    target=5,
+                    upper=10,
+                )
+            ],
+            randomize=False,
+            interaction_order=1,
+        )
+
+        solution = result.tables["solution"][0]
+        self.assertAlmostEqual(solution["actual"]["A"], 0.5, places=6)
+        self.assertAlmostEqual(solution["composite_desirability"], 1.0)
+
+    def test_rejects_invalid_objective_boundaries_and_response_identity(self) -> None:
+        factors = [FactorDefinition("A", 0, 1), FactorDefinition("B", 0, 1)]
+        with self.assertRaises(AnalysisInputError) as count_context:
+            optimize_full_factorial_desirability(
+                factors,
+                [
+                    ResponseObjective(
+                        name="Yield",
+                        responses=[1, 2, 3],
+                        goal="maximize",
+                        lower=0,
+                        target=5,
+                    )
+                ],
+                randomize=False,
+            )
+        self.assertEqual(count_context.exception.detail.code, "response_count_mismatch")
+
+        with self.assertRaises(AnalysisInputError) as bound_context:
+            optimize_full_factorial_desirability(
+                factors,
+                [
+                    ResponseObjective(
+                        name="Yield",
+                        responses=[1, 2, 3, 4],
+                        goal="maximize",
+                        target=10,
+                    )
+                ],
+                randomize=False,
+            )
+        self.assertEqual(bound_context.exception.detail.code, "missing_desirability_bound")
+
+        duplicate = ResponseObjective(
+            name="Y",
+            responses=[1, 2, 3, 4],
+            goal="maximize",
+            lower=0,
+            target=5,
+        )
+        with self.assertRaises(AnalysisInputError) as name_context:
+            optimize_full_factorial_desirability(
+                factors, [duplicate, duplicate], randomize=False
+            )
+        self.assertEqual(name_context.exception.detail.code, "duplicate_response_name")

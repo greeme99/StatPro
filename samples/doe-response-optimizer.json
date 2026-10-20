@@ -1,0 +1,31 @@
+{
+  "factors": [
+    {"name": "Temperature", "low": 150, "high": 200},
+    {"name": "Pressure", "low": 20, "high": 40}
+  ],
+  "replicates": 1,
+  "center_points": 0,
+  "randomize": false,
+  "seed": 0,
+  "interaction_order": 1,
+  "objectives": [
+    {
+      "name": "Yield",
+      "responses": [60, 90, 65, 95],
+      "goal": "maximize",
+      "lower": 60,
+      "target": 95,
+      "weight": 1,
+      "importance": 2
+    },
+    {
+      "name": "Defects",
+      "responses": [8, 4, 10, 6],
+      "goal": "minimize",
+      "target": 4,
+      "upper": 10,
+      "weight": 1,
+      "importance": 1
+    }
+  ]
+}

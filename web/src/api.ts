@@ -58,6 +58,33 @@ export function createDoeAnalysisRun(payload: {
   });
 }
 
+export type DoeResponseObjectivePayload = {
+  name: string;
+  responses: number[];
+  goal: "maximize" | "minimize" | "target";
+  lower?: number;
+  target: number;
+  upper?: number;
+  weight: number;
+  importance: number;
+};
+
+export function createDoeResponseOptimizerRun(payload: {
+  run_id: string;
+  factors: Array<{ name: string; low: number; high: number }>;
+  objectives: DoeResponseObjectivePayload[];
+  replicates: number;
+  center_points: number;
+  randomize: boolean;
+  seed: number;
+  interaction_order: number;
+}): Promise<StoredRun> {
+  return request("/v1/analysis-runs/doe-response-optimizer", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function listFmeaStudies(limit = 50): Promise<FmeaStudyPage> {
   return request(`/v1/fmea-studies?limit=${limit}`);
 }

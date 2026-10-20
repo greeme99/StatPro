@@ -115,6 +115,49 @@ class CliBoundaryTests(unittest.TestCase):
             {"A": 1.0, "B": 20.0},
         )
 
+    def test_doe_response_optimizer_returns_composite_desirability(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "doe-optimizer.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "factors": [
+                            {"name": "A", "low": 0, "high": 1},
+                            {"name": "B", "low": 0, "high": 1},
+                        ],
+                        "randomize": False,
+                        "interaction_order": 1,
+                        "objectives": [
+                            {
+                                "name": "Yield",
+                                "responses": [0, 10, 0, 10],
+                                "goal": "maximize",
+                                "lower": 0,
+                                "target": 10,
+                            },
+                            {
+                                "name": "Cost",
+                                "responses": [0, 0, 10, 10],
+                                "goal": "minimize",
+                                "target": 0,
+                                "upper": 10,
+                            },
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            output = io.StringIO()
+
+            with redirect_stdout(output):
+                exit_code = main(["doe-optimize-responses", "--input", str(path)])
+
+        response = json.loads(output.getvalue())
+        solution = response["result"]["tables"]["solution"][0]
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(solution["actual"], {"A": 1.0, "B": 0.0})
+        self.assertAlmostEqual(solution["composite_desirability"], 1.0)
+
     def test_dataset_import_csv_returns_typed_snapshot(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "process.csv"

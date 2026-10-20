@@ -106,6 +106,33 @@ export type DoeView = {
   responseName: string;
 };
 
+export type DoeDesirabilitySolution = {
+  solution: number;
+  actual: Record<string, number>;
+  coded: Record<string, number>;
+  composite_desirability: number;
+  candidate_evaluations: number;
+  search_method: string;
+};
+
+export type DoeResponseDesirability = {
+  response: string;
+  goal: "maximize" | "minimize" | "target";
+  prediction: number;
+  desirability: number;
+  lower: number | null;
+  target: number;
+  upper: number | null;
+  weight: number;
+  importance: number;
+};
+
+export type DoeDesirabilityView = {
+  solution: DoeDesirabilitySolution;
+  responses: DoeResponseDesirability[];
+  globalOptimumProven: boolean;
+};
+
 export function toDoeView(result: ResultBundle | undefined): DoeView | null {
   if (!result || result.analysis_type !== "doe.full_factorial_2level_analysis") return null;
   const coefficients = result.tables.coefficients;
@@ -124,5 +151,17 @@ export function toDoeView(result: ResultBundle | undefined): DoeView | null {
     adjustedRSquared: typeof result.diagnostics.adjusted_r_squared === "number" ? result.diagnostics.adjusted_r_squared : null,
     residualStandardDeviation: typeof result.diagnostics.residual_standard_deviation === "number" ? result.diagnostics.residual_standard_deviation : null,
     responseName: typeof result.diagnostics.response_name === "string" ? result.diagnostics.response_name : "Response",
+  };
+}
+
+export function toDoeDesirabilityView(result: ResultBundle | undefined): DoeDesirabilityView | null {
+  if (!result || result.analysis_type !== "doe.full_factorial_2level_desirability") return null;
+  const solutions = result.tables.solution;
+  const responses = result.tables.response_desirabilities;
+  if (!Array.isArray(solutions) || solutions.length !== 1 || !Array.isArray(responses)) return null;
+  return {
+    solution: solutions[0] as DoeDesirabilitySolution,
+    responses: responses as DoeResponseDesirability[],
+    globalOptimumProven: result.diagnostics.global_optimum_proven === true,
   };
 }

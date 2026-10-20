@@ -243,6 +243,52 @@ describe("StatPro UI", () => {
     expect(screen.getAllByText("A:B").length).toBeGreaterThan(0);
   });
 
+  it("submits multiple DOE response objectives with target boundaries", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      return new Response(JSON.stringify({}), { status: init?.method === "POST" ? 201 : 200, headers: { "Content-Type": "application/json" } });
+    });
+    render(<MemoryRouter initialEntries={["/analyses/doe/response-optimizer"]}><App /></MemoryRouter>);
+
+    const goals = await screen.findAllByRole("combobox", { name: "목표" });
+    await userEvent.selectOptions(goals[0], "target");
+    const uppers = screen.getAllByRole("spinbutton", { name: "Upper" });
+    await userEvent.type(uppers[0], "20");
+    await userEvent.click(screen.getByRole("button", { name: "응답 최적화 실행" }));
+    await waitFor(() => expect(fetchMock.mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === "POST")).toBe(true));
+    const post = fetchMock.mock.calls.find(([url, init]) => String(url).endsWith("/doe-response-optimizer") && (init as RequestInit | undefined)?.method === "POST");
+    const body = JSON.parse(String((post?.[1] as RequestInit).body));
+    expect(body.objectives).toHaveLength(2);
+    expect(body.objectives[0]).toMatchObject({ name: "Yield", goal: "target", lower: 0, target: 10 });
+    expect(body.randomize).toBe(false);
+  });
+
+  it("renders DOE composite and individual desirability results", async () => {
+    const result = {
+      analysis_type: "doe.full_factorial_2level_desirability", engine_version: "0.6.0", input_digest: "c".repeat(64), warnings: [], assumptions: [], provenance: [], parameters: {},
+      diagnostics: { global_optimum_proven: false },
+      tables: {
+        solution: [{ solution: 1, actual: { A: 1, B: 0 }, coded: { A: 1, B: -1 }, composite_desirability: 1, candidate_evaluations: 80, search_method: "deterministic_multistart_pattern" }],
+        response_desirabilities: [
+          { response: "Yield", goal: "maximize", prediction: 10, desirability: 1, lower: 0, target: 10, upper: null, weight: 1, importance: 1 },
+          { response: "Cost", goal: "minimize", prediction: 0, desirability: 1, lower: null, target: 0, upper: 10, weight: 1, importance: 1 },
+        ],
+        models: [],
+      },
+      plots: {},
+    };
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      return new Response(JSON.stringify({ run_id: "doe-opt-001", storage_version: 1, etag: "a".repeat(64), result }), { status: 200 });
+    });
+
+    render(<MemoryRouter initialEntries={["/runs/doe-opt-001"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "권장 요인 설정" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "응답별 예측과 만족도" })).toBeInTheDocument();
+    expect(screen.getAllByText("복합 desirability")).toHaveLength(2);
+    expect(screen.getByText("Yield")).toBeInTheDocument();
+  });
+
   it("renders persisted worksheets with typed shape metadata", async () => {
     const worksheet = { worksheet_id: "ws-001", name: "Process Measurements", base_dataset_digest: "d".repeat(64), digest: "e".repeat(64), revision: 1, parent_digest: null, row_count: 2, columns: [{ name: "value", data_type: "numeric", nullable: true, missing_count: 1, values: [10.5, null] }], transformations: [] };
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {

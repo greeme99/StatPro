@@ -10,8 +10,10 @@ from typing import Sequence
 from statpro.analyses.capability import normal_process_capability
 from statpro.analyses.doe import (
     FactorDefinition,
+    ResponseObjective,
     analyze_full_factorial_2level,
     full_factorial_2level,
+    optimize_full_factorial_desirability,
 )
 from statpro.analyses.msa import MeasurementRecord, gage_rr_crossed
 from statpro.analyses.spc import individuals_moving_range, xbar_r
@@ -28,6 +30,7 @@ def _parser() -> argparse.ArgumentParser:
         "capability-normal",
         "doe-full-factorial",
         "doe-analyze-full-factorial",
+        "doe-optimize-responses",
         "gage-rr-crossed",
         "dataset-import-csv",
     ):
@@ -62,7 +65,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                 usl=payload.get("usl"),
                 target=payload.get("target"),
             )
-        elif args.command in {"doe-full-factorial", "doe-analyze-full-factorial"}:
+        elif args.command in {
+            "doe-full-factorial",
+            "doe-analyze-full-factorial",
+            "doe-optimize-responses",
+        }:
             try:
                 factors = [FactorDefinition(**factor) for factor in payload["factors"]]
             except TypeError as error:
@@ -71,7 +78,28 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "Each factor requires name, low, and high fields.",
                     "factors",
                 ) from error
-            if args.command == "doe-analyze-full-factorial":
+            if args.command == "doe-optimize-responses":
+                try:
+                    objectives = [
+                        ResponseObjective(**objective)
+                        for objective in payload["objectives"]
+                    ]
+                except TypeError as error:
+                    raise AnalysisInputError(
+                        "invalid_response_objective",
+                        "Each objective requires name, responses, goal, and target fields.",
+                        "objectives",
+                    ) from error
+                result = optimize_full_factorial_desirability(
+                    factors,
+                    objectives,
+                    replicates=payload.get("replicates", 1),
+                    center_points=payload.get("center_points", 0),
+                    randomize=payload.get("randomize", True),
+                    seed=payload.get("seed", 0),
+                    interaction_order=payload.get("interaction_order", 2),
+                )
+            elif args.command == "doe-analyze-full-factorial":
                 result = analyze_full_factorial_2level(
                     factors,
                     payload["responses"],

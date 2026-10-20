@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import random
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import asdict, dataclass
 from itertools import combinations
 from math import exp, isfinite, lgamma, log, log1p, sqrt
@@ -35,12 +35,34 @@ NIST_FITTED_MODEL_SOURCE = ProvenanceSource(
     url="https://www.itl.nist.gov/div898/handbook/pri/section6/pri61a.htm",
 )
 
+NIST_DESIRABILITY_SOURCE = ProvenanceSource(
+    title="NIST/SEMATECH 5.5.3.2.2 Multiple responses: The desirability approach",
+    url="https://www.itl.nist.gov/div898/handbook/pri/section5/pri5322.htm",
+)
+
+MINITAB_RESPONSE_OPTIMIZER_SOURCE = ProvenanceSource(
+    title="Minitab public documentation: Individual and composite desirability",
+    url="https://support.minitab.com/en-us/minitab/help-and-how-to/statistical-modeling/using-fitted-models/supporting-topics/response-optimization/what-are-individual-desirability-and-composite-desirability/",
+)
+
 
 @dataclass(frozen=True, slots=True)
 class FactorDefinition:
     name: str
     low: float
     high: float
+
+
+@dataclass(frozen=True, slots=True)
+class ResponseObjective:
+    name: str
+    responses: Sequence[float]
+    goal: str
+    target: float
+    lower: float | None = None
+    upper: float | None = None
+    weight: float = 1.0
+    importance: float = 1.0
 
 
 def _normalize_factors(factors: Sequence[FactorDefinition]) -> list[FactorDefinition]:
@@ -283,6 +305,197 @@ def _f_survival(value: float, numerator_df: int, denominator_df: int) -> float |
     return min(1.0, max(0.0, probability))
 
 
+def _model_terms(
+    factor_names: Sequence[str], interaction_order: int
+) -> list[tuple[str, ...]]:
+    if (
+        isinstance(interaction_order, bool)
+        or not isinstance(interaction_order, int)
+        or not 1 <= interaction_order <= len(factor_names)
+    ):
+        raise AnalysisInputError(
+            "invalid_interaction_order",
+            f"Interaction order must be an integer from 1 to {len(factor_names)}.",
+            "interaction_order",
+        )
+    terms = [
+        term
+        for order in range(1, interaction_order + 1)
+        for term in combinations(factor_names, order)
+    ]
+    if len(terms) + 1 > 256:
+        raise AnalysisInputError(
+            "model_too_large",
+            "The selected model exceeds the 256-coefficient safety limit.",
+            "interaction_order",
+        )
+    return terms
+
+
+def _fit_orthogonal_model(
+    rows: Sequence[Mapping[str, object]],
+    factor_names: Sequence[str],
+    values: Sequence[float],
+    terms: Sequence[tuple[str, ...]],
+    *,
+    field: str,
+) -> tuple[
+    float,
+    dict[tuple[str, ...], float],
+    dict[tuple[str, ...], list[float]],
+    dict[tuple[str, ...], float],
+]:
+    if len(values) != len(rows):
+        raise AnalysisInputError(
+            "response_count_mismatch",
+            f"Expected {len(rows)} responses in run order, received {len(values)}.",
+            field,
+        )
+    coded_columns: dict[tuple[str, ...], list[float]] = {}
+    for term in terms:
+        coded_columns[term] = [
+            float(_product(row["coded"][name] for name in term)) for row in rows
+        ]
+    intercept = sum(values) / len(values)
+    coefficients: dict[tuple[str, ...], float] = {}
+    term_sums_of_squares: dict[tuple[str, ...], float] = {}
+    for term, column in coded_columns.items():
+        denominator = sum(value * value for value in column)
+        if denominator == 0.0:
+            raise AnalysisInputError(
+                "unestimable_term",
+                f"Term {':'.join(term)} cannot be estimated from this design.",
+                "interaction_order",
+            )
+        coefficient = (
+            sum(x * y for x, y in zip(column, values, strict=True)) / denominator
+        )
+        coefficients[term] = coefficient
+        term_sums_of_squares[term] = coefficient * coefficient * denominator
+    return intercept, coefficients, coded_columns, term_sums_of_squares
+
+
+def individual_desirability(
+    prediction: float,
+    *,
+    goal: str,
+    target: float,
+    lower: float | None = None,
+    upper: float | None = None,
+    weight: float = 1.0,
+) -> float:
+    """Convert one fitted response to a bounded Derringer-Suich desirability."""
+
+    value = finite_values([prediction], "prediction")[0]
+    normalized_target = finite_values([target], "target")[0]
+    normalized_weight = finite_values([weight], "weight")[0]
+    if not 0.1 <= normalized_weight <= 10.0:
+        raise AnalysisInputError(
+            "invalid_desirability_weight",
+            "Desirability weight must be between 0.1 and 10.",
+            "weight",
+        )
+    if goal == "maximize":
+        if lower is None:
+            raise AnalysisInputError(
+                "missing_desirability_bound",
+                "A maximize objective requires a lower bound.",
+                "lower",
+            )
+        normalized_lower = finite_values([lower], "lower")[0]
+        if normalized_lower >= normalized_target:
+            raise AnalysisInputError(
+                "invalid_desirability_bounds",
+                "A maximize objective requires lower < target.",
+                "lower",
+            )
+        if value <= normalized_lower:
+            return 0.0
+        if value >= normalized_target:
+            return 1.0
+        return ((value - normalized_lower) / (normalized_target - normalized_lower)) ** normalized_weight
+    if goal == "minimize":
+        if upper is None:
+            raise AnalysisInputError(
+                "missing_desirability_bound",
+                "A minimize objective requires an upper bound.",
+                "upper",
+            )
+        normalized_upper = finite_values([upper], "upper")[0]
+        if normalized_target >= normalized_upper:
+            raise AnalysisInputError(
+                "invalid_desirability_bounds",
+                "A minimize objective requires target < upper.",
+                "upper",
+            )
+        if value <= normalized_target:
+            return 1.0
+        if value >= normalized_upper:
+            return 0.0
+        return ((normalized_upper - value) / (normalized_upper - normalized_target)) ** normalized_weight
+    if goal == "target":
+        if lower is None or upper is None:
+            raise AnalysisInputError(
+                "missing_desirability_bound",
+                "A target objective requires lower and upper bounds.",
+                "lower",
+            )
+        normalized_lower, normalized_upper = finite_values(
+            [lower, upper], "desirability_bounds"
+        )
+        if not normalized_lower < normalized_target < normalized_upper:
+            raise AnalysisInputError(
+                "invalid_desirability_bounds",
+                "A target objective requires lower < target < upper.",
+                "target",
+            )
+        if value <= normalized_lower or value >= normalized_upper:
+            return 0.0
+        if value == normalized_target:
+            return 1.0
+        if value < normalized_target:
+            return ((value - normalized_lower) / (normalized_target - normalized_lower)) ** normalized_weight
+        return ((normalized_upper - value) / (normalized_upper - normalized_target)) ** normalized_weight
+    raise AnalysisInputError(
+        "invalid_optimization_goal",
+        "Response goal must be 'maximize', 'minimize', or 'target'.",
+        "goal",
+    )
+
+
+def composite_desirability(
+    desirabilities: Sequence[float], importances: Sequence[float]
+) -> float:
+    """Combine individual desirabilities using an importance-weighted geometric mean."""
+
+    values = finite_values(desirabilities, "desirabilities")
+    weights = finite_values(importances, "importances")
+    if not values or len(values) != len(weights):
+        raise AnalysisInputError(
+            "invalid_desirability_inputs",
+            "Desirabilities and importances must be non-empty and have equal length.",
+            "desirabilities",
+        )
+    if any(value < 0.0 or value > 1.0 for value in values):
+        raise AnalysisInputError(
+            "invalid_desirability_value",
+            "Individual desirabilities must be between 0 and 1.",
+            "desirabilities",
+        )
+    if any(weight < 0.1 or weight > 10.0 for weight in weights):
+        raise AnalysisInputError(
+            "invalid_desirability_importance",
+            "Response importance must be between 0.1 and 10.",
+            "importances",
+        )
+    if any(value == 0.0 for value in values):
+        return 0.0
+    return exp(
+        sum(weight * log(value) for value, weight in zip(values, weights, strict=True))
+        / sum(weights)
+    )
+
+
 def analyze_full_factorial_2level(
     factors: Sequence[FactorDefinition],
     responses: Sequence[float],
@@ -307,28 +520,12 @@ def analyze_full_factorial_2level(
     )
     rows = design.tables["design"]
     values = finite_values(responses, "responses")
-    if len(values) != len(rows):
-        raise AnalysisInputError(
-            "response_count_mismatch",
-            f"Expected {len(rows)} responses in run order, received {len(values)}.",
-            "responses",
-        )
     normalized_name = response_name.strip()
     if not normalized_name:
         raise AnalysisInputError(
             "empty_response_name", "Response name cannot be empty.", "response_name"
         )
     factor_names = [factor["name"] for factor in design.parameters["factors"]]
-    if (
-        isinstance(interaction_order, bool)
-        or not isinstance(interaction_order, int)
-        or not 1 <= interaction_order <= len(factor_names)
-    ):
-        raise AnalysisInputError(
-            "invalid_interaction_order",
-            f"Interaction order must be an integer from 1 to {len(factor_names)}.",
-            "interaction_order",
-        )
 
     normalized_prediction_points = _normalize_prediction_points(
         prediction_points, design.parameters["factors"]
@@ -340,39 +537,16 @@ def analyze_full_factorial_2level(
             "optimization_goal",
         )
 
-    terms = [
-        term
-        for order in range(1, interaction_order + 1)
-        for term in combinations(factor_names, order)
-    ]
-    if len(terms) + 1 > 256:
-        raise AnalysisInputError(
-            "model_too_large",
-            "The selected model exceeds the 256-coefficient safety limit.",
-            "interaction_order",
+    terms = _model_terms(factor_names, interaction_order)
+    intercept, coefficients, coded_columns, term_sums_of_squares = (
+        _fit_orthogonal_model(
+            rows,
+            factor_names,
+            values,
+            terms,
+            field="responses",
         )
-
-    coded_columns: dict[tuple[str, ...], list[float]] = {}
-    for term in terms:
-        coded_columns[term] = [
-            float(_product(row["coded"][name] for name in term)) for row in rows
-        ]
-    intercept = sum(values) / len(values)
-    coefficients: dict[tuple[str, ...], float] = {}
-    term_sums_of_squares: dict[tuple[str, ...], float] = {}
-    for term, column in coded_columns.items():
-        denominator = sum(value * value for value in column)
-        if denominator == 0.0:
-            raise AnalysisInputError(
-                "unestimable_term",
-                f"Term {':'.join(term)} cannot be estimated from this design.",
-                "interaction_order",
-            )
-        coefficient = (
-            sum(x * y for x, y in zip(column, values, strict=True)) / denominator
-        )
-        coefficients[term] = coefficient
-        term_sums_of_squares[term] = coefficient * coefficient * denominator
+    )
 
     fitted = [
         intercept
@@ -621,6 +795,302 @@ def analyze_full_factorial_2level(
             NIST_FITTED_MODEL_SOURCE,
         ),
     )
+
+
+def optimize_full_factorial_desirability(
+    factors: Sequence[FactorDefinition],
+    objectives: Sequence[ResponseObjective],
+    *,
+    replicates: int = 1,
+    center_points: int = 0,
+    randomize: bool = True,
+    seed: int = 0,
+    interaction_order: int = 2,
+) -> ResultBundle:
+    """Fit shared-design response models and maximize composite desirability."""
+
+    design = full_factorial_2level(
+        factors,
+        replicates=replicates,
+        center_points=center_points,
+        randomize=randomize,
+        seed=seed,
+    )
+    rows = design.tables["design"]
+    factor_parameters = design.parameters["factors"]
+    factor_names = [str(factor["name"]) for factor in factor_parameters]
+    terms = _model_terms(factor_names, interaction_order)
+    normalized_objectives = _normalize_response_objectives(objectives)
+
+    models: list[dict[str, object]] = []
+    fitted_models: list[tuple[float, dict[tuple[str, ...], float]]] = []
+    for index, objective in enumerate(normalized_objectives):
+        intercept, coefficients, _, _ = _fit_orthogonal_model(
+            rows,
+            factor_names,
+            objective["responses"],
+            terms,
+            field=f"objectives[{index}].responses",
+        )
+        fitted_models.append((intercept, coefficients))
+        models.append(
+            {
+                "response": objective["name"],
+                "intercept": intercept,
+                "coefficients": [
+                    {
+                        "term": ":".join(term),
+                        "order": len(term),
+                        "coefficient": coefficients[term],
+                    }
+                    for term in terms
+                ],
+            }
+        )
+
+    evaluation_count = 0
+
+    def score(coded: Mapping[str, float]) -> dict[str, object]:
+        nonlocal evaluation_count
+        evaluation_count += 1
+        response_rows: list[dict[str, object]] = []
+        desirabilities: list[float] = []
+        importances: list[float] = []
+        for objective, (intercept, coefficients) in zip(
+            normalized_objectives, fitted_models, strict=True
+        ):
+            prediction = _predict_response(coded, intercept, coefficients)
+            desirability = individual_desirability(
+                prediction,
+                goal=objective["goal"],
+                lower=objective["lower"],
+                target=objective["target"],
+                upper=objective["upper"],
+                weight=objective["weight"],
+            )
+            desirabilities.append(desirability)
+            importances.append(objective["importance"])
+            response_rows.append(
+                {
+                    "response": objective["name"],
+                    "goal": objective["goal"],
+                    "prediction": prediction,
+                    "desirability": desirability,
+                    "lower": objective["lower"],
+                    "target": objective["target"],
+                    "upper": objective["upper"],
+                    "weight": objective["weight"],
+                    "importance": objective["importance"],
+                }
+            )
+        return {
+            "coded": dict(coded),
+            "actual": _coded_to_actual(coded, factor_parameters),
+            "composite_desirability": composite_desirability(
+                desirabilities, importances
+            ),
+            "responses": response_rows,
+        }
+
+    vertices = _factorial_vertex_candidates(factor_parameters)
+    vertex_scores = [score(candidate["coded"]) for candidate in vertices]
+    center_score = score({name: 0.0 for name in factor_names})
+    ranked_vertices = sorted(
+        vertex_scores,
+        key=lambda row: (
+            -float(row["composite_desirability"]),
+            tuple(float(row["coded"][name]) for name in factor_names),
+        ),
+    )
+    start_scores = [center_score, *ranked_vertices[:16]]
+    local_solutions = [
+        _pattern_search_desirability(start, factor_names, score)
+        for start in start_scores
+    ]
+    best = max(
+        local_solutions,
+        key=lambda row: (
+            float(row["composite_desirability"]),
+            -sum(abs(float(row["coded"][name])) for name in factor_names),
+        ),
+    )
+
+    solution = {
+        "solution": 1,
+        "actual": best["actual"],
+        "coded": best["coded"],
+        "composite_desirability": best["composite_desirability"],
+        "candidate_evaluations": evaluation_count,
+        "search_method": "deterministic_multistart_pattern",
+    }
+    warnings = list(design.warnings)
+    warnings.extend(
+        [
+            "The bounded multistart pattern search is deterministic but does not prove a global optimum.",
+            "Response optimization uses fitted means; verify model assumptions and run confirmation experiments at the proposed setting.",
+        ]
+    )
+    if float(best["composite_desirability"]) == 0.0:
+        warnings.append(
+            "Every retained search solution has zero composite desirability because at least one response is outside its acceptable bounds."
+        )
+
+    payload = {
+        **design.parameters,
+        "interaction_order": interaction_order,
+        "objectives": normalized_objectives,
+    }
+    return ResultBundle(
+        analysis_type="doe.full_factorial_2level_desirability",
+        engine_version=ENGINE_VERSION,
+        input_digest=input_digest(payload),
+        parameters=payload,
+        tables={
+            "solution": [solution],
+            "response_desirabilities": best["responses"],
+            "models": models,
+        },
+        plots={
+            "desirability": {
+                "responses": [row["response"] for row in best["responses"]],
+                "individual": [row["desirability"] for row in best["responses"]],
+                "composite": best["composite_desirability"],
+            }
+        },
+        diagnostics={
+            "response_count": len(normalized_objectives),
+            "coefficient_count_per_response": len(terms) + 1,
+            "vertex_count": len(vertices),
+            "search_start_count": len(start_scores),
+            "candidate_evaluations": evaluation_count,
+            "search_tolerance": 1e-6,
+            "global_optimum_proven": False,
+        },
+        assumptions=(
+            "Every response vector corresponds one-for-one to the same generated design run order.",
+            "Each response uses the same coded main-effect and interaction term structure.",
+            "Individual desirabilities use one shared shape weight on both sides of a target objective.",
+            "Composite desirability is the importance-weighted geometric mean of individual desirabilities.",
+            "Search is restricted to the fitted experimental region.",
+        ),
+        warnings=tuple(warnings),
+        provenance=(
+            NIST_FACTORIAL_SOURCE,
+            NIST_DOE_MODEL_SOURCE,
+            NIST_DESIRABILITY_SOURCE,
+            MINITAB_RESPONSE_OPTIMIZER_SOURCE,
+        ),
+    )
+
+
+def _normalize_response_objectives(
+    objectives: Sequence[ResponseObjective],
+) -> list[dict[str, object]]:
+    if not objectives or len(objectives) > 10:
+        raise AnalysisInputError(
+            "invalid_response_objective_count",
+            "Response optimization requires between 1 and 10 objectives.",
+            "objectives",
+        )
+    normalized: list[dict[str, object]] = []
+    names: set[str] = set()
+    for index, objective in enumerate(objectives):
+        name = objective.name.strip()
+        if not name:
+            raise AnalysisInputError(
+                "empty_response_name",
+                f"Objective {index + 1} needs a response name.",
+                f"objectives[{index}].name",
+            )
+        if name in names:
+            raise AnalysisInputError(
+                "duplicate_response_name",
+                f"Response name '{name}' is duplicated.",
+                f"objectives[{index}].name",
+            )
+        values = finite_values(
+            objective.responses, f"objectives[{index}].responses"
+        )
+        target = finite_values([objective.target], f"objectives[{index}].target")[0]
+        lower = (
+            None
+            if objective.lower is None
+            else finite_values([objective.lower], f"objectives[{index}].lower")[0]
+        )
+        upper = (
+            None
+            if objective.upper is None
+            else finite_values([objective.upper], f"objectives[{index}].upper")[0]
+        )
+        weight, importance = finite_values(
+            [objective.weight, objective.importance],
+            f"objectives[{index}].desirability",
+        )
+        individual_desirability(
+            target,
+            goal=objective.goal,
+            lower=lower,
+            target=target,
+            upper=upper,
+            weight=weight,
+        )
+        composite_desirability([1.0], [importance])
+        names.add(name)
+        normalized.append(
+            {
+                "name": name,
+                "responses": values,
+                "goal": objective.goal,
+                "lower": lower,
+                "target": target,
+                "upper": upper,
+                "weight": weight,
+                "importance": importance,
+            }
+        )
+    return normalized
+
+
+def _pattern_search_desirability(
+    start: Mapping[str, object],
+    factor_names: Sequence[str],
+    score: Callable[[Mapping[str, float]], dict[str, object]],
+) -> dict[str, object]:
+    current = dict(start)
+    step = 0.5
+    iterations = 0
+    while step >= 1e-6 and iterations < 200:
+        iterations += 1
+        best = current
+        for name in factor_names:
+            for direction in (-1.0, 1.0):
+                coded = dict(current["coded"])
+                candidate = max(-1.0, min(1.0, float(coded[name]) + direction * step))
+                if candidate == coded[name]:
+                    continue
+                coded[name] = candidate
+                evaluated = score(coded)
+                if float(evaluated["composite_desirability"]) > float(
+                    best["composite_desirability"]
+                ) + 1e-12:
+                    best = evaluated
+        if best is current:
+            step /= 2.0
+        else:
+            current = best
+    return current
+
+
+def _coded_to_actual(
+    coded: Mapping[str, float], factors: Sequence[Mapping[str, object]]
+) -> dict[str, float]:
+    return {
+        str(factor["name"]): float(factor["low"])
+        + (float(coded[str(factor["name"])]) + 1.0)
+        * (float(factor["high"]) - float(factor["low"]))
+        / 2.0
+        for factor in factors
+    }
 
 
 def _normalize_prediction_points(

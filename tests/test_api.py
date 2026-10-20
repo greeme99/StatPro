@@ -122,6 +122,35 @@ class LocalApiContractTests(unittest.TestCase):
                 "doe.full_factorial_2level_analysis",
             ),
             (
+                "/v1/analysis-runs/doe-response-optimizer",
+                {
+                    "run_id": "doe-optimizer",
+                    "factors": [
+                        {"name": "A", "low": 0, "high": 1},
+                        {"name": "B", "low": 0, "high": 1},
+                    ],
+                    "randomize": False,
+                    "interaction_order": 1,
+                    "objectives": [
+                        {
+                            "name": "Yield",
+                            "responses": [0, 10, 0, 10],
+                            "goal": "maximize",
+                            "lower": 0,
+                            "target": 10,
+                        },
+                        {
+                            "name": "Cost",
+                            "responses": [0, 0, 10, 10],
+                            "goal": "minimize",
+                            "target": 0,
+                            "upper": 10,
+                        },
+                    ],
+                },
+                "doe.full_factorial_2level_desirability",
+            ),
+            (
                 "/v1/analysis-runs/gage-rr-crossed",
                 {
                     "run_id": "gage",
@@ -162,6 +191,10 @@ class LocalApiContractTests(unittest.TestCase):
                         tables["optimization"][0]["actual"],
                         {"A": 1.0, "B": 20.0},
                     )
+                if analysis_type == "doe.full_factorial_2level_desirability":
+                    solution = response.json()["result"]["tables"]["solution"][0]
+                    self.assertEqual(solution["actual"], {"A": 1.0, "B": 0.0})
+                    self.assertAlmostEqual(solution["composite_desirability"], 1.0)
 
     def test_analysis_run_listing_is_bounded_and_cursor_paged(self) -> None:
         for run_id in ("run-001", "run-002", "run-003"):

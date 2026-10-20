@@ -2,7 +2,7 @@ import { AlertTriangle, ArrowLeft, BookOpen, CheckCircle2, X } from "lucide-reac
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { getRun } from "../api";
-import { toDoeView, toImrView, type DoeView } from "../analysis";
+import { toDoeDesirabilityView, toDoeView, toImrView, type DoeDesirabilityView, type DoeView } from "../analysis";
 import { Button } from "../components/Button";
 import type { StoredRun } from "../types";
 
@@ -47,6 +47,7 @@ export function ResultPage() {
   const result = run?.result;
   const imr = toImrView(result);
   const doe = toDoeView(result);
+  const optimizer = toDoeDesirabilityView(result);
   const signalCount = useMemo(() => imr?.points.filter((point) => point.signal).length ?? 0, [imr]);
   const closeDrawer = () => { setSearch({}); drawerTrigger.current?.focus(); };
 
@@ -75,7 +76,7 @@ export function ResultPage() {
         <header className="panel-heading"><div><span className="eyebrow">ACCESSIBLE DATA</span><h2>관리도 원본 표</h2></div></header>
         <div className="table-scroll"><table><thead><tr><th scope="col">순서</th><th scope="col">관측값</th><th scope="col">상태</th></tr></thead><tbody>{imr.points.map((point) => <tr key={point.index}><td>{point.index}</td><td>{point.value.toFixed(4)}</td><td>{point.signal ? <span className="status-text is-danger"><AlertTriangle aria-hidden="true" /> {point.rules.length ? point.rules.join(", ") : "3σ 한계 이탈"}</span> : <span className="status-text is-success"><CheckCircle2 aria-hidden="true" /> 정상</span>}</td></tr>)}</tbody></table></div>
       </section>
-      </> : doe ? <DoeResult doe={doe} /> : <section className="panel generic-result-panel"><header className="panel-heading"><div><span className="eyebrow">RESULT BUNDLE</span><h2>분석 결과 요약</h2></div></header><dl><div><dt>분석 유형</dt><dd>{result.analysis_type}</dd></div><div><dt>진단 항목</dt><dd>{Object.keys(result.diagnostics).length}개</dd></div><div><dt>결과 표</dt><dd>{Object.keys(result.tables).join(", ") || "없음"}</dd></div></dl><p>이 분석의 전용 시각화는 다음 개발 증분에서 제공됩니다. 계산 근거와 원본 ResultBundle은 보존되어 있습니다.</p></section>}
+      </> : doe ? <DoeResult doe={doe} /> : optimizer ? <DoeDesirabilityResult optimizer={optimizer} /> : <section className="panel generic-result-panel"><header className="panel-heading"><div><span className="eyebrow">RESULT BUNDLE</span><h2>분석 결과 요약</h2></div></header><dl><div><dt>분석 유형</dt><dd>{result.analysis_type}</dd></div><div><dt>진단 항목</dt><dd>{Object.keys(result.diagnostics).length}개</dd></div><div><dt>결과 표</dt><dd>{Object.keys(result.tables).join(", ") || "없음"}</dd></div></dl><p>이 분석의 전용 시각화는 다음 개발 증분에서 제공됩니다. 계산 근거와 원본 ResultBundle은 보존되어 있습니다.</p></section>}
       {result.warnings.length > 0 && <section className="warning-panel"><AlertTriangle aria-hidden="true" /><div><h2>해석 전 확인</h2><ul>{result.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></div></section>}
       {drawerOpen && <><button className="drawer-scrim" aria-label="계산 근거 닫기" onClick={closeDrawer} /><aside ref={drawer} className="detail-drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title"><header><div><span className="eyebrow">EVIDENCE</span><h2 id="drawer-title">계산 근거</h2></div><button ref={closeButton} className="icon-button" aria-label="닫기" onClick={closeDrawer}><X /></button></header><section><h3>분석 가정</h3><ul>{result.assumptions.map((item) => <li key={item}>{item}</li>)}</ul></section><section><h3>공개 출처</h3>{result.provenance.map((source) => <a className="source-link" href={source.url} target="_blank" rel="noreferrer" key={source.url}><strong>{source.title}</strong><span>{source.authority}</span></a>)}</section><section><h3>재현 정보</h3><dl><div><dt>엔진</dt><dd>{result.engine_version}</dd></div><div><dt>Storage version</dt><dd>{run.storage_version}</dd></div><div><dt>ETag</dt><dd className="digest">{run.etag}</dd></div></dl></section></aside></>}
     </div>
@@ -110,5 +111,20 @@ function DoeResult({ doe }: { doe: DoeView }) {
     <section className="panel table-panel"><header className="panel-heading"><div><span className="eyebrow">RESIDUAL DIAGNOSTICS</span><h2>적합값과 잔차</h2></div></header><div className="table-scroll"><table><thead><tr><th scope="col">실행순서</th><th scope="col">표준순서</th><th scope="col">관측값</th><th scope="col">적합값</th><th scope="col">잔차</th><th scope="col">척도화 잔차</th></tr></thead><tbody>{doe.residuals.map((row) => <tr key={row.run_order}><td>{row.run_order}</td><td>{row.standard_order ?? "중심점"}</td><td>{statistic(row.observed)}</td><td>{statistic(row.fitted)}</td><td>{statistic(row.residual)}</td><td>{statistic(row.scaled_residual)}</td></tr>)}</tbody></table></div></section>
     {doe.predictions.length > 0 && <section className="panel table-panel"><header className="panel-heading"><div><span className="eyebrow">MODEL PREDICTION</span><h2>조건별 예측</h2></div></header><div className="table-scroll"><table><thead><tr><th scope="col">조건</th>{factorNames.map((name) => <th scope="col" key={name}>{name}</th>)}<th scope="col">예측 응답</th></tr></thead><tbody>{doe.predictions.map((row) => <tr key={row.point}><td>{row.point}</td>{factorNames.map((name) => <td key={name}>{statistic(row.actual[name])}</td>)}<td>{statistic(row.predicted_response)}</td></tr>)}</tbody></table></div></section>}
     {doe.optimization.length > 0 && <section className="panel table-panel"><header className="panel-heading"><div><span className="eyebrow">VERTEX OPTIMIZATION</span><h2>최적 설정</h2></div></header><div className="table-scroll"><table><thead><tr><th scope="col">목표</th>{factorNames.map((name) => <th scope="col" key={name}>{name}</th>)}<th scope="col">예측 응답</th><th scope="col">평가 후보</th></tr></thead><tbody>{doe.optimization.map((row) => <tr key={row.goal}><td>{row.goal === "maximize" ? "최대화" : "최소화"}</td>{factorNames.map((name) => <td key={name}>{statistic(row.actual[name])}</td>)}<td>{statistic(row.predicted_response)}</td><td>{row.candidate_count}</td></tr>)}</tbody></table></div></section>}
+  </>;
+}
+
+function DoeDesirabilityResult({ optimizer }: { optimizer: DoeDesirabilityView }) {
+  const factorNames = Object.keys(optimizer.solution.actual);
+  const goalLabel = { maximize: "최대화", minimize: "최소화", target: "목표값" };
+  return <>
+    <section className="metric-grid result-metrics" aria-label="DOE 다중 응답 최적화 요약">
+      <article className="metric-card"><span>복합 desirability</span><strong>{statistic(optimizer.solution.composite_desirability, 4)}</strong><small>0–1, 높을수록 바람직</small></article>
+      <article className="metric-card"><span>응답 수</span><strong>{optimizer.responses.length}</strong><small>동시 최적화</small></article>
+      <article className="metric-card"><span>후보 평가</span><strong>{optimizer.solution.candidate_evaluations}</strong><small>결정론적 탐색</small></article>
+      <article className="metric-card"><span>전역 최적 증명</span><strong className="metric-text">{optimizer.globalOptimumProven ? "예" : "아니오"}</strong><small>확인 실험 필요</small></article>
+    </section>
+    <section className="panel table-panel"><header className="panel-heading"><div><span className="eyebrow">OPTIMAL SETTINGS</span><h2>권장 요인 설정</h2></div></header><div className="table-scroll"><table><thead><tr>{factorNames.map((name) => <th scope="col" key={name}>{name}</th>)}<th scope="col">복합 desirability</th></tr></thead><tbody><tr>{factorNames.map((name) => <td key={name}>{statistic(optimizer.solution.actual[name])}</td>)}<td>{statistic(optimizer.solution.composite_desirability)}</td></tr></tbody></table></div></section>
+    <section className="panel table-panel"><header className="panel-heading"><div><span className="eyebrow">INDIVIDUAL DESIRABILITY</span><h2>응답별 예측과 만족도</h2></div></header><div className="table-scroll"><table><thead><tr><th scope="col">응답</th><th scope="col">목표</th><th scope="col">예측</th><th scope="col">개별 desirability</th><th scope="col">Lower</th><th scope="col">Target</th><th scope="col">Upper</th><th scope="col">가중치</th><th scope="col">중요도</th></tr></thead><tbody>{optimizer.responses.map((row) => <tr key={row.response}><td>{row.response}</td><td>{goalLabel[row.goal]}</td><td>{statistic(row.prediction)}</td><td>{statistic(row.desirability)}</td><td>{statistic(row.lower)}</td><td>{statistic(row.target)}</td><td>{statistic(row.upper)}</td><td>{statistic(row.weight, 2)}</td><td>{statistic(row.importance, 2)}</td></tr>)}</tbody></table></div></section>
   </>;
 }
