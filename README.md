@@ -7,8 +7,8 @@ The repository starts with a dependency-free Python statistical core so formulas
 ## Implemented
 
 - Reproducible `ResultBundle` with input SHA-256, engine version, warnings, and public-source provenance
-- Individuals and Moving Range (I-MR) control chart with selectable 3-sigma-only or NIST/Western Electric supplementary rules
-- Xbar-R control chart for constant subgroup sizes 2–10
+- Individuals and Moving Range (I-MR) control chart with selectable 3-sigma-only, NIST/Western Electric, or Nelson eight-test rules
+- Xbar-R control chart for constant subgroup sizes 2–10 with Nelson tests 1–8 on Xbar and tests 1–4 on R
 - Normal capability for individual observations with within/overall variation kept distinct
 - Reproducible two-level full factorial DOE generation plus coded effects, coefficients, ANOVA, lack-of-fit/pure-error partitioning, residual diagnostics, in-region prediction, and bounded vertex optimization
 - Balanced crossed Gage R&R using two-way random-effects ANOVA variance components

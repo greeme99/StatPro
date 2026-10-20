@@ -39,11 +39,11 @@ describe("StatPro UI", () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({}), { status: 201, headers: { "Content-Type": "application/json" } }));
     render(<MemoryRouter initialEntries={["/analyses/imr/new"]}><App /></MemoryRouter>);
 
-    await userEvent.selectOptions(await screen.findByRole("combobox", { name: "규칙 세트" }), "basic");
+    await userEvent.selectOptions(await screen.findByRole("combobox", { name: "규칙 세트" }), "nelson");
     await userEvent.click(screen.getByRole("button", { name: "분석 실행" }));
     await waitFor(() => expect(fetchMock.mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === "POST")).toBe(true));
     const post = fetchMock.mock.calls.find(([, init]) => (init as RequestInit | undefined)?.method === "POST");
-    expect(JSON.parse(String((post?.[1] as RequestInit).body)).rules).toBe("basic");
+    expect(JSON.parse(String((post?.[1] as RequestInit).body)).rules).toBe("nelson");
   });
 
   it("toggles dark theme with an accessible control", async () => {

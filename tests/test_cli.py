@@ -43,6 +43,35 @@ class CliBoundaryTests(unittest.TestCase):
             ],
         )
 
+    def test_xbar_r_returns_nelson_signals_for_each_chart(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "xbar-r.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "subgroups": [
+                            [0, 2], [1, 3], [2, 4], [3, 5], [4, 6], [5, 7]
+                        ],
+                        "rules": "nelson",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            output = io.StringIO()
+
+            with redirect_stdout(output):
+                exit_code = main(["xbar-r", "--input", str(path)])
+
+        response = json.loads(output.getvalue())
+        self.assertEqual(exit_code, 0)
+        self.assertIn(
+            "NELSON-3",
+            [
+                signal["rule"]
+                for signal in response["result"]["plots"]["xbar"]["rule_signals"]
+            ],
+        )
+
     def test_doe_analysis_returns_effects_anova_and_residuals(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "doe-analysis.json"

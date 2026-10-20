@@ -80,7 +80,11 @@ class LocalApiContractTests(unittest.TestCase):
         requests = [
             (
                 "/v1/analysis-runs/xbar-r",
-                {"run_id": "xbar", "subgroups": [[1, 2], [2, 3]]},
+                {
+                    "run_id": "xbar",
+                    "subgroups": [[0, 2], [1, 3], [2, 4], [3, 5], [4, 6], [5, 7]],
+                    "rules": "nelson",
+                },
                 "spc.xbar_r",
             ),
             (
@@ -140,6 +144,15 @@ class LocalApiContractTests(unittest.TestCase):
                 response = self.client.post(path, json=payload)
                 self.assertEqual(response.status_code, 201)
                 self.assertEqual(response.json()["result"]["analysis_type"], analysis_type)
+                if analysis_type == "spc.xbar_r":
+                    self.assertEqual(response.json()["result"]["parameters"]["rules"], "nelson")
+                    self.assertIn(
+                        "NELSON-3",
+                        [
+                            signal["rule"]
+                            for signal in response.json()["result"]["plots"]["xbar"]["rule_signals"]
+                        ],
+                    )
                 if analysis_type == "doe.full_factorial_2level_analysis":
                     tables = response.json()["result"]["tables"]
                     self.assertAlmostEqual(

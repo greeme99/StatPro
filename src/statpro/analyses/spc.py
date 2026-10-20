@@ -22,6 +22,10 @@ NIST_WECO_SOURCE = ProvenanceSource(
     title="NIST/SEMATECH 6.3.2 Variables Control Charts and WECO Rules",
     url="https://www.itl.nist.gov/div898/handbook/pmc/section3/pmc32.htm",
 )
+MINITAB_SPECIAL_CAUSE_SOURCE = ProvenanceSource(
+    title="Minitab public documentation: Tests for special causes in control charts",
+    url="https://support.minitab.com/en-us/minitab/help-and-how-to/quality-and-process-improvement/control-charts/supporting-topics/basics/using-tests-for-special-causes/",
+)
 
 _XBAR_R_CONSTANTS: dict[int, tuple[float, float, float]] = {
     2: (1.880, 0.000, 3.267),
@@ -34,6 +38,26 @@ _XBAR_R_CONSTANTS: dict[int, tuple[float, float, float]] = {
     9: (0.337, 0.184, 1.816),
     10: (0.308, 0.223, 1.777),
 }
+
+
+def _append_rule_signal(
+    signals: list[dict[str, object]],
+    rule: str,
+    start: int,
+    end: int,
+    side: str,
+    involved: list[int],
+) -> None:
+    signals.append(
+        {
+            "rule": rule,
+            "window_start": start,
+            "window_end": end,
+            "trigger_index": end,
+            "side": side,
+            "involved_indices": involved,
+        }
+    )
 
 
 def western_electric_signals(
@@ -49,29 +73,11 @@ def western_electric_signals(
 
     signals: list[dict[str, object]] = []
 
-    def append(
-        rule: str,
-        start: int,
-        end: int,
-        side: str,
-        involved: list[int],
-    ) -> None:
-        signals.append(
-            {
-                "rule": rule,
-                "window_start": start,
-                "window_end": end,
-                "trigger_index": end,
-                "side": side,
-                "involved_indices": involved,
-            }
-        )
-
     for index, value in enumerate(observations):
         if value > normalized_center + 3.0 * normalized_sigma:
-            append("WECO-1", index, index, "above", [index])
+            _append_rule_signal(signals, "WECO-1", index, index, "above", [index])
         elif value < normalized_center - 3.0 * normalized_sigma:
-            append("WECO-1", index, index, "below", [index])
+            _append_rule_signal(signals, "WECO-1", index, index, "below", [index])
 
     for end in range(2, len(observations)):
         start = end - 2
@@ -79,9 +85,9 @@ def western_electric_signals(
         above = [start + offset for offset, value in enumerate(window) if value > normalized_center + 2.0 * normalized_sigma]
         below = [start + offset for offset, value in enumerate(window) if value < normalized_center - 2.0 * normalized_sigma]
         if len(above) >= 2:
-            append("WECO-2", start, end, "above", above)
+            _append_rule_signal(signals, "WECO-2", start, end, "above", above)
         if len(below) >= 2:
-            append("WECO-2", start, end, "below", below)
+            _append_rule_signal(signals, "WECO-2", start, end, "below", below)
 
     for end in range(4, len(observations)):
         start = end - 4
@@ -89,25 +95,25 @@ def western_electric_signals(
         above = [start + offset for offset, value in enumerate(window) if value > normalized_center + normalized_sigma]
         below = [start + offset for offset, value in enumerate(window) if value < normalized_center - normalized_sigma]
         if len(above) >= 4:
-            append("WECO-3", start, end, "above", above)
+            _append_rule_signal(signals, "WECO-3", start, end, "above", above)
         if len(below) >= 4:
-            append("WECO-3", start, end, "below", below)
+            _append_rule_signal(signals, "WECO-3", start, end, "below", below)
 
     for end in range(7, len(observations)):
         start = end - 7
         window = observations[start : end + 1]
         if all(value > normalized_center for value in window):
-            append("WECO-4", start, end, "above", list(range(start, end + 1)))
+            _append_rule_signal(signals, "WECO-4", start, end, "above", list(range(start, end + 1)))
         elif all(value < normalized_center for value in window):
-            append("WECO-4", start, end, "below", list(range(start, end + 1)))
+            _append_rule_signal(signals, "WECO-4", start, end, "below", list(range(start, end + 1)))
 
     for end in range(5, len(observations)):
         start = end - 5
         window = observations[start : end + 1]
         if all(left < right for left, right in zip(window, window[1:])):
-            append("TREND-6", start, end, "increasing", list(range(start, end + 1)))
+            _append_rule_signal(signals, "TREND-6", start, end, "increasing", list(range(start, end + 1)))
         elif all(left > right for left, right in zip(window, window[1:])):
-            append("TREND-6", start, end, "decreasing", list(range(start, end + 1)))
+            _append_rule_signal(signals, "TREND-6", start, end, "decreasing", list(range(start, end + 1)))
 
     for end in range(13, len(observations)):
         start = end - 13
@@ -117,7 +123,133 @@ def western_electric_signals(
             current != 0.0 and following != 0.0 and current * following < 0.0
             for current, following in zip(differences, differences[1:])
         ):
-            append("ALTERNATING-14", start, end, "alternating", list(range(start, end + 1)))
+            _append_rule_signal(signals, "ALTERNATING-14", start, end, "alternating", list(range(start, end + 1)))
+
+    return signals
+
+
+def nelson_signals(
+    values: Sequence[float],
+    *,
+    center: float,
+    sigma: float | None,
+    enabled_rules: Sequence[int] = tuple(range(1, 9)),
+    lower_limit: float | None = None,
+    upper_limit: float | None = None,
+) -> list[dict[str, object]]:
+    """Evaluate the public eight-test special-cause rule set."""
+
+    observations = finite_values(values, "values")
+    normalized_center = finite_values([center], "center")[0]
+    selected = tuple(dict.fromkeys(enabled_rules))
+    if any(rule not in range(1, 9) for rule in selected):
+        raise AnalysisInputError(
+            "invalid_control_rule",
+            "Enabled Nelson rules must be integers from 1 through 8.",
+            "enabled_rules",
+        )
+    normalized_sigma = None if sigma is None else finite_values([sigma], "sigma")[0]
+    needs_sigma = any(rule in {5, 6, 7, 8} for rule in selected) or (
+        1 in selected and (lower_limit is None or upper_limit is None)
+    )
+    if needs_sigma and (normalized_sigma is None or normalized_sigma <= 0.0):
+        return []
+    normalized_lower = (
+        normalized_center - 3.0 * normalized_sigma
+        if lower_limit is None and normalized_sigma is not None
+        else float("-inf")
+        if lower_limit is None
+        else finite_values([lower_limit], "lower_limit")[0]
+    )
+    normalized_upper = (
+        normalized_center + 3.0 * normalized_sigma
+        if upper_limit is None and normalized_sigma is not None
+        else float("inf")
+        if upper_limit is None
+        else finite_values([upper_limit], "upper_limit")[0]
+    )
+    if normalized_lower >= normalized_upper:
+        raise AnalysisInputError(
+            "invalid_control_limits",
+            "The lower control limit must be less than the upper control limit.",
+            "lower_limit",
+        )
+
+    signals: list[dict[str, object]] = []
+    if 1 in selected:
+        for index, value in enumerate(observations):
+            if value > normalized_upper:
+                _append_rule_signal(signals, "NELSON-1", index, index, "above", [index])
+            elif value < normalized_lower:
+                _append_rule_signal(signals, "NELSON-1", index, index, "below", [index])
+
+    if 2 in selected:
+        for end in range(8, len(observations)):
+            start = end - 8
+            window = observations[start : end + 1]
+            if all(value > normalized_center for value in window):
+                _append_rule_signal(signals, "NELSON-2", start, end, "above", list(range(start, end + 1)))
+            elif all(value < normalized_center for value in window):
+                _append_rule_signal(signals, "NELSON-2", start, end, "below", list(range(start, end + 1)))
+
+    if 3 in selected:
+        for end in range(5, len(observations)):
+            start = end - 5
+            window = observations[start : end + 1]
+            if all(left < right for left, right in zip(window, window[1:])):
+                _append_rule_signal(signals, "NELSON-3", start, end, "increasing", list(range(start, end + 1)))
+            elif all(left > right for left, right in zip(window, window[1:])):
+                _append_rule_signal(signals, "NELSON-3", start, end, "decreasing", list(range(start, end + 1)))
+
+    if 4 in selected:
+        for end in range(13, len(observations)):
+            start = end - 13
+            window = observations[start : end + 1]
+            differences = [right - left for left, right in zip(window, window[1:])]
+            if all(
+                current != 0.0 and following != 0.0 and current * following < 0.0
+                for current, following in zip(differences, differences[1:])
+            ):
+                _append_rule_signal(signals, "NELSON-4", start, end, "alternating", list(range(start, end + 1)))
+
+    if 5 in selected and normalized_sigma is not None:
+        for end in range(2, len(observations)):
+            start = end - 2
+            window = observations[start : end + 1]
+            above = [start + offset for offset, value in enumerate(window) if value > normalized_center + 2.0 * normalized_sigma]
+            below = [start + offset for offset, value in enumerate(window) if value < normalized_center - 2.0 * normalized_sigma]
+            if len(above) >= 2:
+                _append_rule_signal(signals, "NELSON-5", start, end, "above", above)
+            if len(below) >= 2:
+                _append_rule_signal(signals, "NELSON-5", start, end, "below", below)
+
+    if 6 in selected and normalized_sigma is not None:
+        for end in range(4, len(observations)):
+            start = end - 4
+            window = observations[start : end + 1]
+            above = [start + offset for offset, value in enumerate(window) if value > normalized_center + normalized_sigma]
+            below = [start + offset for offset, value in enumerate(window) if value < normalized_center - normalized_sigma]
+            if len(above) >= 4:
+                _append_rule_signal(signals, "NELSON-6", start, end, "above", above)
+            if len(below) >= 4:
+                _append_rule_signal(signals, "NELSON-6", start, end, "below", below)
+
+    if 7 in selected and normalized_sigma is not None:
+        for end in range(14, len(observations)):
+            start = end - 14
+            window = observations[start : end + 1]
+            if all(abs(value - normalized_center) < normalized_sigma for value in window):
+                _append_rule_signal(signals, "NELSON-7", start, end, "within", list(range(start, end + 1)))
+
+    if 8 in selected and normalized_sigma is not None:
+        for end in range(7, len(observations)):
+            start = end - 7
+            window = observations[start : end + 1]
+            if all(abs(value - normalized_center) > normalized_sigma for value in window):
+                above = any(value > normalized_center for value in window)
+                below = any(value < normalized_center for value in window)
+                side = "both" if above and below else "above" if above else "below"
+                _append_rule_signal(signals, "NELSON-8", start, end, side, list(range(start, end + 1)))
 
     return signals
 
@@ -137,10 +269,10 @@ def individuals_moving_range(
             "I-MR requires at least two finite observations.",
             "values",
         )
-    if rules not in {"basic", "western_electric"}:
+    if rules not in {"basic", "western_electric", "nelson"}:
         raise AnalysisInputError(
             "invalid_control_rule_set",
-            "Rules must be 'basic' or 'western_electric'.",
+            "Rules must be 'basic', 'western_electric', or 'nelson'.",
             "rules",
         )
 
@@ -157,12 +289,16 @@ def individuals_moving_range(
         for index, value in enumerate(observations)
         if value > individuals_ucl or value < individuals_lcl
     ]
-    rule_signals = (
-        western_electric_signals(
+    if rules == "western_electric":
+        rule_signals = western_electric_signals(
             observations, center=center, sigma=estimated_sigma
         )
-        if rules == "western_electric"
-        else [
+    elif rules == "nelson":
+        rule_signals = nelson_signals(
+            observations, center=center, sigma=estimated_sigma
+        )
+    else:
+        rule_signals = [
             {
                 "rule": "WECO-1",
                 "window_start": index,
@@ -173,7 +309,6 @@ def individuals_moving_range(
             }
             for index in limit_signals
         ]
-    )
     individual_signals = sorted(
         {
             index
@@ -191,6 +326,16 @@ def individuals_moving_range(
         warnings.append(
             "WECO and trend rules increase sensitivity and false-alarm frequency; a signal requires investigation and is not proof of a special cause."
         )
+    elif rules == "nelson":
+        warnings.append(
+            "Nelson tests 1-8 increase sensitivity and false-alarm frequency; select tests from process knowledge and investigate signals before acting."
+        )
+
+    provenance = (NIST_IMR_SOURCE,)
+    if rules == "western_electric":
+        provenance += (NIST_WECO_SOURCE,)
+    elif rules == "nelson":
+        provenance += (MINITAB_SPECIAL_CAUSE_SOURCE,)
 
     payload = {"values": observations, "target": target, "rules": rules}
     return ResultBundle(
@@ -229,11 +374,13 @@ def individuals_moving_range(
             "Supplementary rules are evaluated in observation order and mark investigation candidates, not confirmed special causes.",
         ),
         warnings=tuple(warnings),
-        provenance=(NIST_IMR_SOURCE, NIST_WECO_SOURCE),
+        provenance=provenance,
     )
 
 
-def xbar_r(subgroups: Sequence[Sequence[float]]) -> ResultBundle:
+def xbar_r(
+    subgroups: Sequence[Sequence[float]], *, rules: str = "basic"
+) -> ResultBundle:
     """Calculate Xbar and R charts for equal-sized rational subgroups."""
 
     if len(subgroups) < 2:
@@ -241,6 +388,12 @@ def xbar_r(subgroups: Sequence[Sequence[float]]) -> ResultBundle:
             "insufficient_subgroups",
             "Xbar-R requires at least two rational subgroups.",
             "subgroups",
+        )
+    if rules not in {"basic", "nelson"}:
+        raise AnalysisInputError(
+            "invalid_control_rule_set",
+            "Xbar-R rules must be 'basic' or 'nelson'.",
+            "rules",
         )
 
     normalized = [
@@ -270,22 +423,66 @@ def xbar_r(subgroups: Sequence[Sequence[float]]) -> ResultBundle:
     range_lcl = d3 * average_range
     range_ucl = d4 * average_range
 
-    mean_signals = [
+    mean_limit_signals = [
         index for index, value in enumerate(subgroup_means) if value < xbar_lcl or value > xbar_ucl
     ]
-    range_signals = [
+    range_limit_signals = [
         index for index, value in enumerate(subgroup_ranges) if value < range_lcl or value > range_ucl
     ]
+    if average_range == 0.0:
+        xbar_rule_signals: list[dict[str, object]] = []
+        range_rule_signals: list[dict[str, object]] = []
+    else:
+        xbar_rule_signals = nelson_signals(
+            subgroup_means,
+            center=grand_mean,
+            sigma=a2 * average_range / 3.0,
+            enabled_rules=(1,) if rules == "basic" else tuple(range(1, 9)),
+            lower_limit=xbar_lcl,
+            upper_limit=xbar_ucl,
+        )
+        range_rule_signals = nelson_signals(
+            subgroup_ranges,
+            center=average_range,
+            sigma=None,
+            enabled_rules=(1,) if rules == "basic" else (1, 2, 3, 4),
+            lower_limit=range_lcl,
+            upper_limit=range_ucl,
+        )
+    mean_signals = sorted(
+        {
+            index
+            for signal in xbar_rule_signals
+            for index in signal["involved_indices"]
+        }
+    )
+    range_signals = sorted(
+        {
+            index
+            for signal in range_rule_signals
+            for index in signal["involved_indices"]
+        }
+    )
     warnings: list[str] = []
     if average_range == 0.0:
         warnings.append("Every subgroup has zero range; within-subgroup variation is zero.")
+    if rules == "nelson":
+        warnings.append(
+            "Xbar uses Nelson tests 1-8 while R uses tests 1-4; additional tests increase sensitivity and false-alarm frequency."
+        )
 
-    payload = {"subgroups": normalized}
+    payload = {"subgroups": normalized, "rules": rules}
     return ResultBundle(
         analysis_type="spc.xbar_r",
         engine_version=ENGINE_VERSION,
         input_digest=input_digest(payload),
-        parameters={"subgroup_size": subgroup_size, "a2": a2, "d3": d3, "d4": d4},
+        parameters={
+            "subgroup_size": subgroup_size,
+            "a2": a2,
+            "d3": d3,
+            "d4": d4,
+            "rules": rules,
+        },
         tables={
             "subgroups": normalized,
             "subgroup_means": subgroup_means,
@@ -296,15 +493,35 @@ def xbar_r(subgroups: Sequence[Sequence[float]]) -> ResultBundle:
             },
         },
         plots={
-            "xbar": {"values": subgroup_means, "signals": mean_signals},
-            "range": {"values": subgroup_ranges, "signals": range_signals},
+            "xbar": {
+                "values": subgroup_means,
+                "signals": mean_signals,
+                "rule_signals": xbar_rule_signals,
+            },
+            "range": {
+                "values": subgroup_ranges,
+                "signals": range_signals,
+                "rule_signals": range_rule_signals,
+            },
         },
-        diagnostics={"xbar_signal_indices": mean_signals, "range_signal_indices": range_signals},
+        diagnostics={
+            "xbar_signal_indices": mean_signals,
+            "xbar_limit_signal_indices": mean_limit_signals,
+            "xbar_rule_signals": xbar_rule_signals,
+            "range_signal_indices": range_signals,
+            "range_limit_signal_indices": range_limit_signals,
+            "range_rule_signals": range_rule_signals,
+        },
         assumptions=(
             "Subgroups are rational and ordered in process time.",
             "Subgroup sizes are constant and no larger than 10.",
             "The range is an appropriate estimator of within-subgroup variation.",
+            "Supplementary rules mark investigation candidates and do not establish a special cause by themselves.",
         ),
         warnings=tuple(warnings),
-        provenance=(NIST_XBAR_R_SOURCE,),
+        provenance=(
+            (NIST_XBAR_R_SOURCE, MINITAB_SPECIAL_CAUSE_SOURCE)
+            if rules == "nelson"
+            else (NIST_XBAR_R_SOURCE,)
+        ),
     )

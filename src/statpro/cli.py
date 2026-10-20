@@ -51,7 +51,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                 rules=payload.get("rules", "western_electric"),
             )
         elif args.command == "xbar-r":
-            result = xbar_r(payload["subgroups"])
+            result = xbar_r(
+                payload["subgroups"],
+                rules=payload.get("rules", "basic"),
+            )
         elif args.command == "capability-normal":
             result = normal_process_capability(
                 payload["values"],

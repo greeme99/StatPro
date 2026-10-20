@@ -69,12 +69,13 @@ class ImrRunRequest(ApiModel):
     run_id: RunId
     values: list[float]
     target: float | None = None
-    rules: Literal["basic", "western_electric"] = "western_electric"
+    rules: Literal["basic", "western_electric", "nelson"] = "western_electric"
 
 
 class XbarRRunRequest(ApiModel):
     run_id: RunId
     subgroups: list[list[float]]
+    rules: Literal["basic", "nelson"] = "basic"
 
 
 class CapabilityRunRequest(ApiModel):
@@ -432,7 +433,11 @@ def create_app(repository: DocumentRepository) -> FastAPI:
 
     @app.post("/v1/analysis-runs/xbar-r", status_code=201, response_model=StoredRunResponse)
     def run_xbar_r(request: XbarRRunRequest, response: Response) -> StoredRunResponse:
-        stored = _save_run(repository, request.run_id, xbar_r(request.subgroups))
+        stored = _save_run(
+            repository,
+            request.run_id,
+            xbar_r(request.subgroups, rules=request.rules),
+        )
         response.headers["ETag"] = f'"{stored.etag}"'
         return _response(stored)
 

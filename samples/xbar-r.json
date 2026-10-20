@@ -1,3 +1,4 @@
 {
-  "subgroups": [[1, 2], [3, 4]]
+  "subgroups": [[1, 2], [3, 4]],
+  "rules": "nelson"
 }

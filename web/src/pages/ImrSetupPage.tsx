@@ -14,7 +14,7 @@ export function ImrSetupPage() {
   const [runId, setRunId] = useState(defaultRunId);
   const [values, setValues] = useState("10.2\n10.4\n10.1\n10.6\n10.3\n10.5\n10.2\n10.4");
   const [target, setTarget] = useState("");
-  const [rules, setRules] = useState<"basic" | "western_electric">("western_electric");
+  const [rules, setRules] = useState<"basic" | "western_electric" | "nelson">("western_electric");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const valuesRef = useRef<HTMLTextAreaElement>(null);
@@ -60,10 +60,10 @@ export function ImrSetupPage() {
           <header><span className="step-index">03</span><div><h2>선택 옵션</h2><p>목표값은 관리 중심선과 별도로 표시됩니다.</p></div></header>
           <div className="inline-fields">
             <label className="field"><span>목표값</span><input type="number" step="any" value={target} onChange={(event) => setTarget(event.target.value)} placeholder="선택 입력" /></label>
-            <label className="field"><span>규칙 세트</span><select value={rules} onChange={(event) => setRules(event.target.value as "basic" | "western_electric")}><option value="western_electric">NIST WECO + 추세 규칙</option><option value="basic">3σ 한계만</option></select></label>
+            <label className="field"><span>규칙 세트</span><select value={rules} onChange={(event) => setRules(event.target.value as "basic" | "western_electric" | "nelson")}><option value="western_electric">NIST WECO + 추세 규칙</option><option value="nelson">Nelson 8개 규칙</option><option value="basic">3σ 한계만</option></select></label>
           </div>
         </section>
-        <aside className="method-note"><strong>계산 방법</strong><p>연속 두 관측값의 이동범위와 NIST 3-sigma 관리한계를 사용합니다. 기본 선택은 Western Electric 4개 규칙과 NIST가 제시한 6점 추세·14점 교대 규칙을 함께 평가합니다. 실행 결과에는 입력 digest, 엔진 버전, 가정과 공개 출처가 함께 저장됩니다.</p></aside>
+        <aside className="method-note"><strong>계산 방법</strong><p>연속 두 관측값의 이동범위와 NIST 3-sigma 관리한계를 사용합니다. Western Electric 규칙, Nelson 8개 규칙 또는 3σ 한계만 선택할 수 있습니다. 실행 결과에는 입력 digest, 엔진 버전, 가정과 공개 출처가 함께 저장됩니다.</p></aside>
         <div className="form-actions"><Button type="submit" variant="primary" loading={loading} icon={<Play />}>분석 실행</Button></div>
       </form>
     </div>
