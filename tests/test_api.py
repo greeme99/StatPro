@@ -122,6 +122,18 @@ class LocalApiContractTests(unittest.TestCase):
                 "doe.full_factorial_2level_analysis",
             ),
             (
+                "/v1/analysis-runs/doe-fractional-factorial",
+                {
+                    "run_id": "doe-fractional",
+                    "factors": [
+                        {"name": name, "low": 0, "high": 1} for name in "ABCD"
+                    ],
+                    "generators": [{"factor": "D", "terms": ["A", "B", "C"]}],
+                    "randomize": False,
+                },
+                "doe.fractional_factorial_2level",
+            ),
+            (
                 "/v1/analysis-runs/doe-response-optimizer",
                 {
                     "run_id": "doe-optimizer",
@@ -190,6 +202,13 @@ class LocalApiContractTests(unittest.TestCase):
                     self.assertEqual(
                         tables["optimization"][0]["actual"],
                         {"A": 1.0, "B": 20.0},
+                    )
+                if analysis_type == "doe.fractional_factorial_2level":
+                    result = response.json()["result"]
+                    self.assertEqual(result["diagnostics"]["resolution"], 4)
+                    self.assertEqual(
+                        result["tables"]["defining_relation"][0]["expression"],
+                        "I = A*B*C*D",
                     )
                 if analysis_type == "doe.full_factorial_2level_desirability":
                     solution = response.json()["result"]["tables"]["solution"][0]

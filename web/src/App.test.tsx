@@ -243,6 +243,44 @@ describe("StatPro UI", () => {
     expect(screen.getAllByText("A:B").length).toBeGreaterThan(0);
   });
 
+  it("submits a regular fractional factorial generator", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      return new Response(JSON.stringify({}), { status: init?.method === "POST" ? 201 : 200, headers: { "Content-Type": "application/json" } });
+    });
+    render(<MemoryRouter initialEntries={["/analyses/doe/fractional-factorial"]}><App /></MemoryRouter>);
+
+    await userEvent.click(await screen.findByRole("button", { name: "일부요인배치 생성" }));
+    await waitFor(() => expect(fetchMock.mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === "POST")).toBe(true));
+    const post = fetchMock.mock.calls.find(([url, init]) => String(url).endsWith("/doe-fractional-factorial") && (init as RequestInit | undefined)?.method === "POST");
+    const body = JSON.parse(String((post?.[1] as RequestInit).body));
+    expect(body.generators).toEqual([{ factor: "D", terms: ["A", "B", "C"] }]);
+    expect(body.factors).toHaveLength(4);
+  });
+
+  it("renders fractional defining relation, aliases, and design matrix", async () => {
+    const result = {
+      analysis_type: "doe.fractional_factorial_2level", engine_version: "0.6.0", input_digest: "d".repeat(64), warnings: [], assumptions: [], provenance: [], parameters: {}, plots: {},
+      diagnostics: { resolution: 4, resolution_label: "IV", fraction: "1/2", design_notation: "2^(4-1)" },
+      tables: {
+        defining_relation: [{ identity: "I", words: ["A*B*C*D"], expression: "I = A*B*C*D" }],
+        main_effect_aliases: [{ effect: "A", alias_set: ["A", "B*C*D"] }],
+        two_factor_aliases: [{ effect: "A*B", alias_set: ["A*B", "C*D"] }],
+        design: [{ run_order: 1, standard_order: 1, replicate: 1, coded: { A: -1, B: -1, C: -1, D: -1 }, actual: { A: 0, B: 0, C: 0, D: 0 } }],
+      },
+    };
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      return new Response(JSON.stringify({ run_id: "doe-frac-001", storage_version: 1, etag: "a".repeat(64), result }), { status: 200 });
+    });
+
+    render(<MemoryRouter initialEntries={["/runs/doe-frac-001"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "정의관계" })).toBeInTheDocument();
+    expect(screen.getByText("I = A*B*C*D")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "주효과 별칭구조" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "실행 설계표" })).toBeInTheDocument();
+  });
+
   it("submits multiple DOE response objectives with target boundaries", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });

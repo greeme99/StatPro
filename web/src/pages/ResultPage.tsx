@@ -2,7 +2,7 @@ import { AlertTriangle, ArrowLeft, BookOpen, CheckCircle2, X } from "lucide-reac
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { getRun } from "../api";
-import { toDoeDesirabilityView, toDoeView, toImrView, type DoeDesirabilityView, type DoeView } from "../analysis";
+import { toDoeDesirabilityView, toDoeFractionalView, toDoeView, toImrView, type DoeDesirabilityView, type DoeFractionalView, type DoeView } from "../analysis";
 import { Button } from "../components/Button";
 import type { StoredRun } from "../types";
 
@@ -48,6 +48,7 @@ export function ResultPage() {
   const imr = toImrView(result);
   const doe = toDoeView(result);
   const optimizer = toDoeDesirabilityView(result);
+  const fractional = toDoeFractionalView(result);
   const signalCount = useMemo(() => imr?.points.filter((point) => point.signal).length ?? 0, [imr]);
   const closeDrawer = () => { setSearch({}); drawerTrigger.current?.focus(); };
 
@@ -76,7 +77,7 @@ export function ResultPage() {
         <header className="panel-heading"><div><span className="eyebrow">ACCESSIBLE DATA</span><h2>관리도 원본 표</h2></div></header>
         <div className="table-scroll"><table><thead><tr><th scope="col">순서</th><th scope="col">관측값</th><th scope="col">상태</th></tr></thead><tbody>{imr.points.map((point) => <tr key={point.index}><td>{point.index}</td><td>{point.value.toFixed(4)}</td><td>{point.signal ? <span className="status-text is-danger"><AlertTriangle aria-hidden="true" /> {point.rules.length ? point.rules.join(", ") : "3σ 한계 이탈"}</span> : <span className="status-text is-success"><CheckCircle2 aria-hidden="true" /> 정상</span>}</td></tr>)}</tbody></table></div>
       </section>
-      </> : doe ? <DoeResult doe={doe} /> : optimizer ? <DoeDesirabilityResult optimizer={optimizer} /> : <section className="panel generic-result-panel"><header className="panel-heading"><div><span className="eyebrow">RESULT BUNDLE</span><h2>분석 결과 요약</h2></div></header><dl><div><dt>분석 유형</dt><dd>{result.analysis_type}</dd></div><div><dt>진단 항목</dt><dd>{Object.keys(result.diagnostics).length}개</dd></div><div><dt>결과 표</dt><dd>{Object.keys(result.tables).join(", ") || "없음"}</dd></div></dl><p>이 분석의 전용 시각화는 다음 개발 증분에서 제공됩니다. 계산 근거와 원본 ResultBundle은 보존되어 있습니다.</p></section>}
+      </> : doe ? <DoeResult doe={doe} /> : optimizer ? <DoeDesirabilityResult optimizer={optimizer} /> : fractional ? <DoeFractionalResult design={fractional} /> : <section className="panel generic-result-panel"><header className="panel-heading"><div><span className="eyebrow">RESULT BUNDLE</span><h2>분석 결과 요약</h2></div></header><dl><div><dt>분석 유형</dt><dd>{result.analysis_type}</dd></div><div><dt>진단 항목</dt><dd>{Object.keys(result.diagnostics).length}개</dd></div><div><dt>결과 표</dt><dd>{Object.keys(result.tables).join(", ") || "없음"}</dd></div></dl><p>이 분석의 전용 시각화는 다음 개발 증분에서 제공됩니다. 계산 근거와 원본 ResultBundle은 보존되어 있습니다.</p></section>}
       {result.warnings.length > 0 && <section className="warning-panel"><AlertTriangle aria-hidden="true" /><div><h2>해석 전 확인</h2><ul>{result.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></div></section>}
       {drawerOpen && <><button className="drawer-scrim" aria-label="계산 근거 닫기" onClick={closeDrawer} /><aside ref={drawer} className="detail-drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title"><header><div><span className="eyebrow">EVIDENCE</span><h2 id="drawer-title">계산 근거</h2></div><button ref={closeButton} className="icon-button" aria-label="닫기" onClick={closeDrawer}><X /></button></header><section><h3>분석 가정</h3><ul>{result.assumptions.map((item) => <li key={item}>{item}</li>)}</ul></section><section><h3>공개 출처</h3>{result.provenance.map((source) => <a className="source-link" href={source.url} target="_blank" rel="noreferrer" key={source.url}><strong>{source.title}</strong><span>{source.authority}</span></a>)}</section><section><h3>재현 정보</h3><dl><div><dt>엔진</dt><dd>{result.engine_version}</dd></div><div><dt>Storage version</dt><dd>{run.storage_version}</dd></div><div><dt>ETag</dt><dd className="digest">{run.etag}</dd></div></dl></section></aside></>}
     </div>
@@ -126,5 +127,21 @@ function DoeDesirabilityResult({ optimizer }: { optimizer: DoeDesirabilityView }
     </section>
     <section className="panel table-panel"><header className="panel-heading"><div><span className="eyebrow">OPTIMAL SETTINGS</span><h2>권장 요인 설정</h2></div></header><div className="table-scroll"><table><thead><tr>{factorNames.map((name) => <th scope="col" key={name}>{name}</th>)}<th scope="col">복합 desirability</th></tr></thead><tbody><tr>{factorNames.map((name) => <td key={name}>{statistic(optimizer.solution.actual[name])}</td>)}<td>{statistic(optimizer.solution.composite_desirability)}</td></tr></tbody></table></div></section>
     <section className="panel table-panel"><header className="panel-heading"><div><span className="eyebrow">INDIVIDUAL DESIRABILITY</span><h2>응답별 예측과 만족도</h2></div></header><div className="table-scroll"><table><thead><tr><th scope="col">응답</th><th scope="col">목표</th><th scope="col">예측</th><th scope="col">개별 desirability</th><th scope="col">Lower</th><th scope="col">Target</th><th scope="col">Upper</th><th scope="col">가중치</th><th scope="col">중요도</th></tr></thead><tbody>{optimizer.responses.map((row) => <tr key={row.response}><td>{row.response}</td><td>{goalLabel[row.goal]}</td><td>{statistic(row.prediction)}</td><td>{statistic(row.desirability)}</td><td>{statistic(row.lower)}</td><td>{statistic(row.target)}</td><td>{statistic(row.upper)}</td><td>{statistic(row.weight, 2)}</td><td>{statistic(row.importance, 2)}</td></tr>)}</tbody></table></div></section>
+  </>;
+}
+
+function DoeFractionalResult({ design }: { design: DoeFractionalView }) {
+  const factorNames = Object.keys(design.design[0]?.coded ?? {});
+  return <>
+    <section className="metric-grid result-metrics" aria-label="일부요인배치 요약">
+      <article className="metric-card"><span>설계</span><strong className="metric-text">{design.designNotation}</strong><small>정규 2수준 일부요인</small></article>
+      <article className="metric-card"><span>분수</span><strong>{design.fraction}</strong><small>완전요인 대비</small></article>
+      <article className="metric-card"><span>해상도</span><strong>{design.resolutionLabel}</strong><small>최단 정의 단어 {design.resolution}개 요인</small></article>
+      <article className="metric-card"><span>실행 수</span><strong>{design.design.length}</strong><small>반복 포함</small></article>
+    </section>
+    <section className="panel table-panel"><header className="panel-heading"><div><span className="eyebrow">DEFINING RELATION</span><h2>정의관계</h2></div></header><p className="supporting-copy">{design.definingRelation}</p></section>
+    <section className="panel table-panel"><header className="panel-heading"><div><span className="eyebrow">MAIN-EFFECT ALIASES</span><h2>주효과 별칭구조</h2></div></header><div className="table-scroll"><table><thead><tr><th scope="col">효과</th><th scope="col">전체 별칭 집합</th></tr></thead><tbody>{design.mainEffectAliases.map((row) => <tr key={row.effect}><td>{row.effect}</td><td>{row.alias_set.join(" = ")}</td></tr>)}</tbody></table></div></section>
+    <section className="panel table-panel"><header className="panel-heading"><div><span className="eyebrow">TWO-FACTOR ALIASES</span><h2>2요인 교호작용 별칭구조</h2></div></header><div className="table-scroll"><table><thead><tr><th scope="col">효과</th><th scope="col">전체 별칭 집합</th></tr></thead><tbody>{design.twoFactorAliases.map((row) => <tr key={row.effect}><td>{row.effect}</td><td>{row.alias_set.join(" = ")}</td></tr>)}</tbody></table></div></section>
+    <section className="panel table-panel"><header className="panel-heading"><div><span className="eyebrow">DESIGN MATRIX</span><h2>실행 설계표</h2></div></header><div className="table-scroll"><table><thead><tr><th scope="col">실행순서</th><th scope="col">표준순서</th><th scope="col">반복</th>{factorNames.map((name) => <th scope="col" key={name}>{name} coded · actual</th>)}</tr></thead><tbody>{design.design.map((row) => <tr key={`${row.run_order}-${row.replicate}`}><td>{row.run_order}</td><td>{row.standard_order}</td><td>{row.replicate}</td>{factorNames.map((name) => <td key={name}>{row.coded[name] > 0 ? "+1" : "−1"} · {statistic(row.actual[name])}</td>)}</tr>)}</tbody></table></div></section>
   </>;
 }

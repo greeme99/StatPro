@@ -158,6 +158,33 @@ class CliBoundaryTests(unittest.TestCase):
         self.assertEqual(solution["actual"], {"A": 1.0, "B": 0.0})
         self.assertAlmostEqual(solution["composite_desirability"], 1.0)
 
+    def test_fractional_factorial_returns_alias_structure(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "fractional.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "factors": [
+                            {"name": name, "low": 0, "high": 1} for name in "ABCD"
+                        ],
+                        "generators": [
+                            {"factor": "D", "terms": ["A", "B", "C"]}
+                        ],
+                        "randomize": False,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            output = io.StringIO()
+
+            with redirect_stdout(output):
+                exit_code = main(["doe-fractional-factorial", "--input", str(path)])
+
+        response = json.loads(output.getvalue())
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(response["result"]["diagnostics"]["resolution_label"], "IV")
+        self.assertEqual(len(response["result"]["tables"]["design"]), 8)
+
     def test_dataset_import_csv_returns_typed_snapshot(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "process.csv"

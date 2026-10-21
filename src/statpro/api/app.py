@@ -16,8 +16,10 @@ from pydantic import BaseModel, ConfigDict, Field
 from statpro.analyses.capability import normal_process_capability
 from statpro.analyses.doe import (
     FactorDefinition,
+    GeneratorDefinition,
     ResponseObjective,
     analyze_full_factorial_2level,
+    fractional_factorial_2level,
     full_factorial_2level,
     optimize_full_factorial_desirability,
 )
@@ -99,6 +101,20 @@ class FullFactorialRunRequest(ApiModel):
     factors: list[FactorRequest]
     replicates: int = 1
     center_points: int = 0
+    randomize: bool = True
+    seed: int = 0
+
+
+class GeneratorRequest(ApiModel):
+    factor: str
+    terms: list[str] = Field(min_length=2)
+
+
+class FractionalFactorialRunRequest(ApiModel):
+    run_id: RunId
+    factors: list[FactorRequest]
+    generators: list[GeneratorRequest] = Field(min_length=1, max_length=8)
+    replicates: int = 1
     randomize: bool = True
     seed: int = 0
 
@@ -521,6 +537,32 @@ def create_app(repository: DocumentRepository) -> FastAPI:
                 interaction_order=request.interaction_order,
                 prediction_points=request.prediction_points,
                 optimization_goal=request.optimization_goal,
+            ),
+        )
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _response(stored)
+
+    @app.post(
+        "/v1/analysis-runs/doe-fractional-factorial",
+        status_code=201,
+        response_model=StoredRunResponse,
+    )
+    def run_fractional_doe(
+        request: FractionalFactorialRunRequest, response: Response
+    ) -> StoredRunResponse:
+        factors = [FactorDefinition(**factor.model_dump()) for factor in request.factors]
+        generators = [
+            GeneratorDefinition(**generator.model_dump()) for generator in request.generators
+        ]
+        stored = _save_run(
+            repository,
+            request.run_id,
+            fractional_factorial_2level(
+                factors,
+                generators,
+                replicates=request.replicates,
+                randomize=request.randomize,
+                seed=request.seed,
             ),
         )
         response.headers["ETag"] = f'"{stored.etag}"'

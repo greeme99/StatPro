@@ -10,8 +10,10 @@ from typing import Sequence
 from statpro.analyses.capability import normal_process_capability
 from statpro.analyses.doe import (
     FactorDefinition,
+    GeneratorDefinition,
     ResponseObjective,
     analyze_full_factorial_2level,
+    fractional_factorial_2level,
     full_factorial_2level,
     optimize_full_factorial_desirability,
 )
@@ -29,6 +31,7 @@ def _parser() -> argparse.ArgumentParser:
         "xbar-r",
         "capability-normal",
         "doe-full-factorial",
+        "doe-fractional-factorial",
         "doe-analyze-full-factorial",
         "doe-optimize-responses",
         "gage-rr-crossed",
@@ -67,6 +70,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         elif args.command in {
             "doe-full-factorial",
+            "doe-fractional-factorial",
             "doe-analyze-full-factorial",
             "doe-optimize-responses",
         }:
@@ -78,7 +82,26 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "Each factor requires name, low, and high fields.",
                     "factors",
                 ) from error
-            if args.command == "doe-optimize-responses":
+            if args.command == "doe-fractional-factorial":
+                try:
+                    generators = [
+                        GeneratorDefinition(**generator)
+                        for generator in payload["generators"]
+                    ]
+                except TypeError as error:
+                    raise AnalysisInputError(
+                        "invalid_generator_definition",
+                        "Each generator requires factor and terms fields.",
+                        "generators",
+                    ) from error
+                result = fractional_factorial_2level(
+                    factors,
+                    generators,
+                    replicates=payload.get("replicates", 1),
+                    randomize=payload.get("randomize", True),
+                    seed=payload.get("seed", 0),
+                )
+            elif args.command == "doe-optimize-responses":
                 try:
                     objectives = [
                         ResponseObjective(**objective)

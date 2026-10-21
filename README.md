@@ -10,7 +10,7 @@ The repository starts with a dependency-free Python statistical core so formulas
 - Individuals and Moving Range (I-MR) control chart with selectable 3-sigma-only, NIST/Western Electric, or Nelson eight-test rules
 - Xbar-R control chart for constant subgroup sizes 2–10 with Nelson tests 1–8 on Xbar and tests 1–4 on R
 - Normal capability for individual observations with within/overall variation kept distinct
-- Reproducible two-level full factorial DOE generation plus coded effects, coefficients, ANOVA, lack-of-fit/pure-error partitioning, residual diagnostics, in-region prediction, bounded vertex optimization, and multi-response desirability optimization
+- Reproducible two-level full factorial DOE analysis plus regular fractional-factorial generation with defining relations, resolution, and main/two-factor alias structures
 - Balanced crossed Gage R&R using two-way random-effects ANOVA variance components
 - Immutable CSV Dataset snapshots and revisioned Worksheet cell edits
 - Packaged Draft 2020-12 `ResultBundle` JSON Schema
@@ -18,7 +18,7 @@ The repository starts with a dependency-free Python statistical core so formulas
 - Versioned external Action Priority policy contract without bundled proprietary decision tables
 - Loopback-only FastAPI adapter with Analysis Run, revisioned Worksheet/FMEA storage, ETags, optimistic concurrency, and cursor paging
 - Atomic local JSON document adapter plus an in-memory contract-test adapter
-- React workbench with dashboard, CSV Worksheet import/editing, I-MR setup/results, DOE analysis and response-optimizer flows, FMEA list/editor/review flow, provenance drawer, theme, and connection states
+- React workbench with dashboard, CSV Worksheet import/editing, I-MR setup/results, DOE analysis/fractional-design/response-optimizer flows, FMEA list/editor/review flow, provenance drawer, theme, and connection states
 - Accessible control-chart summaries and table alternatives with a 768px minimum supported viewport
 - Typed validation errors
 - JSON CLI
@@ -33,6 +33,7 @@ py -3.12 -m statpro.cli imr --input samples\imr-nist.json
 py -3.12 -m statpro.cli xbar-r --input samples\xbar-r.json
 py -3.12 -m statpro.cli capability-normal --input samples\capability-normal.json
 py -3.12 -m statpro.cli doe-full-factorial --input samples\doe-full-factorial.json
+py -3.12 -m statpro.cli doe-fractional-factorial --input samples\doe-fractional-factorial.json
 py -3.12 -m statpro.cli doe-analyze-full-factorial --input samples\doe-full-factorial-analysis.json
 py -3.12 -m statpro.cli doe-optimize-responses --input samples\doe-response-optimizer.json
 py -3.12 -m statpro.cli gage-rr-crossed --input samples\gage-rr-crossed.json

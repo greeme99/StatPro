@@ -9,9 +9,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from statpro.analyses.doe import (
     FactorDefinition,
+    GeneratorDefinition,
     ResponseObjective,
     analyze_full_factorial_2level,
     composite_desirability,
+    fractional_factorial_2level,
     full_factorial_2level,
     individual_desirability,
     optimize_full_factorial_desirability,
@@ -70,6 +72,90 @@ class FullFactorialDesignTests(unittest.TestCase):
         with self.assertRaises(AnalysisInputError) as context:
             full_factorial_2level(factors)
         self.assertEqual(context.exception.detail.code, "duplicate_factor_name")
+
+
+class FractionalFactorialDesignTests(unittest.TestCase):
+    def test_half_fraction_standard_order_relation_resolution_and_aliases(self) -> None:
+        factors = [FactorDefinition(name, 0, 1) for name in "ABCD"]
+        result = fractional_factorial_2level(
+            factors,
+            [GeneratorDefinition("D", ["A", "B", "C"])],
+            randomize=False,
+        )
+
+        coded_rows = [row["coded"] for row in result.tables["design"]]
+        self.assertEqual(len(coded_rows), 8)
+        self.assertEqual(coded_rows[0], {"A": -1, "B": -1, "C": -1, "D": -1})
+        self.assertEqual(coded_rows[-1], {"A": 1, "B": 1, "C": 1, "D": 1})
+        self.assertTrue(all(row["D"] == row["A"] * row["B"] * row["C"] for row in coded_rows))
+        self.assertEqual(result.tables["defining_relation"][0]["expression"], "I = A*B*C*D")
+        self.assertEqual(result.diagnostics["design_notation"], "2^(4-1)")
+        self.assertEqual(result.diagnostics["resolution"], 4)
+        main_aliases = {
+            row["effect"]: row["alias_set"] for row in result.tables["main_effect_aliases"]
+        }
+        interaction_aliases = {
+            row["effect"]: row["alias_set"]
+            for row in result.tables["two_factor_aliases"]
+        }
+        self.assertEqual(main_aliases["A"], ["A", "B*C*D"])
+        self.assertEqual(interaction_aliases["A*B"], ["A*B", "C*D"])
+        json.dumps(result.to_dict(), allow_nan=False)
+
+    def test_multiple_generators_form_complete_defining_relation(self) -> None:
+        result = fractional_factorial_2level(
+            [FactorDefinition(name, -1, 1) for name in "ABCDE"],
+            [
+                GeneratorDefinition("D", ["A", "B"]),
+                GeneratorDefinition("E", ["A", "C"]),
+            ],
+            randomize=False,
+        )
+
+        self.assertEqual(
+            set(result.tables["defining_relation"][0]["words"]),
+            {"A*B*D", "A*C*E", "B*C*D*E"},
+        )
+        self.assertEqual(result.diagnostics["resolution"], 3)
+        self.assertEqual(result.diagnostics["fraction"], "1/4")
+
+    def test_randomization_is_reproducible(self) -> None:
+        factors = [FactorDefinition(name, 0, 1) for name in "ABCD"]
+        generators = [GeneratorDefinition("D", ["A", "B", "C"])]
+        first = fractional_factorial_2level(factors, generators, seed=17)
+        second = fractional_factorial_2level(factors, generators, seed=17)
+
+        self.assertEqual(first.tables["design"], second.tables["design"])
+        self.assertEqual(first.input_digest, second.input_digest)
+
+    def test_rejects_generated_factor_dependencies(self) -> None:
+        factors = [FactorDefinition(name, 0, 1) for name in "ABCDE"]
+        with self.assertRaises(AnalysisInputError) as context:
+            fractional_factorial_2level(
+                factors,
+                [
+                    GeneratorDefinition("D", ["A", "B"]),
+                    GeneratorDefinition("E", ["A", "D"]),
+                ],
+            )
+        self.assertEqual(context.exception.detail.code, "generator_requires_base_factors")
+
+        with self.assertRaises(AnalysisInputError) as terms_context:
+            fractional_factorial_2level(
+                factors,
+                [GeneratorDefinition("D", "ABC")],
+            )
+        self.assertEqual(terms_context.exception.detail.code, "invalid_generator_terms")
+
+        with self.assertRaises(AnalysisInputError) as resolution_context:
+            fractional_factorial_2level(
+                factors,
+                [
+                    GeneratorDefinition("D", ["A", "B"]),
+                    GeneratorDefinition("E", ["B", "A"]),
+                ],
+            )
+        self.assertEqual(resolution_context.exception.detail.code, "resolution_too_low")
 
 
 class FullFactorialAnalysisTests(unittest.TestCase):

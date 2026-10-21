@@ -133,6 +133,30 @@ export type DoeDesirabilityView = {
   globalOptimumProven: boolean;
 };
 
+export type DoeFractionalDesignRow = {
+  run_order: number;
+  standard_order: number;
+  replicate: number;
+  coded: Record<string, number>;
+  actual: Record<string, number>;
+};
+
+export type DoeAliasRow = {
+  effect: string;
+  alias_set: string[];
+};
+
+export type DoeFractionalView = {
+  design: DoeFractionalDesignRow[];
+  mainEffectAliases: DoeAliasRow[];
+  twoFactorAliases: DoeAliasRow[];
+  definingRelation: string;
+  resolution: number;
+  resolutionLabel: string;
+  fraction: string;
+  designNotation: string;
+};
+
 export function toDoeView(result: ResultBundle | undefined): DoeView | null {
   if (!result || result.analysis_type !== "doe.full_factorial_2level_analysis") return null;
   const coefficients = result.tables.coefficients;
@@ -163,5 +187,24 @@ export function toDoeDesirabilityView(result: ResultBundle | undefined): DoeDesi
     solution: solutions[0] as DoeDesirabilitySolution,
     responses: responses as DoeResponseDesirability[],
     globalOptimumProven: result.diagnostics.global_optimum_proven === true,
+  };
+}
+
+export function toDoeFractionalView(result: ResultBundle | undefined): DoeFractionalView | null {
+  if (!result || result.analysis_type !== "doe.fractional_factorial_2level") return null;
+  const design = result.tables.design;
+  const mainEffectAliases = result.tables.main_effect_aliases;
+  const twoFactorAliases = result.tables.two_factor_aliases;
+  const relation = result.tables.defining_relation;
+  if (!Array.isArray(design) || !Array.isArray(mainEffectAliases) || !Array.isArray(twoFactorAliases) || !Array.isArray(relation) || relation.length !== 1) return null;
+  return {
+    design: design as DoeFractionalDesignRow[],
+    mainEffectAliases: mainEffectAliases as DoeAliasRow[],
+    twoFactorAliases: twoFactorAliases as DoeAliasRow[],
+    definingRelation: String(relation[0].expression ?? "I"),
+    resolution: Number(result.diagnostics.resolution ?? 0),
+    resolutionLabel: String(result.diagnostics.resolution_label ?? "—"),
+    fraction: String(result.diagnostics.fraction ?? "—"),
+    designNotation: String(result.diagnostics.design_notation ?? "—"),
   };
 }

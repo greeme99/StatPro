@@ -58,6 +58,20 @@ export function createDoeAnalysisRun(payload: {
   });
 }
 
+export function createDoeFractionalFactorialRun(payload: {
+  run_id: string;
+  factors: Array<{ name: string; low: number; high: number }>;
+  generators: Array<{ factor: string; terms: string[] }>;
+  replicates: number;
+  randomize: boolean;
+  seed: number;
+}): Promise<StoredRun> {
+  return request("/v1/analysis-runs/doe-fractional-factorial", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export type DoeResponseObjectivePayload = {
   name: string;
   responses: number[];

@@ -20,6 +20,20 @@ NIST_FACTORIAL_SOURCE = ProvenanceSource(
     url="https://www.itl.nist.gov/div898/handbook/pri/section3/pri3331.htm",
 )
 
+NIST_FRACTIONAL_FACTORIAL_SOURCE = ProvenanceSource(
+    title="NIST/SEMATECH 5.3.3.4.4 Fractional factorial specifications and resolution",
+    url="https://www.itl.nist.gov/div898/handbook/pri/section3/pri3344.htm",
+)
+
+MINITAB_FRACTIONAL_FACTORIAL_SOURCE = ProvenanceSource(
+    title="Minitab public documentation: 2-level factorial generators and alias structure",
+    url=(
+        "https://support.minitab.com/en-us/minitab/help-and-how-to/"
+        "statistical-modeling/doe/how-to/factorial/create-factorial-design/"
+        "create-2-level-factorial-specify-generators/examine-the-design/all-statistics/"
+    ),
+)
+
 NIST_DOE_MODEL_SOURCE = ProvenanceSource(
     title="NIST/SEMATECH 5.4.3 How to model DOE data",
     url="https://www.itl.nist.gov/div898/handbook/pri/section4/pri43.htm",
@@ -51,6 +65,12 @@ class FactorDefinition:
     name: str
     low: float
     high: float
+
+
+@dataclass(frozen=True, slots=True)
+class GeneratorDefinition:
+    factor: str
+    terms: Sequence[str]
 
 
 @dataclass(frozen=True, slots=True)
@@ -224,6 +244,300 @@ def full_factorial_2level(
         ),
         warnings=tuple(warnings),
         provenance=(NIST_FACTORIAL_SOURCE,),
+    )
+
+
+def _effect_label(word: frozenset[str], factor_order: Mapping[str, int]) -> str:
+    if not word:
+        return "I"
+    return "*".join(sorted(word, key=factor_order.__getitem__))
+
+
+def _defining_relation(
+    generator_words: Sequence[frozenset[str]],
+) -> list[frozenset[str]]:
+    relation: list[frozenset[str]] = [frozenset()]
+    for generator_word in generator_words:
+        relation += [word.symmetric_difference(generator_word) for word in relation]
+    return relation
+
+
+def _roman_resolution(resolution: int) -> str:
+    labels = {
+        2: "II",
+        3: "III",
+        4: "IV",
+        5: "V",
+        6: "VI",
+        7: "VII",
+        8: "VIII",
+        9: "IX",
+        10: "X",
+        11: "XI",
+        12: "XII",
+    }
+    return labels.get(resolution, str(resolution))
+
+
+def fractional_factorial_2level(
+    factors: Sequence[FactorDefinition],
+    generators: Sequence[GeneratorDefinition],
+    *,
+    replicates: int = 1,
+    randomize: bool = True,
+    seed: int = 0,
+) -> ResultBundle:
+    """Generate a regular positive 2^(k-p) fractional factorial design.
+
+    Generator right-hand sides intentionally reference base factors only. This keeps the
+    defining contrast subgroup explicit and rejects ambiguous recursive specifications.
+    """
+
+    normalized = _normalize_factors(factors)
+    if not generators:
+        raise AnalysisInputError(
+            "missing_generators",
+            "A fractional factorial design requires at least one generator.",
+            "generators",
+        )
+    if len(generators) > 8:
+        raise AnalysisInputError(
+            "too_many_generators",
+            "At most 8 generators are supported to bound alias-table growth.",
+            "generators",
+        )
+    if isinstance(replicates, bool) or not isinstance(replicates, int) or replicates < 1:
+        raise AnalysisInputError(
+            "invalid_replicates", "Replicates must be a positive integer.", "replicates"
+        )
+    if isinstance(seed, bool) or not isinstance(seed, int):
+        raise AnalysisInputError("invalid_seed", "Random seed must be an integer.", "seed")
+
+    factor_names = [factor.name for factor in normalized]
+    factor_by_name = {factor.name: factor for factor in normalized}
+    generated_names: list[str] = []
+    raw_generators: list[tuple[str, list[str]]] = []
+    for index, generator in enumerate(generators):
+        if not isinstance(generator.factor, str):
+            raise AnalysisInputError(
+                "unknown_generated_factor",
+                f"Generator {index + 1} must name one of the supplied factors.",
+                f"generators[{index}].factor",
+            )
+        if not isinstance(generator.terms, Sequence) or isinstance(
+            generator.terms, (str, bytes)
+        ) or any(
+            not isinstance(term, str) for term in generator.terms
+        ):
+            raise AnalysisInputError(
+                "invalid_generator_terms",
+                "Generator terms must be an array of factor names.",
+                f"generators[{index}].terms",
+            )
+        factor = generator.factor.strip()
+        terms = [term.strip() for term in generator.terms]
+        if not factor or factor not in factor_by_name:
+            raise AnalysisInputError(
+                "unknown_generated_factor",
+                f"Generator {index + 1} must name one of the supplied factors.",
+                f"generators[{index}].factor",
+            )
+        if factor in generated_names:
+            raise AnalysisInputError(
+                "duplicate_generator_factor",
+                f"Factor '{factor}' has more than one generator.",
+                f"generators[{index}].factor",
+            )
+        if len(terms) < 2:
+            raise AnalysisInputError(
+                "generator_too_short",
+                "Each generator must contain at least two base-factor terms.",
+                f"generators[{index}].terms",
+            )
+        if any(not term for term in terms) or len(set(terms)) != len(terms):
+            raise AnalysisInputError(
+                "invalid_generator_terms",
+                "Generator terms must be nonempty and unique.",
+                f"generators[{index}].terms",
+            )
+        generated_names.append(factor)
+        raw_generators.append((factor, terms))
+
+    base_names = [name for name in factor_names if name not in generated_names]
+    if len(base_names) < 2:
+        raise AnalysisInputError(
+            "insufficient_base_factors",
+            "At least two independent base factors are required.",
+            "generators",
+        )
+    base_name_set = set(base_names)
+    for index, (factor, terms) in enumerate(raw_generators):
+        unknown_terms = [term for term in terms if term not in base_name_set]
+        if unknown_terms:
+            raise AnalysisInputError(
+                "generator_requires_base_factors",
+                (
+                    f"Generator for '{factor}' may reference base factors only; "
+                    f"invalid terms: {', '.join(unknown_terms)}."
+                ),
+                f"generators[{index}].terms",
+            )
+
+    base_run_count = 2 ** len(base_names)
+    total_run_count = base_run_count * replicates
+    if total_run_count > 100_000:
+        raise AnalysisInputError(
+            "design_too_large",
+            "The requested design exceeds the 100,000-run safety limit.",
+            "factors",
+        )
+
+    factor_order = {name: index for index, name in enumerate(factor_names)}
+    normalized_generators = [
+        {"factor": factor, "terms": terms, "expression": f"{factor}={'*'.join(terms)}"}
+        for factor, terms in raw_generators
+    ]
+    generator_words = [
+        frozenset((factor, *terms)) for factor, terms in raw_generators
+    ]
+    relation = _defining_relation(generator_words)
+    non_identity_words = relation[1:]
+    resolution = min(len(word) for word in non_identity_words)
+    if resolution < 3:
+        raise AnalysisInputError(
+            "resolution_too_low",
+            "Generators must define a resolution III or higher design.",
+            "generators",
+        )
+    relation_labels = [
+        _effect_label(word, factor_order)
+        for word in sorted(
+            non_identity_words,
+            key=lambda item: (len(item), _effect_label(item, factor_order)),
+        )
+    ]
+
+    rows: list[dict[str, object]] = []
+    for replicate in range(1, replicates + 1):
+        for standard_index in range(base_run_count):
+            coded = {
+                name: (1 if standard_index & (1 << index) else -1)
+                for index, name in enumerate(base_names)
+            }
+            for factor, terms in raw_generators:
+                coded[factor] = 1
+                for term in terms:
+                    coded[factor] *= coded[term]
+            ordered_coded = {name: coded[name] for name in factor_names}
+            actual = {
+                name: (
+                    factor_by_name[name].high
+                    if ordered_coded[name] == 1
+                    else factor_by_name[name].low
+                )
+                for name in factor_names
+            }
+            rows.append(
+                {
+                    "standard_order": standard_index + 1,
+                    "replicate": replicate,
+                    "point_type": "factorial",
+                    "coded": ordered_coded,
+                    "actual": actual,
+                }
+            )
+
+    if randomize:
+        random.Random(seed).shuffle(rows)
+    for run_order, row in enumerate(rows, start=1):
+        row["run_order"] = run_order
+
+    def aliases_for(word: frozenset[str]) -> list[str]:
+        aliases = {word.symmetric_difference(defining_word) for defining_word in relation}
+        return [
+            _effect_label(alias, factor_order)
+            for alias in sorted(
+                aliases, key=lambda item: (len(item), _effect_label(item, factor_order))
+            )
+        ]
+
+    main_effect_aliases = [
+        {"effect": name, "alias_set": aliases_for(frozenset((name,)))}
+        for name in factor_names
+    ]
+    two_factor_aliases = [
+        {
+            "effect": f"{left}*{right}",
+            "alias_set": aliases_for(frozenset((left, right))),
+        }
+        for left, right in combinations(factor_names, 2)
+    ]
+
+    warnings: list[str] = []
+    if resolution == 3:
+        warnings.append(
+            "Resolution III aliases main effects with two-factor interactions; "
+            "use it for screening with that limitation explicit."
+        )
+    elif resolution == 4:
+        warnings.append(
+            "Resolution IV keeps main effects clear of two-factor interactions, "
+            "but two-factor interactions can alias each other."
+        )
+    if not randomize:
+        warnings.append(
+            "Runs are not randomized; time-related nuisance factors may be confounded with factor effects."
+        )
+
+    factor_payload = [asdict(factor) for factor in normalized]
+    payload = {
+        "factors": factor_payload,
+        "generators": normalized_generators,
+        "replicates": replicates,
+        "randomize": randomize,
+        "seed": seed,
+    }
+    return ResultBundle(
+        analysis_type="doe.fractional_factorial_2level",
+        engine_version=ENGINE_VERSION,
+        input_digest=input_digest(payload),
+        parameters=payload,
+        tables={
+            "design": rows,
+            "generators": normalized_generators,
+            "defining_relation": [
+                {
+                    "identity": "I",
+                    "words": relation_labels,
+                    "expression": "I = " + " = ".join(relation_labels),
+                }
+            ],
+            "main_effect_aliases": main_effect_aliases,
+            "two_factor_aliases": two_factor_aliases,
+        },
+        plots={},
+        diagnostics={
+            "factor_count": len(factor_names),
+            "base_factor_count": len(base_names),
+            "generated_factor_count": len(generated_names),
+            "fraction": f"1/{2 ** len(generated_names)}",
+            "design_notation": f"2^({len(factor_names)}-{len(generated_names)})",
+            "resolution": resolution,
+            "resolution_label": _roman_resolution(resolution),
+            "factorial_run_count": base_run_count,
+            "total_run_count": total_run_count,
+            "balanced": True,
+            "orthogonal": True,
+            "regular_fraction": True,
+        },
+        assumptions=(
+            "Each factor has exactly two quantitative levels.",
+            "Every generator is a positive product of independent base-factor columns.",
+            "Alias sets follow the complete defining contrast subgroup for this regular fraction.",
+            "The supplied random seed is retained for reproducibility.",
+        ),
+        warnings=tuple(warnings),
+        provenance=(NIST_FRACTIONAL_FACTORIAL_SOURCE, MINITAB_FRACTIONAL_FACTORIAL_SOURCE),
     )
 
 
