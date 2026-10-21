@@ -185,6 +185,36 @@ class CliBoundaryTests(unittest.TestCase):
         self.assertEqual(response["result"]["diagnostics"]["resolution_label"], "IV")
         self.assertEqual(len(response["result"]["tables"]["design"]), 8)
 
+    def test_plackett_burman_returns_screening_design(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "plackett-burman.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "factors": [
+                            {"name": f"X{index}", "low": 0, "high": 10}
+                            for index in range(1, 10)
+                        ],
+                        "runs": 12,
+                        "randomize": False,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            output = io.StringIO()
+
+            with redirect_stdout(output):
+                exit_code = main(["doe-plackett-burman", "--input", str(path)])
+
+        response = json.loads(output.getvalue())
+        result = response["result"]
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(result["analysis_type"], "doe.plackett_burman")
+        self.assertEqual(result["diagnostics"]["base_run_count"], 12)
+        self.assertEqual(result["diagnostics"]["unused_factor_columns"], 2)
+        self.assertTrue(result["diagnostics"]["pairwise_orthogonal"])
+        self.assertEqual(len(result["tables"]["design"]), 12)
+
     def test_dataset_import_csv_returns_typed_snapshot(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "process.csv"

@@ -16,6 +16,7 @@ from statpro.analyses.doe import (
     fractional_factorial_2level,
     full_factorial_2level,
     optimize_full_factorial_desirability,
+    plackett_burman_design,
 )
 from statpro.analyses.msa import MeasurementRecord, gage_rr_crossed
 from statpro.analyses.spc import individuals_moving_range, xbar_r
@@ -32,6 +33,7 @@ def _parser() -> argparse.ArgumentParser:
         "capability-normal",
         "doe-full-factorial",
         "doe-fractional-factorial",
+        "doe-plackett-burman",
         "doe-analyze-full-factorial",
         "doe-optimize-responses",
         "gage-rr-crossed",
@@ -71,6 +73,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         elif args.command in {
             "doe-full-factorial",
             "doe-fractional-factorial",
+            "doe-plackett-burman",
             "doe-analyze-full-factorial",
             "doe-optimize-responses",
         }:
@@ -82,7 +85,16 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "Each factor requires name, low, and high fields.",
                     "factors",
                 ) from error
-            if args.command == "doe-fractional-factorial":
+            if args.command == "doe-plackett-burman":
+                result = plackett_burman_design(
+                    factors,
+                    runs=payload.get("runs"),
+                    replicates=payload.get("replicates", 1),
+                    center_points=payload.get("center_points", 0),
+                    randomize=payload.get("randomize", True),
+                    seed=payload.get("seed", 0),
+                )
+            elif args.command == "doe-fractional-factorial":
                 try:
                     generators = [
                         GeneratorDefinition(**generator)

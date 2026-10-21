@@ -281,6 +281,40 @@ describe("StatPro UI", () => {
     expect(screen.getByRole("heading", { name: "실행 설계표" })).toBeInTheDocument();
   });
 
+  it("submits a Plackett-Burman screening design", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      return new Response(JSON.stringify({}), { status: init?.method === "POST" ? 201 : 200, headers: { "Content-Type": "application/json" } });
+    });
+    render(<MemoryRouter initialEntries={["/analyses/doe/plackett-burman"]}><App /></MemoryRouter>);
+
+    await userEvent.click(await screen.findByRole("button", { name: "선별설계 생성" }));
+    await waitFor(() => expect(fetchMock.mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === "POST")).toBe(true));
+    const post = fetchMock.mock.calls.find(([url, init]) => String(url).endsWith("/doe-plackett-burman") && (init as RequestInit | undefined)?.method === "POST");
+    const body = JSON.parse(String((post?.[1] as RequestInit).body));
+    expect(body.factors).toHaveLength(4);
+    expect(body.runs).toBeUndefined();
+    expect(body).toMatchObject({ replicates: 1, center_points: 0, randomize: true, seed: 0 });
+  });
+
+  it("renders Plackett-Burman diagnostics and design matrix", async () => {
+    const result = {
+      analysis_type: "doe.plackett_burman", engine_version: "0.6.0", input_digest: "e".repeat(64), warnings: ["Confirm selected factors."], assumptions: [], provenance: [], parameters: {}, plots: {},
+      diagnostics: { factor_count: 2, base_run_count: 12, total_run_count: 12, unused_factor_columns: 9, resolution_label: "III", balanced: true, pairwise_orthogonal: true, construction: "published-cyclic-seed" },
+      tables: { design: [{ run_order: 1, standard_order: 1, replicate: 1, point_type: "factorial", coded: { A: 1, B: 1 }, actual: { A: 10, B: 20 } }] },
+    };
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      return new Response(JSON.stringify({ run_id: "doe-pb-001", storage_version: 1, etag: "a".repeat(64), result }), { status: 200 });
+    });
+
+    render(<MemoryRouter initialEntries={["/runs/doe-pb-001"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "설계 검증" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "선별 실행 설계표" })).toBeInTheDocument();
+    expect(screen.getByText("published-cyclic-seed")).toBeInTheDocument();
+    expect(screen.getAllByText("통과")).toHaveLength(2);
+  });
+
   it("submits multiple DOE response objectives with target boundaries", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });

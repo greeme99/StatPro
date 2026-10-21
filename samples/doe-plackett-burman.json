@@ -1,0 +1,18 @@
+{
+  "factors": [
+    { "name": "Temperature", "low": 140, "high": 180 },
+    { "name": "Pressure", "low": 2, "high": 4 },
+    { "name": "Speed", "low": 40, "high": 80 },
+    { "name": "CureTime", "low": 20, "high": 40 },
+    { "name": "Additive", "low": 0.5, "high": 1.5 },
+    { "name": "Cooling", "low": 10, "high": 30 },
+    { "name": "Humidity", "low": 30, "high": 70 },
+    { "name": "ToolAge", "low": 0, "high": 100 },
+    { "name": "BatchSize", "low": 50, "high": 100 }
+  ],
+  "runs": 12,
+  "replicates": 1,
+  "center_points": 3,
+  "randomize": true,
+  "seed": 20261021
+}

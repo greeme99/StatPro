@@ -157,6 +157,27 @@ export type DoeFractionalView = {
   designNotation: string;
 };
 
+export type DoeScreeningDesignRow = {
+  run_order: number;
+  standard_order: number | null;
+  replicate: number;
+  point_type: string;
+  coded: Record<string, number>;
+  actual: Record<string, number>;
+};
+
+export type DoePlackettBurmanView = {
+  design: DoeScreeningDesignRow[];
+  factorCount: number;
+  baseRunCount: number;
+  totalRunCount: number;
+  unusedFactorColumns: number;
+  resolutionLabel: string;
+  balanced: boolean;
+  pairwiseOrthogonal: boolean;
+  construction: string;
+};
+
 export function toDoeView(result: ResultBundle | undefined): DoeView | null {
   if (!result || result.analysis_type !== "doe.full_factorial_2level_analysis") return null;
   const coefficients = result.tables.coefficients;
@@ -206,5 +227,22 @@ export function toDoeFractionalView(result: ResultBundle | undefined): DoeFracti
     resolutionLabel: String(result.diagnostics.resolution_label ?? "—"),
     fraction: String(result.diagnostics.fraction ?? "—"),
     designNotation: String(result.diagnostics.design_notation ?? "—"),
+  };
+}
+
+export function toDoePlackettBurmanView(result: ResultBundle | undefined): DoePlackettBurmanView | null {
+  if (!result || result.analysis_type !== "doe.plackett_burman") return null;
+  const design = result.tables.design;
+  if (!Array.isArray(design)) return null;
+  return {
+    design: design as DoeScreeningDesignRow[],
+    factorCount: Number(result.diagnostics.factor_count ?? 0),
+    baseRunCount: Number(result.diagnostics.base_run_count ?? 0),
+    totalRunCount: Number(result.diagnostics.total_run_count ?? 0),
+    unusedFactorColumns: Number(result.diagnostics.unused_factor_columns ?? 0),
+    resolutionLabel: String(result.diagnostics.resolution_label ?? "—"),
+    balanced: result.diagnostics.balanced === true,
+    pairwiseOrthogonal: result.diagnostics.pairwise_orthogonal === true,
+    construction: String(result.diagnostics.construction ?? "unknown"),
   };
 }

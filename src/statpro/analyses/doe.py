@@ -34,6 +34,20 @@ MINITAB_FRACTIONAL_FACTORIAL_SOURCE = ProvenanceSource(
     ),
 )
 
+NIST_PLACKETT_BURMAN_SOURCE = ProvenanceSource(
+    title="NIST/SEMATECH 5.3.3.5 Plackett-Burman designs",
+    url="https://www.itl.nist.gov/div898/handbook/pri/section3/pri335.htm",
+)
+
+MINITAB_PLACKETT_BURMAN_SOURCE = ProvenanceSource(
+    title="Minitab public documentation: Plackett-Burman designs",
+    url=(
+        "https://support.minitab.com/en-us/minitab/help-and-how-to/"
+        "statistical-modeling/doe/supporting-topics/factorial-and-screening-designs/"
+        "plackett-burman-designs/"
+    ),
+)
+
 NIST_DOE_MODEL_SOURCE = ProvenanceSource(
     title="NIST/SEMATECH 5.4.3 How to model DOE data",
     url="https://www.itl.nist.gov/div898/handbook/pri/section4/pri43.htm",
@@ -85,17 +99,22 @@ class ResponseObjective:
     importance: float = 1.0
 
 
-def _normalize_factors(factors: Sequence[FactorDefinition]) -> list[FactorDefinition]:
+def _normalize_factors(
+    factors: Sequence[FactorDefinition],
+    *,
+    max_count: int = 12,
+    design_name: str = "two-level full factorial design",
+) -> list[FactorDefinition]:
     if len(factors) < 2:
         raise AnalysisInputError(
             "insufficient_factors",
-            "A two-level full factorial design requires at least two factors.",
+            f"A {design_name} requires at least two factors.",
             "factors",
         )
-    if len(factors) > 12:
+    if len(factors) > max_count:
         raise AnalysisInputError(
             "too_many_factors",
-            "The bounded generator supports at most 12 factors.",
+            f"The bounded {design_name} generator supports at most {max_count} factors.",
             "factors",
         )
 
@@ -121,6 +140,249 @@ def _normalize_factors(factors: Sequence[FactorDefinition]) -> list[FactorDefini
         names.add(name)
         normalized.append(FactorDefinition(name=name, low=low, high=high))
     return normalized
+
+
+_PLACKETT_BURMAN_RUNS = (12, 20, 24, 28, 32, 36, 40, 44, 48)
+
+_PLACKETT_BURMAN_CYCLIC_SEEDS = {
+    12: "++-+++---+-",
+    20: "++--++++-+-+----++-",
+    24: "+++++-+-++--++--+-+----",
+    32: "----+-+-+++-++---+++++--++-+--+",
+    36: "-+-+++---+++++-+++--+----+-+-++--+-",
+    44: "++--+-+--+++-+++++---+-+++-----+---++-+-++-",
+    48: "+++++-++++--+-+-+++--+--++-++---+-+-++----+----",
+}
+
+_PLACKETT_BURMAN_28_ROWS = (
+    "+-++++----+---+--+++-+-++-+",
+    "++-+++-----++--+---++++-++-",
+    "-+++++---+---+--+-+-+-++-++",
+    "---+-++++--+-+- --++-+++-+-+".replace(" ", ""),
+    "---++-++++----++--++--++++-",
+    "----+++++-+-+---+--+++-+-++",
+    "+++---+-+--+--+-+-+-++-+++-",
+    "+++---++-+--+----+++-++--++",
+    "+++----++-+--+-+---++-+++-+",
+)
+
+
+def _signs(pattern: str) -> list[int]:
+    return [1 if character == "+" else -1 for character in pattern]
+
+
+def _cyclic_plackett_burman_matrix(runs: int) -> list[list[int]]:
+    seed = _signs(_PLACKETT_BURMAN_CYCLIC_SEEDS[runs])
+    width = runs - 1
+    if len(seed) != width:
+        raise RuntimeError(f"Invalid internal Plackett-Burman seed for {runs} runs.")
+    matrix = [
+        [seed[(row + column) % width] for column in range(width)]
+        for row in range(width)
+    ]
+    matrix.append([-1] * width)
+    return matrix
+
+
+def _plackett_burman_28_matrix() -> list[list[int]]:
+    initial_rows = [_signs(pattern) for pattern in _PLACKETT_BURMAN_28_ROWS]
+    if any(len(row) != 27 for row in initial_rows):
+        raise RuntimeError("Invalid internal 28-run Plackett-Burman rows.")
+    matrix: list[list[int]] = []
+    for block_shift in range(3):
+        for row in initial_rows:
+            blocks = (row[:9], row[9:18], row[18:27])
+            matrix.append(
+                blocks[block_shift]
+                + blocks[(block_shift + 1) % 3]
+                + blocks[(block_shift + 2) % 3]
+            )
+    matrix.append([-1] * 27)
+    return matrix
+
+
+def _plackett_burman_40_matrix() -> list[list[int]]:
+    base_design = _cyclic_plackett_burman_matrix(20)
+    hadamard_20 = [[1, *row] for row in base_design]
+    hadamard_40 = [
+        [*row, *row] for row in hadamard_20
+    ] + [
+        [*row, *(-value for value in row)] for row in hadamard_20
+    ]
+    return [row[1:] for row in hadamard_40]
+
+
+def _plackett_burman_matrix(runs: int) -> tuple[list[list[int]], str]:
+    if runs == 28:
+        return _plackett_burman_28_matrix(), "published-28-run-block-construction"
+    if runs == 40:
+        return _plackett_burman_40_matrix(), "doubled-20-run-hadamard-construction"
+    return _cyclic_plackett_burman_matrix(runs), "published-cyclic-seed"
+
+
+def _verify_screening_matrix(matrix: Sequence[Sequence[int]]) -> tuple[bool, bool]:
+    column_count = len(matrix[0])
+    balanced = all(sum(row[column] for row in matrix) == 0 for column in range(column_count))
+    pairwise_orthogonal = all(
+        sum(row[left] * row[right] for row in matrix) == 0
+        for left, right in combinations(range(column_count), 2)
+    )
+    return balanced, pairwise_orthogonal
+
+
+def plackett_burman_design(
+    factors: Sequence[FactorDefinition],
+    *,
+    runs: int | None = None,
+    replicates: int = 1,
+    center_points: int = 0,
+    randomize: bool = True,
+    seed: int = 0,
+) -> ResultBundle:
+    """Generate a bounded Plackett-Burman main-effects screening design."""
+
+    normalized = _normalize_factors(
+        factors,
+        max_count=47,
+        design_name="Plackett-Burman screening design",
+    )
+    if runs is not None and (isinstance(runs, bool) or not isinstance(runs, int)):
+        raise AnalysisInputError("invalid_runs", "Runs must be an integer.", "runs")
+    if runs is None:
+        runs = next(
+            (candidate for candidate in _PLACKETT_BURMAN_RUNS if len(normalized) < candidate),
+            None,
+        )
+        if runs is None:
+            raise AnalysisInputError(
+                "too_many_factors",
+                "No supported Plackett-Burman design can hold the requested factors.",
+                "factors",
+            )
+    elif runs not in _PLACKETT_BURMAN_RUNS:
+        raise AnalysisInputError(
+            "unsupported_runs",
+            "Runs must be one of 12, 20, 24, 28, 32, 36, 40, 44, or 48; "
+            "use a two-level factorial design for 8 or 16 runs.",
+            "runs",
+        )
+    if len(normalized) >= runs:
+        raise AnalysisInputError(
+            "too_many_factors_for_runs",
+            "The factor count must be less than the selected run count.",
+            "factors",
+        )
+    if isinstance(replicates, bool) or not isinstance(replicates, int) or replicates < 1:
+        raise AnalysisInputError(
+            "invalid_replicates", "Replicates must be a positive integer.", "replicates"
+        )
+    if (
+        isinstance(center_points, bool)
+        or not isinstance(center_points, int)
+        or center_points < 0
+    ):
+        raise AnalysisInputError(
+            "invalid_center_points",
+            "Center points must be a nonnegative integer.",
+            "center_points",
+        )
+    if isinstance(seed, bool) or not isinstance(seed, int):
+        raise AnalysisInputError("invalid_seed", "Random seed must be an integer.", "seed")
+
+    full_matrix, construction = _plackett_burman_matrix(runs)
+    balanced, pairwise_orthogonal = _verify_screening_matrix(full_matrix)
+    if not balanced or not pairwise_orthogonal:
+        raise RuntimeError(f"Internal {runs}-run Plackett-Burman matrix verification failed.")
+
+    factor_names = [factor.name for factor in normalized]
+    active_matrix = [row[: len(normalized)] for row in full_matrix]
+    rows: list[dict[str, object]] = []
+    for replicate in range(1, replicates + 1):
+        for standard_index, matrix_row in enumerate(active_matrix, start=1):
+            coded = dict(zip(factor_names, matrix_row, strict=True))
+            actual = {
+                factor.name: factor.high if coded[factor.name] == 1 else factor.low
+                for factor in normalized
+            }
+            rows.append(
+                {
+                    "standard_order": standard_index,
+                    "replicate": replicate,
+                    "point_type": "factorial",
+                    "coded": coded,
+                    "actual": actual,
+                }
+            )
+
+    center_coded = {factor.name: 0 for factor in normalized}
+    center_actual = {factor.name: (factor.low + factor.high) / 2 for factor in normalized}
+    for center_index in range(1, center_points + 1):
+        rows.append(
+            {
+                "standard_order": None,
+                "replicate": center_index,
+                "point_type": "center",
+                "coded": center_coded.copy(),
+                "actual": center_actual.copy(),
+            }
+        )
+
+    if randomize:
+        random.Random(seed).shuffle(rows)
+    for run_order, row in enumerate(rows, start=1):
+        row["run_order"] = run_order
+
+    warnings = [
+        "Resolution III screening aliases main effects with two-factor interactions; "
+        "interpret effects only when interactions are reasonably negligible.",
+        "Confirm selected factors with a follow-up factorial or response-surface experiment.",
+    ]
+    if center_points:
+        warnings.append(
+            "Center points can indicate aggregate curvature but cannot identify separate quadratic terms."
+        )
+    if not randomize:
+        warnings.append(
+            "Runs are not randomized; time-related nuisance factors may be confounded with factor effects."
+        )
+
+    factor_payload = [asdict(factor) for factor in normalized]
+    payload = {
+        "factors": factor_payload,
+        "runs": runs,
+        "replicates": replicates,
+        "center_points": center_points,
+        "randomize": randomize,
+        "seed": seed,
+    }
+    return ResultBundle(
+        analysis_type="doe.plackett_burman",
+        engine_version=ENGINE_VERSION,
+        input_digest=input_digest(payload),
+        parameters=payload,
+        tables={"design": rows},
+        plots={},
+        diagnostics={
+            "factor_count": len(normalized),
+            "base_run_count": runs,
+            "total_run_count": runs * replicates + center_points,
+            "available_factor_columns": runs - 1,
+            "unused_factor_columns": runs - 1 - len(normalized),
+            "resolution": 3,
+            "resolution_label": "III",
+            "balanced": balanced,
+            "pairwise_orthogonal": pairwise_orthogonal,
+            "screening_only": True,
+            "construction": construction,
+        },
+        assumptions=(
+            "Two-factor and higher-order interactions are negligible during screening.",
+            "Each factor has exactly two quantitative levels.",
+            "The supplied random seed is retained for reproducibility.",
+        ),
+        warnings=tuple(warnings),
+        provenance=(NIST_PLACKETT_BURMAN_SOURCE, MINITAB_PLACKETT_BURMAN_SOURCE),
+    )
 
 
 def full_factorial_2level(

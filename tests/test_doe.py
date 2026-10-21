@@ -17,6 +17,7 @@ from statpro.analyses.doe import (
     full_factorial_2level,
     individual_desirability,
     optimize_full_factorial_desirability,
+    plackett_burman_design,
 )
 from statpro.domain.errors import AnalysisInputError
 
@@ -156,6 +157,71 @@ class FractionalFactorialDesignTests(unittest.TestCase):
                 ],
             )
         self.assertEqual(resolution_context.exception.detail.code, "resolution_too_low")
+
+
+class PlackettBurmanDesignTests(unittest.TestCase):
+    def test_12_run_design_matches_published_seed_and_is_orthogonal(self) -> None:
+        factors = [FactorDefinition(f"X{index}", 0, 10) for index in range(1, 12)]
+        result = plackett_burman_design(factors, runs=12, randomize=False)
+        rows = result.tables["design"]
+
+        self.assertEqual(
+            list(rows[0]["coded"].values()),
+            [1, 1, -1, 1, 1, 1, -1, -1, -1, 1, -1],
+        )
+        self.assertEqual(list(rows[-1]["coded"].values()), [-1] * 11)
+        self.assertTrue(result.diagnostics["balanced"])
+        self.assertTrue(result.diagnostics["pairwise_orthogonal"])
+        self.assertEqual(result.diagnostics["resolution_label"], "III")
+        self.assertEqual(result.diagnostics["construction"], "published-cyclic-seed")
+        json.dumps(result.to_dict(), allow_nan=False)
+
+    def test_all_supported_run_counts_pass_matrix_invariants(self) -> None:
+        for runs in (12, 20, 24, 28, 32, 36, 40, 44, 48):
+            with self.subTest(runs=runs):
+                factors = [
+                    FactorDefinition(f"X{index}", -1, 1)
+                    for index in range(1, runs)
+                ]
+                result = plackett_burman_design(
+                    factors, runs=runs, randomize=False
+                )
+                rows = result.tables["design"]
+                self.assertEqual(len(rows), runs)
+                self.assertTrue(result.diagnostics["balanced"])
+                self.assertTrue(result.diagnostics["pairwise_orthogonal"])
+                for name in rows[0]["coded"]:
+                    self.assertEqual(sum(row["coded"][name] for row in rows), 0)
+
+    def test_auto_selects_capacity_and_preserves_replicates_centers_and_seed(self) -> None:
+        factors = [FactorDefinition(f"F{index}", 0, 2) for index in range(12)]
+        first = plackett_burman_design(
+            factors, replicates=2, center_points=2, seed=71
+        )
+        second = plackett_burman_design(
+            factors, replicates=2, center_points=2, seed=71
+        )
+
+        self.assertEqual(first.diagnostics["base_run_count"], 20)
+        self.assertEqual(first.diagnostics["total_run_count"], 42)
+        self.assertEqual(first.tables["design"], second.tables["design"])
+        centers = [row for row in first.tables["design"] if row["point_type"] == "center"]
+        self.assertEqual(len(centers), 2)
+        self.assertEqual(set(centers[0]["coded"].values()), {0})
+        self.assertEqual(set(centers[0]["actual"].values()), {1.0})
+
+    def test_rejects_unsupported_runs_and_insufficient_capacity(self) -> None:
+        factors = [FactorDefinition("A", 0, 1), FactorDefinition("B", 0, 1)]
+        with self.assertRaises(AnalysisInputError) as run_context:
+            plackett_burman_design(factors, runs=16)
+        self.assertEqual(run_context.exception.detail.code, "unsupported_runs")
+
+        crowded = [FactorDefinition(f"X{index}", 0, 1) for index in range(12)]
+        with self.assertRaises(AnalysisInputError) as capacity_context:
+            plackett_burman_design(crowded, runs=12)
+        self.assertEqual(
+            capacity_context.exception.detail.code, "too_many_factors_for_runs"
+        )
 
 
 class FullFactorialAnalysisTests(unittest.TestCase):

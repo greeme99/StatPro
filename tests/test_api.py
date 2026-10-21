@@ -134,6 +134,19 @@ class LocalApiContractTests(unittest.TestCase):
                 "doe.fractional_factorial_2level",
             ),
             (
+                "/v1/analysis-runs/doe-plackett-burman",
+                {
+                    "run_id": "doe-plackett-burman",
+                    "factors": [
+                        {"name": f"X{index}", "low": 0, "high": 10}
+                        for index in range(1, 10)
+                    ],
+                    "runs": 12,
+                    "randomize": False,
+                },
+                "doe.plackett_burman",
+            ),
+            (
                 "/v1/analysis-runs/doe-response-optimizer",
                 {
                     "run_id": "doe-optimizer",

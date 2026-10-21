@@ -72,6 +72,21 @@ export function createDoeFractionalFactorialRun(payload: {
   });
 }
 
+export function createDoePlackettBurmanRun(payload: {
+  run_id: string;
+  factors: Array<{ name: string; low: number; high: number }>;
+  runs?: number;
+  replicates: number;
+  center_points: number;
+  randomize: boolean;
+  seed: number;
+}): Promise<StoredRun> {
+  return request("/v1/analysis-runs/doe-plackett-burman", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export type DoeResponseObjectivePayload = {
   name: string;
   responses: number[];

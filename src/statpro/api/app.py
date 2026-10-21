@@ -22,6 +22,7 @@ from statpro.analyses.doe import (
     fractional_factorial_2level,
     full_factorial_2level,
     optimize_full_factorial_desirability,
+    plackett_burman_design,
 )
 from statpro.analyses.msa import MeasurementRecord, gage_rr_crossed
 from statpro.analyses.spc import individuals_moving_range, xbar_r
@@ -115,6 +116,16 @@ class FractionalFactorialRunRequest(ApiModel):
     factors: list[FactorRequest]
     generators: list[GeneratorRequest] = Field(min_length=1, max_length=8)
     replicates: int = 1
+    randomize: bool = True
+    seed: int = 0
+
+
+class PlackettBurmanRunRequest(ApiModel):
+    run_id: RunId
+    factors: list[FactorRequest] = Field(min_length=2, max_length=47)
+    runs: Literal[12, 20, 24, 28, 32, 36, 40, 44, 48] | None = None
+    replicates: int = 1
+    center_points: int = 0
     randomize: bool = True
     seed: int = 0
 
@@ -561,6 +572,30 @@ def create_app(repository: DocumentRepository) -> FastAPI:
                 factors,
                 generators,
                 replicates=request.replicates,
+                randomize=request.randomize,
+                seed=request.seed,
+            ),
+        )
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _response(stored)
+
+    @app.post(
+        "/v1/analysis-runs/doe-plackett-burman",
+        status_code=201,
+        response_model=StoredRunResponse,
+    )
+    def run_plackett_burman_doe(
+        request: PlackettBurmanRunRequest, response: Response
+    ) -> StoredRunResponse:
+        factors = [FactorDefinition(**factor.model_dump()) for factor in request.factors]
+        stored = _save_run(
+            repository,
+            request.run_id,
+            plackett_burman_design(
+                factors,
+                runs=request.runs,
+                replicates=request.replicates,
+                center_points=request.center_points,
                 randomize=request.randomize,
                 seed=request.seed,
             ),
