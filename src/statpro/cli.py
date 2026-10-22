@@ -12,6 +12,7 @@ from statpro.analyses.doe import (
     FactorDefinition,
     GeneratorDefinition,
     ResponseObjective,
+    analyze_fractional_factorial_2level,
     analyze_full_factorial_2level,
     analyze_plackett_burman,
     fractional_factorial_2level,
@@ -34,6 +35,7 @@ def _parser() -> argparse.ArgumentParser:
         "capability-normal",
         "doe-full-factorial",
         "doe-fractional-factorial",
+        "doe-analyze-fractional-factorial",
         "doe-plackett-burman",
         "doe-analyze-plackett-burman",
         "doe-analyze-full-factorial",
@@ -75,6 +77,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         elif args.command in {
             "doe-full-factorial",
             "doe-fractional-factorial",
+            "doe-analyze-fractional-factorial",
             "doe-plackett-burman",
             "doe-analyze-plackett-burman",
             "doe-analyze-full-factorial",
@@ -109,7 +112,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                     randomize=payload.get("randomize", True),
                     seed=payload.get("seed", 0),
                 )
-            elif args.command == "doe-fractional-factorial":
+            elif args.command in {
+                "doe-fractional-factorial",
+                "doe-analyze-fractional-factorial",
+            }:
                 try:
                     generators = [
                         GeneratorDefinition(**generator)
@@ -121,13 +127,27 @@ def main(argv: Sequence[str] | None = None) -> int:
                         "Each generator requires factor and terms fields.",
                         "generators",
                     ) from error
-                result = fractional_factorial_2level(
-                    factors,
-                    generators,
-                    replicates=payload.get("replicates", 1),
-                    randomize=payload.get("randomize", True),
-                    seed=payload.get("seed", 0),
-                )
+                fractional_arguments = {
+                    "replicates": payload.get("replicates", 1),
+                    "foldover": payload.get("foldover", False),
+                    "randomize": payload.get("randomize", True),
+                    "seed": payload.get("seed", 0),
+                }
+                if args.command == "doe-analyze-fractional-factorial":
+                    result = analyze_fractional_factorial_2level(
+                        factors,
+                        generators,
+                        payload["responses"],
+                        response_name=payload.get("response_name", "Response"),
+                        alpha=payload.get("alpha", 0.05),
+                        **fractional_arguments,
+                    )
+                else:
+                    result = fractional_factorial_2level(
+                        factors,
+                        generators,
+                        **fractional_arguments,
+                    )
             elif args.command == "doe-optimize-responses":
                 try:
                     objectives = [

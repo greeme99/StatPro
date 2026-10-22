@@ -1,0 +1,18 @@
+{
+  "factors": [
+    {"name": "A", "low": 50, "high": 70},
+    {"name": "B", "low": 120, "high": 160},
+    {"name": "C", "low": 5, "high": 9},
+    {"name": "D", "low": 20, "high": 40}
+  ],
+  "generators": [
+    {"factor": "D", "terms": ["A", "B", "C"]}
+  ],
+  "responses": [72, 80, 84, 92, 72, 80, 84, 92],
+  "response_name": "Yield",
+  "replicates": 1,
+  "foldover": false,
+  "randomize": false,
+  "seed": 0,
+  "alpha": 0.05
+}

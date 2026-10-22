@@ -16,6 +16,7 @@ const labels: Record<string, string> = {
   "doe.full_factorial_2level_analysis": "2수준 완전요인 DOE 분석",
   "doe.full_factorial_2level_desirability": "DOE 다중 응답 최적화",
   "doe.fractional_factorial_2level": "2수준 일부요인 DOE",
+  "doe.fractional_factorial_2level_analysis": "2수준 일부요인 DOE 분석",
   "doe.plackett_burman": "Plackett–Burman 선별 DOE",
   "msa.gage_rr_crossed": "교차 Gage R&R",
 };

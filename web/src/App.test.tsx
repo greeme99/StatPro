@@ -256,6 +256,24 @@ describe("StatPro UI", () => {
     const body = JSON.parse(String((post?.[1] as RequestInit).body));
     expect(body.generators).toEqual([{ factor: "D", terms: ["A", "B", "C"] }]);
     expect(body.factors).toHaveLength(4);
+    expect(body.foldover).toBe(false);
+  });
+
+  it("submits fractional responses for main-effect analysis", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      return new Response(JSON.stringify({}), { status: init?.method === "POST" ? 201 : 200, headers: { "Content-Type": "application/json" } });
+    });
+    render(<MemoryRouter initialEntries={["/analyses/doe/fractional-factorial"]}><App /></MemoryRouter>);
+
+    await userEvent.click(await screen.findByRole("checkbox", { name: "응답을 함께 분석" }));
+    await userEvent.type(screen.getByRole("textbox", { name: /실행순서 응답/ }), "5 9 11 15 5 9 11 15");
+    await userEvent.click(screen.getByRole("button", { name: "일부요인 응답 분석" }));
+    await waitFor(() => expect(fetchMock.mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === "POST")).toBe(true));
+    const post = fetchMock.mock.calls.find(([url, init]) => String(url).endsWith("/doe-fractional-factorial-analysis") && (init as RequestInit | undefined)?.method === "POST");
+    const body = JSON.parse(String((post?.[1] as RequestInit).body));
+    expect(body.responses).toHaveLength(8);
+    expect(body).toMatchObject({ response_name: "Response", foldover: false, alpha: 0.05 });
   });
 
   it("renders fractional defining relation, aliases, and design matrix", async () => {
@@ -279,6 +297,25 @@ describe("StatPro UI", () => {
     expect(screen.getByText("I = A*B*C*D")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "주효과 별칭구조" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "실행 설계표" })).toBeInTheDocument();
+  });
+
+  it("renders fractional effects with alias interpretation", async () => {
+    const effect = { term: "A", coefficient: 2, effect: 4, sum_of_squares: 32, standard_error: 1, standardized_effect: 4, p_value: 0.01, significant: true, alias_set: ["A", "B*C*D"], clear_of_two_factor_interactions: false, absolute_effect: 4, display_value: 4 };
+    const result = {
+      analysis_type: "doe.fractional_factorial_2level_analysis", engine_version: "0.6.0", input_digest: "f".repeat(64), warnings: [], assumptions: [], provenance: [], parameters: { foldover: false },
+      diagnostics: { response_name: "Yield", inference_method: "residual_error", pareto_reference_line: 2.4, residual_degrees_of_freedom: 2, r_squared: 0.9, resolution_label: "IV", augmented_resolution: 4, main_effects_clear_of_two_factor_interactions: true },
+      tables: { coefficients: [effect], ranked_effects: [effect], residuals: [], defining_relation: [], main_effect_aliases: [] },
+      plots: {},
+    };
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      return new Response(JSON.stringify({ run_id: "doe-frac-analysis", storage_version: 1, etag: "a".repeat(64), result }), { status: 200 });
+    });
+
+    render(<MemoryRouter initialEntries={["/runs/doe-frac-analysis"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "부분요인 주효과 Pareto" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: /가장 큰 절대 효과는 A/ })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "별칭 및 확인 범위" })).toBeInTheDocument();
   });
 
   it("submits a Plackett-Burman screening design", async () => {

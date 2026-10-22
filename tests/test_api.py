@@ -134,6 +134,20 @@ class LocalApiContractTests(unittest.TestCase):
                 "doe.fractional_factorial_2level",
             ),
             (
+                "/v1/analysis-runs/doe-fractional-factorial-analysis",
+                {
+                    "run_id": "doe-fractional-analysis",
+                    "factors": [
+                        {"name": name, "low": 0, "high": 1} for name in "ABCD"
+                    ],
+                    "generators": [{"factor": "D", "terms": ["A", "B", "C"]}],
+                    "responses": [5, 9, 11, 15, 5, 9, 11, 15],
+                    "response_name": "Yield",
+                    "randomize": False,
+                },
+                "doe.fractional_factorial_2level_analysis",
+            ),
+            (
                 "/v1/analysis-runs/doe-plackett-burman",
                 {
                     "run_id": "doe-plackett-burman",
@@ -238,6 +252,10 @@ class LocalApiContractTests(unittest.TestCase):
                         result["tables"]["defining_relation"][0]["expression"],
                         "I = A*B*C*D",
                     )
+                if analysis_type == "doe.fractional_factorial_2level_analysis":
+                    result = response.json()["result"]
+                    self.assertEqual(result["diagnostics"]["response_name"], "Yield")
+                    self.assertEqual(len(result["tables"]["coefficients"]), 4)
                 if analysis_type == "doe.full_factorial_2level_desirability":
                     solution = response.json()["result"]["tables"]["solution"][0]
                     self.assertEqual(solution["actual"], {"A": 1.0, "B": 0.0})

@@ -137,6 +137,7 @@ export type DoeFractionalDesignRow = {
   run_order: number;
   standard_order: number;
   replicate: number;
+  fraction_phase?: "original" | "foldover";
   coded: Record<string, number>;
   actual: Record<string, number>;
 };
@@ -155,6 +156,27 @@ export type DoeFractionalView = {
   resolutionLabel: string;
   fraction: string;
   designNotation: string;
+};
+
+export type DoeFractionalAnalysisEffect = DoeScreeningEffect & {
+  alias_set: string[];
+  clear_of_two_factor_interactions: boolean;
+  absolute_effect: number;
+  display_value: number;
+};
+
+export type DoeFractionalAnalysisView = {
+  effects: DoeFractionalAnalysisEffect[];
+  rankedEffects: DoeFractionalAnalysisEffect[];
+  responseName: string;
+  inferenceMethod: string;
+  referenceLine: number | null;
+  residualDegreesOfFreedom: number;
+  rSquared: number | null;
+  foldover: boolean;
+  resolutionLabel: string;
+  augmentedResolution: number;
+  mainEffectsClear: boolean;
 };
 
 export type DoeScreeningDesignRow = {
@@ -258,6 +280,26 @@ export function toDoeFractionalView(result: ResultBundle | undefined): DoeFracti
     resolutionLabel: String(result.diagnostics.resolution_label ?? "—"),
     fraction: String(result.diagnostics.fraction ?? "—"),
     designNotation: String(result.diagnostics.design_notation ?? "—"),
+  };
+}
+
+export function toDoeFractionalAnalysisView(result: ResultBundle | undefined): DoeFractionalAnalysisView | null {
+  if (!result || result.analysis_type !== "doe.fractional_factorial_2level_analysis") return null;
+  const effects = result.tables.coefficients;
+  const rankedEffects = result.tables.ranked_effects;
+  if (!Array.isArray(effects) || !Array.isArray(rankedEffects)) return null;
+  return {
+    effects: effects as DoeFractionalAnalysisEffect[],
+    rankedEffects: rankedEffects as DoeFractionalAnalysisEffect[],
+    responseName: String(result.diagnostics.response_name ?? "Response"),
+    inferenceMethod: String(result.diagnostics.inference_method ?? "unknown"),
+    referenceLine: typeof result.diagnostics.pareto_reference_line === "number" ? result.diagnostics.pareto_reference_line : null,
+    residualDegreesOfFreedom: Number(result.diagnostics.residual_degrees_of_freedom ?? 0),
+    rSquared: typeof result.diagnostics.r_squared === "number" ? result.diagnostics.r_squared : null,
+    foldover: result.parameters.foldover === true,
+    resolutionLabel: String(result.diagnostics.resolution_label ?? "—"),
+    augmentedResolution: Number(result.diagnostics.augmented_resolution ?? result.diagnostics.resolution ?? 0),
+    mainEffectsClear: result.diagnostics.main_effects_clear_of_two_factor_interactions === true,
   };
 }
 

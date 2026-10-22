@@ -185,6 +185,41 @@ class CliBoundaryTests(unittest.TestCase):
         self.assertEqual(response["result"]["diagnostics"]["resolution_label"], "IV")
         self.assertEqual(len(response["result"]["tables"]["design"]), 8)
 
+    def test_fractional_factorial_analysis_returns_ranked_effects(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "fractional-analysis.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "factors": [
+                            {"name": name, "low": 0, "high": 1} for name in "ABCD"
+                        ],
+                        "generators": [
+                            {"factor": "D", "terms": ["A", "B", "C"]}
+                        ],
+                        "responses": [5, 9, 11, 15, 5, 9, 11, 15],
+                        "response_name": "Yield",
+                        "randomize": False,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            output = io.StringIO()
+
+            with redirect_stdout(output):
+                exit_code = main(
+                    ["doe-analyze-fractional-factorial", "--input", str(path)]
+                )
+
+        result = json.loads(output.getvalue())["result"]
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(
+            result["analysis_type"],
+            "doe.fractional_factorial_2level_analysis",
+        )
+        self.assertEqual(result["diagnostics"]["response_name"], "Yield")
+        self.assertEqual(result["tables"]["ranked_effects"][0]["term"], "B")
+
     def test_plackett_burman_returns_screening_design(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "plackett-burman.json"

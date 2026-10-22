@@ -25,6 +25,11 @@ NIST_FRACTIONAL_FACTORIAL_SOURCE = ProvenanceSource(
     url="https://www.itl.nist.gov/div898/handbook/pri/section3/pri3344.htm",
 )
 
+NIST_MIRROR_FOLDOVER_SOURCE = ProvenanceSource(
+    title="NIST/SEMATECH 5.3.3.8.1 Mirror-Image foldover designs",
+    url="https://www.itl.nist.gov/div898/handbook/pri/section3/pri3381.htm",
+)
+
 MINITAB_FRACTIONAL_FACTORIAL_SOURCE = ProvenanceSource(
     title="Minitab public documentation: 2-level factorial generators and alias structure",
     url=(
@@ -843,6 +848,7 @@ def fractional_factorial_2level(
     generators: Sequence[GeneratorDefinition],
     *,
     replicates: int = 1,
+    foldover: bool = False,
     randomize: bool = True,
     seed: int = 0,
 ) -> ResultBundle:
@@ -944,7 +950,7 @@ def fractional_factorial_2level(
 
     base_run_count = 2 ** len(base_names)
     total_run_count = base_run_count * replicates
-    if total_run_count > 100_000:
+    if total_run_count * (2 if foldover else 1) > 100_000:
         raise AnalysisInputError(
             "design_too_large",
             "The requested design exceeds the 100,000-run safety limit.",
@@ -976,8 +982,33 @@ def fractional_factorial_2level(
         )
     ]
 
+    if foldover and resolution != 3:
+        raise AnalysisInputError(
+            "mirror_foldover_requires_resolution_iii",
+            "A full mirror-image foldover is supported only for resolution III designs; "
+            "for this design it would not provide the documented main-effect de-aliasing benefit.",
+            "foldover",
+        )
+    effective_relation = (
+        [word for word in relation if len(word) % 2 == 0] if foldover else relation
+    )
+    effective_non_identity_words = effective_relation[1:]
+    augmented_resolution = (
+        min(len(word) for word in effective_non_identity_words)
+        if effective_non_identity_words
+        else len(factor_names) + 1
+    )
+    effective_relation_labels = [
+        _effect_label(word, factor_order)
+        for word in sorted(
+            effective_non_identity_words,
+            key=lambda item: (len(item), _effect_label(item, factor_order)),
+        )
+    ]
+
     rows: list[dict[str, object]] = []
     for replicate in range(1, replicates + 1):
+        replicate_rows: list[dict[str, object]] = []
         for standard_index in range(base_run_count):
             coded = {
                 name: (1 if standard_index & (1 << index) else -1)
@@ -996,15 +1027,39 @@ def fractional_factorial_2level(
                 )
                 for name in factor_names
             }
-            rows.append(
+            replicate_rows.append(
                 {
                     "standard_order": standard_index + 1,
                     "replicate": replicate,
+                    "fraction_phase": "original",
                     "point_type": "factorial",
                     "coded": ordered_coded,
                     "actual": actual,
                 }
             )
+        rows.extend(replicate_rows)
+        if foldover:
+            for original in replicate_rows:
+                original_coded = original["coded"]
+                folded_coded = {name: -original_coded[name] for name in factor_names}
+                folded_actual = {
+                    name: (
+                        factor_by_name[name].high
+                        if folded_coded[name] == 1
+                        else factor_by_name[name].low
+                    )
+                    for name in factor_names
+                }
+                rows.append(
+                    {
+                        "standard_order": original["standard_order"],
+                        "replicate": replicate,
+                        "fraction_phase": "foldover",
+                        "point_type": "factorial",
+                        "coded": folded_coded,
+                        "actual": folded_actual,
+                    }
+                )
 
     if randomize:
         random.Random(seed).shuffle(rows)
@@ -1012,7 +1067,10 @@ def fractional_factorial_2level(
         row["run_order"] = run_order
 
     def aliases_for(word: frozenset[str]) -> list[str]:
-        aliases = {word.symmetric_difference(defining_word) for defining_word in relation}
+        aliases = {
+            word.symmetric_difference(defining_word)
+            for defining_word in effective_relation
+        }
         return [
             _effect_label(alias, factor_order)
             for alias in sorted(
@@ -1047,12 +1105,18 @@ def fractional_factorial_2level(
         warnings.append(
             "Runs are not randomized; time-related nuisance factors may be confounded with factor effects."
         )
+    if foldover:
+        warnings.append(
+            "The mirror-image foldover clears main effects from two-factor interactions, "
+            "but two-factor interactions can remain aliased with one another."
+        )
 
     factor_payload = [asdict(factor) for factor in normalized]
     payload = {
         "factors": factor_payload,
         "generators": normalized_generators,
         "replicates": replicates,
+        "foldover": foldover,
         "randomize": randomize,
         "seed": seed,
     }
@@ -1065,6 +1129,18 @@ def fractional_factorial_2level(
             "design": rows,
             "generators": normalized_generators,
             "defining_relation": [
+                {
+                    "identity": "I",
+                    "words": effective_relation_labels,
+                    "expression": "I"
+                    + (
+                        " = " + " = ".join(effective_relation_labels)
+                        if effective_relation_labels
+                        else ""
+                    ),
+                }
+            ],
+            "original_defining_relation": [
                 {
                     "identity": "I",
                     "words": relation_labels,
@@ -1084,7 +1160,11 @@ def fractional_factorial_2level(
             "resolution": resolution,
             "resolution_label": _roman_resolution(resolution),
             "factorial_run_count": base_run_count,
-            "total_run_count": total_run_count,
+            "total_run_count": total_run_count * (2 if foldover else 1),
+            "original_run_count": total_run_count,
+            "foldover_run_count": total_run_count if foldover else 0,
+            "main_effects_clear_of_two_factor_interactions": foldover or resolution >= 4,
+            "augmented_resolution": augmented_resolution,
             "balanced": True,
             "orthogonal": True,
             "regular_fraction": True,
@@ -1096,7 +1176,11 @@ def fractional_factorial_2level(
             "The supplied random seed is retained for reproducibility.",
         ),
         warnings=tuple(warnings),
-        provenance=(NIST_FRACTIONAL_FACTORIAL_SOURCE, MINITAB_FRACTIONAL_FACTORIAL_SOURCE),
+        provenance=(
+            NIST_FRACTIONAL_FACTORIAL_SOURCE,
+            MINITAB_FRACTIONAL_FACTORIAL_SOURCE,
+            *((NIST_MIRROR_FOLDOVER_SOURCE,) if foldover else ()),
+        ),
     )
 
 
@@ -1269,6 +1353,250 @@ def _fit_orthogonal_model(
         coefficients[term] = coefficient
         term_sums_of_squares[term] = coefficient * coefficient * denominator
     return intercept, coefficients, coded_columns, term_sums_of_squares
+
+
+def analyze_fractional_factorial_2level(
+    factors: Sequence[FactorDefinition],
+    generators: Sequence[GeneratorDefinition],
+    responses: Sequence[float],
+    *,
+    response_name: str = "Response",
+    replicates: int = 1,
+    foldover: bool = False,
+    randomize: bool = True,
+    seed: int = 0,
+    alpha: float = 0.05,
+) -> ResultBundle:
+    """Estimate main effects for a regular fraction or its full mirror foldover.
+
+    The bounded first analysis scope fits one representative per main-effect alias chain.
+    It does not silently fit mutually aliased interaction columns.
+    """
+
+    design = fractional_factorial_2level(
+        factors,
+        generators,
+        replicates=replicates,
+        foldover=foldover,
+        randomize=randomize,
+        seed=seed,
+    )
+    rows = design.tables["design"]
+    values = finite_values(responses, "responses")
+    normalized_name = response_name.strip()
+    if not normalized_name:
+        raise AnalysisInputError(
+            "empty_response_name", "Response name cannot be empty.", "response_name"
+        )
+    normalized_alpha = finite_values([alpha], "alpha")[0]
+    if not 0.001 <= normalized_alpha <= 0.5:
+        raise AnalysisInputError(
+            "invalid_alpha", "Alpha must be between 0.001 and 0.5.", "alpha"
+        )
+
+    factor_names = [str(factor["name"]) for factor in design.parameters["factors"]]
+    terms = [(name,) for name in factor_names]
+    intercept, coefficients, coded_columns, term_sums_of_squares = (
+        _fit_orthogonal_model(rows, factor_names, values, terms, field="responses")
+    )
+    fitted = [
+        intercept
+        + sum(coefficients[term] * coded_columns[term][index] for term in terms)
+        for index in range(len(rows))
+    ]
+    residuals = [
+        observed - predicted
+        for observed, predicted in zip(values, fitted, strict=True)
+    ]
+    residual_ss = sum(value * value for value in residuals)
+    model_ss = sum(term_sums_of_squares.values())
+    total_ss = sum((value - intercept) ** 2 for value in values)
+    residual_df = len(values) - len(terms) - 1
+    residual_ms = residual_ss / residual_df if residual_df > 0 else None
+    residual_scale = (
+        sqrt(residual_ms) if residual_ms is not None and residual_ms > 0.0 else None
+    )
+
+    raw_effects = [2.0 * coefficients[term] for term in terms]
+    inference_method = (
+        "inference_unavailable_zero_residual"
+        if residual_df > 0 and residual_ms == 0.0
+        else "residual_error"
+        if residual_df > 0
+        else "lenth_pse"
+    )
+    lenth_pse: float | None = None
+    reference_line: float | None = None
+    t_critical: float | None = None
+    if residual_df > 0 and residual_ms == 0.0:
+        reference_line = None
+    elif residual_df > 0:
+        t_critical = _two_sided_t_critical(normalized_alpha, float(residual_df))
+        reference_line = t_critical
+    else:
+        absolute_effects = [abs(effect) for effect in raw_effects]
+        initial_scale = 1.5 * median(absolute_effects)
+        retained = [effect for effect in absolute_effects if effect < 2.5 * initial_scale]
+        if not retained:
+            retained = absolute_effects
+        lenth_pse = 1.5 * median(retained)
+        t_critical = _two_sided_t_critical(
+            normalized_alpha, max(len(raw_effects) / 3.0, 1.0)
+        )
+        reference_line = t_critical * lenth_pse
+
+    aliases = {
+        str(row["effect"]): list(row["alias_set"])
+        for row in design.tables["main_effect_aliases"]
+    }
+    coefficient_rows: list[dict[str, object]] = []
+    ranked_rows: list[dict[str, object]] = []
+    for term, effect in zip(terms, raw_effects, strict=True):
+        name = term[0]
+        column_ss = sum(value * value for value in coded_columns[term])
+        standard_error = (
+            2.0 * sqrt(residual_ms / column_ss)
+            if residual_ms is not None and residual_ms > 0.0
+            else None
+        )
+        standardized_effect = effect / standard_error if standard_error else None
+        p_value = (
+            _f_survival(standardized_effect * standardized_effect, 1, residual_df)
+            if standardized_effect is not None
+            else None
+        )
+        significant = (
+            p_value <= normalized_alpha
+            if p_value is not None
+            else bool(
+                residual_df <= 0
+                and reference_line is not None
+                and abs(effect) > reference_line
+            )
+        )
+        alias_set = aliases[name]
+        row = {
+            "term": name,
+            "coefficient": coefficients[term],
+            "effect": effect,
+            "sum_of_squares": term_sums_of_squares[term],
+            "standard_error": standard_error,
+            "standardized_effect": standardized_effect,
+            "p_value": p_value,
+            "significant": significant,
+            "alias_set": alias_set,
+            "clear_of_two_factor_interactions": bool(
+                design.diagnostics["main_effects_clear_of_two_factor_interactions"]
+            ),
+        }
+        coefficient_rows.append(row)
+        ranked_rows.append(
+            {
+                **row,
+                "absolute_effect": abs(effect),
+                "display_value": (
+                    abs(standardized_effect)
+                    if standardized_effect is not None
+                    else abs(effect)
+                ),
+            }
+        )
+    ranked_rows.sort(key=lambda row: (-float(row["display_value"]), str(row["term"])))
+
+    residual_rows = [
+        {
+            "run_order": int(row["run_order"]),
+            "fraction_phase": str(row["fraction_phase"]),
+            "observed": observed,
+            "fitted": predicted,
+            "residual": residual,
+        }
+        for row, observed, predicted, residual in zip(
+            rows, values, fitted, residuals, strict=True
+        )
+    ]
+    warnings = list(design.warnings)
+    warnings.append(
+        "Only main-effect representatives are fitted; reported effects inherit the displayed "
+        "alias sets unless the foldover diagnostic marks them clear of two-factor interactions."
+    )
+    if residual_df > 0 and replicates == 1:
+        warnings.append(
+            "Residual error is model residual rather than replicated pure error; omitted interactions "
+            "can inflate it, so significance is screening evidence only."
+        )
+    if residual_df > 0 and residual_ms == 0.0:
+        warnings.append(
+            "The selected model has zero residual variation, so standard errors and p-values "
+            "are not reported without an independent error estimate."
+        )
+    if residual_df <= 0:
+        warnings.append(
+            "The saturated main-effects model uses Lenth's sparse-effects PSE; this depends on the "
+            "assumption that most effects are negligible."
+        )
+
+    payload = {
+        **design.parameters,
+        "responses": values,
+        "response_name": normalized_name,
+        "alpha": normalized_alpha,
+        "model_scope": "main_effect_representatives",
+    }
+    return ResultBundle(
+        analysis_type="doe.fractional_factorial_2level_analysis",
+        engine_version=ENGINE_VERSION,
+        input_digest=input_digest(payload),
+        parameters=payload,
+        tables={
+            "coefficients": coefficient_rows,
+            "ranked_effects": ranked_rows,
+            "residuals": residual_rows,
+            "defining_relation": design.tables["defining_relation"],
+            "main_effect_aliases": design.tables["main_effect_aliases"],
+        },
+        plots={
+            "effects": {
+                "terms": [str(row["term"]) for row in ranked_rows],
+                "effects": [float(row["effect"]) for row in ranked_rows],
+                "display_values": [float(row["display_value"]) for row in ranked_rows],
+                "reference_line": reference_line,
+            },
+            "residuals_vs_fitted": {"fitted": fitted, "residuals": residuals},
+            "residuals_vs_run_order": {
+                "run_order": [int(row["run_order"]) for row in rows],
+                "residuals": residuals,
+            },
+        },
+        diagnostics={
+            **design.diagnostics,
+            "response_name": normalized_name,
+            "observation_count": len(values),
+            "coefficient_count": len(terms) + 1,
+            "residual_degrees_of_freedom": residual_df,
+            "residual_standard_deviation": residual_scale,
+            "r_squared": 1.0 - residual_ss / total_ss if total_ss > 0.0 else None,
+            "model_sum_of_squares": model_ss,
+            "residual_sum_of_squares": residual_ss,
+            "inference_method": inference_method,
+            "lenth_pse": lenth_pse,
+            "pareto_reference_line": reference_line,
+            "alpha": normalized_alpha,
+            "model_scope": "main_effect_representatives",
+        },
+        assumptions=(
+            "Responses correspond one-for-one to the generated design run order.",
+            "Only one representative from each main-effect alias chain is estimated.",
+            "Effects not separated by the design are interpreted jointly, not as unique causes.",
+            "Residual inference assumes independent, constant-variance, approximately normal errors.",
+        ),
+        warnings=tuple(warnings),
+        provenance=(
+            *design.provenance,
+            NIST_DOE_MODEL_SOURCE,
+            MINITAB_FACTORIAL_EFFECTS_SOURCE,
+        ),
+    )
 
 
 def individual_desirability(

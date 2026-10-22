@@ -18,6 +18,7 @@ from statpro.analyses.doe import (
     FactorDefinition,
     GeneratorDefinition,
     ResponseObjective,
+    analyze_fractional_factorial_2level,
     analyze_full_factorial_2level,
     analyze_plackett_burman,
     fractional_factorial_2level,
@@ -117,8 +118,15 @@ class FractionalFactorialRunRequest(ApiModel):
     factors: list[FactorRequest]
     generators: list[GeneratorRequest] = Field(min_length=1, max_length=8)
     replicates: int = 1
+    foldover: bool = False
     randomize: bool = True
     seed: int = 0
+
+
+class FractionalFactorialAnalysisRunRequest(FractionalFactorialRunRequest):
+    responses: list[float]
+    response_name: str = "Response"
+    alpha: float = Field(default=0.05, ge=0.001, le=0.5)
 
 
 class PlackettBurmanRunRequest(ApiModel):
@@ -579,8 +587,39 @@ def create_app(repository: DocumentRepository) -> FastAPI:
                 factors,
                 generators,
                 replicates=request.replicates,
+                foldover=request.foldover,
                 randomize=request.randomize,
                 seed=request.seed,
+            ),
+        )
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _response(stored)
+
+    @app.post(
+        "/v1/analysis-runs/doe-fractional-factorial-analysis",
+        status_code=201,
+        response_model=StoredRunResponse,
+    )
+    def analyze_fractional_doe(
+        request: FractionalFactorialAnalysisRunRequest, response: Response
+    ) -> StoredRunResponse:
+        factors = [FactorDefinition(**factor.model_dump()) for factor in request.factors]
+        generators = [
+            GeneratorDefinition(**generator.model_dump()) for generator in request.generators
+        ]
+        stored = _save_run(
+            repository,
+            request.run_id,
+            analyze_fractional_factorial_2level(
+                factors,
+                generators,
+                request.responses,
+                response_name=request.response_name,
+                replicates=request.replicates,
+                foldover=request.foldover,
+                randomize=request.randomize,
+                seed=request.seed,
+                alpha=request.alpha,
             ),
         )
         response.headers["ETag"] = f'"{stored.etag}"'

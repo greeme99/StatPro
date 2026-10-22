@@ -2,7 +2,7 @@ import { AlertTriangle, ArrowLeft, BookOpen, CheckCircle2, X } from "lucide-reac
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { getRun } from "../api";
-import { toDoeDesirabilityView, toDoeFractionalView, toDoePlackettBurmanAnalysisView, toDoePlackettBurmanView, toDoeView, toImrView, type DoeDesirabilityView, type DoeFractionalView, type DoePlackettBurmanAnalysisView, type DoePlackettBurmanView, type DoeView } from "../analysis";
+import { toDoeDesirabilityView, toDoeFractionalAnalysisView, toDoeFractionalView, toDoePlackettBurmanAnalysisView, toDoePlackettBurmanView, toDoeView, toImrView, type DoeDesirabilityView, type DoeFractionalAnalysisView, type DoeFractionalView, type DoePlackettBurmanAnalysisView, type DoePlackettBurmanView, type DoeView } from "../analysis";
 import { Button } from "../components/Button";
 import type { StoredRun } from "../types";
 
@@ -49,6 +49,7 @@ export function ResultPage() {
   const doe = toDoeView(result);
   const optimizer = toDoeDesirabilityView(result);
   const fractional = toDoeFractionalView(result);
+  const fractionalAnalysis = toDoeFractionalAnalysisView(result);
   const plackettBurman = toDoePlackettBurmanView(result);
   const plackettBurmanAnalysis = toDoePlackettBurmanAnalysisView(result);
   const signalCount = useMemo(() => imr?.points.filter((point) => point.signal).length ?? 0, [imr]);
@@ -79,7 +80,7 @@ export function ResultPage() {
         <header className="panel-heading"><div><span className="eyebrow">ACCESSIBLE DATA</span><h2>관리도 원본 표</h2></div></header>
         <div className="table-scroll"><table><thead><tr><th scope="col">순서</th><th scope="col">관측값</th><th scope="col">상태</th></tr></thead><tbody>{imr.points.map((point) => <tr key={point.index}><td>{point.index}</td><td>{point.value.toFixed(4)}</td><td>{point.signal ? <span className="status-text is-danger"><AlertTriangle aria-hidden="true" /> {point.rules.length ? point.rules.join(", ") : "3σ 한계 이탈"}</span> : <span className="status-text is-success"><CheckCircle2 aria-hidden="true" /> 정상</span>}</td></tr>)}</tbody></table></div>
       </section>
-      </> : doe ? <DoeResult doe={doe} /> : optimizer ? <DoeDesirabilityResult optimizer={optimizer} /> : fractional ? <DoeFractionalResult design={fractional} /> : plackettBurman ? <DoePlackettBurmanResult design={plackettBurman} /> : plackettBurmanAnalysis ? <DoePlackettBurmanAnalysisResult analysis={plackettBurmanAnalysis} /> : <section className="panel generic-result-panel"><header className="panel-heading"><div><span className="eyebrow">RESULT BUNDLE</span><h2>분석 결과 요약</h2></div></header><dl><div><dt>분석 유형</dt><dd>{result.analysis_type}</dd></div><div><dt>진단 항목</dt><dd>{Object.keys(result.diagnostics).length}개</dd></div><div><dt>결과 표</dt><dd>{Object.keys(result.tables).join(", ") || "없음"}</dd></div></dl><p>이 분석의 전용 시각화는 다음 개발 증분에서 제공됩니다. 계산 근거와 원본 ResultBundle은 보존되어 있습니다.</p></section>}
+      </> : doe ? <DoeResult doe={doe} /> : optimizer ? <DoeDesirabilityResult optimizer={optimizer} /> : fractional ? <DoeFractionalResult design={fractional} /> : fractionalAnalysis ? <DoeFractionalAnalysisResult analysis={fractionalAnalysis} /> : plackettBurman ? <DoePlackettBurmanResult design={plackettBurman} /> : plackettBurmanAnalysis ? <DoePlackettBurmanAnalysisResult analysis={plackettBurmanAnalysis} /> : <section className="panel generic-result-panel"><header className="panel-heading"><div><span className="eyebrow">RESULT BUNDLE</span><h2>분석 결과 요약</h2></div></header><dl><div><dt>분석 유형</dt><dd>{result.analysis_type}</dd></div><div><dt>진단 항목</dt><dd>{Object.keys(result.diagnostics).length}개</dd></div><div><dt>결과 표</dt><dd>{Object.keys(result.tables).join(", ") || "없음"}</dd></div></dl><p>이 분석의 전용 시각화는 다음 개발 증분에서 제공됩니다. 계산 근거와 원본 ResultBundle은 보존되어 있습니다.</p></section>}
       {result.warnings.length > 0 && <section className="warning-panel"><AlertTriangle aria-hidden="true" /><div><h2>해석 전 확인</h2><ul>{result.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></div></section>}
       {drawerOpen && <><button className="drawer-scrim" aria-label="계산 근거 닫기" onClick={closeDrawer} /><aside ref={drawer} className="detail-drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title"><header><div><span className="eyebrow">EVIDENCE</span><h2 id="drawer-title">계산 근거</h2></div><button ref={closeButton} className="icon-button" aria-label="닫기" onClick={closeDrawer}><X /></button></header><section><h3>분석 가정</h3><ul>{result.assumptions.map((item) => <li key={item}>{item}</li>)}</ul></section><section><h3>공개 출처</h3>{result.provenance.map((source) => <a className="source-link" href={source.url} target="_blank" rel="noreferrer" key={source.url}><strong>{source.title}</strong><span>{source.authority}</span></a>)}</section><section><h3>재현 정보</h3><dl><div><dt>엔진</dt><dd>{result.engine_version}</dd></div><div><dt>Storage version</dt><dd>{run.storage_version}</dd></div><div><dt>ETag</dt><dd className="digest">{run.etag}</dd></div></dl></section></aside></>}
     </div>
@@ -145,6 +146,26 @@ function DoeFractionalResult({ design }: { design: DoeFractionalView }) {
     <section className="panel table-panel"><header className="panel-heading"><div><span className="eyebrow">MAIN-EFFECT ALIASES</span><h2>주효과 별칭구조</h2></div></header><div className="table-scroll"><table><thead><tr><th scope="col">효과</th><th scope="col">전체 별칭 집합</th></tr></thead><tbody>{design.mainEffectAliases.map((row) => <tr key={row.effect}><td>{row.effect}</td><td>{row.alias_set.join(" = ")}</td></tr>)}</tbody></table></div></section>
     <section className="panel table-panel"><header className="panel-heading"><div><span className="eyebrow">TWO-FACTOR ALIASES</span><h2>2요인 교호작용 별칭구조</h2></div></header><div className="table-scroll"><table><thead><tr><th scope="col">효과</th><th scope="col">전체 별칭 집합</th></tr></thead><tbody>{design.twoFactorAliases.map((row) => <tr key={row.effect}><td>{row.effect}</td><td>{row.alias_set.join(" = ")}</td></tr>)}</tbody></table></div></section>
     <section className="panel table-panel"><header className="panel-heading"><div><span className="eyebrow">DESIGN MATRIX</span><h2>실행 설계표</h2></div></header><div className="table-scroll"><table><thead><tr><th scope="col">실행순서</th><th scope="col">표준순서</th><th scope="col">반복</th>{factorNames.map((name) => <th scope="col" key={name}>{name} coded · actual</th>)}</tr></thead><tbody>{design.design.map((row) => <tr key={`${row.run_order}-${row.replicate}`}><td>{row.run_order}</td><td>{row.standard_order}</td><td>{row.replicate}</td>{factorNames.map((name) => <td key={name}>{row.coded[name] > 0 ? "+1" : "−1"} · {statistic(row.actual[name])}</td>)}</tr>)}</tbody></table></div></section>
+  </>;
+}
+
+function DoeFractionalAnalysisResult({ analysis }: { analysis: DoeFractionalAnalysisView }) {
+  const maxValue = Math.max(...analysis.rankedEffects.map((row) => row.display_value), 1);
+  const strongest = analysis.rankedEffects[0];
+  const method = analysis.inferenceMethod === "lenth_pse" ? "Lenth PSE" : analysis.inferenceMethod === "inference_unavailable_zero_residual" ? "오차 추정 불가" : "모형 잔차";
+  return <>
+    <section className="metric-grid result-metrics" aria-label="일부요인 응답 분석 요약">
+      <article className="metric-card"><span>응답</span><strong className="metric-text">{analysis.responseName}</strong><small>주효과 대표항</small></article>
+      <article className="metric-card"><span>가장 큰 효과</span><strong>{strongest?.term ?? "—"}</strong><small>{strongest ? statistic(strongest.effect) : "추정 없음"}</small></article>
+      <article className="metric-card"><span>설계 해상도</span><strong>{analysis.foldover ? `${analysis.resolutionLabel} → ${analysis.augmentedResolution}` : analysis.resolutionLabel}</strong><small>{analysis.foldover ? "full foldover" : "원 설계"}</small></article>
+      <article className="metric-card"><span>주효과–2FI 분리</span><strong className="metric-text">{analysis.mainEffectsClear ? "분리됨" : "별칭 유지"}</strong><small>{method} · 잔차 DF {analysis.residualDegreesOfFreedom}</small></article>
+    </section>
+    <section className="panel doe-effect-panel">
+      <header className="panel-heading"><div><span className="eyebrow">PARETO OF EFFECTS</span><h2>부분요인 주효과 Pareto</h2></div><span>기준선 {statistic(analysis.referenceLine)}</span></header>
+      <div className="effect-bars" role="img" aria-label={strongest ? `가장 큰 절대 효과는 ${strongest.term}, 효과 ${statistic(strongest.effect)}` : "추정된 효과 없음"}>{analysis.rankedEffects.map((row) => <div className="effect-bar-row" key={row.term}><strong>{row.term}</strong><span className={row.effect < 0 ? "effect-track is-negative" : "effect-track"}><i style={{ width: `${row.display_value / maxValue * 100}%` }} /></span><span>{statistic(row.display_value)}</span></div>)}</div>
+      <div className="table-scroll"><table><thead><tr><th scope="col">순위</th><th scope="col">대표항</th><th scope="col">효과</th><th scope="col">표준화 효과</th><th scope="col">p</th><th scope="col">별칭 해석</th></tr></thead><tbody>{analysis.rankedEffects.map((row, index) => <tr key={row.term}><td>{index + 1}</td><td>{row.term}</td><td>{statistic(row.effect)}</td><td>{statistic(row.standardized_effect)}</td><td>{statistic(row.p_value)}</td><td>{row.clear_of_two_factor_interactions ? `2FI 분리 · ${row.alias_set.join(" = ")}` : row.alias_set.join(" = ")}</td></tr>)}</tbody></table></div>
+    </section>
+    <section className="panel table-panel"><header className="panel-heading"><div><span className="eyebrow">INTERPRETATION BOUNDARY</span><h2>별칭 및 확인 범위</h2></div></header><p className="supporting-copy">{analysis.mainEffectsClear ? "주효과는 2요인 교호작용과 분리되지만 2요인 교호작용끼리의 별칭은 남을 수 있습니다." : "표시 효과는 별칭 집합의 결합 효과입니다. 개별 원인으로 단정하지 말고 후속 실험으로 확인하세요."}</p></section>
   </>;
 }
 

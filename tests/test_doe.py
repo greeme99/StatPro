@@ -10,6 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from statpro.analyses.doe import (
     FactorDefinition,
     GeneratorDefinition,
+    analyze_fractional_factorial_2level,
     ResponseObjective,
     analyze_full_factorial_2level,
     analyze_plackett_burman,
@@ -130,6 +131,48 @@ class FractionalFactorialDesignTests(unittest.TestCase):
         self.assertEqual(first.tables["design"], second.tables["design"])
         self.assertEqual(first.input_digest, second.input_digest)
 
+    def test_resolution_three_mirror_foldover_reverses_every_sign(self) -> None:
+        factors = [FactorDefinition(name, 0, 1) for name in "ABCDE"]
+        result = fractional_factorial_2level(
+            factors,
+            [
+                GeneratorDefinition("D", ["A", "B"]),
+                GeneratorDefinition("E", ["A", "C"]),
+            ],
+            foldover=True,
+            randomize=False,
+        )
+
+        rows = result.tables["design"]
+        self.assertEqual(len(rows), 16)
+        for original, folded in zip(rows[:8], rows[8:], strict=True):
+            self.assertEqual(original["fraction_phase"], "original")
+            self.assertEqual(folded["fraction_phase"], "foldover")
+            self.assertEqual(
+                folded["coded"],
+                {name: -value for name, value in original["coded"].items()},
+            )
+        self.assertEqual(result.diagnostics["augmented_resolution"], 4)
+        self.assertTrue(
+            result.diagnostics["main_effects_clear_of_two_factor_interactions"]
+        )
+        self.assertEqual(
+            result.tables["defining_relation"][0]["expression"],
+            "I = B*C*D*E",
+        )
+
+    def test_mirror_foldover_rejects_non_resolution_three_design(self) -> None:
+        with self.assertRaises(AnalysisInputError) as context:
+            fractional_factorial_2level(
+                [FactorDefinition(name, 0, 1) for name in "ABCD"],
+                [GeneratorDefinition("D", ["A", "B", "C"])],
+                foldover=True,
+            )
+        self.assertEqual(
+            context.exception.detail.code,
+            "mirror_foldover_requires_resolution_iii",
+        )
+
     def test_rejects_generated_factor_dependencies(self) -> None:
         factors = [FactorDefinition(name, 0, 1) for name in "ABCDE"]
         with self.assertRaises(AnalysisInputError) as context:
@@ -158,6 +201,79 @@ class FractionalFactorialDesignTests(unittest.TestCase):
                 ],
             )
         self.assertEqual(resolution_context.exception.detail.code, "resolution_too_low")
+
+
+class FractionalFactorialAnalysisTests(unittest.TestCase):
+    def test_main_effect_analysis_preserves_alias_interpretation(self) -> None:
+        factors = [FactorDefinition(name, 0, 1) for name in "ABCD"]
+        design = fractional_factorial_2level(
+            factors,
+            [GeneratorDefinition("D", ["A", "B", "C"])],
+            randomize=False,
+        )
+        responses = [
+            10 + 2 * row["coded"]["A"] + 3 * row["coded"]["B"]
+            for row in design.tables["design"]
+        ]
+
+        result = analyze_fractional_factorial_2level(
+            factors,
+            [GeneratorDefinition("D", ["A", "B", "C"])],
+            responses,
+            randomize=False,
+        )
+
+        effects = {row["term"]: row for row in result.tables["coefficients"]}
+        self.assertAlmostEqual(effects["A"]["effect"], 4.0)
+        self.assertAlmostEqual(effects["B"]["effect"], 6.0)
+        self.assertEqual(effects["A"]["alias_set"], ["A", "B*C*D"])
+        self.assertTrue(effects["A"]["clear_of_two_factor_interactions"])
+        self.assertEqual(result.diagnostics["model_scope"], "main_effect_representatives")
+        json.dumps(result.to_dict(), allow_nan=False)
+
+    def test_foldover_clears_main_effect_from_two_factor_interaction(self) -> None:
+        factors = [FactorDefinition(name, 0, 1) for name in "ABCDE"]
+        generators = [
+            GeneratorDefinition("D", ["A", "B"]),
+            GeneratorDefinition("E", ["A", "C"]),
+        ]
+        design = fractional_factorial_2level(
+            factors, generators, foldover=True, randomize=False
+        )
+        responses = [
+            10
+            + 2 * row["coded"]["A"]
+            + 3 * row["coded"]["B"]
+            + 4 * row["coded"]["A"] * row["coded"]["B"]
+            for row in design.tables["design"]
+        ]
+
+        result = analyze_fractional_factorial_2level(
+            factors,
+            generators,
+            responses,
+            response_name="Yield",
+            foldover=True,
+            randomize=False,
+        )
+
+        effects = {row["term"]: row for row in result.tables["coefficients"]}
+        self.assertAlmostEqual(effects["A"]["effect"], 4.0)
+        self.assertAlmostEqual(effects["B"]["effect"], 6.0)
+        self.assertAlmostEqual(effects["D"]["effect"], 0.0)
+        self.assertEqual(effects["D"]["alias_set"], ["D", "B*C*E"])
+        self.assertTrue(effects["D"]["clear_of_two_factor_interactions"])
+        self.assertEqual(result.diagnostics["augmented_resolution"], 4)
+
+    def test_rejects_response_count_mismatch(self) -> None:
+        with self.assertRaises(AnalysisInputError) as context:
+            analyze_fractional_factorial_2level(
+                [FactorDefinition(name, 0, 1) for name in "ABCD"],
+                [GeneratorDefinition("D", ["A", "B", "C"])],
+                [1, 2, 3],
+                randomize=False,
+            )
+        self.assertEqual(context.exception.detail.code, "response_count_mismatch")
 
 
 class PlackettBurmanDesignTests(unittest.TestCase):
