@@ -178,6 +178,37 @@ export type DoePlackettBurmanView = {
   construction: string;
 };
 
+export type DoeScreeningEffect = {
+  term: string;
+  coefficient: number;
+  effect: number;
+  standard_error: number | null;
+  standardized_effect: number | null;
+  p_value: number | null;
+  significant: boolean;
+};
+
+export type DoeConfirmationCandidate = {
+  factor: string;
+  effect: number;
+  direction_for_increase: "high" | "low";
+  suggested_level: number;
+  opposite_level: number;
+  selection_method: string;
+};
+
+export type DoePlackettBurmanAnalysisView = {
+  effects: DoeScreeningEffect[];
+  rankedEffects: Array<DoeScreeningEffect & { absolute_effect: number; display_value: number }>;
+  confirmationCandidates: DoeConfirmationCandidate[];
+  curvature: Array<{ factorial_mean: number; center_mean: number; difference: number; center_point_count: number }>;
+  responseName: string;
+  inferenceMethod: string;
+  referenceLine: number | null;
+  residualDegreesOfFreedom: number;
+  rSquared: number | null;
+};
+
 export function toDoeView(result: ResultBundle | undefined): DoeView | null {
   if (!result || result.analysis_type !== "doe.full_factorial_2level_analysis") return null;
   const coefficients = result.tables.coefficients;
@@ -244,5 +275,25 @@ export function toDoePlackettBurmanView(result: ResultBundle | undefined): DoePl
     balanced: result.diagnostics.balanced === true,
     pairwiseOrthogonal: result.diagnostics.pairwise_orthogonal === true,
     construction: String(result.diagnostics.construction ?? "unknown"),
+  };
+}
+
+export function toDoePlackettBurmanAnalysisView(result: ResultBundle | undefined): DoePlackettBurmanAnalysisView | null {
+  if (!result || result.analysis_type !== "doe.plackett_burman_analysis") return null;
+  const effects = result.tables.coefficients;
+  const rankedEffects = result.tables.ranked_effects;
+  const confirmationCandidates = result.tables.confirmation_candidates;
+  const curvature = result.tables.curvature ?? [];
+  if (!Array.isArray(effects) || !Array.isArray(rankedEffects) || !Array.isArray(confirmationCandidates) || !Array.isArray(curvature)) return null;
+  return {
+    effects: effects as DoeScreeningEffect[],
+    rankedEffects: rankedEffects as Array<DoeScreeningEffect & { absolute_effect: number; display_value: number }>,
+    confirmationCandidates: confirmationCandidates as DoeConfirmationCandidate[],
+    curvature: curvature as Array<{ factorial_mean: number; center_mean: number; difference: number; center_point_count: number }>,
+    responseName: String(result.diagnostics.response_name ?? "Response"),
+    inferenceMethod: String(result.diagnostics.inference_method ?? "unknown"),
+    referenceLine: typeof result.diagnostics.pareto_reference_line === "number" ? result.diagnostics.pareto_reference_line : null,
+    residualDegreesOfFreedom: Number(result.diagnostics.residual_degrees_of_freedom ?? 0),
+    rSquared: typeof result.diagnostics.r_squared === "number" ? result.diagnostics.r_squared : null,
   };
 }

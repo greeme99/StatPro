@@ -315,6 +315,56 @@ describe("StatPro UI", () => {
     expect(screen.getAllByText("통과")).toHaveLength(2);
   });
 
+  it("submits Plackett-Burman responses for screening analysis", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      return new Response(JSON.stringify({}), { status: init?.method === "POST" ? 201 : 200, headers: { "Content-Type": "application/json" } });
+    });
+    render(<MemoryRouter initialEntries={["/analyses/doe/plackett-burman"]}><App /></MemoryRouter>);
+
+    await userEvent.click(await screen.findByRole("checkbox", { name: "응답을 함께 분석" }));
+    await userEvent.clear(screen.getByRole("textbox", { name: "응답 이름" }));
+    await userEvent.type(screen.getByRole("textbox", { name: "응답 이름" }), "Yield");
+    await userEvent.type(screen.getByRole("textbox", { name: /응답값/ }), "1,2,3,4,5,6,7,8,9,10,11,12");
+    await userEvent.click(screen.getByRole("button", { name: "응답 분석 실행" }));
+
+    await waitFor(() => expect(fetchMock.mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === "POST")).toBe(true));
+    const post = fetchMock.mock.calls.find(([url, init]) => String(url).endsWith("/doe-plackett-burman-analysis") && (init as RequestInit | undefined)?.method === "POST");
+    const body = JSON.parse(String((post?.[1] as RequestInit).body));
+    expect(body.responses).toHaveLength(12);
+    expect(body).toMatchObject({ response_name: "Yield", alpha: 0.05, replicates: 1, center_points: 0 });
+  });
+
+  it("renders Plackett-Burman Pareto and confirmation workflow", async () => {
+    const result = {
+      analysis_type: "doe.plackett_burman_analysis", engine_version: "0.6.0", input_digest: "f".repeat(64), warnings: ["Confirm selected factors."], assumptions: [], provenance: [], parameters: {},
+      diagnostics: { response_name: "Yield", inference_method: "lenth_pse", residual_degrees_of_freedom: 0, pareto_reference_line: 1.2, r_squared: 0.95 },
+      plots: { pareto: { terms: ["A", "B"], values: [8, 2], scale: "effect", reference_line: 1.2 } },
+      tables: {
+        coefficients: [
+          { term: "A", coefficient: 4, effect: 8, standard_error: null, standardized_effect: null, p_value: null, significant: true },
+          { term: "B", coefficient: 1, effect: 2, standard_error: null, standardized_effect: null, p_value: null, significant: false },
+        ],
+        ranked_effects: [
+          { term: "A", coefficient: 4, effect: 8, absolute_effect: 8, display_value: 8, standard_error: null, standardized_effect: null, p_value: null, significant: true },
+          { term: "B", coefficient: 1, effect: 2, absolute_effect: 2, display_value: 2, standard_error: null, standardized_effect: null, p_value: null, significant: false },
+        ],
+        confirmation_candidates: [{ factor: "A", effect: 8, direction_for_increase: "high", suggested_level: 10, opposite_level: 0, selection_method: "lenth_pse" }],
+        curvature: [],
+      },
+    };
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      return new Response(JSON.stringify({ run_id: "doe-pb-analysis-001", storage_version: 1, etag: "a".repeat(64), result }), { status: 200 });
+    });
+
+    render(<MemoryRouter initialEntries={["/runs/doe-pb-analysis-001"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "주효과 Pareto" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "확인실험 후보" })).toBeInTheDocument();
+    expect(screen.getByText("Lenth PSE")).toBeInTheDocument();
+    expect(screen.getAllByText("확인 후보")).toHaveLength(2);
+  });
+
   it("submits multiple DOE response objectives with target boundaries", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });

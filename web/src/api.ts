@@ -87,6 +87,24 @@ export function createDoePlackettBurmanRun(payload: {
   });
 }
 
+export function createDoePlackettBurmanAnalysisRun(payload: {
+  run_id: string;
+  factors: Array<{ name: string; low: number; high: number }>;
+  responses: number[];
+  response_name: string;
+  runs?: number;
+  replicates: number;
+  center_points: number;
+  randomize: boolean;
+  seed: number;
+  alpha: number;
+}): Promise<StoredRun> {
+  return request("/v1/analysis-runs/doe-plackett-burman-analysis", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export type DoeResponseObjectivePayload = {
   name: string;
   responses: number[];

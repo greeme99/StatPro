@@ -147,6 +147,21 @@ class LocalApiContractTests(unittest.TestCase):
                 "doe.plackett_burman",
             ),
             (
+                "/v1/analysis-runs/doe-plackett-burman-analysis",
+                {
+                    "run_id": "doe-plackett-burman-analysis",
+                    "factors": [
+                        {"name": "A", "low": 0, "high": 10},
+                        {"name": "B", "low": 0, "high": 10},
+                    ],
+                    "runs": 12,
+                    "randomize": False,
+                    "responses": list(range(12)),
+                    "response_name": "Yield",
+                },
+                "doe.plackett_burman_analysis",
+            ),
+            (
                 "/v1/analysis-runs/doe-response-optimizer",
                 {
                     "run_id": "doe-optimizer",

@@ -13,6 +13,7 @@ from statpro.analyses.doe import (
     GeneratorDefinition,
     ResponseObjective,
     analyze_full_factorial_2level,
+    analyze_plackett_burman,
     fractional_factorial_2level,
     full_factorial_2level,
     optimize_full_factorial_desirability,
@@ -34,6 +35,7 @@ def _parser() -> argparse.ArgumentParser:
         "doe-full-factorial",
         "doe-fractional-factorial",
         "doe-plackett-burman",
+        "doe-analyze-plackett-burman",
         "doe-analyze-full-factorial",
         "doe-optimize-responses",
         "gage-rr-crossed",
@@ -74,6 +76,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "doe-full-factorial",
             "doe-fractional-factorial",
             "doe-plackett-burman",
+            "doe-analyze-plackett-burman",
             "doe-analyze-full-factorial",
             "doe-optimize-responses",
         }:
@@ -85,7 +88,19 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "Each factor requires name, low, and high fields.",
                     "factors",
                 ) from error
-            if args.command == "doe-plackett-burman":
+            if args.command == "doe-analyze-plackett-burman":
+                result = analyze_plackett_burman(
+                    factors,
+                    payload["responses"],
+                    response_name=payload.get("response_name", "Response"),
+                    runs=payload.get("runs"),
+                    replicates=payload.get("replicates", 1),
+                    center_points=payload.get("center_points", 0),
+                    randomize=payload.get("randomize", True),
+                    seed=payload.get("seed", 0),
+                    alpha=payload.get("alpha", 0.05),
+                )
+            elif args.command == "doe-plackett-burman":
                 result = plackett_burman_design(
                     factors,
                     runs=payload.get("runs"),

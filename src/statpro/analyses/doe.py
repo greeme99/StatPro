@@ -7,7 +7,7 @@ from collections.abc import Callable, Iterable, Mapping
 from dataclasses import asdict, dataclass
 from itertools import combinations
 from math import exp, isfinite, lgamma, log, log1p, sqrt
-from statistics import NormalDist
+from statistics import NormalDist, median
 from typing import Sequence
 
 from statpro.analyses.common import finite_values, input_digest
@@ -45,6 +45,15 @@ MINITAB_PLACKETT_BURMAN_SOURCE = ProvenanceSource(
         "https://support.minitab.com/en-us/minitab/help-and-how-to/"
         "statistical-modeling/doe/supporting-topics/factorial-and-screening-designs/"
         "plackett-burman-designs/"
+    ),
+)
+
+MINITAB_FACTORIAL_EFFECTS_SOURCE = ProvenanceSource(
+    title="Minitab public documentation: methods and formulas for factorial effects plots",
+    url=(
+        "https://support.minitab.com/en-us/minitab/help-and-how-to/"
+        "statistical-modeling/doe/how-to/factorial/analyze-variability/"
+        "methods-and-formulas/effects-plots/"
     ),
 )
 
@@ -382,6 +391,294 @@ def plackett_burman_design(
         ),
         warnings=tuple(warnings),
         provenance=(NIST_PLACKETT_BURMAN_SOURCE, MINITAB_PLACKETT_BURMAN_SOURCE),
+    )
+
+
+def analyze_plackett_burman(
+    factors: Sequence[FactorDefinition],
+    responses: Sequence[float],
+    *,
+    response_name: str = "Response",
+    runs: int | None = None,
+    replicates: int = 1,
+    center_points: int = 0,
+    randomize: bool = True,
+    seed: int = 0,
+    alpha: float = 0.05,
+) -> ResultBundle:
+    """Estimate Plackett-Burman main effects and prepare confirmation candidates."""
+
+    design = plackett_burman_design(
+        factors,
+        runs=runs,
+        replicates=replicates,
+        center_points=center_points,
+        randomize=randomize,
+        seed=seed,
+    )
+    rows = design.tables["design"]
+    values = finite_values(responses, "responses")
+    normalized_name = response_name.strip()
+    if not normalized_name:
+        raise AnalysisInputError(
+            "empty_response_name", "Response name cannot be empty.", "response_name"
+        )
+    normalized_alpha = finite_values([alpha], "alpha")[0]
+    if not 0.001 <= normalized_alpha <= 0.5:
+        raise AnalysisInputError(
+            "invalid_alpha", "Alpha must be between 0.001 and 0.5.", "alpha"
+        )
+
+    factor_payload = design.parameters["factors"]
+    factor_names = [str(factor["name"]) for factor in factor_payload]
+    terms = [(name,) for name in factor_names]
+    intercept, coefficients, coded_columns, term_sums_of_squares = (
+        _fit_orthogonal_model(rows, factor_names, values, terms, field="responses")
+    )
+    fitted = [
+        intercept
+        + sum(coefficients[term] * coded_columns[term][index] for term in terms)
+        for index in range(len(rows))
+    ]
+    residuals = [
+        observed - predicted
+        for observed, predicted in zip(values, fitted, strict=True)
+    ]
+    residual_ss = sum(value * value for value in residuals)
+    model_ss = sum(term_sums_of_squares.values())
+    total_ss = sum((value - intercept) ** 2 for value in values)
+    residual_df = len(values) - len(terms) - 1
+    residual_ms = residual_ss / residual_df if residual_df > 0 else None
+    residual_scale = (
+        sqrt(residual_ms) if residual_ms is not None and residual_ms > 0.0 else None
+    )
+
+    raw_effects = [2.0 * coefficients[term] for term in terms]
+    inference_method = "residual_error" if residual_df > 0 else "lenth_pse"
+    lenth_pse: float | None = None
+    margin_of_error: float | None = None
+    t_critical: float | None = None
+    if residual_df <= 0:
+        absolute_effects = [abs(effect) for effect in raw_effects]
+        initial_scale = 1.5 * median(absolute_effects)
+        retained = [effect for effect in absolute_effects if effect < 2.5 * initial_scale]
+        if not retained:
+            retained = absolute_effects
+        lenth_pse = 1.5 * median(retained)
+        t_critical = _two_sided_t_critical(
+            normalized_alpha, max(len(raw_effects) / 3.0, 1.0)
+        )
+        margin_of_error = t_critical * lenth_pse
+    else:
+        t_critical = _two_sided_t_critical(normalized_alpha, float(residual_df))
+
+    coefficient_rows: list[dict[str, object]] = []
+    pareto_rows: list[dict[str, object]] = []
+    confirmation_rows: list[dict[str, object]] = []
+    factors_by_name = {str(factor["name"]): factor for factor in factor_payload}
+    for term, effect in zip(terms, raw_effects, strict=True):
+        name = term[0]
+        column_ss = sum(value * value for value in coded_columns[term])
+        effect_standard_error = (
+            2.0 * sqrt(residual_ms / column_ss)
+            if residual_ms is not None and residual_ms > 0.0
+            else None
+        )
+        standardized_effect = effect / effect_standard_error if effect_standard_error else None
+        p_value = (
+            _f_survival(standardized_effect * standardized_effect, 1, residual_df)
+            if standardized_effect is not None
+            else None
+        )
+        significant = (
+            p_value <= normalized_alpha
+            if p_value is not None
+            else bool(margin_of_error is not None and abs(effect) > margin_of_error)
+        )
+        coefficient_rows.append(
+            {
+                "term": name,
+                "coefficient": coefficients[term],
+                "effect": effect,
+                "sum_of_squares": term_sums_of_squares[term],
+                "standard_error": effect_standard_error,
+                "standardized_effect": standardized_effect,
+                "p_value": p_value,
+                "significant": significant,
+            }
+        )
+        pareto_rows.append(
+            {
+                "term": name,
+                "coefficient": coefficients[term],
+                "effect": effect,
+                "absolute_effect": abs(effect),
+                "display_value": (
+                    abs(standardized_effect)
+                    if standardized_effect is not None
+                    else abs(effect)
+                ),
+                "standard_error": effect_standard_error,
+                "standardized_effect": standardized_effect,
+                "p_value": p_value,
+                "significant": significant,
+            }
+        )
+        if significant:
+            factor = factors_by_name[name]
+            confirmation_rows.append(
+                {
+                    "factor": name,
+                    "effect": effect,
+                    "direction_for_increase": "high" if effect > 0 else "low",
+                    "suggested_level": factor["high"] if effect > 0 else factor["low"],
+                    "opposite_level": factor["low"] if effect > 0 else factor["high"],
+                    "selection_method": inference_method,
+                }
+            )
+
+    pareto_rows.sort(
+        key=lambda row: (-float(row["display_value"]), str(row["term"]))
+    )
+    model_df = len(terms)
+    model_ms = model_ss / model_df
+    model_f = _f_statistic(model_ms, residual_ms)
+    anova = [
+        _anova_row(
+            "Main Effects",
+            model_df,
+            model_ss,
+            model_ms,
+            model_f,
+            _f_survival(model_f, model_df, residual_df) if model_f is not None else None,
+        ),
+        _anova_row("Residual Error", residual_df, residual_ss, residual_ms, None, None),
+        _anova_row("Total", len(values) - 1, total_ss, None, None, None),
+    ]
+    residual_table = [
+        {
+            "run_order": row["run_order"],
+            "standard_order": row["standard_order"],
+            "point_type": row["point_type"],
+            "observed": observed,
+            "fitted": predicted,
+            "residual": residual,
+            "scaled_residual": residual / residual_scale if residual_scale else None,
+        }
+        for row, observed, predicted, residual in zip(
+            rows, values, fitted, residuals, strict=True
+        )
+    ]
+    factorial_values = [
+        value
+        for row, value in zip(rows, values, strict=True)
+        if row["point_type"] == "factorial"
+    ]
+    center_values = [
+        value
+        for row, value in zip(rows, values, strict=True)
+        if row["point_type"] == "center"
+    ]
+    curvature = (
+        [
+            {
+                "factorial_mean": sum(factorial_values) / len(factorial_values),
+                "center_mean": sum(center_values) / len(center_values),
+                "difference": sum(center_values) / len(center_values)
+                - sum(factorial_values) / len(factorial_values),
+                "center_point_count": len(center_values),
+            }
+        ]
+        if center_values
+        else []
+    )
+
+    warnings = list(design.warnings)
+    if inference_method == "lenth_pse":
+        warnings.append(
+            "The main-effects model has no residual degrees of freedom; significance "
+            "flags use Lenth's sparse-effects PSE, not replicated error."
+        )
+    else:
+        warnings.append(
+            "Residual-error tests assume omitted effects and interactions are "
+            "negligible; screening aliases can inflate this error term."
+        )
+        if residual_ms == 0.0:
+            warnings.append(
+                "Residual variance is zero; standardized effects, F tests, and "
+                "p-values are undefined for this exact fit."
+            )
+    if not confirmation_rows:
+        warnings.append(
+            "No effect crossed the selected screening threshold; do not promote a "
+            "factor solely from its rank."
+        )
+    if center_values:
+        warnings.append(
+            "The center-point difference is descriptive aggregate curvature; this "
+            "screening model does not estimate individual quadratic terms."
+        )
+
+    payload = {
+        **design.parameters,
+        "responses": values,
+        "response_name": normalized_name,
+        "alpha": normalized_alpha,
+    }
+    return ResultBundle(
+        analysis_type="doe.plackett_burman_analysis",
+        engine_version=ENGINE_VERSION,
+        input_digest=input_digest(payload),
+        parameters=payload,
+        tables={
+            "coefficients": coefficient_rows,
+            "anova": anova,
+            "residuals": residual_table,
+            "ranked_effects": pareto_rows,
+            "confirmation_candidates": confirmation_rows,
+            "curvature": curvature,
+        },
+        plots={
+            "pareto": {
+                "terms": [row["term"] for row in pareto_rows],
+                "values": [row["display_value"] for row in pareto_rows],
+                "scale": "standardized_effect" if residual_df > 0 else "effect",
+                "reference_line": t_critical if residual_df > 0 else margin_of_error,
+            },
+            "residuals_vs_run_order": {
+                "run_order": [row["run_order"] for row in rows],
+                "residuals": residuals,
+            },
+        },
+        diagnostics={
+            **design.diagnostics,
+            "response_name": normalized_name,
+            "observation_count": len(values),
+            "residual_degrees_of_freedom": residual_df,
+            "residual_standard_deviation": residual_scale,
+            "r_squared": 1.0 - residual_ss / total_ss if total_ss > 0.0 else None,
+            "alpha": normalized_alpha,
+            "inference_method": inference_method,
+            "lenth_pse": lenth_pse,
+            "pareto_reference_line": t_critical if residual_df > 0 else margin_of_error,
+            "confirmation_candidate_count": len(confirmation_rows),
+        },
+        assumptions=(
+            "Responses correspond one-for-one to the generated design run order.",
+            "Two-factor and higher-order interactions are negligible relative to the "
+            "main effects during screening.",
+            "Lenth inference, when used, assumes sparse active effects and is a "
+            "screening rule rather than replicated-error evidence.",
+            "Confirmation candidates require an independent follow-up experiment "
+            "before process decisions.",
+        ),
+        warnings=tuple(warnings),
+        provenance=(
+            NIST_PLACKETT_BURMAN_SOURCE,
+            NIST_DOE_MODEL_SOURCE,
+            MINITAB_FACTORIAL_EFFECTS_SOURCE,
+        ),
     )
 
 
@@ -867,7 +1164,7 @@ def _regularized_beta(x: float, a: float, b: float) -> float:
     return 1.0 - front * _beta_continued_fraction(b, a, 1.0 - x) / b
 
 
-def _f_survival(value: float, numerator_df: int, denominator_df: int) -> float | None:
+def _f_survival(value: float, numerator_df: float, denominator_df: float) -> float | None:
     if numerator_df <= 0 or denominator_df <= 0:
         return None
     if value <= 0.0:
@@ -879,6 +1176,29 @@ def _f_survival(value: float, numerator_df: int, denominator_df: int) -> float |
         transformed, denominator_df / 2.0, numerator_df / 2.0
     )
     return min(1.0, max(0.0, probability))
+
+
+def _two_sided_t_critical(alpha: float, degrees_of_freedom: float) -> float:
+    """Invert the two-sided t tail through the F(1, df) relationship."""
+
+    lower = 0.0
+    upper = 1.0
+    while (_f_survival(upper * upper, 1.0, degrees_of_freedom) or 0.0) > alpha:
+        upper *= 2.0
+        if upper > 1_000_000.0:
+            raise AnalysisInputError(
+                "distribution_not_converged",
+                "The t-distribution critical value calculation did not converge.",
+                "alpha",
+            )
+    for _ in range(100):
+        midpoint = (lower + upper) / 2.0
+        tail = _f_survival(midpoint * midpoint, 1.0, degrees_of_freedom)
+        if tail is None or tail > alpha:
+            lower = midpoint
+        else:
+            upper = midpoint
+    return (lower + upper) / 2.0
 
 
 def _model_terms(

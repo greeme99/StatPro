@@ -12,6 +12,7 @@ from statpro.analyses.doe import (
     GeneratorDefinition,
     ResponseObjective,
     analyze_full_factorial_2level,
+    analyze_plackett_burman,
     composite_desirability,
     fractional_factorial_2level,
     full_factorial_2level,
@@ -222,6 +223,75 @@ class PlackettBurmanDesignTests(unittest.TestCase):
         self.assertEqual(
             capacity_context.exception.detail.code, "too_many_factors_for_runs"
         )
+
+
+class PlackettBurmanAnalysisTests(unittest.TestCase):
+    def test_saturated_design_estimates_effects_and_uses_lenth_screening(self) -> None:
+        factors = [FactorDefinition(name, 0, 10) for name in "ABCDEFGHIJK"]
+        design = plackett_burman_design(factors, runs=12, randomize=False)
+        coefficients = [10, 4, 0.2, -0.2, 0.1, -0.1, 0.15, -0.15, 0.05, -0.05, 0.08]
+        responses = [
+            100 + sum(coefficient * row["coded"][name] for coefficient, name in zip(coefficients, "ABCDEFGHIJK", strict=True))
+            for row in design.tables["design"]
+        ]
+
+        result = analyze_plackett_burman(
+            factors, responses, runs=12, randomize=False, response_name="Yield"
+        )
+
+        effects = {row["term"]: row for row in result.tables["coefficients"]}
+        self.assertAlmostEqual(effects["A"]["effect"], 20.0)
+        self.assertAlmostEqual(effects["B"]["effect"], 8.0)
+        self.assertTrue(effects["A"]["significant"])
+        self.assertTrue(effects["B"]["significant"])
+        self.assertFalse(effects["C"]["significant"])
+        self.assertEqual(result.diagnostics["inference_method"], "lenth_pse")
+        self.assertEqual(result.diagnostics["residual_degrees_of_freedom"], 0)
+        self.assertGreater(result.diagnostics["lenth_pse"], 0)
+        self.assertEqual(
+            [row["factor"] for row in result.tables["confirmation_candidates"]],
+            ["A", "B"],
+        )
+        self.assertEqual(result.tables["confirmation_candidates"][0]["suggested_level"], 10)
+        self.assertEqual(result.plots["pareto"]["scale"], "effect")
+        json.dumps(result.to_dict(), allow_nan=False)
+
+    def test_unsaturated_design_uses_residual_error_and_reports_curvature(self) -> None:
+        factors = [FactorDefinition(name, -1, 1) for name in "ABC"]
+        design = plackett_burman_design(
+            factors, runs=12, center_points=2, randomize=False
+        )
+        responses = [
+            50 + 8 * row["coded"]["A"] - 3 * row["coded"]["B"]
+            + (4 if row["point_type"] == "center" else 0)
+            for row in design.tables["design"]
+        ]
+
+        result = analyze_plackett_burman(
+            factors,
+            responses,
+            runs=12,
+            center_points=2,
+            randomize=False,
+        )
+
+        self.assertEqual(result.diagnostics["inference_method"], "residual_error")
+        self.assertEqual(result.diagnostics["residual_degrees_of_freedom"], 10)
+        self.assertEqual(result.plots["pareto"]["scale"], "standardized_effect")
+        self.assertAlmostEqual(result.tables["curvature"][0]["difference"], 4.0)
+        self.assertEqual(len(result.tables["residuals"]), 14)
+
+    def test_rejects_response_count_and_invalid_alpha(self) -> None:
+        factors = [FactorDefinition("A", 0, 1), FactorDefinition("B", 0, 1)]
+        with self.assertRaises(AnalysisInputError) as count_context:
+            analyze_plackett_burman(factors, [1, 2], runs=12, randomize=False)
+        self.assertEqual(count_context.exception.detail.code, "response_count_mismatch")
+
+        with self.assertRaises(AnalysisInputError) as alpha_context:
+            analyze_plackett_burman(
+                factors, list(range(12)), runs=12, randomize=False, alpha=0.9
+            )
+        self.assertEqual(alpha_context.exception.detail.code, "invalid_alpha")
 
 
 class FullFactorialAnalysisTests(unittest.TestCase):

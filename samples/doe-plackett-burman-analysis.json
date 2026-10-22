@@ -1,0 +1,15 @@
+{
+  "factors": [
+    { "name": "Temperature", "low": 140, "high": 180 },
+    { "name": "Pressure", "low": 20, "high": 40 },
+    { "name": "Speed", "low": 50, "high": 90 }
+  ],
+  "runs": 12,
+  "replicates": 1,
+  "center_points": 0,
+  "randomize": false,
+  "seed": 0,
+  "response_name": "Yield",
+  "responses": [114.5, 106.5, 94.5, 113.5, 113.5, 105.5, 85.5, 85.5, 94.5, 106.5, 93.5, 85.5],
+  "alpha": 0.05
+}

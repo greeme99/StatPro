@@ -19,6 +19,7 @@ from statpro.analyses.doe import (
     GeneratorDefinition,
     ResponseObjective,
     analyze_full_factorial_2level,
+    analyze_plackett_burman,
     fractional_factorial_2level,
     full_factorial_2level,
     optimize_full_factorial_desirability,
@@ -128,6 +129,12 @@ class PlackettBurmanRunRequest(ApiModel):
     center_points: int = 0
     randomize: bool = True
     seed: int = 0
+
+
+class PlackettBurmanAnalysisRunRequest(PlackettBurmanRunRequest):
+    responses: list[float]
+    response_name: str = "Response"
+    alpha: float = Field(default=0.05, ge=0.001, le=0.5)
 
 
 class FullFactorialAnalysisRunRequest(FullFactorialRunRequest):
@@ -598,6 +605,33 @@ def create_app(repository: DocumentRepository) -> FastAPI:
                 center_points=request.center_points,
                 randomize=request.randomize,
                 seed=request.seed,
+            ),
+        )
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _response(stored)
+
+    @app.post(
+        "/v1/analysis-runs/doe-plackett-burman-analysis",
+        status_code=201,
+        response_model=StoredRunResponse,
+    )
+    def analyze_plackett_burman_doe(
+        request: PlackettBurmanAnalysisRunRequest, response: Response
+    ) -> StoredRunResponse:
+        factors = [FactorDefinition(**factor.model_dump()) for factor in request.factors]
+        stored = _save_run(
+            repository,
+            request.run_id,
+            analyze_plackett_burman(
+                factors,
+                request.responses,
+                response_name=request.response_name,
+                runs=request.runs,
+                replicates=request.replicates,
+                center_points=request.center_points,
+                randomize=request.randomize,
+                seed=request.seed,
+                alpha=request.alpha,
             ),
         )
         response.headers["ETag"] = f'"{stored.etag}"'

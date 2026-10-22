@@ -2,7 +2,7 @@ import { AlertTriangle, ArrowLeft, BookOpen, CheckCircle2, X } from "lucide-reac
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { getRun } from "../api";
-import { toDoeDesirabilityView, toDoeFractionalView, toDoePlackettBurmanView, toDoeView, toImrView, type DoeDesirabilityView, type DoeFractionalView, type DoePlackettBurmanView, type DoeView } from "../analysis";
+import { toDoeDesirabilityView, toDoeFractionalView, toDoePlackettBurmanAnalysisView, toDoePlackettBurmanView, toDoeView, toImrView, type DoeDesirabilityView, type DoeFractionalView, type DoePlackettBurmanAnalysisView, type DoePlackettBurmanView, type DoeView } from "../analysis";
 import { Button } from "../components/Button";
 import type { StoredRun } from "../types";
 
@@ -50,6 +50,7 @@ export function ResultPage() {
   const optimizer = toDoeDesirabilityView(result);
   const fractional = toDoeFractionalView(result);
   const plackettBurman = toDoePlackettBurmanView(result);
+  const plackettBurmanAnalysis = toDoePlackettBurmanAnalysisView(result);
   const signalCount = useMemo(() => imr?.points.filter((point) => point.signal).length ?? 0, [imr]);
   const closeDrawer = () => { setSearch({}); drawerTrigger.current?.focus(); };
 
@@ -78,7 +79,7 @@ export function ResultPage() {
         <header className="panel-heading"><div><span className="eyebrow">ACCESSIBLE DATA</span><h2>관리도 원본 표</h2></div></header>
         <div className="table-scroll"><table><thead><tr><th scope="col">순서</th><th scope="col">관측값</th><th scope="col">상태</th></tr></thead><tbody>{imr.points.map((point) => <tr key={point.index}><td>{point.index}</td><td>{point.value.toFixed(4)}</td><td>{point.signal ? <span className="status-text is-danger"><AlertTriangle aria-hidden="true" /> {point.rules.length ? point.rules.join(", ") : "3σ 한계 이탈"}</span> : <span className="status-text is-success"><CheckCircle2 aria-hidden="true" /> 정상</span>}</td></tr>)}</tbody></table></div>
       </section>
-      </> : doe ? <DoeResult doe={doe} /> : optimizer ? <DoeDesirabilityResult optimizer={optimizer} /> : fractional ? <DoeFractionalResult design={fractional} /> : plackettBurman ? <DoePlackettBurmanResult design={plackettBurman} /> : <section className="panel generic-result-panel"><header className="panel-heading"><div><span className="eyebrow">RESULT BUNDLE</span><h2>분석 결과 요약</h2></div></header><dl><div><dt>분석 유형</dt><dd>{result.analysis_type}</dd></div><div><dt>진단 항목</dt><dd>{Object.keys(result.diagnostics).length}개</dd></div><div><dt>결과 표</dt><dd>{Object.keys(result.tables).join(", ") || "없음"}</dd></div></dl><p>이 분석의 전용 시각화는 다음 개발 증분에서 제공됩니다. 계산 근거와 원본 ResultBundle은 보존되어 있습니다.</p></section>}
+      </> : doe ? <DoeResult doe={doe} /> : optimizer ? <DoeDesirabilityResult optimizer={optimizer} /> : fractional ? <DoeFractionalResult design={fractional} /> : plackettBurman ? <DoePlackettBurmanResult design={plackettBurman} /> : plackettBurmanAnalysis ? <DoePlackettBurmanAnalysisResult analysis={plackettBurmanAnalysis} /> : <section className="panel generic-result-panel"><header className="panel-heading"><div><span className="eyebrow">RESULT BUNDLE</span><h2>분석 결과 요약</h2></div></header><dl><div><dt>분석 유형</dt><dd>{result.analysis_type}</dd></div><div><dt>진단 항목</dt><dd>{Object.keys(result.diagnostics).length}개</dd></div><div><dt>결과 표</dt><dd>{Object.keys(result.tables).join(", ") || "없음"}</dd></div></dl><p>이 분석의 전용 시각화는 다음 개발 증분에서 제공됩니다. 계산 근거와 원본 ResultBundle은 보존되어 있습니다.</p></section>}
       {result.warnings.length > 0 && <section className="warning-panel"><AlertTriangle aria-hidden="true" /><div><h2>해석 전 확인</h2><ul>{result.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></div></section>}
       {drawerOpen && <><button className="drawer-scrim" aria-label="계산 근거 닫기" onClick={closeDrawer} /><aside ref={drawer} className="detail-drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title"><header><div><span className="eyebrow">EVIDENCE</span><h2 id="drawer-title">계산 근거</h2></div><button ref={closeButton} className="icon-button" aria-label="닫기" onClick={closeDrawer}><X /></button></header><section><h3>분석 가정</h3><ul>{result.assumptions.map((item) => <li key={item}>{item}</li>)}</ul></section><section><h3>공개 출처</h3>{result.provenance.map((source) => <a className="source-link" href={source.url} target="_blank" rel="noreferrer" key={source.url}><strong>{source.title}</strong><span>{source.authority}</span></a>)}</section><section><h3>재현 정보</h3><dl><div><dt>엔진</dt><dd>{result.engine_version}</dd></div><div><dt>Storage version</dt><dd>{run.storage_version}</dd></div><div><dt>ETag</dt><dd className="digest">{run.etag}</dd></div></dl></section></aside></>}
     </div>
@@ -158,5 +159,26 @@ function DoePlackettBurmanResult({ design }: { design: DoePlackettBurmanView }) 
     </section>
     <section className="panel table-panel"><header className="panel-heading"><div><span className="eyebrow">SCREENING DIAGNOSTICS</span><h2>설계 검증</h2></div></header><dl><div><dt>열 균형</dt><dd>{design.balanced ? "통과" : "실패"}</dd></div><div><dt>열쌍 직교</dt><dd>{design.pairwiseOrthogonal ? "통과" : "실패"}</dd></div><div><dt>미사용 열</dt><dd>{design.unusedFactorColumns}</dd></div><div><dt>구성 방식</dt><dd>{design.construction}</dd></div></dl></section>
     <section className="panel table-panel"><header className="panel-heading"><div><span className="eyebrow">DESIGN MATRIX</span><h2>선별 실행 설계표</h2></div></header><div className="table-scroll"><table><thead><tr><th scope="col">실행순서</th><th scope="col">표준순서</th><th scope="col">반복</th><th scope="col">점 유형</th>{factorNames.map((name) => <th scope="col" key={name}>{name} coded · actual</th>)}</tr></thead><tbody>{design.design.map((row) => <tr key={row.run_order}><td>{row.run_order}</td><td>{row.standard_order ?? "중심점"}</td><td>{row.replicate}</td><td>{row.point_type === "center" ? "중심점" : "선별점"}</td>{factorNames.map((name) => <td key={name}>{row.coded[name] === 0 ? "0" : row.coded[name] > 0 ? "+1" : "−1"} · {statistic(row.actual[name])}</td>)}</tr>)}</tbody></table></div></section>
+  </>;
+}
+
+function DoePlackettBurmanAnalysisResult({ analysis }: { analysis: DoePlackettBurmanAnalysisView }) {
+  const maxValue = Math.max(...analysis.rankedEffects.map((row) => row.display_value), 1);
+  const strongest = analysis.rankedEffects[0];
+  const method = analysis.inferenceMethod === "lenth_pse" ? "Lenth PSE" : "잔차 오차";
+  return <>
+    <section className="metric-grid result-metrics" aria-label="Plackett-Burman 응답 분석 요약">
+      <article className="metric-card"><span>응답</span><strong className="metric-text">{analysis.responseName}</strong><small>선별 분석 대상</small></article>
+      <article className="metric-card"><span>가장 큰 효과</span><strong>{strongest?.term ?? "—"}</strong><small>{strongest ? statistic(strongest.effect) : "추정 없음"}</small></article>
+      <article className="metric-card"><span>판정 방식</span><strong className="metric-text">{method}</strong><small>잔차 DF {analysis.residualDegreesOfFreedom}</small></article>
+      <article className="metric-card"><span>확인 후보</span><strong>{analysis.confirmationCandidates.length}</strong><small>독립 확인실험 필요</small></article>
+    </section>
+    <section className="panel doe-effect-panel">
+      <header className="panel-heading"><div><span className="eyebrow">PARETO OF EFFECTS</span><h2>주효과 Pareto</h2></div><span>기준선 {statistic(analysis.referenceLine)}</span></header>
+      <div className="effect-bars" role="img" aria-label={strongest ? `가장 큰 절대 효과는 ${strongest.term}, 효과 ${statistic(strongest.effect)}` : "추정된 효과 없음"}>{analysis.rankedEffects.map((row) => <div className="effect-bar-row" key={row.term}><strong>{row.term}</strong><span className={row.effect < 0 ? "effect-track is-negative" : "effect-track"}><i style={{ width: `${row.display_value / maxValue * 100}%` }} /></span><span>{statistic(row.display_value)}</span></div>)}</div>
+      <div className="table-scroll"><table><thead><tr><th scope="col">순위</th><th scope="col">요인</th><th scope="col">효과</th><th scope="col">표준화 효과</th><th scope="col">p</th><th scope="col">선별 판정</th></tr></thead><tbody>{analysis.rankedEffects.map((row, index) => <tr key={row.term}><td>{index + 1}</td><td>{row.term}</td><td>{statistic(row.effect)}</td><td>{statistic(row.standardized_effect)}</td><td>{statistic(row.p_value)}</td><td>{row.significant ? "확인 후보" : "기준 미달"}</td></tr>)}</tbody></table></div>
+    </section>
+    <section className="panel table-panel"><header className="panel-heading"><div><span className="eyebrow">CONFIRMATION WORKFLOW</span><h2>확인실험 후보</h2></div></header>{analysis.confirmationCandidates.length ? <div className="table-scroll"><table><thead><tr><th scope="col">요인</th><th scope="col">효과</th><th scope="col">응답 증가 방향</th><th scope="col">권장 수준</th><th scope="col">대조 수준</th></tr></thead><tbody>{analysis.confirmationCandidates.map((row) => <tr key={row.factor}><td>{row.factor}</td><td>{statistic(row.effect)}</td><td>{row.direction_for_increase === "high" ? "High" : "Low"}</td><td>{statistic(row.suggested_level)}</td><td>{statistic(row.opposite_level)}</td></tr>)}</tbody></table></div> : <p className="supporting-copy">선택한 기준선을 넘은 요인이 없습니다. 순위만으로 후보를 승격하지 마세요.</p>}</section>
+    {analysis.curvature.map((row) => <section className="panel table-panel" key="curvature"><header className="panel-heading"><div><span className="eyebrow">CENTER POINTS</span><h2>기술적 곡률 점검</h2></div></header><dl><div><dt>요인점 평균</dt><dd>{statistic(row.factorial_mean)}</dd></div><div><dt>중심점 평균</dt><dd>{statistic(row.center_mean)}</dd></div><div><dt>차이</dt><dd>{statistic(row.difference)}</dd></div><div><dt>중심점 수</dt><dd>{row.center_point_count}</dd></div></dl></section>)}
   </>;
 }
