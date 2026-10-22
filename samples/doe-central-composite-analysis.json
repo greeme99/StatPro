@@ -1,0 +1,14 @@
+{
+  "factors": [
+    {"name": "Temperature", "low": 180, "high": 220},
+    {"name": "Pressure", "low": 40, "high": 80}
+  ],
+  "design_type": "rotatable",
+  "center_points": 5,
+  "replicates": 1,
+  "randomize": false,
+  "seed": 0,
+  "response_name": "Yield",
+  "responses": [73, 79, 77, 91, 84, 76, 82, 74, 80, 80.5, 79.5, 80.2, 79.8],
+  "alpha": 0.05
+}

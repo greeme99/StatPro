@@ -4,8 +4,10 @@ from statpro.analyses.capability import normal_process_capability
 from statpro.analyses.doe import (
     FactorDefinition,
     GeneratorDefinition,
+    analyze_central_composite,
     analyze_fractional_factorial_2level,
     analyze_plackett_burman,
+    central_composite_design,
     fractional_factorial_2level,
     full_factorial_2level,
     plackett_burman_design,
@@ -19,8 +21,10 @@ from statpro.version import __version__
 __all__ = [
     "FactorDefinition",
     "GeneratorDefinition",
+    "analyze_central_composite",
     "analyze_fractional_factorial_2level",
     "analyze_plackett_burman",
+    "central_composite_design",
     "DatasetSnapshot",
     "DataType",
     "MeasurementRecord",

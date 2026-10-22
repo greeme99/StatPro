@@ -220,6 +220,40 @@ class CliBoundaryTests(unittest.TestCase):
         self.assertEqual(result["diagnostics"]["response_name"], "Yield")
         self.assertEqual(result["tables"]["ranked_effects"][0]["term"], "B")
 
+    def test_central_composite_analysis_returns_quadratic_coefficients(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "central-composite-analysis.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "factors": [
+                            {"name": "A", "low": 0, "high": 10},
+                            {"name": "B", "low": 0, "high": 20},
+                        ],
+                        "responses": [4, 0, 8, 20, 20, 12, 4, 16, 10, 10, 10, 10, 10],
+                        "response_name": "Yield",
+                        "center_points": 5,
+                        "randomize": False,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            output = io.StringIO()
+
+            with redirect_stdout(output):
+                exit_code = main(
+                    ["doe-analyze-central-composite", "--input", str(path)]
+                )
+
+        result = json.loads(output.getvalue())["result"]
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(result["analysis_type"], "doe.central_composite_analysis")
+        self.assertEqual(result["diagnostics"]["coefficient_count"], 6)
+        self.assertEqual(
+            [row["term"] for row in result["tables"]["coefficients"]],
+            ["Constant", "A", "B", "A*B", "A^2", "B^2"],
+        )
+
     def test_plackett_burman_returns_screening_design(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "plackett-burman.json"

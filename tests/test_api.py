@@ -134,6 +134,34 @@ class LocalApiContractTests(unittest.TestCase):
                 "doe.fractional_factorial_2level",
             ),
             (
+                "/v1/analysis-runs/doe-central-composite",
+                {
+                    "run_id": "doe-central-composite",
+                    "factors": [
+                        {"name": "A", "low": 0, "high": 10},
+                        {"name": "B", "low": 0, "high": 20},
+                    ],
+                    "center_points": 5,
+                    "randomize": False,
+                },
+                "doe.central_composite",
+            ),
+            (
+                "/v1/analysis-runs/doe-central-composite-analysis",
+                {
+                    "run_id": "doe-central-composite-analysis",
+                    "factors": [
+                        {"name": "A", "low": 0, "high": 10},
+                        {"name": "B", "low": 0, "high": 20},
+                    ],
+                    "center_points": 5,
+                    "randomize": False,
+                    "responses": [4, 0, 8, 20, 20, 12, 4, 16, 10, 10, 10, 10, 10],
+                    "response_name": "Yield",
+                },
+                "doe.central_composite_analysis",
+            ),
+            (
                 "/v1/analysis-runs/doe-fractional-factorial-analysis",
                 {
                     "run_id": "doe-fractional-analysis",
@@ -252,6 +280,14 @@ class LocalApiContractTests(unittest.TestCase):
                         result["tables"]["defining_relation"][0]["expression"],
                         "I = A*B*C*D",
                     )
+                if analysis_type == "doe.central_composite":
+                    result = response.json()["result"]
+                    self.assertEqual(result["diagnostics"]["total_run_count"], 13)
+                    self.assertTrue(result["diagnostics"]["rotatable"])
+                if analysis_type == "doe.central_composite_analysis":
+                    result = response.json()["result"]
+                    self.assertEqual(result["diagnostics"]["coefficient_count"], 6)
+                    self.assertEqual(result["diagnostics"]["response_name"], "Yield")
                 if analysis_type == "doe.fractional_factorial_2level_analysis":
                     result = response.json()["result"]
                     self.assertEqual(result["diagnostics"]["response_name"], "Yield")

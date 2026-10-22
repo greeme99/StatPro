@@ -18,9 +18,11 @@ from statpro.analyses.doe import (
     FactorDefinition,
     GeneratorDefinition,
     ResponseObjective,
+    analyze_central_composite,
     analyze_fractional_factorial_2level,
     analyze_full_factorial_2level,
     analyze_plackett_burman,
+    central_composite_design,
     fractional_factorial_2level,
     full_factorial_2level,
     optimize_full_factorial_desirability,
@@ -151,6 +153,22 @@ class FullFactorialAnalysisRunRequest(FullFactorialRunRequest):
     interaction_order: int = Field(default=2, ge=1)
     prediction_points: list[dict[str, float]] = Field(default_factory=list, max_length=100)
     optimization_goal: Literal["maximize", "minimize"] | None = None
+
+
+class CentralCompositeRunRequest(ApiModel):
+    run_id: RunId
+    factors: list[FactorRequest] = Field(min_length=2, max_length=6)
+    design_type: Literal["rotatable", "face_centered"] = "rotatable"
+    center_points: int = Field(default=5, ge=1)
+    replicates: int = Field(default=1, ge=1)
+    randomize: bool = True
+    seed: int = 0
+
+
+class CentralCompositeAnalysisRunRequest(CentralCompositeRunRequest):
+    responses: list[float]
+    response_name: str = "Response"
+    alpha: float = Field(default=0.05, ge=0.001, le=0.5)
 
 
 class ResponseObjectiveRequest(ApiModel):
@@ -590,6 +608,57 @@ def create_app(repository: DocumentRepository) -> FastAPI:
                 foldover=request.foldover,
                 randomize=request.randomize,
                 seed=request.seed,
+            ),
+        )
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _response(stored)
+
+    @app.post(
+        "/v1/analysis-runs/doe-central-composite",
+        status_code=201,
+        response_model=StoredRunResponse,
+    )
+    def run_central_composite_doe(
+        request: CentralCompositeRunRequest, response: Response
+    ) -> StoredRunResponse:
+        factors = [FactorDefinition(**factor.model_dump()) for factor in request.factors]
+        stored = _save_run(
+            repository,
+            request.run_id,
+            central_composite_design(
+                factors,
+                design_type=request.design_type,
+                center_points=request.center_points,
+                replicates=request.replicates,
+                randomize=request.randomize,
+                seed=request.seed,
+            ),
+        )
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _response(stored)
+
+    @app.post(
+        "/v1/analysis-runs/doe-central-composite-analysis",
+        status_code=201,
+        response_model=StoredRunResponse,
+    )
+    def analyze_central_composite_doe(
+        request: CentralCompositeAnalysisRunRequest, response: Response
+    ) -> StoredRunResponse:
+        factors = [FactorDefinition(**factor.model_dump()) for factor in request.factors]
+        stored = _save_run(
+            repository,
+            request.run_id,
+            analyze_central_composite(
+                factors,
+                request.responses,
+                response_name=request.response_name,
+                design_type=request.design_type,
+                center_points=request.center_points,
+                replicates=request.replicates,
+                randomize=request.randomize,
+                seed=request.seed,
+                alpha=request.alpha,
             ),
         )
         response.headers["ETag"] = f'"{stored.etag}"'

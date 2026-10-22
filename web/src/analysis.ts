@@ -179,6 +179,37 @@ export type DoeFractionalAnalysisView = {
   mainEffectsClear: boolean;
 };
 
+export type DoeCentralCompositeRow = {
+  run_order: number;
+  standard_order: number | null;
+  replicate: number;
+  point_type: "factorial" | "axial" | "center";
+  coded: Record<string, number>;
+  actual: Record<string, number>;
+};
+
+export type DoeCentralCompositeView = {
+  design: DoeCentralCompositeRow[];
+  alpha: number;
+  rotatable: boolean;
+  factorialRuns: number;
+  axialRuns: number;
+  centerPoints: number;
+};
+
+export type DoeCentralCompositeAnalysisView = {
+  coefficients: Array<{ term: string; kind: string; coefficient: number; standard_error: number | null; t_value: number | null; p_value: number | null; significant: boolean }>;
+  anova: DoeAnovaRow[];
+  residuals: DoeResidual[];
+  responseName: string;
+  alpha: number;
+  rotatable: boolean;
+  rSquared: number | null;
+  adjustedRSquared: number | null;
+  residualDegreesOfFreedom: number;
+  lackOfFitDegreesOfFreedom: number;
+};
+
 export type DoeScreeningDesignRow = {
   run_order: number;
   standard_order: number | null;
@@ -300,6 +331,40 @@ export function toDoeFractionalAnalysisView(result: ResultBundle | undefined): D
     resolutionLabel: String(result.diagnostics.resolution_label ?? "—"),
     augmentedResolution: Number(result.diagnostics.augmented_resolution ?? result.diagnostics.resolution ?? 0),
     mainEffectsClear: result.diagnostics.main_effects_clear_of_two_factor_interactions === true,
+  };
+}
+
+export function toDoeCentralCompositeView(result: ResultBundle | undefined): DoeCentralCompositeView | null {
+  if (!result || result.analysis_type !== "doe.central_composite") return null;
+  const design = result.tables.design;
+  if (!Array.isArray(design)) return null;
+  return {
+    design: design as DoeCentralCompositeRow[],
+    alpha: Number(result.diagnostics.alpha ?? 0),
+    rotatable: result.diagnostics.rotatable === true,
+    factorialRuns: Number(result.diagnostics.factorial_run_count ?? 0),
+    axialRuns: Number(result.diagnostics.axial_run_count ?? 0),
+    centerPoints: Number(result.diagnostics.center_point_count ?? 0),
+  };
+}
+
+export function toDoeCentralCompositeAnalysisView(result: ResultBundle | undefined): DoeCentralCompositeAnalysisView | null {
+  if (!result || result.analysis_type !== "doe.central_composite_analysis") return null;
+  const coefficients = result.tables.coefficients;
+  const anova = result.tables.anova;
+  const residuals = result.tables.residuals;
+  if (!Array.isArray(coefficients) || !Array.isArray(anova) || !Array.isArray(residuals)) return null;
+  return {
+    coefficients: coefficients as DoeCentralCompositeAnalysisView["coefficients"],
+    anova: anova as DoeAnovaRow[],
+    residuals: residuals as DoeResidual[],
+    responseName: String(result.diagnostics.response_name ?? "Response"),
+    alpha: Number(result.diagnostics.alpha ?? 0),
+    rotatable: result.diagnostics.rotatable === true,
+    rSquared: typeof result.diagnostics.r_squared === "number" ? result.diagnostics.r_squared : null,
+    adjustedRSquared: typeof result.diagnostics.adjusted_r_squared === "number" ? result.diagnostics.adjusted_r_squared : null,
+    residualDegreesOfFreedom: Number(result.diagnostics.residual_degrees_of_freedom ?? 0),
+    lackOfFitDegreesOfFreedom: Number(result.diagnostics.lack_of_fit_degrees_of_freedom ?? 0),
   };
 }
 

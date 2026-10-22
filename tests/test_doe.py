@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sys
 import unittest
+from math import sqrt
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
@@ -10,10 +11,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from statpro.analyses.doe import (
     FactorDefinition,
     GeneratorDefinition,
+    analyze_central_composite,
     analyze_fractional_factorial_2level,
     ResponseObjective,
     analyze_full_factorial_2level,
     analyze_plackett_burman,
+    central_composite_design,
     composite_desirability,
     fractional_factorial_2level,
     full_factorial_2level,
@@ -270,6 +273,90 @@ class FractionalFactorialAnalysisTests(unittest.TestCase):
             analyze_fractional_factorial_2level(
                 [FactorDefinition(name, 0, 1) for name in "ABCD"],
                 [GeneratorDefinition("D", ["A", "B", "C"])],
+                [1, 2, 3],
+                randomize=False,
+            )
+        self.assertEqual(context.exception.detail.code, "response_count_mismatch")
+
+
+class CentralCompositeDesignTests(unittest.TestCase):
+    def test_two_factor_rotatable_design_has_factorial_axial_and_center_points(self) -> None:
+        result = central_composite_design(
+            [FactorDefinition("A", 10, 20), FactorDefinition("B", 100, 200)],
+            center_points=5,
+            randomize=False,
+        )
+
+        rows = result.tables["design"]
+        self.assertEqual(len(rows), 13)
+        self.assertAlmostEqual(result.diagnostics["alpha"], sqrt(2.0))
+        self.assertEqual(
+            [row["point_type"] for row in rows].count("factorial"), 4
+        )
+        self.assertEqual([row["point_type"] for row in rows].count("axial"), 4)
+        self.assertEqual([row["point_type"] for row in rows].count("center"), 5)
+        self.assertLess(rows[4]["actual"]["A"], 10.0)
+        self.assertTrue(result.diagnostics["rotatable"])
+
+    def test_face_centered_axial_points_stay_at_supplied_levels(self) -> None:
+        result = central_composite_design(
+            [FactorDefinition("A", 10, 20), FactorDefinition("B", 100, 200)],
+            design_type="face_centered",
+            center_points=1,
+            randomize=False,
+        )
+
+        self.assertEqual(result.diagnostics["alpha"], 1.0)
+        axial = [row for row in result.tables["design"] if row["point_type"] == "axial"]
+        self.assertTrue(
+            all(
+                10.0 <= row["actual"]["A"] <= 20.0
+                and 100.0 <= row["actual"]["B"] <= 200.0
+                for row in axial
+            )
+        )
+        self.assertFalse(result.diagnostics["rotatable"])
+
+
+class CentralCompositeAnalysisTests(unittest.TestCase):
+    def test_complete_quadratic_model_recovers_hand_fixture(self) -> None:
+        factors = [FactorDefinition("A", 0, 10), FactorDefinition("B", 0, 20)]
+        design = central_composite_design(factors, center_points=5, randomize=False)
+        responses = []
+        for row in design.tables["design"]:
+            a = row["coded"]["A"]
+            b = row["coded"]["B"]
+            responses.append(10 + 2 * a - 3 * b + 4 * a * b + 5 * a * a - 2 * b * b)
+
+        result = analyze_central_composite(
+            factors,
+            responses,
+            response_name="Yield",
+            center_points=5,
+            randomize=False,
+        )
+
+        coefficients = {
+            row["term"]: row["coefficient"] for row in result.tables["coefficients"]
+        }
+        expected = {
+            "Constant": 10.0,
+            "A": 2.0,
+            "B": -3.0,
+            "A*B": 4.0,
+            "A^2": 5.0,
+            "B^2": -2.0,
+        }
+        for term, value in expected.items():
+            self.assertAlmostEqual(coefficients[term], value)
+        self.assertAlmostEqual(result.diagnostics["r_squared"], 1.0)
+        self.assertEqual(result.diagnostics["pure_error_degrees_of_freedom"], 4)
+        json.dumps(result.to_dict(), allow_nan=False)
+
+    def test_rejects_response_count_mismatch(self) -> None:
+        with self.assertRaises(AnalysisInputError) as context:
+            analyze_central_composite(
+                [FactorDefinition("A", 0, 1), FactorDefinition("B", 0, 1)],
                 [1, 2, 3],
                 randomize=False,
             )

@@ -106,6 +106,34 @@ export function createDoePlackettBurmanRun(payload: {
   });
 }
 
+export type DoeCentralCompositePayload = {
+  run_id: string;
+  factors: Array<{ name: string; low: number; high: number }>;
+  design_type: "rotatable" | "face_centered";
+  center_points: number;
+  replicates: number;
+  randomize: boolean;
+  seed: number;
+};
+
+export function createDoeCentralCompositeRun(payload: DoeCentralCompositePayload): Promise<StoredRun> {
+  return request("/v1/analysis-runs/doe-central-composite", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function createDoeCentralCompositeAnalysisRun(payload: DoeCentralCompositePayload & {
+  responses: number[];
+  response_name: string;
+  alpha: number;
+}): Promise<StoredRun> {
+  return request("/v1/analysis-runs/doe-central-composite-analysis", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function createDoePlackettBurmanAnalysisRun(payload: {
   run_id: string;
   factors: Array<{ name: string; low: number; high: number }>;

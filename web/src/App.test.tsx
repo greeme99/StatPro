@@ -318,6 +318,46 @@ describe("StatPro UI", () => {
     expect(screen.getByRole("heading", { name: "별칭 및 확인 범위" })).toBeInTheDocument();
   });
 
+  it("submits central composite responses for quadratic analysis", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      return new Response(JSON.stringify({}), { status: init?.method === "POST" ? 201 : 200, headers: { "Content-Type": "application/json" } });
+    });
+    render(<MemoryRouter initialEntries={["/analyses/doe/central-composite"]}><App /></MemoryRouter>);
+
+    await userEvent.click(await screen.findByRole("checkbox", { name: "응답을 함께 분석" }));
+    await userEvent.type(screen.getByRole("textbox", { name: /실행순서 응답/ }), "4 0 8 20 20 12 4 16 10 10 10 10 10");
+    await userEvent.click(screen.getByRole("button", { name: "2차 모형 분석" }));
+    await waitFor(() => expect(fetchMock.mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === "POST")).toBe(true));
+    const post = fetchMock.mock.calls.find(([url, init]) => String(url).endsWith("/doe-central-composite-analysis") && (init as RequestInit | undefined)?.method === "POST");
+    const body = JSON.parse(String((post?.[1] as RequestInit).body));
+    expect(body.responses).toHaveLength(13);
+    expect(body).toMatchObject({ design_type: "rotatable", center_points: 5, response_name: "Response" });
+  });
+
+  it("renders central composite quadratic coefficients and ANOVA", async () => {
+    const result = {
+      analysis_type: "doe.central_composite_analysis", engine_version: "0.6.0", input_digest: "c".repeat(64), warnings: [], assumptions: [], provenance: [], parameters: {}, plots: {},
+      diagnostics: { response_name: "Yield", alpha: 1.4142, rotatable: true, r_squared: 0.95, adjusted_r_squared: 0.9, residual_degrees_of_freedom: 7, lack_of_fit_degrees_of_freedom: 3 },
+      tables: {
+        coefficients: [{ term: "A^2", kind: "square", coefficient: 5, standard_error: 0.5, t_value: 10, p_value: 0.001, significant: true }],
+        anova: [{ source: "Model", degrees_of_freedom: 5, sum_of_squares: 100, mean_square: 20, f_value: 10, p_value: 0.01 }],
+        residuals: [{ run_order: 1, observed: 4, fitted: 4.1, residual: -0.1 }],
+        design: [],
+      },
+    };
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      return new Response(JSON.stringify({ run_id: "doe-ccd-analysis", storage_version: 1, etag: "a".repeat(64), result }), { status: 200 });
+    });
+
+    render(<MemoryRouter initialEntries={["/runs/doe-ccd-analysis"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "2차 모형 계수" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "반응표면 분산분석" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "적합값과 잔차" })).toBeInTheDocument();
+    expect(screen.getByText("A^2")).toBeInTheDocument();
+  });
+
   it("submits a Plackett-Burman screening design", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });

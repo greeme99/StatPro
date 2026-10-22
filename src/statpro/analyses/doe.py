@@ -30,6 +30,25 @@ NIST_MIRROR_FOLDOVER_SOURCE = ProvenanceSource(
     url="https://www.itl.nist.gov/div898/handbook/pri/section3/pri3381.htm",
 )
 
+NIST_CENTRAL_COMPOSITE_SOURCE = ProvenanceSource(
+    title="NIST/SEMATECH 5.3.3.6.1 Central Composite Designs",
+    url="https://www.itl.nist.gov/div898/handbook/pri/section3/pri3361.htm",
+)
+
+NIST_RESPONSE_SURFACE_MODEL_SOURCE = ProvenanceSource(
+    title="NIST/SEMATECH 5.5.3.1.4 Quadratic response-surface optimization",
+    url="https://www.itl.nist.gov/div898/handbook/pri/section5/pri5314.htm",
+)
+
+MINITAB_CCD_ALPHA_SOURCE = ProvenanceSource(
+    title="Minitab public documentation: alpha in a central composite design",
+    url=(
+        "https://support.minitab.com/en-us/minitab/help-and-how-to/"
+        "statistical-modeling/doe/supporting-topics/response-surface-designs/"
+        "what-is-alpha-in-a-central-composite-design/"
+    ),
+)
+
 MINITAB_FRACTIONAL_FACTORIAL_SOURCE = ProvenanceSource(
     title="Minitab public documentation: 2-level factorial generators and alias structure",
     url=(
@@ -1595,6 +1614,488 @@ def analyze_fractional_factorial_2level(
             *design.provenance,
             NIST_DOE_MODEL_SOURCE,
             MINITAB_FACTORIAL_EFFECTS_SOURCE,
+        ),
+    )
+
+
+def central_composite_design(
+    factors: Sequence[FactorDefinition],
+    *,
+    design_type: str = "rotatable",
+    center_points: int = 5,
+    replicates: int = 1,
+    randomize: bool = True,
+    seed: int = 0,
+) -> ResultBundle:
+    """Generate a bounded full-factorial central composite design."""
+
+    normalized = _normalize_factors(
+        factors,
+        max_count=6,
+        design_name="central composite response-surface design",
+    )
+    if design_type not in {"rotatable", "face_centered"}:
+        raise AnalysisInputError(
+            "invalid_ccd_type",
+            "Central composite design type must be 'rotatable' or 'face_centered'.",
+            "design_type",
+        )
+    if (
+        isinstance(center_points, bool)
+        or not isinstance(center_points, int)
+        or center_points < 1
+    ):
+        raise AnalysisInputError(
+            "invalid_center_points",
+            "A central composite design requires at least one center point.",
+            "center_points",
+        )
+    if isinstance(replicates, bool) or not isinstance(replicates, int) or replicates < 1:
+        raise AnalysisInputError(
+            "invalid_replicates", "Replicates must be a positive integer.", "replicates"
+        )
+    if isinstance(seed, bool) or not isinstance(seed, int):
+        raise AnalysisInputError("invalid_seed", "Random seed must be an integer.", "seed")
+
+    factor_names = [factor.name for factor in normalized]
+    factorial_runs = 2 ** len(normalized)
+    alpha = factorial_runs ** 0.25 if design_type == "rotatable" else 1.0
+    base_coded: list[tuple[str, dict[str, float]]] = []
+    for standard_index in range(factorial_runs):
+        base_coded.append(
+            (
+                "factorial",
+                {
+                    name: (1.0 if standard_index & (1 << index) else -1.0)
+                    for index, name in enumerate(factor_names)
+                },
+            )
+        )
+    for active_name in factor_names:
+        for sign in (-1.0, 1.0):
+            base_coded.append(
+                (
+                    "axial",
+                    {
+                        name: sign * alpha if name == active_name else 0.0
+                        for name in factor_names
+                    },
+                )
+            )
+
+    factor_by_name = {factor.name: factor for factor in normalized}
+
+    def actual_values(coded: Mapping[str, float]) -> dict[str, float]:
+        return {
+            name: (
+                (factor_by_name[name].low + factor_by_name[name].high) / 2.0
+                + coded[name]
+                * (factor_by_name[name].high - factor_by_name[name].low)
+                / 2.0
+            )
+            for name in factor_names
+        }
+
+    rows: list[dict[str, object]] = []
+    for replicate in range(1, replicates + 1):
+        for standard_index, (point_type, coded) in enumerate(base_coded, start=1):
+            rows.append(
+                {
+                    "standard_order": standard_index,
+                    "replicate": replicate,
+                    "point_type": point_type,
+                    "coded": coded,
+                    "actual": actual_values(coded),
+                }
+            )
+    center_coded = {name: 0.0 for name in factor_names}
+    for center_index in range(1, center_points + 1):
+        rows.append(
+            {
+                "standard_order": None,
+                "replicate": center_index,
+                "point_type": "center",
+                "coded": center_coded.copy(),
+                "actual": actual_values(center_coded),
+            }
+        )
+    if len(rows) > 100_000:
+        raise AnalysisInputError(
+            "design_too_large",
+            "The requested design exceeds the 100,000-run safety limit.",
+            "replicates",
+        )
+    if randomize:
+        random.Random(seed).shuffle(rows)
+    for run_order, row in enumerate(rows, start=1):
+        row["run_order"] = run_order
+
+    warnings = [
+        "The supplied low/high levels define the factorial cube; rotatable axial points can lie outside those levels.",
+        "Verify every generated setting is physically safe and feasible before running the experiment.",
+    ]
+    if design_type == "face_centered":
+        warnings.append(
+            "A face-centered CCD keeps axial points at the stated low/high levels but is not rotatable."
+        )
+    if not randomize:
+        warnings.append(
+            "Runs are not randomized; time-related nuisance factors may be confounded with model terms."
+        )
+
+    factor_payload = [asdict(factor) for factor in normalized]
+    payload = {
+        "factors": factor_payload,
+        "design_type": design_type,
+        "center_points": center_points,
+        "replicates": replicates,
+        "randomize": randomize,
+        "seed": seed,
+    }
+    return ResultBundle(
+        analysis_type="doe.central_composite",
+        engine_version=ENGINE_VERSION,
+        input_digest=input_digest(payload),
+        parameters=payload,
+        tables={"design": rows},
+        plots={},
+        diagnostics={
+            "factor_count": len(normalized),
+            "factorial_run_count": factorial_runs,
+            "axial_run_count": 2 * len(normalized),
+            "center_point_count": center_points,
+            "total_run_count": len(rows),
+            "alpha": alpha,
+            "rotatable": design_type == "rotatable",
+            "quadratic_model_estimable": len(rows)
+            >= 1 + 2 * len(normalized) + len(normalized) * (len(normalized) - 1) // 2,
+        },
+        assumptions=(
+            "All factors are quantitative and can be operated at every generated setting.",
+            "The stated low/high levels map to coded -1/+1 in the factorial cube.",
+            "The factorial portion is a complete two-level factorial.",
+            "The supplied random seed is retained for reproducibility.",
+        ),
+        warnings=tuple(warnings),
+        provenance=(
+            NIST_CENTRAL_COMPOSITE_SOURCE,
+            MINITAB_CCD_ALPHA_SOURCE,
+        ),
+    )
+
+
+def _invert_matrix(matrix: Sequence[Sequence[float]], *, field: str) -> list[list[float]]:
+    size = len(matrix)
+    augmented = [
+        [float(value) for value in row]
+        + [1.0 if row_index == column_index else 0.0 for column_index in range(size)]
+        for row_index, row in enumerate(matrix)
+    ]
+    for column in range(size):
+        pivot_row = max(range(column, size), key=lambda row: abs(augmented[row][column]))
+        pivot = augmented[pivot_row][column]
+        if abs(pivot) < 1e-12:
+            raise AnalysisInputError(
+                "singular_design_matrix",
+                "The selected response-surface model is not estimable from this design.",
+                field,
+            )
+        augmented[column], augmented[pivot_row] = (
+            augmented[pivot_row],
+            augmented[column],
+        )
+        pivot = augmented[column][column]
+        augmented[column] = [value / pivot for value in augmented[column]]
+        for row in range(size):
+            if row == column:
+                continue
+            multiplier = augmented[row][column]
+            if multiplier == 0.0:
+                continue
+            augmented[row] = [
+                value - multiplier * pivot_value
+                for value, pivot_value in zip(
+                    augmented[row], augmented[column], strict=True
+                )
+            ]
+    return [row[size:] for row in augmented]
+
+
+def _quadratic_model_columns(
+    rows: Sequence[Mapping[str, object]], factor_names: Sequence[str]
+) -> tuple[list[dict[str, object]], list[list[float]]]:
+    terms: list[dict[str, object]] = [{"term": "Constant", "kind": "constant"}]
+    terms.extend({"term": name, "kind": "linear", "factors": (name,)} for name in factor_names)
+    terms.extend(
+        {
+            "term": f"{left}*{right}",
+            "kind": "interaction",
+            "factors": (left, right),
+        }
+        for left, right in combinations(factor_names, 2)
+    )
+    terms.extend(
+        {"term": f"{name}^2", "kind": "square", "factors": (name, name)}
+        for name in factor_names
+    )
+    matrix: list[list[float]] = []
+    for row in rows:
+        coded = row["coded"]
+        values = [1.0]
+        values.extend(float(coded[name]) for name in factor_names)
+        values.extend(
+            float(coded[left]) * float(coded[right])
+            for left, right in combinations(factor_names, 2)
+        )
+        values.extend(float(coded[name]) ** 2 for name in factor_names)
+        matrix.append(values)
+    return terms, matrix
+
+
+def analyze_central_composite(
+    factors: Sequence[FactorDefinition],
+    responses: Sequence[float],
+    *,
+    response_name: str = "Response",
+    design_type: str = "rotatable",
+    center_points: int = 5,
+    replicates: int = 1,
+    randomize: bool = True,
+    seed: int = 0,
+    alpha: float = 0.05,
+) -> ResultBundle:
+    """Fit a complete coded second-order model to a generated CCD."""
+
+    design = central_composite_design(
+        factors,
+        design_type=design_type,
+        center_points=center_points,
+        replicates=replicates,
+        randomize=randomize,
+        seed=seed,
+    )
+    rows = design.tables["design"]
+    values = finite_values(responses, "responses")
+    if len(values) != len(rows):
+        raise AnalysisInputError(
+            "response_count_mismatch",
+            f"Expected {len(rows)} responses in run order, received {len(values)}.",
+            "responses",
+        )
+    normalized_name = response_name.strip()
+    if not normalized_name:
+        raise AnalysisInputError(
+            "empty_response_name", "Response name cannot be empty.", "response_name"
+        )
+    normalized_alpha = finite_values([alpha], "alpha")[0]
+    if not 0.001 <= normalized_alpha <= 0.5:
+        raise AnalysisInputError(
+            "invalid_alpha", "Alpha must be between 0.001 and 0.5.", "alpha"
+        )
+
+    factor_payload = design.parameters["factors"]
+    factor_names = [str(factor["name"]) for factor in factor_payload]
+    terms, matrix = _quadratic_model_columns(rows, factor_names)
+    coefficient_count = len(terms)
+    xtx = [
+        [
+            sum(row[left] * row[right] for row in matrix)
+            for right in range(coefficient_count)
+        ]
+        for left in range(coefficient_count)
+    ]
+    xty = [
+        sum(row[column] * value for row, value in zip(matrix, values, strict=True))
+        for column in range(coefficient_count)
+    ]
+    inverse = _invert_matrix(xtx, field="responses")
+    coefficients = [
+        sum(inverse[row][column] * xty[column] for column in range(coefficient_count))
+        for row in range(coefficient_count)
+    ]
+    fitted = [
+        sum(value * coefficient for value, coefficient in zip(row, coefficients, strict=True))
+        for row in matrix
+    ]
+    residuals = [
+        observed - predicted
+        for observed, predicted in zip(values, fitted, strict=True)
+    ]
+    intercept = sum(values) / len(values)
+    total_ss = sum((value - intercept) ** 2 for value in values)
+    residual_ss = sum(value * value for value in residuals)
+    model_ss = max(0.0, total_ss - residual_ss)
+    model_df = coefficient_count - 1
+    residual_df = len(values) - coefficient_count
+    residual_ms = residual_ss / residual_df if residual_df > 0 else None
+    model_ms = model_ss / model_df if model_df > 0 else None
+    model_f = _f_statistic(model_ms, residual_ms)
+
+    coefficient_rows: list[dict[str, object]] = []
+    for index, (term, coefficient) in enumerate(zip(terms, coefficients, strict=True)):
+        standard_error = (
+            sqrt(max(0.0, residual_ms * inverse[index][index]))
+            if residual_ms is not None and residual_ms > 0.0
+            else None
+        )
+        t_value = coefficient / standard_error if standard_error else None
+        p_value = (
+            _f_survival(t_value * t_value, 1, residual_df)
+            if t_value is not None
+            else None
+        )
+        coefficient_rows.append(
+            {
+                **term,
+                "coefficient": coefficient,
+                "standard_error": standard_error,
+                "t_value": t_value,
+                "p_value": p_value,
+                "significant": p_value <= normalized_alpha if p_value is not None else False,
+            }
+        )
+
+    grouped: dict[tuple[float, ...], list[float]] = {}
+    for row, response in zip(rows, values, strict=True):
+        key = tuple(float(row["coded"][name]) for name in factor_names)
+        grouped.setdefault(key, []).append(response)
+    pure_error_ss = sum(
+        sum((value - sum(group) / len(group)) ** 2 for value in group)
+        for group in grouped.values()
+    )
+    pure_error_df = len(values) - len(grouped)
+    lack_of_fit_df = residual_df - pure_error_df
+    lack_of_fit_ss = max(0.0, residual_ss - pure_error_ss)
+    pure_error_ms = pure_error_ss / pure_error_df if pure_error_df > 0 else None
+    lack_of_fit_ms = lack_of_fit_ss / lack_of_fit_df if lack_of_fit_df > 0 else None
+    lack_of_fit_f = _f_statistic(lack_of_fit_ms, pure_error_ms)
+    anova = [
+        {
+            "source": "Model",
+            "degrees_of_freedom": model_df,
+            "sum_of_squares": model_ss,
+            "mean_square": model_ms,
+            "f_value": model_f,
+            "p_value": _f_survival(model_f, model_df, residual_df) if model_f is not None else None,
+        },
+        {
+            "source": "Error",
+            "degrees_of_freedom": residual_df,
+            "sum_of_squares": residual_ss,
+            "mean_square": residual_ms,
+            "f_value": None,
+            "p_value": None,
+        },
+        {
+            "source": "Lack of Fit",
+            "degrees_of_freedom": lack_of_fit_df,
+            "sum_of_squares": lack_of_fit_ss,
+            "mean_square": lack_of_fit_ms,
+            "f_value": lack_of_fit_f,
+            "p_value": (
+                _f_survival(lack_of_fit_f, lack_of_fit_df, pure_error_df)
+                if lack_of_fit_f is not None
+                else None
+            ),
+        },
+        {
+            "source": "Pure Error",
+            "degrees_of_freedom": pure_error_df,
+            "sum_of_squares": pure_error_ss,
+            "mean_square": pure_error_ms,
+            "f_value": None,
+            "p_value": None,
+        },
+        {
+            "source": "Total",
+            "degrees_of_freedom": len(values) - 1,
+            "sum_of_squares": total_ss,
+            "mean_square": None,
+            "f_value": None,
+            "p_value": None,
+        },
+    ]
+    residual_table = [
+        {
+            "run_order": int(row["run_order"]),
+            "point_type": str(row["point_type"]),
+            "observed": observed,
+            "fitted": predicted,
+            "residual": residual,
+        }
+        for row, observed, predicted, residual in zip(
+            rows, values, fitted, residuals, strict=True
+        )
+    ]
+
+    warnings = list(design.warnings)
+    if residual_df <= 0:
+        warnings.append(
+            "The quadratic model has no residual degrees of freedom; standard errors and p-values are unavailable."
+        )
+    elif residual_ms == 0.0:
+        warnings.append(
+            "The fitted model has zero residual variation; inferential statistics require an independent error estimate."
+        )
+    if pure_error_df <= 0:
+        warnings.append(
+            "No replicated design setting is available, so pure error and lack of fit cannot be separated."
+        )
+
+    payload = {
+        **design.parameters,
+        "responses": values,
+        "response_name": normalized_name,
+        "alpha": normalized_alpha,
+    }
+    return ResultBundle(
+        analysis_type="doe.central_composite_analysis",
+        engine_version=ENGINE_VERSION,
+        input_digest=input_digest(payload),
+        parameters=payload,
+        tables={
+            "coefficients": coefficient_rows,
+            "anova": anova,
+            "residuals": residual_table,
+            "design": rows,
+        },
+        plots={
+            "residuals_vs_fitted": {"fitted": fitted, "residuals": residuals},
+            "residuals_vs_run_order": {
+                "run_order": [int(row["run_order"]) for row in rows],
+                "residuals": residuals,
+            },
+        },
+        diagnostics={
+            **design.diagnostics,
+            "response_name": normalized_name,
+            "observation_count": len(values),
+            "coefficient_count": coefficient_count,
+            "residual_degrees_of_freedom": residual_df,
+            "residual_standard_deviation": (
+                sqrt(residual_ms) if residual_ms is not None and residual_ms > 0.0 else None
+            ),
+            "r_squared": 1.0 - residual_ss / total_ss if total_ss > 0.0 else None,
+            "adjusted_r_squared": (
+                1.0
+                - (residual_ss / residual_df) / (total_ss / (len(values) - 1))
+                if residual_df > 0 and total_ss > 0.0
+                else None
+            ),
+            "pure_error_degrees_of_freedom": pure_error_df,
+            "lack_of_fit_degrees_of_freedom": lack_of_fit_df,
+        },
+        assumptions=(
+            "Responses correspond one-for-one to the generated design run order.",
+            "A complete coded second-order model adequately represents the response in the explored region.",
+            "Residuals are independent with constant variance and approximately normal for inference.",
+            "A non-significant lack-of-fit result requires replicated settings with nonzero pure error.",
+        ),
+        warnings=tuple(warnings),
+        provenance=(
+            *design.provenance,
+            NIST_RESPONSE_SURFACE_MODEL_SOURCE,
+            NIST_RESIDUAL_SOURCE,
         ),
     )
 
