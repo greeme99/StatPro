@@ -162,6 +162,23 @@ class LocalApiContractTests(unittest.TestCase):
                 "doe.central_composite_analysis",
             ),
             (
+                "/v1/analysis-runs/doe-central-composite-surface",
+                {
+                    "run_id": "doe-central-composite-surface",
+                    "factors": [
+                        {"name": "A", "low": 0, "high": 10},
+                        {"name": "B", "low": 0, "high": 20},
+                    ],
+                    "center_points": 5,
+                    "randomize": False,
+                    "responses": [8, 8, 8, 8, 8, 8, 8, 8, 10, 10, 10, 10, 10],
+                    "response_name": "Yield",
+                    "plot_factors": ["A", "B"],
+                    "grid_size": 11,
+                },
+                "doe.central_composite_surface",
+            ),
+            (
                 "/v1/analysis-runs/doe-fractional-factorial-analysis",
                 {
                     "run_id": "doe-fractional-analysis",
@@ -288,6 +305,12 @@ class LocalApiContractTests(unittest.TestCase):
                     result = response.json()["result"]
                     self.assertEqual(result["diagnostics"]["coefficient_count"], 6)
                     self.assertEqual(result["diagnostics"]["response_name"], "Yield")
+                if analysis_type == "doe.central_composite_surface":
+                    result = response.json()["result"]
+                    self.assertEqual(
+                        result["diagnostics"]["stationary_classification"], "maximum"
+                    )
+                    self.assertEqual(result["diagnostics"]["surface_grid_point_count"], 121)
                 if analysis_type == "doe.fractional_factorial_2level_analysis":
                     result = response.json()["result"]
                     self.assertEqual(result["diagnostics"]["response_name"], "Yield")

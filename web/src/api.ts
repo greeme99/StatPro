@@ -134,6 +134,20 @@ export function createDoeCentralCompositeAnalysisRun(payload: DoeCentralComposit
   });
 }
 
+export function createDoeCentralCompositeSurfaceRun(payload: DoeCentralCompositePayload & {
+  responses: number[];
+  response_name: string;
+  alpha: number;
+  plot_factors: [string, string];
+  hold_values: Record<string, number>;
+  grid_size: number;
+}): Promise<StoredRun> {
+  return request("/v1/analysis-runs/doe-central-composite-surface", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function createDoePlackettBurmanAnalysisRun(payload: {
   run_id: string;
   factors: Array<{ name: string; low: number; high: number }>;

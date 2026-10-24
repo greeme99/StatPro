@@ -17,6 +17,7 @@ from statpro.analyses.doe import (
     analyze_full_factorial_2level,
     analyze_plackett_burman,
     central_composite_design,
+    explore_central_composite_surface,
     fractional_factorial_2level,
     full_factorial_2level,
     optimize_full_factorial_desirability,
@@ -38,6 +39,7 @@ def _parser() -> argparse.ArgumentParser:
         "doe-full-factorial",
         "doe-central-composite",
         "doe-analyze-central-composite",
+        "doe-explore-central-composite",
         "doe-fractional-factorial",
         "doe-analyze-fractional-factorial",
         "doe-plackett-burman",
@@ -82,6 +84,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "doe-full-factorial",
             "doe-central-composite",
             "doe-analyze-central-composite",
+            "doe-explore-central-composite",
             "doe-fractional-factorial",
             "doe-analyze-fractional-factorial",
             "doe-plackett-burman",
@@ -108,6 +111,21 @@ def main(argv: Sequence[str] | None = None) -> int:
                     randomize=payload.get("randomize", True),
                     seed=payload.get("seed", 0),
                     alpha=payload.get("alpha", 0.05),
+                )
+            elif args.command == "doe-explore-central-composite":
+                result = explore_central_composite_surface(
+                    factors,
+                    payload["responses"],
+                    response_name=payload.get("response_name", "Response"),
+                    design_type=payload.get("design_type", "rotatable"),
+                    center_points=payload.get("center_points", 5),
+                    replicates=payload.get("replicates", 1),
+                    randomize=payload.get("randomize", True),
+                    seed=payload.get("seed", 0),
+                    alpha=payload.get("alpha", 0.05),
+                    plot_factors=payload.get("plot_factors"),
+                    hold_values=payload.get("hold_values"),
+                    grid_size=payload.get("grid_size", 21),
                 )
             elif args.command == "doe-analyze-central-composite":
                 result = analyze_central_composite(

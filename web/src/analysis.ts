@@ -210,6 +210,35 @@ export type DoeCentralCompositeAnalysisView = {
   lackOfFitDegreesOfFreedom: number;
 };
 
+export type DoeStationaryPoint = {
+  classification: "minimum" | "maximum" | "saddle" | "ridge";
+  available: boolean;
+  coded: Record<string, number> | null;
+  actual: Record<string, number> | null;
+  predicted_response: number | null;
+  inside_factorial_cube: boolean | null;
+};
+
+export type DoeSurfaceGridPoint = {
+  x_index: number;
+  y_index: number;
+  x_coded: number;
+  y_coded: number;
+  x_actual: number;
+  y_actual: number;
+  predicted_response: number;
+};
+
+export type DoeCentralCompositeSurfaceView = {
+  stationary: DoeStationaryPoint;
+  canonicalAxes: Array<{ axis: number; eigenvalue: number }>;
+  grid: DoeSurfaceGridPoint[];
+  extrema: Array<DoeSurfaceGridPoint & { kind: "minimum" | "maximum" }>;
+  responseName: string;
+  plotFactors: string[];
+  gridSize: number;
+};
+
 export type DoeScreeningDesignRow = {
   run_order: number;
   standard_order: number | null;
@@ -365,6 +394,25 @@ export function toDoeCentralCompositeAnalysisView(result: ResultBundle | undefin
     adjustedRSquared: typeof result.diagnostics.adjusted_r_squared === "number" ? result.diagnostics.adjusted_r_squared : null,
     residualDegreesOfFreedom: Number(result.diagnostics.residual_degrees_of_freedom ?? 0),
     lackOfFitDegreesOfFreedom: Number(result.diagnostics.lack_of_fit_degrees_of_freedom ?? 0),
+  };
+}
+
+export function toDoeCentralCompositeSurfaceView(result: ResultBundle | undefined): DoeCentralCompositeSurfaceView | null {
+  if (!result || result.analysis_type !== "doe.central_composite_surface") return null;
+  const stationary = result.tables.stationary_point;
+  const canonicalAxes = result.tables.canonical_axes;
+  const grid = result.tables.surface_grid;
+  const extrema = result.tables.surface_slice_extrema;
+  const plotFactors = result.diagnostics.plot_factors;
+  if (!Array.isArray(stationary) || stationary.length !== 1 || !Array.isArray(canonicalAxes) || !Array.isArray(grid) || !Array.isArray(extrema) || !Array.isArray(plotFactors) || plotFactors.length !== 2) return null;
+  return {
+    stationary: stationary[0] as DoeStationaryPoint,
+    canonicalAxes: canonicalAxes as DoeCentralCompositeSurfaceView["canonicalAxes"],
+    grid: grid as DoeSurfaceGridPoint[],
+    extrema: extrema as DoeCentralCompositeSurfaceView["extrema"],
+    responseName: String(result.diagnostics.response_name ?? "Response"),
+    plotFactors: plotFactors.map(String),
+    gridSize: Number(result.diagnostics.surface_grid_size ?? 0),
   };
 }
 

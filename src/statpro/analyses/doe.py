@@ -6,7 +6,7 @@ import random
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import asdict, dataclass
 from itertools import combinations
-from math import exp, isfinite, lgamma, log, log1p, sqrt
+from math import atan2, cos, exp, isfinite, lgamma, log, log1p, sin, sqrt
 from statistics import NormalDist, median
 from typing import Sequence
 
@@ -2097,6 +2097,307 @@ def analyze_central_composite(
             NIST_RESPONSE_SURFACE_MODEL_SOURCE,
             NIST_RESIDUAL_SOURCE,
         ),
+    )
+
+
+def _symmetric_eigenvalues(matrix: Sequence[Sequence[float]]) -> list[float]:
+    """Return eigenvalues of a small real symmetric matrix with Jacobi rotations."""
+
+    values = [[float(value) for value in row] for row in matrix]
+    size = len(values)
+    if size == 0:
+        return []
+    scale = max(1.0, max(abs(value) for row in values for value in row))
+    tolerance = 1e-12 * scale
+    for _ in range(100 * size * size):
+        pivot_row, pivot_column = max(
+            ((row, column) for row in range(size) for column in range(row + 1, size)),
+            key=lambda item: abs(values[item[0]][item[1]]),
+            default=(0, 0),
+        )
+        if pivot_row == pivot_column or abs(values[pivot_row][pivot_column]) <= tolerance:
+            break
+        app = values[pivot_row][pivot_row]
+        aqq = values[pivot_column][pivot_column]
+        apq = values[pivot_row][pivot_column]
+        angle = 0.5 * atan2(2.0 * apq, aqq - app)
+        cosine = cos(angle)
+        sine = sin(angle)
+        for index in range(size):
+            if index in {pivot_row, pivot_column}:
+                continue
+            aip = values[index][pivot_row]
+            aiq = values[index][pivot_column]
+            rotated_p = cosine * aip - sine * aiq
+            rotated_q = sine * aip + cosine * aiq
+            values[index][pivot_row] = values[pivot_row][index] = rotated_p
+            values[index][pivot_column] = values[pivot_column][index] = rotated_q
+        values[pivot_row][pivot_row] = (
+            cosine * cosine * app - 2.0 * sine * cosine * apq + sine * sine * aqq
+        )
+        values[pivot_column][pivot_column] = (
+            sine * sine * app + 2.0 * sine * cosine * apq + cosine * cosine * aqq
+        )
+        values[pivot_row][pivot_column] = values[pivot_column][pivot_row] = 0.0
+    return sorted(values[index][index] for index in range(size))
+
+
+def explore_central_composite_surface(
+    factors: Sequence[FactorDefinition],
+    responses: Sequence[float],
+    *,
+    response_name: str = "Response",
+    design_type: str = "rotatable",
+    center_points: int = 5,
+    replicates: int = 1,
+    randomize: bool = True,
+    seed: int = 0,
+    alpha: float = 0.05,
+    plot_factors: Sequence[str] | None = None,
+    hold_values: Mapping[str, float] | None = None,
+    grid_size: int = 21,
+) -> ResultBundle:
+    """Classify a quadratic stationary point and evaluate a two-factor surface grid."""
+
+    if (
+        isinstance(grid_size, bool)
+        or not isinstance(grid_size, int)
+        or not 5 <= grid_size <= 51
+        or grid_size % 2 == 0
+    ):
+        raise AnalysisInputError(
+            "invalid_grid_size",
+            "Surface grid size must be an odd integer between 5 and 51.",
+            "grid_size",
+        )
+    analysis = analyze_central_composite(
+        factors,
+        responses,
+        response_name=response_name,
+        design_type=design_type,
+        center_points=center_points,
+        replicates=replicates,
+        randomize=randomize,
+        seed=seed,
+        alpha=alpha,
+    )
+    factor_payload = analysis.parameters["factors"]
+    factor_names = [str(factor["name"]) for factor in factor_payload]
+    selected = list(plot_factors) if plot_factors is not None else factor_names[:2]
+    if len(selected) != 2 or len(set(selected)) != 2 or any(name not in factor_names for name in selected):
+        raise AnalysisInputError(
+            "invalid_plot_factors",
+            "Surface exploration requires two distinct factor names from the fitted model.",
+            "plot_factors",
+        )
+    normalized_holds: dict[str, float] = {}
+    for name, value in (hold_values or {}).items():
+        if name not in factor_names:
+            raise AnalysisInputError(
+                "unknown_hold_factor", f"Unknown hold factor '{name}'.", "hold_values"
+            )
+        if name in selected:
+            raise AnalysisInputError(
+                "plotted_factor_held",
+                f"Plotted factor '{name}' cannot also have a hold value.",
+                "hold_values",
+            )
+        normalized_value = finite_values([value], f"hold_values.{name}")[0]
+        if not -1.0 <= normalized_value <= 1.0:
+            raise AnalysisInputError(
+                "hold_value_out_of_range",
+                "Hold values must remain inside the coded factorial cube [-1, 1].",
+                "hold_values",
+            )
+        normalized_holds[name] = normalized_value
+
+    coefficient_rows = analysis.tables["coefficients"]
+    coefficient_by_term = {
+        str(row["term"]): float(row["coefficient"]) for row in coefficient_rows
+    }
+    linear = [coefficient_by_term[name] for name in factor_names]
+    quadratic = [[0.0 for _ in factor_names] for _ in factor_names]
+    for index, name in enumerate(factor_names):
+        quadratic[index][index] = coefficient_by_term[f"{name}^2"]
+    for left_index, right_index in combinations(range(len(factor_names)), 2):
+        interaction = coefficient_by_term[
+            f"{factor_names[left_index]}*{factor_names[right_index]}"
+        ]
+        quadratic[left_index][right_index] = interaction / 2.0
+        quadratic[right_index][left_index] = interaction / 2.0
+
+    eigenvalues = _symmetric_eigenvalues(quadratic)
+    eigen_tolerance = 1e-9 * max(1.0, *(abs(value) for value in eigenvalues))
+    if all(value > eigen_tolerance for value in eigenvalues):
+        classification = "minimum"
+    elif all(value < -eigen_tolerance for value in eigenvalues):
+        classification = "maximum"
+    elif any(value > eigen_tolerance for value in eigenvalues) and any(
+        value < -eigen_tolerance for value in eigenvalues
+    ):
+        classification = "saddle"
+    else:
+        classification = "ridge"
+
+    def predict(coded: Mapping[str, float]) -> float:
+        prediction = coefficient_by_term["Constant"]
+        prediction += sum(coefficient_by_term[name] * coded[name] for name in factor_names)
+        prediction += sum(
+            coefficient_by_term[f"{left}*{right}"] * coded[left] * coded[right]
+            for left, right in combinations(factor_names, 2)
+        )
+        prediction += sum(
+            coefficient_by_term[f"{name}^2"] * coded[name] * coded[name]
+            for name in factor_names
+        )
+        return prediction
+
+    factor_by_name = {str(factor["name"]): factor for factor in factor_payload}
+
+    def actual(coded: Mapping[str, float]) -> dict[str, float]:
+        return {
+            name: (
+                (float(factor_by_name[name]["low"]) + float(factor_by_name[name]["high"]))
+                / 2.0
+                + coded[name]
+                * (float(factor_by_name[name]["high"]) - float(factor_by_name[name]["low"]))
+                / 2.0
+            )
+            for name in factor_names
+        }
+
+    stationary_coded: dict[str, float] | None = None
+    try:
+        inverse = _invert_matrix(quadratic, field="responses")
+        stationary_values = [
+            -0.5 * sum(inverse[row][column] * linear[column] for column in range(len(linear)))
+            for row in range(len(linear))
+        ]
+        stationary_coded = dict(zip(factor_names, stationary_values, strict=True))
+    except AnalysisInputError as error:
+        if error.detail.code != "singular_design_matrix":
+            raise
+
+    stationary_row = {
+        "classification": classification,
+        "available": stationary_coded is not None,
+        "coded": stationary_coded,
+        "actual": actual(stationary_coded) if stationary_coded is not None else None,
+        "predicted_response": predict(stationary_coded) if stationary_coded is not None else None,
+        "inside_factorial_cube": (
+            all(abs(value) <= 1.0 + 1e-12 for value in stationary_coded.values())
+            if stationary_coded is not None
+            else None
+        ),
+    }
+    canonical_rows = [
+        {"axis": index, "eigenvalue": value}
+        for index, value in enumerate(eigenvalues, start=1)
+    ]
+
+    grid_values = [-1.0 + 2.0 * index / (grid_size - 1) for index in range(grid_size)]
+    grid: list[dict[str, object]] = []
+    x_name, y_name = selected
+    for y_index, y_value in enumerate(grid_values):
+        for x_index, x_value in enumerate(grid_values):
+            coded = {
+                name: normalized_holds.get(name, 0.0) for name in factor_names
+            }
+            coded[x_name] = x_value
+            coded[y_name] = y_value
+            actual_values = actual(coded)
+            grid.append(
+                {
+                    "x_index": x_index,
+                    "y_index": y_index,
+                    "x_coded": x_value,
+                    "y_coded": y_value,
+                    "x_actual": actual_values[x_name],
+                    "y_actual": actual_values[y_name],
+                    "predicted_response": predict(coded),
+                }
+            )
+    grid_minimum = min(grid, key=lambda row: float(row["predicted_response"]))
+    grid_maximum = max(grid, key=lambda row: float(row["predicted_response"]))
+
+    warnings = list(analysis.warnings)
+    if stationary_coded is None:
+        warnings.append(
+            "The quadratic coefficient matrix is singular, so a unique stationary point is unavailable."
+        )
+    elif not stationary_row["inside_factorial_cube"]:
+        warnings.append(
+            "The stationary point lies outside the coded factorial cube; treat it as extrapolation and do not use it without confirmation runs."
+        )
+    if classification in {"saddle", "ridge"}:
+        warnings.append(
+            "The stationary point is not a unique maximum or minimum; inspect the canonical directions and bounded surface grid."
+        )
+    warnings.append(
+        "Grid extrema describe only the selected two-factor slice with all other factors held at the reported coded values."
+    )
+
+    payload = {
+        **analysis.parameters,
+        "plot_factors": selected,
+        "hold_values": normalized_holds,
+        "grid_size": grid_size,
+    }
+    return ResultBundle(
+        analysis_type="doe.central_composite_surface",
+        engine_version=ENGINE_VERSION,
+        input_digest=input_digest(payload),
+        parameters=payload,
+        tables={
+            **analysis.tables,
+            "stationary_point": [stationary_row],
+            "canonical_axes": canonical_rows,
+            "surface_grid": grid,
+            "surface_slice_extrema": [
+                {"kind": "minimum", **grid_minimum},
+                {"kind": "maximum", **grid_maximum},
+            ],
+        },
+        plots={
+            **analysis.plots,
+            "response_surface": {
+                "x_factor": x_name,
+                "y_factor": y_name,
+                "x_coded": grid_values,
+                "y_coded": grid_values,
+                "predicted_response": [
+                    [
+                        float(grid[y_index * grid_size + x_index]["predicted_response"])
+                        for x_index in range(grid_size)
+                    ]
+                    for y_index in range(grid_size)
+                ],
+                "hold_values": {
+                    name: normalized_holds.get(name, 0.0)
+                    for name in factor_names
+                    if name not in selected
+                },
+            },
+        },
+        diagnostics={
+            **analysis.diagnostics,
+            "stationary_classification": classification,
+            "stationary_point_available": stationary_coded is not None,
+            "stationary_point_inside_factorial_cube": stationary_row[
+                "inside_factorial_cube"
+            ],
+            "canonical_eigenvalues": eigenvalues,
+            "surface_grid_size": grid_size,
+            "surface_grid_point_count": len(grid),
+            "plot_factors": selected,
+        },
+        assumptions=(
+            *analysis.assumptions,
+            "The response-surface grid is evaluated inside the coded factorial cube for two selected factors.",
+            "All unplotted factors are held at explicitly reported coded values, defaulting to zero.",
+        ),
+        warnings=tuple(warnings),
+        provenance=analysis.provenance,
     )
 
 

@@ -254,6 +254,39 @@ class CliBoundaryTests(unittest.TestCase):
             ["Constant", "A", "B", "A*B", "A^2", "B^2"],
         )
 
+    def test_central_composite_surface_returns_stationary_point_and_grid(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "central-composite-surface.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "factors": [
+                            {"name": "A", "low": 0, "high": 10},
+                            {"name": "B", "low": 0, "high": 20},
+                        ],
+                        "responses": [8, 8, 8, 8, 8, 8, 8, 8, 10, 10, 10, 10, 10],
+                        "response_name": "Yield",
+                        "center_points": 5,
+                        "randomize": False,
+                        "plot_factors": ["A", "B"],
+                        "grid_size": 11,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            output = io.StringIO()
+
+            with redirect_stdout(output):
+                exit_code = main(
+                    ["doe-explore-central-composite", "--input", str(path)]
+                )
+
+        result = json.loads(output.getvalue())["result"]
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(result["analysis_type"], "doe.central_composite_surface")
+        self.assertEqual(result["diagnostics"]["stationary_classification"], "maximum")
+        self.assertEqual(len(result["tables"]["surface_grid"]), 121)
+
     def test_plackett_burman_returns_screening_design(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "plackett-burman.json"

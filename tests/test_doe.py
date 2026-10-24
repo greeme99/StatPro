@@ -18,6 +18,7 @@ from statpro.analyses.doe import (
     analyze_plackett_burman,
     central_composite_design,
     composite_desirability,
+    explore_central_composite_surface,
     fractional_factorial_2level,
     full_factorial_2level,
     individual_desirability,
@@ -361,6 +362,85 @@ class CentralCompositeAnalysisTests(unittest.TestCase):
                 randomize=False,
             )
         self.assertEqual(context.exception.detail.code, "response_count_mismatch")
+
+
+class CentralCompositeSurfaceTests(unittest.TestCase):
+    def test_classifies_in_region_maximum_and_builds_accessible_grid(self) -> None:
+        factors = [FactorDefinition("A", 0, 10), FactorDefinition("B", 0, 20)]
+        design = central_composite_design(factors, center_points=5, randomize=False)
+        responses = []
+        for row in design.tables["design"]:
+            a = row["coded"]["A"]
+            b = row["coded"]["B"]
+            responses.append(100 - 2 * (a - 0.25) ** 2 - 4 * (b + 0.5) ** 2)
+
+        result = explore_central_composite_surface(
+            factors,
+            responses,
+            response_name="Yield",
+            center_points=5,
+            randomize=False,
+            plot_factors=["A", "B"],
+            grid_size=21,
+        )
+
+        stationary = result.tables["stationary_point"][0]
+        self.assertEqual(stationary["classification"], "maximum")
+        self.assertTrue(stationary["inside_factorial_cube"])
+        self.assertAlmostEqual(stationary["coded"]["A"], 0.25)
+        self.assertAlmostEqual(stationary["coded"]["B"], -0.5)
+        self.assertAlmostEqual(stationary["actual"]["A"], 6.25)
+        self.assertAlmostEqual(stationary["actual"]["B"], 5.0)
+        self.assertAlmostEqual(stationary["predicted_response"], 100.0)
+        self.assertEqual(len(result.tables["surface_grid"]), 441)
+        for observed, expected in zip(
+            result.diagnostics["canonical_eigenvalues"], [-4.0, -2.0], strict=True
+        ):
+            self.assertAlmostEqual(observed, expected)
+        json.dumps(result.to_dict(), allow_nan=False)
+
+    def test_mixed_canonical_eigenvalues_classify_saddle(self) -> None:
+        factors = [FactorDefinition("A", -1, 1), FactorDefinition("B", -1, 1)]
+        design = central_composite_design(factors, center_points=5, randomize=False)
+        responses = [
+            10 + row["coded"]["A"] ** 2 - row["coded"]["B"] ** 2
+            for row in design.tables["design"]
+        ]
+
+        result = explore_central_composite_surface(
+            factors, responses, center_points=5, randomize=False, grid_size=5
+        )
+
+        self.assertEqual(result.diagnostics["stationary_classification"], "saddle")
+        self.assertTrue(result.diagnostics["stationary_point_available"])
+
+    def test_interaction_coefficient_uses_half_value_in_symmetric_matrix(self) -> None:
+        factors = [FactorDefinition("A", -1, 1), FactorDefinition("B", -1, 1)]
+        design = central_composite_design(factors, center_points=5, randomize=False)
+        responses = [
+            10 + 2 * row["coded"]["A"] * row["coded"]["B"]
+            for row in design.tables["design"]
+        ]
+
+        result = explore_central_composite_surface(
+            factors, responses, center_points=5, randomize=False, grid_size=5
+        )
+
+        for observed, expected in zip(
+            result.diagnostics["canonical_eigenvalues"], [-1.0, 1.0], strict=True
+        ):
+            self.assertAlmostEqual(observed, expected)
+        self.assertEqual(result.diagnostics["stationary_classification"], "saddle")
+
+    def test_rejects_even_surface_grid(self) -> None:
+        with self.assertRaises(AnalysisInputError) as context:
+            explore_central_composite_surface(
+                [FactorDefinition("A", 0, 1), FactorDefinition("B", 0, 1)],
+                [0] * 13,
+                randomize=False,
+                grid_size=20,
+            )
+        self.assertEqual(context.exception.detail.code, "invalid_grid_size")
 
 
 class PlackettBurmanDesignTests(unittest.TestCase):
