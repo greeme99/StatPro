@@ -402,6 +402,8 @@ describe("StatPro UI", () => {
     expect(screen.getByRole("heading", { name: "응답표면 격자" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "응답표면 등고선" })).toBeInTheDocument();
     expect(screen.getByRole("img", { name: /등고선 1개 수준, 선분 1개/ })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "3D 응답표면 와이어프레임" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: /예측 응답의 3D 와이어프레임/ })).toBeInTheDocument();
     expect(screen.getByText("최대점")).toBeInTheDocument();
   });
 

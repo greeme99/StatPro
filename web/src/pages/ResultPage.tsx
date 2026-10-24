@@ -205,6 +205,7 @@ function DoeCentralCompositeSurfaceResult({ surface }: { surface: DoeCentralComp
   const factorNames = point.coded ? Object.keys(point.coded) : [];
   const classificationLabel = { minimum: "최소점", maximum: "최대점", saddle: "안장점", ridge: "능선/평탄" };
   const contourSummary = `${surface.plotFactors.join("와 ")}의 등고선 ${surface.contourLevels}개 수준, 선분 ${surface.contours.length}개`;
+  const wireframe = surfaceWireframePaths(surface.grid, surface.gridSize);
   return <>
     <section className="metric-grid result-metrics" aria-label="응답표면 정상점 분석 요약">
       <article className="metric-card"><span>정상점 분류</span><strong className="metric-text">{classificationLabel[point.classification]}</strong><small>Canonical eigenvalues 기준</small></article>
@@ -216,9 +217,30 @@ function DoeCentralCompositeSurfaceResult({ surface }: { surface: DoeCentralComp
     <section className="panel table-panel"><header className="panel-heading"><div><span className="eyebrow">CANONICAL ANALYSIS</span><h2>Canonical eigenvalues</h2></div></header><div className="table-scroll"><table><thead><tr><th scope="col">축</th><th scope="col">고유값</th></tr></thead><tbody>{surface.canonicalAxes.map((row) => <tr key={row.axis}><td>{row.axis}</td><td>{statistic(row.eigenvalue)}</td></tr>)}</tbody></table></div></section>
     <section className="panel table-panel"><header className="panel-heading"><div><span className="eyebrow">BOUNDED SLICE</span><h2>응답표면 구간 극값</h2></div><span>{surface.plotFactors.join(" × ")}</span></header><div className="table-scroll"><table><thead><tr><th scope="col">종류</th><th scope="col">{surface.plotFactors[0]} coded</th><th scope="col">{surface.plotFactors[0]} actual</th><th scope="col">{surface.plotFactors[1]} coded</th><th scope="col">{surface.plotFactors[1]} actual</th><th scope="col">예측 응답</th></tr></thead><tbody>{surface.extrema.map((row) => <tr key={row.kind}><td>{row.kind === "minimum" ? "최소" : "최대"}</td><td>{statistic(row.x_coded)}</td><td>{statistic(row.x_actual)}</td><td>{statistic(row.y_coded)}</td><td>{statistic(row.y_actual)}</td><td>{statistic(row.predicted_response)}</td></tr>)}</tbody></table></div></section>
     <section className="panel result-chart-panel"><header className="panel-heading"><div><span className="eyebrow">ISO-RESPONSE CONTOURS</span><h2>응답표면 등고선</h2></div><span>{surface.gridSize} × {surface.gridSize} 격자</span></header>{surface.contours.length ? <svg className="surface-contour-chart" viewBox="0 0 100 100" role="img" aria-label={contourSummary} preserveAspectRatio="none">{surface.contours.map((segment, index) => <line key={`${segment.level}-${index}`} x1={(segment.x1_coded + 1) * 50} y1={(1 - (segment.y1_coded + 1) / 2) * 100} x2={(segment.x2_coded + 1) * 50} y2={(1 - (segment.y2_coded + 1) / 2) * 100} />)}</svg> : <p className="supporting-copy contour-empty">선택한 표면 구간이 평탄하여 등고선을 생성할 수 없습니다.</p>}</section>
+    <section className="panel result-chart-panel"><header className="panel-heading"><div><span className="eyebrow">PROJECTED SURFACE</span><h2>3D 응답표면 와이어프레임</h2></div><span>{surface.responseName}</span></header><svg className="surface-wireframe-chart" viewBox="0 0 100 100" role="img" aria-label={`${surface.plotFactors.join("와 ")}에 따른 ${surface.responseName} 예측 응답의 3D 와이어프레임. 최소 ${statistic(wireframe.minimum)}, 최대 ${statistic(wireframe.maximum)}`} preserveAspectRatio="xMidYMid meet">{wireframe.paths.map((points, index) => <polyline key={index} points={points} />)}</svg></section>
     {surface.contours.length > 0 && <section className="panel table-panel"><header className="panel-heading"><div><span className="eyebrow">ACCESSIBLE CONTOUR DATA</span><h2>등고선 선분 표</h2></div><span>{surface.contours.length}개 선분</span></header><div className="table-scroll"><table><thead><tr><th scope="col">수준</th><th scope="col">X1 actual</th><th scope="col">Y1 actual</th><th scope="col">X2 actual</th><th scope="col">Y2 actual</th></tr></thead><tbody>{surface.contours.map((segment, index) => <tr key={`${segment.level}-${index}`}><td>{statistic(segment.level)}</td><td>{statistic(segment.x1_actual)}</td><td>{statistic(segment.y1_actual)}</td><td>{statistic(segment.x2_actual)}</td><td>{statistic(segment.y2_actual)}</td></tr>)}</tbody></table></div></section>}
     <section className="panel table-panel"><header className="panel-heading"><div><span className="eyebrow">ACCESSIBLE SURFACE DATA</span><h2>응답표면 격자</h2></div><span>{surface.grid.length}개 점</span></header><div className="table-scroll"><table><thead><tr><th scope="col">X index</th><th scope="col">Y index</th><th scope="col">{surface.plotFactors[0]} coded</th><th scope="col">{surface.plotFactors[0]} actual</th><th scope="col">{surface.plotFactors[1]} coded</th><th scope="col">{surface.plotFactors[1]} actual</th><th scope="col">예측 응답</th></tr></thead><tbody>{surface.grid.map((row) => <tr key={`${row.x_index}-${row.y_index}`}><td>{row.x_index}</td><td>{row.y_index}</td><td>{statistic(row.x_coded)}</td><td>{statistic(row.x_actual)}</td><td>{statistic(row.y_coded)}</td><td>{statistic(row.y_actual)}</td><td>{statistic(row.predicted_response)}</td></tr>)}</tbody></table></div></section>
   </>;
+}
+
+function surfaceWireframePaths(grid: DoeCentralCompositeSurfaceView["grid"], gridSize: number) {
+  const responses = grid.map((point) => point.predicted_response);
+  const minimum = Math.min(...responses);
+  const maximum = Math.max(...responses);
+  const span = maximum - minimum || 1;
+  const project = (point: DoeCentralCompositeSurfaceView["grid"][number]) => {
+    const height = (point.predicted_response - minimum) / span;
+    const horizontal = 50 + (point.x_coded - point.y_coded) * 20;
+    const vertical = 70 - (point.x_coded + point.y_coded) * 10 - height * 40;
+    return `${horizontal.toFixed(3)},${vertical.toFixed(3)}`;
+  };
+  const paths: string[] = [];
+  for (let row = 0; row < gridSize; row += 1) paths.push(grid.slice(row * gridSize, (row + 1) * gridSize).map(project).join(" "));
+  for (let column = 0; column < gridSize; column += 1) {
+    const points = Array.from({ length: gridSize }, (_, row) => grid[row * gridSize + column]).filter((point): point is DoeCentralCompositeSurfaceView["grid"][number] => point !== undefined);
+    paths.push(points.map(project).join(" "));
+  }
+  return { paths, minimum, maximum };
 }
 
 function DoePlackettBurmanResult({ design }: { design: DoePlackettBurmanView }) {
