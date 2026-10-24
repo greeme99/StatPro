@@ -126,6 +126,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     plot_factors=payload.get("plot_factors"),
                     hold_values=payload.get("hold_values"),
                     grid_size=payload.get("grid_size", 21),
+                    contour_levels=payload.get("contour_levels", 7),
                 )
             elif args.command == "doe-analyze-central-composite":
                 result = analyze_central_composite(

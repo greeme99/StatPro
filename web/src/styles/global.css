@@ -203,6 +203,9 @@ dd { margin: var(--space-0); }
 .effect-track { height: var(--space-3); overflow: hidden; background: var(--color-bg-subtle); border-radius: var(--radius-pill); }
 .effect-track i { display: block; height: 100%; background: var(--color-fill-brand); border-radius: inherit; }
 .effect-track.is-negative i { background: var(--danger-500); }
+.surface-contour-chart { display: block; width: 100%; height: var(--chart-height); padding: var(--card-pad); background: var(--color-bg-subtle); }
+.surface-contour-chart line { stroke: var(--color-fill-brand); stroke-width: var(--border-width); vector-effect: non-scaling-stroke; }
+.contour-empty { padding: var(--card-pad); }
 
 @media (max-width: 1439px) {
   .page { padding: var(--space-6); }

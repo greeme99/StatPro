@@ -40,6 +40,11 @@ NIST_RESPONSE_SURFACE_MODEL_SOURCE = ProvenanceSource(
     url="https://www.itl.nist.gov/div898/handbook/pri/section5/pri5314.htm",
 )
 
+NIST_CONTOUR_PLOT_SOURCE = ProvenanceSource(
+    title="NIST/SEMATECH 1.3.3.10 Contour Plot",
+    url="https://www.itl.nist.gov/div898/handbook/eda/section3/contour.htm",
+)
+
 MINITAB_CCD_ALPHA_SOURCE = ProvenanceSource(
     title="Minitab public documentation: alpha in a central composite design",
     url=(
@@ -2142,6 +2147,89 @@ def _symmetric_eigenvalues(matrix: Sequence[Sequence[float]]) -> list[float]:
     return sorted(values[index][index] for index in range(size))
 
 
+def _contour_segments(
+    grid: Sequence[Mapping[str, object]],
+    grid_size: int,
+    levels: Sequence[float],
+) -> list[dict[str, float]]:
+    """Extract deterministic iso-response segments from a regular grid."""
+
+    case_edges: dict[int, tuple[tuple[int, int], ...]] = {
+        1: ((3, 0),), 2: ((0, 1),), 3: ((3, 1),), 4: ((1, 2),),
+        6: ((0, 2),), 7: ((3, 2),), 8: ((2, 3),), 9: ((0, 2),),
+        11: ((1, 2),), 12: ((1, 3),), 13: ((0, 1),), 14: ((3, 0),),
+    }
+
+    def interpolate(
+        left: Mapping[str, object], right: Mapping[str, object], level: float
+    ) -> dict[str, float]:
+        left_response = float(left["predicted_response"])
+        right_response = float(right["predicted_response"])
+        fraction = (
+            0.5
+            if abs(right_response - left_response) <= 1e-15
+            else (level - left_response) / (right_response - left_response)
+        )
+        return {
+            field: float(left[field]) + fraction * (float(right[field]) - float(left[field]))
+            for field in ("x_coded", "y_coded", "x_actual", "y_actual")
+        }
+
+    segments: list[dict[str, float]] = []
+    for level in levels:
+        for y_index in range(grid_size - 1):
+            for x_index in range(grid_size - 1):
+                bottom_left = grid[y_index * grid_size + x_index]
+                bottom_right = grid[y_index * grid_size + x_index + 1]
+                top_left = grid[(y_index + 1) * grid_size + x_index]
+                top_right = grid[(y_index + 1) * grid_size + x_index + 1]
+                vertices = (bottom_left, bottom_right, top_right, top_left)
+                case = sum(
+                    (1 << index)
+                    for index, vertex in enumerate(vertices)
+                    if float(vertex["predicted_response"]) >= level
+                )
+                if case in {0, 15}:
+                    continue
+                edge_vertices = (
+                    (bottom_left, bottom_right),
+                    (bottom_right, top_right),
+                    (top_left, top_right),
+                    (bottom_left, top_left),
+                )
+                pairs = case_edges.get(case)
+                if pairs is None:
+                    center_high = sum(
+                        float(vertex["predicted_response"]) for vertex in vertices
+                    ) / 4.0 >= level
+                    if case == 5:
+                        pairs = ((0, 1), (2, 3)) if center_high else ((3, 0), (1, 2))
+                    else:  # case 10
+                        pairs = ((3, 0), (1, 2)) if center_high else ((0, 1), (2, 3))
+                edge_points = {
+                    edge: interpolate(*edge_vertices[edge], level)
+                    for pair in pairs
+                    for edge in pair
+                }
+                for first_edge, second_edge in pairs:
+                    first = edge_points[first_edge]
+                    second = edge_points[second_edge]
+                    segments.append(
+                        {
+                            "level": level,
+                            "x1_coded": first["x_coded"],
+                            "y1_coded": first["y_coded"],
+                            "x2_coded": second["x_coded"],
+                            "y2_coded": second["y_coded"],
+                            "x1_actual": first["x_actual"],
+                            "y1_actual": first["y_actual"],
+                            "x2_actual": second["x_actual"],
+                            "y2_actual": second["y_actual"],
+                        }
+                    )
+    return segments
+
+
 def explore_central_composite_surface(
     factors: Sequence[FactorDefinition],
     responses: Sequence[float],
@@ -2156,6 +2244,7 @@ def explore_central_composite_surface(
     plot_factors: Sequence[str] | None = None,
     hold_values: Mapping[str, float] | None = None,
     grid_size: int = 21,
+    contour_levels: int = 7,
 ) -> ResultBundle:
     """Classify a quadratic stationary point and evaluate a two-factor surface grid."""
 
@@ -2169,6 +2258,12 @@ def explore_central_composite_surface(
             "invalid_grid_size",
             "Surface grid size must be an odd integer between 5 and 51.",
             "grid_size",
+        )
+    if isinstance(contour_levels, bool) or not isinstance(contour_levels, int) or not 1 <= contour_levels <= 12:
+        raise AnalysisInputError(
+            "invalid_contour_levels",
+            "Contour level count must be an integer between 1 and 12.",
+            "contour_levels",
         )
     analysis = analyze_central_composite(
         factors,
@@ -2319,6 +2414,18 @@ def explore_central_composite_surface(
             )
     grid_minimum = min(grid, key=lambda row: float(row["predicted_response"]))
     grid_maximum = max(grid, key=lambda row: float(row["predicted_response"]))
+    minimum_response = float(grid_minimum["predicted_response"])
+    maximum_response = float(grid_maximum["predicted_response"])
+    contour_values = (
+        [
+            minimum_response
+            + (maximum_response - minimum_response) * index / (contour_levels + 1)
+            for index in range(1, contour_levels + 1)
+        ]
+        if maximum_response > minimum_response
+        else []
+    )
+    contour_segments = _contour_segments(grid, grid_size, contour_values)
 
     warnings = list(analysis.warnings)
     if stationary_coded is None:
@@ -2336,12 +2443,15 @@ def explore_central_composite_surface(
     warnings.append(
         "Grid extrema describe only the selected two-factor slice with all other factors held at the reported coded values."
     )
+    if not contour_values:
+        warnings.append("The selected surface slice is flat, so no contour lines were generated.")
 
     payload = {
         **analysis.parameters,
         "plot_factors": selected,
         "hold_values": normalized_holds,
         "grid_size": grid_size,
+        "contour_levels": contour_levels,
     }
     return ResultBundle(
         analysis_type="doe.central_composite_surface",
@@ -2357,6 +2467,7 @@ def explore_central_composite_surface(
                 {"kind": "minimum", **grid_minimum},
                 {"kind": "maximum", **grid_maximum},
             ],
+            "surface_contours": contour_segments,
         },
         plots={
             **analysis.plots,
@@ -2377,6 +2488,8 @@ def explore_central_composite_surface(
                     for name in factor_names
                     if name not in selected
                 },
+                "contour_levels": contour_values,
+                "contour_segments": contour_segments,
             },
         },
         diagnostics={
@@ -2390,6 +2503,8 @@ def explore_central_composite_surface(
             "surface_grid_size": grid_size,
             "surface_grid_point_count": len(grid),
             "plot_factors": selected,
+            "contour_level_count": len(contour_values),
+            "contour_segment_count": len(contour_segments),
         },
         assumptions=(
             *analysis.assumptions,
@@ -2397,7 +2512,7 @@ def explore_central_composite_surface(
             "All unplotted factors are held at explicitly reported coded values, defaulting to zero.",
         ),
         warnings=tuple(warnings),
-        provenance=analysis.provenance,
+        provenance=(*analysis.provenance, NIST_CONTOUR_PLOT_SOURCE),
     )
 
 

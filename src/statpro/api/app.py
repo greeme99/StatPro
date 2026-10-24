@@ -176,6 +176,7 @@ class CentralCompositeSurfaceRunRequest(CentralCompositeAnalysisRunRequest):
     plot_factors: list[str] | None = Field(default=None, min_length=2, max_length=2)
     hold_values: dict[str, float] = Field(default_factory=dict)
     grid_size: int = Field(default=21, ge=5, le=51)
+    contour_levels: int = Field(default=7, ge=1, le=12)
 
 
 class ResponseObjectiveRequest(ApiModel):
@@ -696,6 +697,7 @@ def create_app(repository: DocumentRepository) -> FastAPI:
                 plot_factors=request.plot_factors,
                 hold_values=request.hold_values,
                 grid_size=request.grid_size,
+                contour_levels=request.contour_levels,
             ),
         )
         response.headers["ETag"] = f'"{stored.etag}"'

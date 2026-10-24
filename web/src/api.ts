@@ -141,6 +141,7 @@ export function createDoeCentralCompositeSurfaceRun(payload: DoeCentralComposite
   plot_factors: [string, string];
   hold_values: Record<string, number>;
   grid_size: number;
+  contour_levels: number;
 }): Promise<StoredRun> {
   return request("/v1/analysis-runs/doe-central-composite-surface", {
     method: "POST",

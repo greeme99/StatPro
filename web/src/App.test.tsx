@@ -353,7 +353,7 @@ describe("StatPro UI", () => {
     const post = fetchMock.mock.calls.find(([url, init]) => String(url).endsWith("/doe-central-composite-surface") && (init as RequestInit | undefined)?.method === "POST");
     const body = JSON.parse(String((post?.[1] as RequestInit).body));
     expect(body.responses).toHaveLength(13);
-    expect(body).toMatchObject({ plot_factors: ["A", "B"], hold_values: {}, grid_size: 11 });
+    expect(body).toMatchObject({ plot_factors: ["A", "B"], hold_values: {}, grid_size: 11, contour_levels: 7 });
   });
 
   it("renders central composite quadratic coefficients and ANOVA", async () => {
@@ -382,12 +382,13 @@ describe("StatPro UI", () => {
   it("renders stationary-point classification and accessible surface grid", async () => {
     const result = {
       analysis_type: "doe.central_composite_surface", engine_version: "0.6.0", input_digest: "d".repeat(64), warnings: [], assumptions: [], provenance: [], parameters: {}, plots: {},
-      diagnostics: { response_name: "Yield", plot_factors: ["A", "B"], surface_grid_size: 3 },
+      diagnostics: { response_name: "Yield", plot_factors: ["A", "B"], surface_grid_size: 3, contour_level_count: 1 },
       tables: {
         stationary_point: [{ classification: "maximum", available: true, coded: { A: 0.25, B: -0.5 }, actual: { A: 6.25, B: 5 }, predicted_response: 100, inside_factorial_cube: true }],
         canonical_axes: [{ axis: 1, eigenvalue: -4 }, { axis: 2, eigenvalue: -2 }],
         surface_grid: [{ x_index: 0, y_index: 0, x_coded: -1, y_coded: -1, x_actual: 0, y_actual: 0, predicted_response: 92 }],
         surface_slice_extrema: [{ kind: "minimum", x_index: 0, y_index: 0, x_coded: -1, y_coded: -1, x_actual: 0, y_actual: 0, predicted_response: 92 }, { kind: "maximum", x_index: 1, y_index: 1, x_coded: 0, y_coded: 0, x_actual: 5, y_actual: 10, predicted_response: 100 }],
+        surface_contours: [{ level: 96, x1_coded: -1, y1_coded: 0, x2_coded: 1, y2_coded: 0, x1_actual: 0, y1_actual: 10, x2_actual: 10, y2_actual: 10 }],
       },
     };
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
@@ -399,6 +400,8 @@ describe("StatPro UI", () => {
     expect(await screen.findByRole("heading", { name: "정상점 분석" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Canonical eigenvalues" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "응답표면 격자" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "응답표면 등고선" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: /등고선 1개 수준, 선분 1개/ })).toBeInTheDocument();
     expect(screen.getByText("최대점")).toBeInTheDocument();
   });
 

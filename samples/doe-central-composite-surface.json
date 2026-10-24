@@ -13,5 +13,6 @@
   "alpha": 0.05,
   "plot_factors": ["Temperature", "Pressure"],
   "hold_values": {},
-  "grid_size": 21
+  "grid_size": 21,
+  "contour_levels": 7
 }

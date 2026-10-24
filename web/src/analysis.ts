@@ -229,14 +229,28 @@ export type DoeSurfaceGridPoint = {
   predicted_response: number;
 };
 
+export type DoeContourSegment = {
+  level: number;
+  x1_coded: number;
+  y1_coded: number;
+  x2_coded: number;
+  y2_coded: number;
+  x1_actual: number;
+  y1_actual: number;
+  x2_actual: number;
+  y2_actual: number;
+};
+
 export type DoeCentralCompositeSurfaceView = {
   stationary: DoeStationaryPoint;
   canonicalAxes: Array<{ axis: number; eigenvalue: number }>;
   grid: DoeSurfaceGridPoint[];
   extrema: Array<DoeSurfaceGridPoint & { kind: "minimum" | "maximum" }>;
+  contours: DoeContourSegment[];
   responseName: string;
   plotFactors: string[];
   gridSize: number;
+  contourLevels: number;
 };
 
 export type DoeScreeningDesignRow = {
@@ -403,16 +417,19 @@ export function toDoeCentralCompositeSurfaceView(result: ResultBundle | undefine
   const canonicalAxes = result.tables.canonical_axes;
   const grid = result.tables.surface_grid;
   const extrema = result.tables.surface_slice_extrema;
+  const contours = result.tables.surface_contours;
   const plotFactors = result.diagnostics.plot_factors;
-  if (!Array.isArray(stationary) || stationary.length !== 1 || !Array.isArray(canonicalAxes) || !Array.isArray(grid) || !Array.isArray(extrema) || !Array.isArray(plotFactors) || plotFactors.length !== 2) return null;
+  if (!Array.isArray(stationary) || stationary.length !== 1 || !Array.isArray(canonicalAxes) || !Array.isArray(grid) || !Array.isArray(extrema) || !Array.isArray(contours) || !Array.isArray(plotFactors) || plotFactors.length !== 2) return null;
   return {
     stationary: stationary[0] as DoeStationaryPoint,
     canonicalAxes: canonicalAxes as DoeCentralCompositeSurfaceView["canonicalAxes"],
     grid: grid as DoeSurfaceGridPoint[],
     extrema: extrema as DoeCentralCompositeSurfaceView["extrema"],
+    contours: contours as DoeContourSegment[],
     responseName: String(result.diagnostics.response_name ?? "Response"),
     plotFactors: plotFactors.map(String),
     gridSize: Number(result.diagnostics.surface_grid_size ?? 0),
+    contourLevels: Number(result.diagnostics.contour_level_count ?? 0),
   };
 }
 

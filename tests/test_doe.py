@@ -442,6 +442,38 @@ class CentralCompositeSurfaceTests(unittest.TestCase):
             )
         self.assertEqual(context.exception.detail.code, "invalid_grid_size")
 
+    def test_linear_surface_generates_expected_vertical_contours(self) -> None:
+        factors = [FactorDefinition("A", 0, 10), FactorDefinition("B", 0, 20)]
+        design = central_composite_design(factors, center_points=5, randomize=False)
+        responses = [row["coded"]["A"] for row in design.tables["design"]]
+
+        result = explore_central_composite_surface(
+            factors,
+            responses,
+            center_points=5,
+            randomize=False,
+            grid_size=5,
+            contour_levels=3,
+        )
+
+        segments = result.tables["surface_contours"]
+        self.assertEqual(result.diagnostics["contour_level_count"], 3)
+        self.assertEqual(len(segments), 12)
+        self.assertEqual({round(row["level"], 8) for row in segments}, {-0.5, 0.0, 0.5})
+        for row in segments:
+            self.assertAlmostEqual(row["x1_coded"], row["level"])
+            self.assertAlmostEqual(row["x2_coded"], row["level"])
+
+    def test_rejects_excessive_contour_level_count(self) -> None:
+        with self.assertRaises(AnalysisInputError) as context:
+            explore_central_composite_surface(
+                [FactorDefinition("A", 0, 1), FactorDefinition("B", 0, 1)],
+                [0] * 13,
+                randomize=False,
+                contour_levels=13,
+            )
+        self.assertEqual(context.exception.detail.code, "invalid_contour_levels")
+
 
 class PlackettBurmanDesignTests(unittest.TestCase):
     def test_12_run_design_matches_published_seed_and_is_orthogonal(self) -> None:
