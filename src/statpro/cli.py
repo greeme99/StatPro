@@ -224,6 +224,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                         "generators",
                     ) from error
                 fractional_arguments = {
+                    "block_generators": payload.get("block_generators", []),
                     "replicates": payload.get("replicates", 1),
                     "foldover": payload.get("foldover", False),
                     "randomize": payload.get("randomize", True),
@@ -251,6 +252,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 automatic_arguments = {
                     "runs": payload.get("runs"),
                     "minimum_resolution": payload.get("minimum_resolution", 3),
+                    "block_generators": payload.get("block_generators", []),
                     "replicates": payload.get("replicates", 1),
                     "foldover": payload.get("foldover", False),
                     "randomize": payload.get("randomize", True),

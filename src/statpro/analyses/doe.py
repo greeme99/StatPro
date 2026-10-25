@@ -30,6 +30,20 @@ NIST_FRACTIONAL_CATALOG_SOURCE = ProvenanceSource(
     url="https://www.itl.nist.gov/div898/handbook/pri/section3/pri3347.htm",
 )
 
+NIST_FACTORIAL_BLOCKING_SOURCE = ProvenanceSource(
+    title="NIST/SEMATECH 5.3.3.3.3 Blocking of full factorial designs",
+    url="https://www.itl.nist.gov/div898/handbook/pri/section3/pri3333.htm",
+)
+
+MINITAB_FACTORIAL_BLOCKING_SOURCE = ProvenanceSource(
+    title="Minitab public documentation: 2-level factorial designs with blocks",
+    url=(
+        "https://support.minitab.com/en-us/minitab/help-and-how-to/statistical-modeling/"
+        "doe/how-to/factorial/create-factorial-design/create-2-level-factorial-default-generators/"
+        "before-you-start/example-of-a-2-level-design-with-blocks/"
+    ),
+)
+
 NIST_MIRROR_FOLDOVER_SOURCE = ProvenanceSource(
     title="NIST/SEMATECH 5.3.3.8.1 Mirror-Image foldover designs",
     url="https://www.itl.nist.gov/div898/handbook/pri/section3/pri3381.htm",
@@ -885,6 +899,129 @@ def _roman_resolution(resolution: int) -> str:
     return labels.get(resolution, str(resolution))
 
 
+def _regular_block_structure(
+    block_generators: Sequence[Sequence[str]],
+    *,
+    factor_names: Sequence[str],
+    factor_order: Mapping[str, int],
+    defining_relation: Sequence[frozenset[str]],
+    base_run_count: int,
+) -> tuple[list[dict[str, object]], list[dict[str, object]], list[tuple[int, ...]], int]:
+    """Validate block generators and derive every block contrast alias class."""
+
+    if not block_generators:
+        return [], [], [], len(factor_names) + 1
+    if isinstance(block_generators, (str, bytes)) or len(block_generators) > 4:
+        raise AnalysisInputError(
+            "invalid_block_generators",
+            "Block generators must be an array containing at most four interaction-term arrays.",
+            "block_generators",
+        )
+    block_count = 2 ** len(block_generators)
+    if block_count * 2 > base_run_count:
+        raise AnalysisInputError(
+            "blocks_too_small",
+            "Each block must contain at least two distinct treatment combinations per replicate.",
+            "block_generators",
+        )
+
+    known_names = set(factor_names)
+    normalized: list[dict[str, object]] = []
+    generator_words: list[frozenset[str]] = []
+    for index, raw_terms in enumerate(block_generators):
+        if (
+            not isinstance(raw_terms, Sequence)
+            or isinstance(raw_terms, (str, bytes))
+            or any(not isinstance(term, str) for term in raw_terms)
+        ):
+            raise AnalysisInputError(
+                "invalid_block_generator_terms",
+                "Each block generator must be an array of factor names.",
+                f"block_generators[{index}]",
+            )
+        terms = [term.strip() for term in raw_terms]
+        if len(terms) < 2 or any(not term for term in terms) or len(set(terms)) != len(terms):
+            raise AnalysisInputError(
+                "invalid_block_generator_terms",
+                "Each block generator requires at least two nonempty, unique factor names.",
+                f"block_generators[{index}]",
+            )
+        unknown = [term for term in terms if term not in known_names]
+        if unknown:
+            raise AnalysisInputError(
+                "unknown_block_generator_factor",
+                f"Unknown block-generator factors: {', '.join(unknown)}.",
+                f"block_generators[{index}]",
+            )
+        ordered_terms = sorted(terms, key=factor_order.__getitem__)
+        word = frozenset(ordered_terms)
+        if word in generator_words:
+            raise AnalysisInputError(
+                "duplicate_block_generator",
+                "Block generators must define distinct treatment columns.",
+                f"block_generators[{index}]",
+            )
+        generator_words.append(word)
+        contrast = f"Blk{index + 1}"
+        normalized.append(
+            {
+                "contrast": contrast,
+                "terms": ordered_terms,
+                "expression": f"{contrast}={'*'.join(ordered_terms)}",
+            }
+        )
+
+    aliases: list[dict[str, object]] = []
+    contrast_indices: list[tuple[int, ...]] = []
+    blocked_resolution = len(factor_names) + 1
+    for width in range(1, len(generator_words) + 1):
+        for indices in combinations(range(len(generator_words)), width):
+            treatment_word = frozenset()
+            for index in indices:
+                treatment_word = treatment_word.symmetric_difference(
+                    generator_words[index]
+                )
+            treatment_aliases = {
+                treatment_word.symmetric_difference(defining_word)
+                for defining_word in defining_relation
+            }
+            if frozenset() in treatment_aliases:
+                raise AnalysisInputError(
+                    "dependent_block_generators",
+                    "A block-generator combination is constant on this treatment design.",
+                    "block_generators",
+                )
+            shortest_treatment_word = min(len(word) for word in treatment_aliases)
+            if shortest_treatment_word < 2:
+                raise AnalysisInputError(
+                    "block_confounds_main_effect",
+                    "Block generators must not confound a main effect with blocks.",
+                    "block_generators",
+                )
+            blocked_resolution = min(
+                blocked_resolution, shortest_treatment_word + 1
+            )
+            contrast = "*".join(f"Blk{index + 1}" for index in indices)
+            aliases.append(
+                {
+                    "contrast": contrast,
+                    "generator_terms": _effect_label(treatment_word, factor_order),
+                    "treatment_alias_set": [
+                        _effect_label(alias, factor_order)
+                        for alias in sorted(
+                            treatment_aliases,
+                            key=lambda item: (
+                                len(item),
+                                _effect_label(item, factor_order),
+                            ),
+                        )
+                    ],
+                }
+            )
+            contrast_indices.append(indices)
+    return normalized, aliases, contrast_indices, blocked_resolution
+
+
 def _automatic_generator_selection(
     factor_names: Sequence[str],
     *,
@@ -1029,6 +1166,7 @@ def fractional_factorial_2level(
     factors: Sequence[FactorDefinition],
     generators: Sequence[GeneratorDefinition],
     *,
+    block_generators: Sequence[Sequence[str]] = (),
     replicates: int = 1,
     foldover: bool = False,
     randomize: bool = True,
@@ -1164,6 +1302,12 @@ def fractional_factorial_2level(
         )
     ]
 
+    if foldover and block_generators:
+        raise AnalysisInputError(
+            "blocked_foldover_unsupported",
+            "Blocked mirror-image foldover is not yet supported; generate the blocked base fraction without foldover.",
+            "foldover",
+        )
     if foldover and resolution != 3:
         raise AnalysisInputError(
             "mirror_foldover_requires_resolution_iii",
@@ -1187,6 +1331,19 @@ def fractional_factorial_2level(
             key=lambda item: (len(item), _effect_label(item, factor_order)),
         )
     ]
+
+    (
+        normalized_block_generators,
+        block_aliases,
+        block_contrast_indices,
+        blocked_resolution,
+    ) = _regular_block_structure(
+        block_generators,
+        factor_names=factor_names,
+        factor_order=factor_order,
+        defining_relation=relation,
+        base_run_count=base_run_count,
+    )
 
     rows: list[dict[str, object]] = []
     for replicate in range(1, replicates + 1):
@@ -1243,7 +1400,39 @@ def fractional_factorial_2level(
                     }
                 )
 
-    if randomize:
+    if normalized_block_generators:
+        block_count = 2 ** len(normalized_block_generators)
+        for row in rows:
+            coded = row["coded"]
+            primary_signs = [
+                _product(coded[term] for term in generator["terms"])
+                for generator in normalized_block_generators
+            ]
+            row["block"] = 1 + sum(
+                (1 << index) for index, sign in enumerate(primary_signs) if sign > 0
+            )
+            row["block_contrasts"] = {
+                str(alias["contrast"]): _product(
+                    primary_signs[index] for index in indices
+                )
+                for alias, indices in zip(
+                    block_aliases, block_contrast_indices, strict=True
+                )
+            }
+        grouped_rows = {
+            block: [row for row in rows if row["block"] == block]
+            for block in range(1, block_count + 1)
+        }
+        if randomize:
+            randomizer = random.Random(seed)
+            for block_rows in grouped_rows.values():
+                randomizer.shuffle(block_rows)
+        rows = [
+            row
+            for block in range(1, block_count + 1)
+            for row in grouped_rows[block]
+        ]
+    elif randomize:
         random.Random(seed).shuffle(rows)
     for run_order, row in enumerate(rows, start=1):
         row["run_order"] = run_order
@@ -1292,11 +1481,16 @@ def fractional_factorial_2level(
             "The mirror-image foldover clears main effects from two-factor interactions, "
             "but two-factor interactions can remain aliased with one another."
         )
+    if normalized_block_generators:
+        warnings.append(
+            "Block effects are nuisance terms confounded with the displayed treatment-interaction alias sets."
+        )
 
     factor_payload = [asdict(factor) for factor in normalized]
     payload = {
         "factors": factor_payload,
         "generators": normalized_generators,
+        "block_generators": normalized_block_generators,
         "replicates": replicates,
         "foldover": foldover,
         "randomize": randomize,
@@ -1331,6 +1525,8 @@ def fractional_factorial_2level(
             ],
             "main_effect_aliases": main_effect_aliases,
             "two_factor_aliases": two_factor_aliases,
+            "block_generators": normalized_block_generators,
+            "block_aliases": block_aliases,
         },
         plots={},
         diagnostics={
@@ -1350,17 +1546,34 @@ def fractional_factorial_2level(
             "balanced": True,
             "orthogonal": True,
             "regular_fraction": True,
+            "block_count": 2 ** len(normalized_block_generators),
+            "runs_per_block": (
+                total_run_count // (2 ** len(normalized_block_generators))
+            ),
+            "blocked_resolution": (
+                blocked_resolution if normalized_block_generators else None
+            ),
+            "blocked_resolution_label": (
+                _roman_resolution(blocked_resolution)
+                if normalized_block_generators
+                else None
+            ),
+            "blocks_orthogonal_to_main_effects": bool(
+                normalized_block_generators
+            ),
         },
         assumptions=(
             "Each factor has exactly two quantitative levels.",
             "Every generator is a positive product of independent base-factor columns.",
             "Alias sets follow the complete defining contrast subgroup for this regular fraction.",
+            "Block generators, when supplied, are positive treatment-interaction columns independent of the treatment defining relation.",
             "The supplied random seed is retained for reproducibility.",
         ),
         warnings=tuple(warnings),
         provenance=(
             NIST_FRACTIONAL_FACTORIAL_SOURCE,
             MINITAB_FRACTIONAL_FACTORIAL_SOURCE,
+            *((NIST_FACTORIAL_BLOCKING_SOURCE, MINITAB_FACTORIAL_BLOCKING_SOURCE) if normalized_block_generators else ()),
             *((NIST_MIRROR_FOLDOVER_SOURCE,) if foldover else ()),
         ),
     )
@@ -1403,6 +1616,7 @@ def automatic_fractional_factorial_2level(
     *,
     runs: int | None = None,
     minimum_resolution: int = 3,
+    block_generators: Sequence[Sequence[str]] = (),
     replicates: int = 1,
     foldover: bool = False,
     randomize: bool = True,
@@ -1423,6 +1637,7 @@ def automatic_fractional_factorial_2level(
     result = fractional_factorial_2level(
         normalized,
         generators,
+        block_generators=block_generators,
         replicates=replicates,
         foldover=foldover,
         randomize=randomize,
@@ -1438,6 +1653,7 @@ def analyze_automatic_fractional_factorial_2level(
     response_name: str = "Response",
     runs: int | None = None,
     minimum_resolution: int = 3,
+    block_generators: Sequence[Sequence[str]] = (),
     replicates: int = 1,
     foldover: bool = False,
     randomize: bool = True,
@@ -1461,6 +1677,7 @@ def analyze_automatic_fractional_factorial_2level(
         generators,
         responses,
         response_name=response_name,
+        block_generators=block_generators,
         replicates=replicates,
         foldover=foldover,
         randomize=randomize,
@@ -1647,6 +1864,7 @@ def analyze_fractional_factorial_2level(
     responses: Sequence[float],
     *,
     response_name: str = "Response",
+    block_generators: Sequence[Sequence[str]] = (),
     replicates: int = 1,
     foldover: bool = False,
     randomize: bool = True,
@@ -1662,6 +1880,7 @@ def analyze_fractional_factorial_2level(
     design = fractional_factorial_2level(
         factors,
         generators,
+        block_generators=block_generators,
         replicates=replicates,
         foldover=foldover,
         randomize=randomize,
@@ -1685,9 +1904,27 @@ def analyze_fractional_factorial_2level(
     intercept, coefficients, coded_columns, term_sums_of_squares = (
         _fit_orthogonal_model(rows, factor_names, values, terms, field="responses")
     )
+    block_aliases = list(design.tables["block_aliases"])
+    block_columns: dict[str, list[float]] = {}
+    block_coefficients: dict[str, float] = {}
+    block_sums_of_squares: dict[str, float] = {}
+    for alias in block_aliases:
+        contrast = str(alias["contrast"])
+        column = [float(row["block_contrasts"][contrast]) for row in rows]
+        denominator = sum(value * value for value in column)
+        coefficient = sum(
+            x * y for x, y in zip(column, values, strict=True)
+        ) / denominator
+        block_columns[contrast] = column
+        block_coefficients[contrast] = coefficient
+        block_sums_of_squares[contrast] = coefficient * coefficient * denominator
     fitted = [
         intercept
         + sum(coefficients[term] * coded_columns[term][index] for term in terms)
+        + sum(
+            block_coefficients[contrast] * column[index]
+            for contrast, column in block_columns.items()
+        )
         for index in range(len(rows))
     ]
     residuals = [
@@ -1695,9 +1932,11 @@ def analyze_fractional_factorial_2level(
         for observed, predicted in zip(values, fitted, strict=True)
     ]
     residual_ss = sum(value * value for value in residuals)
-    model_ss = sum(term_sums_of_squares.values())
+    model_ss = sum(term_sums_of_squares.values()) + sum(
+        block_sums_of_squares.values()
+    )
     total_ss = sum((value - intercept) ** 2 for value in values)
-    residual_df = len(values) - len(terms) - 1
+    residual_df = len(values) - len(terms) - len(block_columns) - 1
     residual_ms = residual_ss / residual_df if residual_df > 0 else None
     residual_scale = (
         sqrt(residual_ms) if residual_ms is not None and residual_ms > 0.0 else None
@@ -1789,9 +2028,23 @@ def analyze_fractional_factorial_2level(
         )
     ranked_rows.sort(key=lambda row: (-float(row["display_value"]), str(row["term"])))
 
+    block_effect_rows = [
+        {
+            "contrast": contrast,
+            "coefficient": block_coefficients[contrast],
+            "effect": 2.0 * block_coefficients[contrast],
+            "sum_of_squares": block_sums_of_squares[contrast],
+            "generator_terms": alias["generator_terms"],
+            "treatment_alias_set": alias["treatment_alias_set"],
+        }
+        for alias in block_aliases
+        for contrast in (str(alias["contrast"]),)
+    ]
+
     residual_rows = [
         {
             "run_order": int(row["run_order"]),
+            "block": int(row.get("block", 1)),
             "fraction_phase": str(row["fraction_phase"]),
             "observed": observed,
             "fitted": predicted,
@@ -1840,6 +2093,9 @@ def analyze_fractional_factorial_2level(
             "residuals": residual_rows,
             "defining_relation": design.tables["defining_relation"],
             "main_effect_aliases": design.tables["main_effect_aliases"],
+            "block_generators": design.tables["block_generators"],
+            "block_aliases": design.tables["block_aliases"],
+            "block_effects": block_effect_rows,
         },
         plots={
             "effects": {
@@ -1858,7 +2114,8 @@ def analyze_fractional_factorial_2level(
             **design.diagnostics,
             "response_name": normalized_name,
             "observation_count": len(values),
-            "coefficient_count": len(terms) + 1,
+            "coefficient_count": len(terms) + len(block_columns) + 1,
+            "block_degrees_of_freedom": len(block_columns),
             "residual_degrees_of_freedom": residual_df,
             "residual_standard_deviation": residual_scale,
             "r_squared": 1.0 - residual_ss / total_ss if total_ss > 0.0 else None,
@@ -1873,6 +2130,7 @@ def analyze_fractional_factorial_2level(
         assumptions=(
             "Responses correspond one-for-one to the generated design run order.",
             "Only one representative from each main-effect alias chain is estimated.",
+            "Block contrasts are fitted before interpretation of treatment effects and remain confounded with their displayed treatment aliases.",
             "Effects not separated by the design are interpreted jointly, not as unique causes.",
             "Residual inference assumes independent, constant-variance, approximately normal errors.",
         ),

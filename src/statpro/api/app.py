@@ -159,6 +159,7 @@ class FractionalFactorialRunRequest(ApiModel):
     run_id: RunId
     factors: list[FactorRequest]
     generators: list[GeneratorRequest] = Field(min_length=1, max_length=8)
+    block_generators: list[list[str]] = Field(default_factory=list, max_length=4)
     replicates: int = 1
     foldover: bool = False
     randomize: bool = True
@@ -176,6 +177,7 @@ class AutomaticFractionalFactorialRunRequest(ApiModel):
     factors: list[FactorRequest] = Field(min_length=3, max_length=10)
     runs: StrictInt | None = Field(default=None, ge=4, le=512)
     minimum_resolution: StrictInt = Field(default=3, ge=3, le=10)
+    block_generators: list[list[str]] = Field(default_factory=list, max_length=4)
     replicates: StrictInt = Field(default=1, ge=1)
     foldover: bool = False
     randomize: bool = True
@@ -860,6 +862,7 @@ def create_app(repository: DocumentRepository) -> FastAPI:
             fractional_factorial_2level(
                 factors,
                 generators,
+                block_generators=request.block_generators,
                 replicates=request.replicates,
                 foldover=request.foldover,
                 randomize=request.randomize,
@@ -886,6 +889,7 @@ def create_app(repository: DocumentRepository) -> FastAPI:
                 factors,
                 runs=request.runs,
                 minimum_resolution=request.minimum_resolution,
+                block_generators=request.block_generators,
                 replicates=request.replicates,
                 foldover=request.foldover,
                 randomize=request.randomize,
@@ -1046,6 +1050,7 @@ def create_app(repository: DocumentRepository) -> FastAPI:
                 generators,
                 request.responses,
                 response_name=request.response_name,
+                block_generators=request.block_generators,
                 replicates=request.replicates,
                 foldover=request.foldover,
                 randomize=request.randomize,
@@ -1075,6 +1080,7 @@ def create_app(repository: DocumentRepository) -> FastAPI:
                 response_name=request.response_name,
                 runs=request.runs,
                 minimum_resolution=request.minimum_resolution,
+                block_generators=request.block_generators,
                 replicates=request.replicates,
                 foldover=request.foldover,
                 randomize=request.randomize,

@@ -11,7 +11,7 @@ The repository starts with a dependency-free Python statistical core so formulas
 - Xbar-R control chart for constant subgroup sizes 2–10 with Nelson tests 1–8 on Xbar and tests 1–4 on R
 - Binomial p/np and Poisson c/u attribute control charts with pooled Phase I centers, opportunity-specific limits for p/u, constant-opportunity enforcement for np/c, and accessible chart/table results
 - Normal capability for individual observations with within/overall variation kept distinct
-- Reproducible two-level full factorial DOE analysis, regular fractional-factorial generation/main-effect analysis with bounded automatic minimum-run/minimum-aberration generator selection and full resolution-III foldover, 3–5 factor Box–Behnken design and complete-quadratic response analysis, central-composite response-surface design/modelling with stationary-point/canonical analysis, bounded two-factor surface grids, accessible iso-response contours and projected 3D wireframes, plus Plackett–Burman screening design/response analysis from 12 to 48 runs
+- Reproducible two-level full factorial DOE analysis, regular fractional-factorial generation/main-effect analysis with bounded automatic minimum-run/minimum-aberration generator selection, explicit regular block generators and full resolution-III foldover, 3–5 factor Box–Behnken design and complete-quadratic response analysis, central-composite response-surface design/modelling with stationary-point/canonical analysis, bounded two-factor surface grids, accessible iso-response contours and projected 3D wireframes, plus Plackett–Burman screening design/response analysis from 12 to 48 runs
 - Balanced crossed Gage R&R using two-way random-effects ANOVA variance components
 - Immutable CSV Dataset snapshots and revisioned Worksheet cell edits
 - Packaged Draft 2020-12 `ResultBundle` JSON Schema
@@ -40,6 +40,7 @@ py -3.12 -m statpro.cli xbar-r --input samples\xbar-r.json
 py -3.12 -m statpro.cli capability-normal --input samples\capability-normal.json
 py -3.12 -m statpro.cli doe-full-factorial --input samples\doe-full-factorial.json
 py -3.12 -m statpro.cli doe-fractional-factorial --input samples\doe-fractional-factorial.json
+py -3.12 -m statpro.cli doe-fractional-factorial --input samples\doe-fractional-factorial-blocked.json
 py -3.12 -m statpro.cli doe-fractional-factorial-auto --input samples\doe-fractional-factorial-auto.json
 py -3.12 -m statpro.cli doe-analyze-fractional-factorial --input samples\doe-fractional-factorial-analysis.json
 py -3.12 -m statpro.cli doe-box-behnken --input samples\doe-box-behnken.json

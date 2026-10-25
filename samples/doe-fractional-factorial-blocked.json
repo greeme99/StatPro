@@ -1,0 +1,19 @@
+{
+  "factors": [
+    {"name": "A", "low": 50, "high": 70},
+    {"name": "B", "low": 120, "high": 160},
+    {"name": "C", "low": 5, "high": 9},
+    {"name": "D", "low": 20, "high": 40},
+    {"name": "E", "low": 1, "high": 3}
+  ],
+  "generators": [
+    {"factor": "E", "terms": ["A", "B", "C", "D"]}
+  ],
+  "block_generators": [
+    ["A", "B"],
+    ["A", "C"]
+  ],
+  "replicates": 1,
+  "randomize": true,
+  "seed": 20261025
+}

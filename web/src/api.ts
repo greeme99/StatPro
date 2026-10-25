@@ -78,6 +78,7 @@ export function createDoeFractionalFactorialRun(payload: {
   run_id: string;
   factors: Array<{ name: string; low: number; high: number }>;
   generators: Array<{ factor: string; terms: string[] }>;
+  block_generators: string[][];
   replicates: number;
   foldover: boolean;
   randomize: boolean;
@@ -93,6 +94,7 @@ export function createDoeFractionalFactorialAnalysisRun(payload: {
   run_id: string;
   factors: Array<{ name: string; low: number; high: number }>;
   generators: Array<{ factor: string; terms: string[] }>;
+  block_generators: string[][];
   responses: number[];
   response_name: string;
   replicates: number;
@@ -112,6 +114,7 @@ export type DoeAutomaticFractionalPayload = {
   factors: Array<{ name: string; low: number; high: number }>;
   runs?: number;
   minimum_resolution: number;
+  block_generators: string[][];
   replicates: number;
   foldover: boolean;
   randomize: boolean;

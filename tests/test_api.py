@@ -65,6 +65,32 @@ class LocalApiContractTests(unittest.TestCase):
         self.assertEqual(conflict.status_code, 409)
         self.assertEqual(conflict.json()["error"]["code"], "storage_conflict")
 
+    def test_fractional_blocks_preserve_aliases_through_api(self) -> None:
+        response = self.client.post(
+            "/v1/analysis-runs/doe-fractional-factorial",
+            json={
+                "run_id": "doe-blocked-fractional",
+                "factors": [
+                    {"name": name, "low": 0, "high": 1} for name in "ABCDE"
+                ],
+                "generators": [
+                    {"factor": "E", "terms": ["A", "B", "C", "D"]}
+                ],
+                "block_generators": [["A", "B"], ["A", "C"]],
+                "randomize": False,
+            },
+        )
+
+        self.assertEqual(response.status_code, 201)
+        result = response.json()["result"]
+        self.assertEqual(result["diagnostics"]["block_count"], 4)
+        self.assertEqual(result["diagnostics"]["blocked_resolution_label"], "III")
+        self.assertEqual(len(result["tables"]["block_aliases"]), 3)
+        self.assertEqual(
+            [row["block"] for row in result["tables"]["design"]],
+            [1] * 4 + [2] * 4 + [3] * 4 + [4] * 4,
+        )
+
     def test_domain_and_request_validation_are_tagged(self) -> None:
         domain_error = self.client.post(
             "/v1/analysis-runs/imr", json={"run_id": "short", "values": [1]}

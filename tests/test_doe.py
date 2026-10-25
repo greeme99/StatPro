@@ -86,6 +86,96 @@ class FullFactorialDesignTests(unittest.TestCase):
 
 
 class FractionalFactorialDesignTests(unittest.TestCase):
+    def test_block_generators_assign_balanced_blocks_and_aliases(self) -> None:
+        factors = [FactorDefinition(name, 0, 1) for name in "ABCDE"]
+        result = fractional_factorial_2level(
+            factors,
+            [GeneratorDefinition("E", ["A", "B", "C", "D"])],
+            block_generators=[["A", "B"], ["A", "C"]],
+            randomize=False,
+        )
+
+        self.assertEqual(result.diagnostics["block_count"], 4)
+        self.assertEqual(result.diagnostics["runs_per_block"], 4)
+        self.assertEqual(result.diagnostics["blocked_resolution"], 3)
+        self.assertEqual(
+            [row["block"] for row in result.tables["design"]],
+            [1] * 4 + [2] * 4 + [3] * 4 + [4] * 4,
+        )
+        self.assertEqual(
+            result.tables["block_aliases"],
+            [
+                {
+                    "contrast": "Blk1",
+                    "generator_terms": "A*B",
+                    "treatment_alias_set": ["A*B", "C*D*E"],
+                },
+                {
+                    "contrast": "Blk2",
+                    "generator_terms": "A*C",
+                    "treatment_alias_set": ["A*C", "B*D*E"],
+                },
+                {
+                    "contrast": "Blk1*Blk2",
+                    "generator_terms": "B*C",
+                    "treatment_alias_set": ["B*C", "A*D*E"],
+                },
+            ],
+        )
+
+    def test_block_generators_reject_dependency_and_main_effect_confounding(self) -> None:
+        factors = [FactorDefinition(name, 0, 1) for name in "ABCDE"]
+        generator = [GeneratorDefinition("E", ["A", "B", "C", "D"])]
+        with self.assertRaises(AnalysisInputError) as dependent:
+            fractional_factorial_2level(
+                factors,
+                generator,
+                block_generators=[["A", "B"], ["C", "D", "E"]],
+            )
+        self.assertEqual(dependent.exception.detail.code, "dependent_block_generators")
+
+        with self.assertRaises(AnalysisInputError) as main_effect:
+            fractional_factorial_2level(
+                factors,
+                generator,
+                block_generators=[["A", "B", "C", "D"]],
+            )
+        self.assertEqual(main_effect.exception.detail.code, "block_confounds_main_effect")
+
+    def test_blocked_analysis_fits_block_contrasts_as_nuisance_terms(self) -> None:
+        factors = [FactorDefinition(name, 0, 1) for name in "ABCDE"]
+        generator = [GeneratorDefinition("E", ["A", "B", "C", "D"])]
+        design = fractional_factorial_2level(
+            factors,
+            generator,
+            block_generators=[["A", "B"], ["A", "C"]],
+            randomize=False,
+        )
+        responses = [
+            10 + 2 * row["coded"]["A"] + 5 * row["block_contrasts"]["Blk1"]
+            for row in design.tables["design"]
+        ]
+        result = analyze_fractional_factorial_2level(
+            factors,
+            generator,
+            responses,
+            block_generators=[["A", "B"], ["A", "C"]],
+            randomize=False,
+        )
+
+        coefficients = {
+            row["term"]: row["coefficient"] for row in result.tables["coefficients"]
+        }
+        blocks = {
+            row["contrast"]: row["coefficient"]
+            for row in result.tables["block_effects"]
+        }
+        self.assertAlmostEqual(coefficients["A"], 2.0)
+        self.assertAlmostEqual(blocks["Blk1"], 5.0)
+        self.assertAlmostEqual(blocks["Blk2"], 0.0)
+        self.assertEqual(result.diagnostics["block_degrees_of_freedom"], 3)
+        self.assertTrue(all(abs(row["residual"]) < 1e-12 for row in result.tables["residuals"]))
+
     def test_automatic_selection_matches_minimum_aberration_quarter_fraction(self) -> None:
         factors = [FactorDefinition(name, 0, 1) for name in "ABCDE"]
         result = automatic_fractional_factorial_2level(

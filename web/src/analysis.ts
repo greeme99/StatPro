@@ -201,6 +201,7 @@ export type DoeFractionalDesignRow = {
   run_order: number;
   standard_order: number;
   replicate: number;
+  block?: number;
   fraction_phase?: "original" | "foldover";
   coded: Record<string, number>;
   actual: Record<string, number>;
@@ -214,6 +215,8 @@ export type DoeAliasRow = {
 export type DoeFractionalView = {
   design: DoeFractionalDesignRow[];
   generators: Array<{ factor: string; terms: string[]; expression: string }>;
+  blockGenerators: Array<{ contrast: string; terms: string[]; expression: string }>;
+  blockAliases: Array<{ contrast: string; generator_terms: string; treatment_alias_set: string[] }>;
   mainEffectAliases: DoeAliasRow[];
   twoFactorAliases: DoeAliasRow[];
   definingRelation: string;
@@ -225,6 +228,8 @@ export type DoeFractionalView = {
   selectionObjective: string | null;
   candidateSetsExamined: number | null;
   wordLengthPattern: Record<string, number>;
+  blockCount: number;
+  blockedResolutionLabel: string | null;
 };
 
 export type DoeFractionalAnalysisEffect = DoeScreeningEffect & {
@@ -246,6 +251,8 @@ export type DoeFractionalAnalysisView = {
   resolutionLabel: string;
   augmentedResolution: number;
   mainEffectsClear: boolean;
+  blockEffects: Array<{ contrast: string; coefficient: number; effect: number; generator_terms: string; treatment_alias_set: string[] }>;
+  blockCount: number;
 };
 
 export type DoeCentralCompositeRow = {
@@ -438,6 +445,8 @@ export function toDoeFractionalView(result: ResultBundle | undefined): DoeFracti
   return {
     design: design as DoeFractionalDesignRow[],
     generators: Array.isArray(result.tables.generators) ? result.tables.generators as Array<{ factor: string; terms: string[]; expression: string }> : [],
+    blockGenerators: Array.isArray(result.tables.block_generators) ? result.tables.block_generators as Array<{ contrast: string; terms: string[]; expression: string }> : [],
+    blockAliases: Array.isArray(result.tables.block_aliases) ? result.tables.block_aliases as Array<{ contrast: string; generator_terms: string; treatment_alias_set: string[] }> : [],
     mainEffectAliases: mainEffectAliases as DoeAliasRow[],
     twoFactorAliases: twoFactorAliases as DoeAliasRow[],
     definingRelation: String(relation[0].expression ?? "I"),
@@ -449,6 +458,8 @@ export function toDoeFractionalView(result: ResultBundle | undefined): DoeFracti
     selectionObjective: typeof result.diagnostics.selection_objective === "string" ? result.diagnostics.selection_objective : null,
     candidateSetsExamined: typeof result.diagnostics.candidate_sets_examined === "number" ? result.diagnostics.candidate_sets_examined : null,
     wordLengthPattern: typeof result.diagnostics.word_length_pattern === "object" && result.diagnostics.word_length_pattern !== null ? result.diagnostics.word_length_pattern as Record<string, number> : {},
+    blockCount: Number(result.diagnostics.block_count ?? 1),
+    blockedResolutionLabel: typeof result.diagnostics.blocked_resolution_label === "string" ? result.diagnostics.blocked_resolution_label : null,
   };
 }
 
@@ -469,6 +480,8 @@ export function toDoeFractionalAnalysisView(result: ResultBundle | undefined): D
     resolutionLabel: String(result.diagnostics.resolution_label ?? "—"),
     augmentedResolution: Number(result.diagnostics.augmented_resolution ?? result.diagnostics.resolution ?? 0),
     mainEffectsClear: result.diagnostics.main_effects_clear_of_two_factor_interactions === true,
+    blockEffects: Array.isArray(result.tables.block_effects) ? result.tables.block_effects as Array<{ contrast: string; coefficient: number; effect: number; generator_terms: string; treatment_alias_set: string[] }> : [],
+    blockCount: Number(result.diagnostics.block_count ?? 1),
   };
 }
 
