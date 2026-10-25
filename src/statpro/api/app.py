@@ -18,6 +18,7 @@ from statpro.analyses.doe import (
     FactorDefinition,
     GeneratorDefinition,
     ResponseObjective,
+    analyze_box_behnken,
     analyze_central_composite,
     analyze_fractional_factorial_2level,
     analyze_full_factorial_2level,
@@ -174,6 +175,12 @@ class BoxBehnkenRunRequest(ApiModel):
     replicates: int = Field(default=1, ge=1)
     randomize: bool = True
     seed: int = 0
+
+
+class BoxBehnkenAnalysisRunRequest(BoxBehnkenRunRequest):
+    responses: list[float]
+    response_name: str = "Response"
+    alpha: float = Field(default=0.05, ge=0.001, le=0.5)
 
 
 class CentralCompositeAnalysisRunRequest(CentralCompositeRunRequest):
@@ -649,6 +656,32 @@ def create_app(repository: DocumentRepository) -> FastAPI:
                 replicates=request.replicates,
                 randomize=request.randomize,
                 seed=request.seed,
+            ),
+        )
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _response(stored)
+
+    @app.post(
+        "/v1/analysis-runs/doe-box-behnken-analysis",
+        status_code=201,
+        response_model=StoredRunResponse,
+    )
+    def analyze_box_behnken_doe(
+        request: BoxBehnkenAnalysisRunRequest, response: Response
+    ) -> StoredRunResponse:
+        factors = [FactorDefinition(**factor.model_dump()) for factor in request.factors]
+        stored = _save_run(
+            repository,
+            request.run_id,
+            analyze_box_behnken(
+                factors,
+                request.responses,
+                response_name=request.response_name,
+                center_points=request.center_points,
+                replicates=request.replicates,
+                randomize=request.randomize,
+                seed=request.seed,
+                alpha=request.alpha,
             ),
         )
         response.headers["ETag"] = f'"{stored.etag}"'

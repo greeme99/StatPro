@@ -4,6 +4,7 @@ from statpro.analyses.capability import normal_process_capability
 from statpro.analyses.doe import (
     FactorDefinition,
     GeneratorDefinition,
+    analyze_box_behnken,
     analyze_central_composite,
     analyze_fractional_factorial_2level,
     analyze_full_factorial_2level,
@@ -20,6 +21,7 @@ from statpro.analyses.spc import individuals_moving_range, xbar_r
 __all__ = [
     "FactorDefinition",
     "GeneratorDefinition",
+    "analyze_box_behnken",
     "analyze_central_composite",
     "analyze_fractional_factorial_2level",
     "analyze_full_factorial_2level",

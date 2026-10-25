@@ -216,18 +216,20 @@ export type DoeCentralCompositeView = {
   centerPoints: number;
 };
 
-export type DoeCentralCompositeAnalysisView = {
+export type DoeQuadraticAnalysisView = {
   coefficients: Array<{ term: string; kind: string; coefficient: number; standard_error: number | null; t_value: number | null; p_value: number | null; significant: boolean }>;
   anova: DoeAnovaRow[];
   residuals: DoeResidual[];
   responseName: string;
   alpha: number;
-  rotatable: boolean;
   rSquared: number | null;
   adjustedRSquared: number | null;
   residualDegreesOfFreedom: number;
   lackOfFitDegreesOfFreedom: number;
 };
+
+export type DoeCentralCompositeAnalysisView = DoeQuadraticAnalysisView & { rotatable: boolean };
+export type DoeBoxBehnkenAnalysisView = DoeQuadraticAnalysisView;
 
 export type DoeStationaryPoint = {
   classification: "minimum" | "maximum" | "saddle" | "ridge";
@@ -437,6 +439,25 @@ export function toDoeCentralCompositeAnalysisView(result: ResultBundle | undefin
     responseName: String(result.diagnostics.response_name ?? "Response"),
     alpha: Number(result.diagnostics.alpha ?? 0),
     rotatable: result.diagnostics.rotatable === true,
+    rSquared: typeof result.diagnostics.r_squared === "number" ? result.diagnostics.r_squared : null,
+    adjustedRSquared: typeof result.diagnostics.adjusted_r_squared === "number" ? result.diagnostics.adjusted_r_squared : null,
+    residualDegreesOfFreedom: Number(result.diagnostics.residual_degrees_of_freedom ?? 0),
+    lackOfFitDegreesOfFreedom: Number(result.diagnostics.lack_of_fit_degrees_of_freedom ?? 0),
+  };
+}
+
+export function toDoeBoxBehnkenAnalysisView(result: ResultBundle | undefined): DoeBoxBehnkenAnalysisView | null {
+  if (!result || result.analysis_type !== "doe.box_behnken_analysis") return null;
+  const coefficients = result.tables.coefficients;
+  const anova = result.tables.anova;
+  const residuals = result.tables.residuals;
+  if (!Array.isArray(coefficients) || !Array.isArray(anova) || !Array.isArray(residuals)) return null;
+  return {
+    coefficients: coefficients as DoeBoxBehnkenAnalysisView["coefficients"],
+    anova: anova as DoeAnovaRow[],
+    residuals: residuals as DoeResidual[],
+    responseName: String(result.diagnostics.response_name ?? "Response"),
+    alpha: Number(result.diagnostics.alpha ?? 0),
     rSquared: typeof result.diagnostics.r_squared === "number" ? result.diagnostics.r_squared : null,
     adjustedRSquared: typeof result.diagnostics.adjusted_r_squared === "number" ? result.diagnostics.adjusted_r_squared : null,
     residualDegreesOfFreedom: Number(result.diagnostics.residual_degrees_of_freedom ?? 0),

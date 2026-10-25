@@ -369,6 +369,46 @@ describe("StatPro UI", () => {
     expect(screen.getByText("Edge midpoint")).toBeInTheDocument();
   });
 
+  it("submits Box-Behnken responses for quadratic analysis", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      return new Response(JSON.stringify({}), { status: init?.method === "POST" ? 201 : 200, headers: { "Content-Type": "application/json" } });
+    });
+    render(<MemoryRouter initialEntries={["/analyses/doe/box-behnken"]}><App /></MemoryRouter>);
+
+    await userEvent.click(await screen.findByRole("checkbox", { name: "응답을 함께 분석" }));
+    await userEvent.type(screen.getByRole("textbox", { name: /실행순서 응답/ }), "58 52 42 56 52 56 60 64 47 41 55 49 50 50 50");
+    await userEvent.click(screen.getByRole("button", { name: "2차 모형 분석" }));
+    await waitFor(() => expect(fetchMock.mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === "POST")).toBe(true));
+    const post = fetchMock.mock.calls.find(([url, init]) => String(url).endsWith("/doe-box-behnken-analysis") && (init as RequestInit | undefined)?.method === "POST");
+    const body = JSON.parse(String((post?.[1] as RequestInit).body));
+    expect(body.responses).toHaveLength(15);
+    expect(body.center_points).toBeUndefined();
+    expect(body).toMatchObject({ response_name: "Response", alpha: 0.05 });
+  });
+
+  it("renders Box-Behnken quadratic coefficients and ANOVA", async () => {
+    const result = {
+      analysis_type: "doe.box_behnken_analysis", engine_version: "0.6.0", input_digest: "d".repeat(64), warnings: [], assumptions: [], provenance: [], parameters: {}, plots: {},
+      diagnostics: { response_name: "Yield", alpha: 0.05, r_squared: 0.99, adjusted_r_squared: 0.98, residual_degrees_of_freedom: 5, lack_of_fit_degrees_of_freedom: 3 },
+      tables: {
+        coefficients: [{ term: "A^2", kind: "square", coefficient: 6, standard_error: 0.5, t_value: 12, p_value: 0.001, significant: true }],
+        anova: [{ source: "Model", degrees_of_freedom: 9, sum_of_squares: 100, mean_square: 11.1, f_value: 10, p_value: 0.01 }],
+        residuals: [{ run_order: 1, observed: 58, fitted: 57.9, residual: 0.1 }],
+        design: [],
+      },
+    };
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      return new Response(JSON.stringify({ run_id: "doe-bbd-analysis-001", storage_version: 1, etag: "a".repeat(64), result }), { status: 200 });
+    });
+
+    render(<MemoryRouter initialEntries={["/runs/doe-bbd-analysis-001"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "2차 모형 계수" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Box–Behnken 2차 모형 요약" })).toBeInTheDocument();
+    expect(screen.getByText("Edge-midpoint design")).toBeInTheDocument();
+  });
+
   it("submits central composite responses for stationary-point surface exploration", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });

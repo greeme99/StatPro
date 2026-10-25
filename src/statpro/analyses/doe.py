@@ -2025,6 +2025,35 @@ def _quadratic_model_columns(
     return terms, matrix
 
 
+def analyze_box_behnken(
+    factors: Sequence[FactorDefinition],
+    responses: Sequence[float],
+    *,
+    response_name: str = "Response",
+    center_points: int | None = None,
+    replicates: int = 1,
+    randomize: bool = True,
+    seed: int = 0,
+    alpha: float = 0.05,
+) -> ResultBundle:
+    """Fit a complete coded second-order model to a generated Box-Behnken design."""
+
+    design = box_behnken_design(
+        factors,
+        center_points=center_points,
+        replicates=replicates,
+        randomize=randomize,
+        seed=seed,
+    )
+    return _analyze_quadratic_design(
+        design,
+        responses,
+        response_name=response_name,
+        alpha=alpha,
+        analysis_type="doe.box_behnken_analysis",
+    )
+
+
 def analyze_central_composite(
     factors: Sequence[FactorDefinition],
     responses: Sequence[float],
@@ -2047,6 +2076,25 @@ def analyze_central_composite(
         randomize=randomize,
         seed=seed,
     )
+    return _analyze_quadratic_design(
+        design,
+        responses,
+        response_name=response_name,
+        alpha=alpha,
+        analysis_type="doe.central_composite_analysis",
+    )
+
+
+def _analyze_quadratic_design(
+    design: ResultBundle,
+    responses: Sequence[float],
+    *,
+    response_name: str,
+    alpha: float,
+    analysis_type: str,
+) -> ResultBundle:
+    """Own the common complete-quadratic fit for response-surface designs."""
+
     rows = design.tables["design"]
     values = finite_values(responses, "responses")
     if len(values) != len(rows):
@@ -2222,7 +2270,7 @@ def analyze_central_composite(
         "alpha": normalized_alpha,
     }
     return ResultBundle(
-        analysis_type="doe.central_composite_analysis",
+        analysis_type=analysis_type,
         engine_version=ENGINE_VERSION,
         input_digest=input_digest(payload),
         parameters=payload,

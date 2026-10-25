@@ -12,6 +12,7 @@ from statpro.analyses.doe import (
     FactorDefinition,
     GeneratorDefinition,
     ResponseObjective,
+    analyze_box_behnken,
     analyze_central_composite,
     analyze_fractional_factorial_2level,
     analyze_full_factorial_2level,
@@ -340,6 +341,57 @@ class BoxBehnkenDesignTests(unittest.TestCase):
         with self.assertRaises(AnalysisInputError) as context:
             box_behnken_design(factors, replicates=5_000)
         self.assertEqual(context.exception.detail.code, "design_too_large")
+
+
+class BoxBehnkenAnalysisTests(unittest.TestCase):
+    def test_complete_quadratic_model_recovers_hand_fixture(self) -> None:
+        factors = [FactorDefinition(name, 0, 10) for name in "ABC"]
+        design = box_behnken_design(factors, randomize=False)
+        responses = []
+        for row in design.tables["design"]:
+            a, b, c = (row["coded"][name] for name in "ABC")
+            responses.append(
+                10 + 2 * a - 3 * b + 4 * c + 5 * a * b - 2 * a * c
+                + 3 * b * c + 6 * a * a - 4 * b * b + 2 * c * c
+            )
+
+        result = analyze_box_behnken(
+            factors,
+            responses,
+            response_name="Yield",
+            randomize=False,
+        )
+
+        coefficients = {
+            row["term"]: row["coefficient"] for row in result.tables["coefficients"]
+        }
+        expected = {
+            "Constant": 10.0,
+            "A": 2.0,
+            "B": -3.0,
+            "C": 4.0,
+            "A*B": 5.0,
+            "A*C": -2.0,
+            "B*C": 3.0,
+            "A^2": 6.0,
+            "B^2": -4.0,
+            "C^2": 2.0,
+        }
+        for term, value in expected.items():
+            self.assertAlmostEqual(coefficients[term], value)
+        self.assertEqual(result.analysis_type, "doe.box_behnken_analysis")
+        self.assertAlmostEqual(result.diagnostics["r_squared"], 1.0)
+        self.assertEqual(result.diagnostics["pure_error_degrees_of_freedom"], 2)
+        json.dumps(result.to_dict(), allow_nan=False)
+
+    def test_rejects_response_count_mismatch(self) -> None:
+        with self.assertRaises(AnalysisInputError) as context:
+            analyze_box_behnken(
+                [FactorDefinition(name, 0, 1) for name in "ABC"],
+                [1, 2, 3],
+                randomize=False,
+            )
+        self.assertEqual(context.exception.detail.code, "response_count_mismatch")
 
 
 class CentralCompositeDesignTests(unittest.TestCase):

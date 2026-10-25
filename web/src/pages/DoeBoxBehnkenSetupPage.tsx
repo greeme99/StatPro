@@ -1,7 +1,7 @@
 import { AlertTriangle, ArrowLeft, FlaskConical, Plus, Trash2 } from "lucide-react";
 import { type FormEvent, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { createDoeBoxBehnkenRun } from "../api";
+import { createDoeBoxBehnkenAnalysisRun, createDoeBoxBehnkenRun } from "../api";
 import { Button } from "../components/Button";
 
 type FactorInput = { name: string; low: string; high: string };
@@ -23,6 +23,10 @@ export function DoeBoxBehnkenSetupPage() {
   const [replicates, setReplicates] = useState(1);
   const [randomize, setRandomize] = useState(true);
   const [seed, setSeed] = useState(0);
+  const [analyzeResponses, setAnalyzeResponses] = useState(false);
+  const [responseName, setResponseName] = useState("Response");
+  const [responses, setResponses] = useState("");
+  const [alpha, setAlpha] = useState(0.05);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const recommendedCenters = factors.length === 5 ? 6 : 3;
@@ -51,17 +55,27 @@ export function DoeBoxBehnkenSetupPage() {
       setError("반복·중심점은 양의 정수, seed는 정수로 입력하세요.");
       return;
     }
+    const normalizedResponses = responses.split(/[\s,;]+/).filter(Boolean).map(Number);
+    if (analyzeResponses && (!responseName.trim() || normalizedResponses.length !== estimatedRuns || normalizedResponses.some((value) => !Number.isFinite(value)))) {
+      setError(`실행순서 기준 유한 응답 ${estimatedRuns}개를 입력하세요.`);
+      return;
+    }
     setError("");
     setLoading(true);
     try {
-      await createDoeBoxBehnkenRun({
+      const payload = {
         run_id: runId,
         factors: normalizedFactors,
         ...(centerPoints === "" ? {} : { center_points: resolvedCenters }),
         replicates,
         randomize,
         seed,
-      });
+      };
+      if (analyzeResponses) {
+        await createDoeBoxBehnkenAnalysisRun({ ...payload, responses: normalizedResponses, response_name: responseName.trim(), alpha });
+      } else {
+        await createDoeBoxBehnkenRun(payload);
+      }
       navigate(`/runs/${runId}`);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Box–Behnken 설계를 생성하지 못했습니다.");
@@ -78,8 +92,9 @@ export function DoeBoxBehnkenSetupPage() {
       <section className="form-panel"><header><span className="step-index">01</span><div><h2>실행 식별자</h2><p>재현 가능한 불변 Analysis Run ID입니다.</p></div></header><label className="field"><span>Run ID</span><input value={runId} onChange={(event) => setRunId(event.target.value)} required pattern="[A-Za-z0-9][A-Za-z0-9._-]{0,127}" /></label></section>
       <section className="form-panel"><header><span className="step-index">02</span><div><h2>정량 요인과 수준</h2><p>3–5개 요인의 coded −1/0/+1에 대응할 Low·midpoint·High를 정의합니다.</p></div></header><div><div className="factor-editor"><div className="factor-editor-head"><span>요인</span><span>Low</span><span>High</span><span className="sr-only">삭제</span></div>{factors.map((factor, index) => <div className="factor-editor-row" key={index}><label><span className="sr-only">요인 {index + 1} 이름</span><input value={factor.name} onChange={(event) => updateFactor(index, "name", event.target.value)} required /></label><label><span className="sr-only">{factor.name} Low</span><input type="number" step="any" value={factor.low} onChange={(event) => updateFactor(index, "low", event.target.value)} required /></label><label><span className="sr-only">{factor.name} High</span><input type="number" step="any" value={factor.high} onChange={(event) => updateFactor(index, "high", event.target.value)} required /></label><button className="icon-button" type="button" aria-label={`요인 ${factor.name} 삭제`} disabled={factors.length <= 3} onClick={() => setFactors((current) => current.filter((_, candidate) => candidate !== index))}><Trash2 /></button></div>)}</div><Button type="button" disabled={factors.length >= 5} onClick={() => setFactors((current) => [...current, { name: `F${current.length + 1}`, low: "0", high: "1" }])} icon={<Plus />}>요인 추가</Button></div></section>
       <section className="form-panel"><header><span className="step-index">03</span><div><h2>설계 속성</h2><p>공개 표준 실행 수와 재현 가능한 무작위 순서를 설정합니다.</p></div></header><div className="form-stack"><div className="inline-fields"><label className="field"><span>중심점 수</span><input type="number" min="1" value={centerPoints} placeholder={`자동 ${recommendedCenters}`} onChange={(event) => setCenterPoints(event.target.value)} /></label><label className="field"><span>Edge block 반복</span><input type="number" min="1" value={replicates} onChange={(event) => setReplicates(Number(event.target.value))} required /></label><label className="field"><span>무작위 seed</span><input type="number" value={seed} onChange={(event) => setSeed(Number(event.target.value))} required /></label></div><label className="check-field"><input type="checkbox" checked={randomize} onChange={(event) => setRandomize(event.target.checked)} /><span>실행순서 무작위화</span></label><p className="supporting-copy">예상 실행 수: {estimatedRuns}회 · 중심점 {resolvedCenters}회</p></div></section>
+      <section className="form-panel"><header><span className="step-index">04</span><div><h2>2차 모형 분석</h2><p>선택하면 실행순서 응답에 선형·2요인 교호작용·제곱항을 적합합니다.</p></div></header><div><label className="check-field"><input type="checkbox" checked={analyzeResponses} onChange={(event) => setAnalyzeResponses(event.target.checked)} /><span>응답을 함께 분석</span></label>{analyzeResponses && <div className="form-stack"><div className="inline-fields"><label className="field"><span>응답 이름</span><input value={responseName} onChange={(event) => setResponseName(event.target.value)} required /></label><label className="field"><span>유의수준 α</span><input type="number" min="0.001" max="0.5" step="0.001" value={alpha} onChange={(event) => setAlpha(Number(event.target.value))} required /></label></div><label className="field"><span>실행순서 응답 ({estimatedRuns}개)</span><textarea rows={7} value={responses} onChange={(event) => setResponses(event.target.value)} placeholder="공백, 쉼표 또는 줄바꿈으로 구분" required /></label></div>}</div></section>
       <aside className="method-note"><strong>설계영역과 안전 확인</strong><p>모든 요인이 동시에 극단에 놓이는 cube corner는 포함하지 않지만, 생성된 각 공정 설정의 안전성과 실행 가능성은 별도로 확인해야 합니다.</p></aside>
-      <div className="form-actions"><Button type="submit" variant="primary" loading={loading} icon={<FlaskConical />}>Box–Behnken 설계 생성</Button></div>
+      <div className="form-actions"><Button type="submit" variant="primary" loading={loading} icon={<FlaskConical />}>{analyzeResponses ? "2차 모형 분석" : "Box–Behnken 설계 생성"}</Button></div>
     </form>
   </div>;
 }

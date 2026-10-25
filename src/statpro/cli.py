@@ -12,6 +12,7 @@ from statpro.analyses.doe import (
     FactorDefinition,
     GeneratorDefinition,
     ResponseObjective,
+    analyze_box_behnken,
     analyze_central_composite,
     analyze_fractional_factorial_2level,
     analyze_full_factorial_2level,
@@ -40,6 +41,7 @@ def _parser() -> argparse.ArgumentParser:
         "doe-full-factorial",
         "doe-central-composite",
         "doe-box-behnken",
+        "doe-analyze-box-behnken",
         "doe-analyze-central-composite",
         "doe-explore-central-composite",
         "doe-fractional-factorial",
@@ -86,6 +88,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "doe-full-factorial",
             "doe-central-composite",
             "doe-box-behnken",
+            "doe-analyze-box-behnken",
             "doe-analyze-central-composite",
             "doe-explore-central-composite",
             "doe-fractional-factorial",
@@ -110,6 +113,17 @@ def main(argv: Sequence[str] | None = None) -> int:
                     replicates=payload.get("replicates", 1),
                     randomize=payload.get("randomize", True),
                     seed=payload.get("seed", 0),
+                )
+            elif args.command == "doe-analyze-box-behnken":
+                result = analyze_box_behnken(
+                    factors,
+                    payload["responses"],
+                    response_name=payload.get("response_name", "Response"),
+                    center_points=payload.get("center_points"),
+                    replicates=payload.get("replicates", 1),
+                    randomize=payload.get("randomize", True),
+                    seed=payload.get("seed", 0),
+                    alpha=payload.get("alpha", 0.05),
                 )
             elif args.command == "doe-analyze-plackett-burman":
                 result = analyze_plackett_burman(

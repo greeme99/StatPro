@@ -25,3 +25,10 @@ StatPro 구현은 모든 요인쌍에 대해 다른 요인을 0에 고정하고 
 - Minitab 세션 명령어와 출력 열 이름
 - 6요인 이상에서 사용하는 특수 불완전 블록 구성
 - Box–Behnken 응답 분석과 Minitab 출력의 대응 관계
+
+## 2026-10-25 응답 분석 구현 증분
+
+- StatPro는 생성된 Box–Behnken 실행순서와 일대일인 응답에 complete coded second-order model(상수, 선형, 모든 2요인 교호작용, 제곱항)을 적합한다.
+- 계수·ANOVA·순수오차/적합결여 분해·적합값·잔차·R²는 중앙합성설계와 동일한 단일 quadratic-fit 소유 경계에서 계산한다.
+- 공개 통계 근거는 NIST/SEMATECH response-surface model과 residual diagnostics이며, Minitab 14 구현을 복제한 계산식이라는 주장은 하지 않는다.
+- `CmProjManBoxBehnken` 정적 문자열은 Minitab 기능 후보 증거일 뿐이다. 본 증분에서도 Minitab 14의 계수 표기, ANOVA 자유도, p값, 적합결여 또는 화면 동작과의 동등성은 확인하지 않았다.
