@@ -36,6 +36,7 @@ from statpro.analyses.spc import (
     p_chart,
     u_chart,
     xbar_r,
+    xbar_s,
 )
 from statpro.domain.data import import_csv_dataset
 from statpro.domain.errors import AnalysisInputError
@@ -51,6 +52,7 @@ def _parser() -> argparse.ArgumentParser:
         "p-chart",
         "u-chart",
         "xbar-r",
+        "xbar-s",
         "capability-normal",
         "doe-full-factorial",
         "doe-central-composite",
@@ -99,6 +101,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             result = u_chart(payload["defects"], payload["inspection_units"])
         elif args.command == "xbar-r":
             result = xbar_r(
+                payload["subgroups"],
+                rules=payload.get("rules", "basic"),
+            )
+        elif args.command == "xbar-s":
+            result = xbar_s(
                 payload["subgroups"],
                 rules=payload.get("rules", "basic"),
             )

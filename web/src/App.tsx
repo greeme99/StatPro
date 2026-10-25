@@ -14,6 +14,7 @@ import { DoePlackettBurmanSetupPage } from "./pages/DoePlackettBurmanSetupPage";
 import { DoeCentralCompositeSetupPage } from "./pages/DoeCentralCompositeSetupPage";
 import { DoeBoxBehnkenSetupPage } from "./pages/DoeBoxBehnkenSetupPage";
 import { AttributeChartSetupPage } from "./pages/AttributeChartSetupPage";
+import { XbarSSetupPage } from "./pages/XbarSSetupPage";
 
 export default function App() {
   return (
@@ -22,6 +23,7 @@ export default function App() {
         <Route path="/" element={<DashboardPage />} />
         <Route path="/analyses/imr/new" element={<ImrSetupPage />} />
         <Route path="/analyses/spc/attribute" element={<AttributeChartSetupPage />} />
+        <Route path="/analyses/spc/xbar-s" element={<XbarSSetupPage />} />
         <Route path="/analyses/doe/full-factorial" element={<DoeSetupPage />} />
         <Route path="/analyses/doe/fractional-factorial" element={<DoeFractionalSetupPage />} />
         <Route path="/analyses/doe/plackett-burman" element={<DoePlackettBurmanSetupPage />} />

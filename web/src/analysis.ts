@@ -49,6 +49,50 @@ export function toImrView(result: ResultBundle | undefined): ImrView | null {
   return { points, center: limits.center, ucl: limits.ucl, lcl: limits.lcl };
 }
 
+export type XbarSView = {
+  subgroupSize: number;
+  estimatedSigma: number;
+  xbarPoints: ProcessPoint[];
+  sPoints: ProcessPoint[];
+  xbarLimits: { center: number; ucl: number; lcl: number };
+  sLimits: { center: number; ucl: number; lcl: number };
+};
+
+export function toXbarSView(result: ResultBundle | undefined): XbarSView | null {
+  if (!result || result.analysis_type !== "spc.xbar_s") return null;
+  const xbarValues = result.plots.xbar?.values;
+  const xbarSignals = result.plots.xbar?.signals;
+  const sValues = result.plots.standard_deviation?.values;
+  const sSignals = result.plots.standard_deviation?.signals;
+  const xbarLimits = result.tables.limits?.xbar;
+  const sLimits = result.tables.limits?.standard_deviation;
+  if (!Array.isArray(xbarValues) || !Array.isArray(xbarSignals) || !Array.isArray(sValues) || !Array.isArray(sSignals) || !xbarLimits || !sLimits) return null;
+  if (![xbarLimits.center, xbarLimits.ucl, xbarLimits.lcl, sLimits.center, sLimits.ucl, sLimits.lcl].every(Number.isFinite)) return null;
+  const subgroupSize = result.parameters.subgroup_size;
+  const estimatedSigma = result.diagnostics.estimated_sigma;
+  if (
+    typeof subgroupSize !== "number" || !Number.isInteger(subgroupSize) || subgroupSize < 2
+    || typeof estimatedSigma !== "number" || !Number.isFinite(estimatedSigma) || estimatedSigma < 0
+    || xbarValues.length !== sValues.length
+    || xbarValues.some((value) => typeof value !== "number" || !Number.isFinite(value))
+    || sValues.some((value) => typeof value !== "number" || !Number.isFinite(value))
+    || xbarSignals.some((value) => typeof value !== "number" || !Number.isInteger(value) || value < 0 || value >= xbarValues.length)
+    || sSignals.some((value) => typeof value !== "number" || !Number.isInteger(value) || value < 0 || value >= sValues.length)
+  ) return null;
+  const points = (values: unknown[], signals: unknown[]) => {
+    const signalSet = new Set(signals as number[]);
+    return (values as number[]).map((value, index) => ({ index: index + 1, value, signal: signalSet.has(index), rules: [] }));
+  };
+  return {
+    subgroupSize,
+    estimatedSigma,
+    xbarPoints: points(xbarValues, xbarSignals),
+    sPoints: points(sValues, sSignals),
+    xbarLimits,
+    sLimits,
+  };
+}
+
 export type AttributeChartPoint = {
   index: number;
   eventCount: number;

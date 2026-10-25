@@ -16,6 +16,7 @@ from statpro.analyses.spc import (
     u_chart,
     western_electric_signals,
     xbar_r,
+    xbar_s,
 )
 from statpro.domain.errors import AnalysisInputError
 
@@ -163,6 +164,53 @@ class XbarRTests(unittest.TestCase):
         with self.assertRaises(AnalysisInputError) as context:
             xbar_r([[1, 2], [3, 4]], rules="western_electric")
         self.assertEqual(context.exception.detail.code, "invalid_control_rule_set")
+
+
+class XbarSTests(unittest.TestCase):
+    def test_c4_limits_match_public_xbar_s_formulas(self) -> None:
+        result = xbar_s([list(range(1, 11)), list(range(2, 12))])
+        xbar_limits = result.tables["limits"]["xbar"]
+        s_limits = result.tables["limits"]["standard_deviation"]
+
+        self.assertEqual(result.analysis_type, "spc.xbar_s")
+        self.assertAlmostEqual(result.parameters["c4"], 0.9726592741)
+        self.assertAlmostEqual(result.parameters["a3"], 0.9753500771)
+        self.assertAlmostEqual(result.parameters["b3"], 0.2837056576, places=6)
+        self.assertAlmostEqual(result.parameters["b4"], 1.7162943424, places=6)
+        self.assertAlmostEqual(xbar_limits["center"], 6.0)
+        self.assertAlmostEqual(s_limits["center"], 3.0276503541)
+        self.assertAlmostEqual(result.diagnostics["estimated_sigma"], 3.1127553447)
+
+    def test_rejects_unequal_subgroups(self) -> None:
+        with self.assertRaises(AnalysisInputError) as context:
+            xbar_s([[1, 2, 3], [4, 5]])
+        self.assertEqual(context.exception.detail.code, "unequal_subgroup_size")
+
+    def test_small_subgroups_are_calculated_with_method_warning(self) -> None:
+        result = xbar_s([[1, 2, 3], [2, 3, 4]])
+        self.assertTrue(any("below 9" in warning for warning in result.warnings))
+
+    def test_nelson_rules_apply_one_through_four_to_s_chart(self) -> None:
+        result = xbar_s(
+            [
+                [index + offset for offset in range(10)]
+                for index in range(8)
+            ],
+            rules="nelson",
+        )
+        self.assertTrue(
+            all(
+                int(signal["rule"].split("-")[1]) <= 4
+                for signal in result.diagnostics["standard_deviation_rule_signals"]
+            )
+        )
+
+    def test_zero_within_subgroup_variation_keeps_xbar_limit_signals(self) -> None:
+        result = xbar_s([[1.0] * 10, [2.0] * 10])
+
+        self.assertEqual(result.plots["xbar"]["signals"], [0, 1])
+        self.assertEqual(result.diagnostics["xbar_limit_signal_indices"], [0, 1])
+        self.assertEqual(result.plots["standard_deviation"]["signals"], [])
 
 
 class AttributeChartTests(unittest.TestCase):

@@ -39,6 +39,17 @@ export function createImrRun(payload: {
   });
 }
 
+export function createXbarSRun(payload: {
+  run_id: string;
+  subgroups: number[][];
+  rules: "basic" | "nelson";
+}): Promise<StoredRun> {
+  return request("/v1/analysis-runs/xbar-s", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function createAttributeChartRun(payload: {
   run_id: string;
   chart: "p" | "np" | "c" | "u";

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from itertools import pairwise
-from math import sqrt
-from statistics import fmean
+from math import exp, lgamma, sqrt
+from statistics import fmean, stdev
 from typing import Literal
 
 from statpro.analyses.common import finite_values
@@ -21,6 +21,17 @@ NIST_IMR_SOURCE = ProvenanceSource(
 NIST_XBAR_R_SOURCE = ProvenanceSource(
     title="NIST/SEMATECH 6.3.1.1 Shewhart X bar and R and S Control Charts",
     url="https://www.itl.nist.gov/div898/handbook/pmc/section3/pmc311.htm",
+)
+NIST_XBAR_S_SOURCE = ProvenanceSource(
+    title="NIST/SEMATECH 6.3.2.1 Shewhart X bar and S Control Charts",
+    url="https://www.itl.nist.gov/div898/handbook/pmc/section3/pmc321.htm",
+)
+MINITAB_XBAR_S_SOURCE = ProvenanceSource(
+    title="Minitab public documentation: Overview for Xbar-S Chart",
+    url=(
+        "https://support.minitab.com/en-us/minitab/help-and-how-to/quality-and-process-improvement/"
+        "control-charts/how-to/variables-charts-for-subgroups/xbar-s-chart/before-you-start/overview/"
+    ),
 )
 NIST_WECO_SOURCE = ProvenanceSource(
     title="NIST/SEMATECH 6.3.2 Variables Control Charts and WECO Rules",
@@ -865,5 +876,172 @@ def xbar_r(
             (NIST_XBAR_R_SOURCE, MINITAB_SPECIAL_CAUSE_SOURCE)
             if rules == "nelson"
             else (NIST_XBAR_R_SOURCE,)
+        ),
+    )
+
+
+def xbar_s(
+    subgroups: Sequence[Sequence[float]], *, rules: str = "basic"
+) -> ResultBundle:
+    """Calculate Xbar and S charts for equal-sized rational subgroups."""
+
+    if len(subgroups) < 2:
+        raise AnalysisInputError(
+            "insufficient_subgroups",
+            "Xbar-S requires at least two rational subgroups.",
+            "subgroups",
+        )
+    if rules not in {"basic", "nelson"}:
+        raise AnalysisInputError(
+            "invalid_control_rule_set",
+            "Xbar-S rules must be 'basic' or 'nelson'.",
+            "rules",
+        )
+    normalized = [
+        finite_values(group, f"subgroups[{index}]")
+        for index, group in enumerate(subgroups)
+    ]
+    subgroup_size = len(normalized[0])
+    if not 2 <= subgroup_size <= 100:
+        raise AnalysisInputError(
+            "unsupported_subgroup_size",
+            "Xbar-S supports constant subgroup sizes from 2 through 100.",
+            "subgroups",
+        )
+    if any(len(group) != subgroup_size for group in normalized):
+        raise AnalysisInputError(
+            "unequal_subgroup_size",
+            "Every rational subgroup must contain the same number of observations.",
+            "subgroups",
+        )
+
+    subgroup_means = [fmean(group) for group in normalized]
+    subgroup_standard_deviations = [stdev(group) for group in normalized]
+    grand_mean = fmean(subgroup_means)
+    average_standard_deviation = fmean(subgroup_standard_deviations)
+    c4 = sqrt(2.0 / (subgroup_size - 1)) * exp(
+        lgamma(subgroup_size / 2.0) - lgamma((subgroup_size - 1) / 2.0)
+    )
+    sigma_hat = average_standard_deviation / c4
+    a3 = 3.0 / (c4 * sqrt(subgroup_size))
+    spread_factor = 3.0 * sqrt(max(0.0, 1.0 - c4 * c4)) / c4
+    b3 = max(0.0, 1.0 - spread_factor)
+    b4 = 1.0 + spread_factor
+    xbar_lcl = grand_mean - a3 * average_standard_deviation
+    xbar_ucl = grand_mean + a3 * average_standard_deviation
+    s_lcl = b3 * average_standard_deviation
+    s_ucl = b4 * average_standard_deviation
+
+    mean_limit_signals = [
+        index
+        for index, value in enumerate(subgroup_means)
+        if value < xbar_lcl or value > xbar_ucl
+    ]
+    s_limit_signals = [
+        index
+        for index, value in enumerate(subgroup_standard_deviations)
+        if value < s_lcl or value > s_ucl
+    ]
+    if average_standard_deviation == 0.0:
+        xbar_rule_signals: list[dict[str, object]] = []
+        s_rule_signals: list[dict[str, object]] = []
+    else:
+        xbar_rule_signals = nelson_signals(
+            subgroup_means,
+            center=grand_mean,
+            sigma=sigma_hat / sqrt(subgroup_size),
+            enabled_rules=(1,) if rules == "basic" else tuple(range(1, 9)),
+            lower_limit=xbar_lcl,
+            upper_limit=xbar_ucl,
+        )
+        s_rule_signals = nelson_signals(
+            subgroup_standard_deviations,
+            center=average_standard_deviation,
+            sigma=None,
+            enabled_rules=(1,) if rules == "basic" else (1, 2, 3, 4),
+            lower_limit=s_lcl,
+            upper_limit=s_ucl,
+        )
+    mean_signals = sorted(
+        set(mean_limit_signals)
+        | {index for signal in xbar_rule_signals for index in signal["involved_indices"]}
+    )
+    s_signals = sorted(
+        set(s_limit_signals)
+        | {index for signal in s_rule_signals for index in signal["involved_indices"]}
+    )
+    warnings: list[str] = []
+    if subgroup_size < 9:
+        warnings.append(
+            "Subgroup sizes below 9 are usually monitored with Xbar-R; Xbar-S remains calculated from the public c4 formulas."
+        )
+    if average_standard_deviation == 0.0:
+        warnings.append(
+            "Every subgroup has zero standard deviation; within-subgroup variation is zero."
+        )
+    if rules == "nelson":
+        warnings.append(
+            "Xbar uses Nelson tests 1-8 while S uses tests 1-4; additional tests increase sensitivity and false-alarm frequency."
+        )
+
+    payload = {"subgroups": normalized, "rules": rules}
+    return ResultBundle(
+        analysis_type="spc.xbar_s",
+        engine_version=ENGINE_VERSION,
+        input_digest=input_digest(payload),
+        parameters={
+            "subgroup_size": subgroup_size,
+            "c4": c4,
+            "a3": a3,
+            "b3": b3,
+            "b4": b4,
+            "rules": rules,
+        },
+        tables={
+            "subgroups": normalized,
+            "subgroup_means": subgroup_means,
+            "subgroup_standard_deviations": subgroup_standard_deviations,
+            "limits": {
+                "xbar": {"center": grand_mean, "lcl": xbar_lcl, "ucl": xbar_ucl},
+                "standard_deviation": {
+                    "center": average_standard_deviation,
+                    "lcl": s_lcl,
+                    "ucl": s_ucl,
+                },
+            },
+        },
+        plots={
+            "xbar": {
+                "values": subgroup_means,
+                "signals": mean_signals,
+                "rule_signals": xbar_rule_signals,
+            },
+            "standard_deviation": {
+                "values": subgroup_standard_deviations,
+                "signals": s_signals,
+                "rule_signals": s_rule_signals,
+            },
+        },
+        diagnostics={
+            "estimated_sigma": sigma_hat,
+            "xbar_signal_indices": mean_signals,
+            "xbar_limit_signal_indices": mean_limit_signals,
+            "xbar_rule_signals": xbar_rule_signals,
+            "standard_deviation_signal_indices": s_signals,
+            "standard_deviation_limit_signal_indices": s_limit_signals,
+            "standard_deviation_rule_signals": s_rule_signals,
+        },
+        assumptions=(
+            "Subgroups are rational and ordered in process time.",
+            "Subgroup sizes are constant.",
+            "The average sample standard deviation divided by c4 estimates within-subgroup sigma.",
+            "Three-sigma limits assume approximately normal within-subgroup observations.",
+            "Supplementary rules mark investigation candidates and do not establish a special cause by themselves.",
+        ),
+        warnings=tuple(warnings),
+        provenance=(
+            (NIST_XBAR_S_SOURCE, MINITAB_XBAR_S_SOURCE, MINITAB_SPECIAL_CAUSE_SOURCE)
+            if rules == "nelson"
+            else (NIST_XBAR_S_SOURCE, MINITAB_XBAR_S_SOURCE)
         ),
     )

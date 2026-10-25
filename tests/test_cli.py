@@ -121,6 +121,30 @@ class CliBoundaryTests(unittest.TestCase):
             ],
         )
 
+    def test_xbar_s_returns_c4_limits_and_standard_deviation_chart(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "xbar-s.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "subgroups": [
+                            list(range(index, index + 10)) for index in range(1, 7)
+                        ],
+                        "rules": "basic",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            output = io.StringIO()
+            with redirect_stdout(output):
+                exit_code = main(["xbar-s", "--input", str(path)])
+
+        result = json.loads(output.getvalue())["result"]
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(result["analysis_type"], "spc.xbar_s")
+        self.assertAlmostEqual(result["parameters"]["c4"], 0.9726592741)
+        self.assertEqual(len(result["plots"]["standard_deviation"]["values"]), 6)
+
     def test_doe_analysis_returns_effects_anova_and_residuals(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "doe-analysis.json"

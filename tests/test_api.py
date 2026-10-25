@@ -167,6 +167,17 @@ class LocalApiContractTests(unittest.TestCase):
                 "spc.xbar_r",
             ),
             (
+                "/v1/analysis-runs/xbar-s",
+                {
+                    "run_id": "xbar-s",
+                    "subgroups": [
+                        list(range(index, index + 10)) for index in range(1, 7)
+                    ],
+                    "rules": "nelson",
+                },
+                "spc.xbar_s",
+            ),
+            (
                 "/v1/analysis-runs/capability-normal",
                 {"run_id": "cap", "values": [98, 99, 100, 101, 102], "lsl": 95, "usl": 105},
                 "capability.normal_individuals",

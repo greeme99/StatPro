@@ -42,6 +42,7 @@ from statpro.analyses.spc import (
     p_chart,
     u_chart,
     xbar_r,
+    xbar_s,
 )
 from statpro.application.documents import (
     AtomicJsonDocumentRepository,
@@ -737,6 +738,16 @@ def create_app(repository: DocumentRepository) -> FastAPI:
             repository,
             request.run_id,
             xbar_r(request.subgroups, rules=request.rules),
+        )
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _response(stored)
+
+    @app.post("/v1/analysis-runs/xbar-s", status_code=201, response_model=StoredRunResponse)
+    def run_xbar_s(request: XbarRRunRequest, response: Response) -> StoredRunResponse:
+        stored = _save_run(
+            repository,
+            request.run_id,
+            xbar_s(request.subgroups, rules=request.rules),
         )
         response.headers["ETag"] = f'"{stored.etag}"'
         return _response(stored)
