@@ -299,10 +299,65 @@ export function addFmeaFailure(studyId: string, payload: {
   prevention_control: string;
   detection_control: string;
   ratings: { severity: number; occurrence: number; detection: number };
+  process_step_id?: string | null;
+  characteristic_ids?: string[];
   actor: string;
   occurred_at: string;
 }): Promise<StoredFmeaStudy> {
   return request(`/v1/fmea-studies/${encodeURIComponent(studyId)}/failure-analyses`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function addFmeaProcessStep(studyId: string, payload: {
+  expected_storage_version: number;
+  step_id: string;
+  sequence: number;
+  name: string;
+  operation: string;
+  actor: string;
+  occurred_at: string;
+}): Promise<StoredFmeaStudy> {
+  return request(`/v1/fmea-studies/${encodeURIComponent(studyId)}/process-steps`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function addFmeaProcessCharacteristic(studyId: string, payload: {
+  expected_storage_version: number;
+  characteristic_id: string;
+  process_step_id: string;
+  name: string;
+  characteristic_type: "product" | "process";
+  specification: string;
+  special_classification?: string | null;
+  actor: string;
+  occurred_at: string;
+}): Promise<StoredFmeaStudy> {
+  return request(`/v1/fmea-studies/${encodeURIComponent(studyId)}/process-characteristics`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function addFmeaControlPlanItem(studyId: string, payload: {
+  expected_storage_version: number;
+  control_id: string;
+  phase: "prototype" | "pre_launch" | "production" | "safe_launch";
+  characteristic_id: string;
+  failure_item_ids: string[];
+  measurement_method: string;
+  sample_size: number;
+  frequency: string;
+  control_method: string;
+  reaction_plan: string;
+  reaction_owner: string;
+  actor: string;
+  occurred_at: string;
+}): Promise<StoredFmeaStudy> {
+  return request(`/v1/fmea-studies/${encodeURIComponent(studyId)}/control-plan-items`, {
     method: "POST",
     body: JSON.stringify(payload),
   });

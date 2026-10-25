@@ -49,6 +49,37 @@ export type FailureAnalysis = {
   current_ratings: RiskRatings;
   action_priority: string | null;
   action_priority_reason: string | null;
+  process_step_id: string | null;
+  characteristic_ids: string[];
+};
+
+export type ProcessStep = {
+  step_id: string;
+  sequence: number;
+  name: string;
+  operation: string;
+};
+
+export type ProcessCharacteristic = {
+  characteristic_id: string;
+  process_step_id: string;
+  name: string;
+  characteristic_type: "product" | "process";
+  specification: string;
+  special_classification: string | null;
+};
+
+export type ControlPlanItem = {
+  control_id: string;
+  phase: "prototype" | "pre_launch" | "production" | "safe_launch";
+  characteristic_id: string;
+  failure_item_ids: string[];
+  measurement_method: string;
+  sample_size: number;
+  frequency: string;
+  control_method: string;
+  reaction_plan: string;
+  reaction_owner: string;
 };
 
 export type RecommendedAction = {
@@ -119,6 +150,9 @@ export type FmeaStudy = {
   action_priority_policy_id: string | null;
   action_priority_policy_digest: string | null;
   action_priority_policy_key: string | null;
+  process_steps: ProcessStep[];
+  characteristics: ProcessCharacteristic[];
+  control_plan_items: ControlPlanItem[];
   seven_step_progress?: SevenStepProgress[];
 };
 

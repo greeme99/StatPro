@@ -1,7 +1,7 @@
-import { AlertTriangle, ArrowLeft, CheckCircle2, ClipboardCheck, FilePlus2, Link2, ShieldAlert, Upload, Wrench } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CheckCircle2, ClipboardCheck, FilePlus2, GitBranch, Link2, ShieldAlert, Upload, Wrench } from "lucide-react";
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { addFmeaAction, addFmeaFailure, approveFmeaStudy, attachActionPriorityPolicy, completeFmeaAction, createActionPriorityPolicy, getFmeaStudy, listActionPriorityPolicies, submitFmeaForReview } from "../api";
+import { addFmeaAction, addFmeaControlPlanItem, addFmeaFailure, addFmeaProcessCharacteristic, addFmeaProcessStep, approveFmeaStudy, attachActionPriorityPolicy, completeFmeaAction, createActionPriorityPolicy, getFmeaStudy, listActionPriorityPolicies, submitFmeaForReview } from "../api";
 import { Button } from "../components/Button";
 import type { FailureAnalysis, RecommendedAction, StoredActionPriorityPolicy, StoredFmeaStudy } from "../types";
 
@@ -25,6 +25,7 @@ export function FmeaStudyPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [showActionForm, setShowActionForm] = useState(false);
+  const [traceEditor, setTraceEditor] = useState<"step" | "characteristic" | "control" | null>(null);
   const [completingActionId, setCompletingActionId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -69,6 +70,8 @@ export function FmeaStudyPage() {
         ratings: {
           severity: Number(form.get("severity")), occurrence: Number(form.get("occurrence")), detection: Number(form.get("detection")),
         },
+        process_step_id: String(form.get("process_step_id") ?? "").trim() || null,
+        characteristic_ids: form.getAll("characteristic_ids").map(String).filter(Boolean),
         actor: String(form.get("actor") ?? "").trim(),
         occurred_at: new Date().toISOString(),
       });
@@ -78,6 +81,86 @@ export function FmeaStudyPage() {
       formElement.reset();
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "고장 분석을 추가하지 못했습니다.");
+    } finally { setBusy(false); }
+  }
+
+  async function handleAddProcessStep(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!stored) return;
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
+    setBusy(true);
+    setError("");
+    try {
+      setStored(await addFmeaProcessStep(studyId, {
+        expected_storage_version: stored.storage_version,
+        step_id: String(form.get("step_id") ?? "").trim(),
+        sequence: Number(form.get("sequence")),
+        name: String(form.get("name") ?? "").trim(),
+        operation: String(form.get("operation") ?? "").trim(),
+        actor: String(form.get("actor") ?? "").trim(),
+        occurred_at: new Date().toISOString(),
+      }));
+      formElement.reset();
+      setTraceEditor(null);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "공정 단계를 추가하지 못했습니다.");
+    } finally { setBusy(false); }
+  }
+
+  async function handleAddCharacteristic(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!stored) return;
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
+    setBusy(true);
+    setError("");
+    try {
+      setStored(await addFmeaProcessCharacteristic(studyId, {
+        expected_storage_version: stored.storage_version,
+        characteristic_id: String(form.get("characteristic_id") ?? "").trim(),
+        process_step_id: String(form.get("process_step_id") ?? ""),
+        name: String(form.get("name") ?? "").trim(),
+        characteristic_type: String(form.get("characteristic_type")) as "product" | "process",
+        specification: String(form.get("specification") ?? "").trim(),
+        special_classification: String(form.get("special_classification") ?? "").trim() || null,
+        actor: String(form.get("actor") ?? "").trim(),
+        occurred_at: new Date().toISOString(),
+      }));
+      formElement.reset();
+      setTraceEditor(null);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "공정 특성을 추가하지 못했습니다.");
+    } finally { setBusy(false); }
+  }
+
+  async function handleAddControlPlan(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!stored) return;
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
+    setBusy(true);
+    setError("");
+    try {
+      setStored(await addFmeaControlPlanItem(studyId, {
+        expected_storage_version: stored.storage_version,
+        control_id: String(form.get("control_id") ?? "").trim(),
+        phase: String(form.get("phase")) as "prototype" | "pre_launch" | "production" | "safe_launch",
+        characteristic_id: String(form.get("characteristic_id") ?? ""),
+        failure_item_ids: form.getAll("failure_item_ids").map(String).filter(Boolean),
+        measurement_method: String(form.get("measurement_method") ?? "").trim(),
+        sample_size: Number(form.get("sample_size")),
+        frequency: String(form.get("frequency") ?? "").trim(),
+        control_method: String(form.get("control_method") ?? "").trim(),
+        reaction_plan: String(form.get("reaction_plan") ?? "").trim(),
+        reaction_owner: String(form.get("reaction_owner") ?? "").trim(),
+        actor: String(form.get("actor") ?? "").trim(),
+        occurred_at: new Date().toISOString(),
+      }));
+      formElement.reset();
+      setTraceEditor(null);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Control Plan 항목을 추가하지 못했습니다.");
     } finally { setBusy(false); }
   }
 
@@ -206,6 +289,9 @@ export function FmeaStudyPage() {
 
   if (!stored) return <div className="page" data-density="compact">{error ? <div className="error-banner" role="alert"><AlertTriangle aria-hidden="true" /><p>{error}</p></div> : <div className="skeleton page-skeleton" aria-label="FMEA Study 불러오는 중" />}</div>;
   const { study } = stored;
+  const processSteps = study.process_steps ?? [];
+  const characteristics = study.characteristics ?? [];
+  const controlPlanItems = study.control_plan_items ?? [];
   const attachedPolicy = policies.find((item) => item.policy_key === study.action_priority_policy_key);
   const compatiblePolicies = policies.filter((item) => item.policy.standard_version === study.standard_version);
 
@@ -223,6 +309,53 @@ export function FmeaStudyPage() {
         <ol className="seven-step-list">{study.seven_step_progress.map((step) => <li key={step.step_id} className={`step-${step.status}`}>
           <span className="step-number">{step.step_number}</span><div><strong>{stepTitles[step.step_id] ?? step.title}</strong><span>{stepStatusLabels[step.status]} · 증거 {step.evidence_count}건</span>{step.gaps.length > 0 && <small>남은 항목: {step.gaps.join(", ")}</small>}</div>
         </li>)}</ol>
+      </section>}
+
+      {study.study_type === "process" && <section className="panel traceability-panel" aria-labelledby="traceability-title">
+        <header className="panel-heading"><div><span className="eyebrow">PROCESS LINKAGE</span><h2 id="traceability-title">공정흐름–PFMEA–Control Plan 추적</h2></div><GitBranch aria-hidden="true" /></header>
+        {study.status === "draft" && <div className="traceability-actions" aria-label="추적 항목 추가">
+          <Button type="button" onClick={() => setTraceEditor(traceEditor === "step" ? null : "step")}>공정 단계</Button>
+          <Button type="button" onClick={() => setTraceEditor(traceEditor === "characteristic" ? null : "characteristic")} disabled={processSteps.length === 0}>공정 특성</Button>
+          <Button type="button" onClick={() => setTraceEditor(traceEditor === "control" ? null : "control")} disabled={characteristics.length === 0 || study.items.length === 0}>Control Plan</Button>
+        </div>}
+        {traceEditor === "step" && <form className="traceability-form" onSubmit={handleAddProcessStep}>
+          <label className="field">단계 ID<input name="step_id" required defaultValue={`STEP-${String((processSteps.length + 1) * 10).padStart(3, "0")}`} /></label>
+          <label className="field">순서<input name="sequence" type="number" min="1" required defaultValue={(processSteps.length + 1) * 10} /></label>
+          <label className="field">단계명<input name="name" required /></label>
+          <label className="field field-wide">작업 내용<input name="operation" required /></label>
+          <label className="field">작성자<input name="actor" required defaultValue="process.engineer" /></label>
+          <div className="form-actions"><Button type="submit" loading={busy}>공정 단계 저장</Button></div>
+        </form>}
+        {traceEditor === "characteristic" && <form className="traceability-form" onSubmit={handleAddCharacteristic}>
+          <label className="field">특성 ID<input name="characteristic_id" required defaultValue={`CHAR-${String(characteristics.length + 1).padStart(3, "0")}`} /></label>
+          <label className="field">공정 단계<select name="process_step_id" required defaultValue=""><option value="" disabled>단계 선택</option>{processSteps.map((step) => <option key={step.step_id} value={step.step_id}>{step.sequence} · {step.name}</option>)}</select></label>
+          <label className="field">특성 유형<select name="characteristic_type" required defaultValue="product"><option value="product">제품 특성</option><option value="process">공정 특성</option></select></label>
+          <label className="field">특성명<input name="name" required /></label>
+          <label className="field field-wide">규격 / 허용범위<input name="specification" required /></label>
+          <label className="field">특별특성 분류<input name="special_classification" placeholder="예: SC, CC" /></label>
+          <label className="field">작성자<input name="actor" required defaultValue="quality.engineer" /></label>
+          <div className="form-actions"><Button type="submit" loading={busy}>공정 특성 저장</Button></div>
+        </form>}
+        {traceEditor === "control" && <form className="traceability-form" onSubmit={handleAddControlPlan}>
+          <label className="field">관리 ID<input name="control_id" required defaultValue={`CP-${String(controlPlanItems.length + 1).padStart(3, "0")}`} /></label>
+          <label className="field">단계<select name="phase" required defaultValue="production"><option value="prototype">Prototype</option><option value="pre_launch">Pre-launch</option><option value="production">Production</option><option value="safe_launch">Safe launch</option></select></label>
+          <label className="field">공정 특성<select name="characteristic_id" required defaultValue=""><option value="" disabled>특성 선택</option>{characteristics.map((item) => <option key={item.characteristic_id} value={item.characteristic_id}>{item.characteristic_id} · {item.name}</option>)}</select></label>
+          <label className="field">PFMEA 고장 분석<select name="failure_item_ids" required multiple size={Math.min(4, Math.max(2, study.items.length))}>{study.items.map((item) => <option key={item.item_id} value={item.item_id}>{item.item_id} · {item.failure_mode}</option>)}</select><small>Ctrl 키로 여러 항목 선택</small></label>
+          <label className="field">측정 방법<input name="measurement_method" required /></label>
+          <label className="field">표본 수<input name="sample_size" type="number" min="1" required defaultValue="1" /></label>
+          <label className="field">주기<input name="frequency" required placeholder="예: 매 로트" /></label>
+          <label className="field">관리 방법<input name="control_method" required placeholder="예: Xbar-R 관리도" /></label>
+          <label className="field field-wide">반응 계획<textarea name="reaction_plan" required /></label>
+          <label className="field">반응 책임자<input name="reaction_owner" required /></label>
+          <label className="field">작성자<input name="actor" required defaultValue="quality.engineer" /></label>
+          <div className="form-actions"><Button type="submit" loading={busy}>Control Plan 저장</Button></div>
+        </form>}
+        {processSteps.length === 0 ? <div className="state-message"><GitBranch aria-hidden="true" /><h3>공정흐름이 없습니다</h3><p>공정 단계를 먼저 등록하면 PFMEA와 Control Plan을 ID로 연결할 수 있습니다.</p></div> : <div className="table-scroll"><table className="traceability-table"><thead><tr><th>공정 단계</th><th>제품/공정 특성</th><th>PFMEA 고장 분석</th><th>Control Plan</th><th>관리·반응</th></tr></thead><tbody>{characteristics.length === 0 ? processSteps.map((step) => <tr key={step.step_id}><td><strong>{step.step_id}</strong><span className="table-subtitle">{step.sequence} · {step.name}</span></td><td colSpan={4}><span className="status-text is-muted">연결된 공정 특성 없음</span></td></tr>) : characteristics.map((characteristic) => {
+            const step = processSteps.find((candidate) => candidate.step_id === characteristic.process_step_id);
+            const failures = study.items.filter((item) => (item.characteristic_ids ?? []).includes(characteristic.characteristic_id));
+            const controls = controlPlanItems.filter((item) => item.characteristic_id === characteristic.characteristic_id);
+            return <tr key={characteristic.characteristic_id}><td><strong>{step?.step_id ?? characteristic.process_step_id}</strong><span className="table-subtitle">{step?.sequence} · {step?.name ?? "미확인 단계"}</span></td><td><strong>{characteristic.characteristic_id} · {characteristic.name}</strong><span className="table-subtitle">{characteristic.specification}{characteristic.special_classification ? ` · ${characteristic.special_classification}` : ""}</span></td><td>{failures.length > 0 ? failures.map((item) => item.item_id).join(", ") : <span className="status-text is-muted">미연결</span>}</td><td>{controls.length > 0 ? controls.map((item) => `${item.control_id} · ${item.phase}`).join(", ") : <span className="status-text is-muted">미연결</span>}</td><td>{controls.length > 0 ? controls.map((item) => `${item.control_method} / ${item.reaction_owner}`).join(", ") : "—"}</td></tr>;
+          })}</tbody></table></div>}
       </section>}
 
       <section className="panel ap-policy-panel" aria-labelledby="ap-policy-title">
@@ -260,6 +393,8 @@ export function FmeaStudyPage() {
           <label className="field">원인<input name="cause" required /></label>
           <label className="field">예방 관리<input name="prevention_control" required /></label>
           <label className="field">검출 관리<input name="detection_control" required /></label>
+          {study.study_type === "process" && processSteps.length > 0 && <label className="field">공정 단계<select name="process_step_id" required defaultValue=""><option value="" disabled>단계 선택</option>{processSteps.map((step) => <option key={step.step_id} value={step.step_id}>{step.sequence} · {step.name}</option>)}</select></label>}
+          {study.study_type === "process" && characteristics.length > 0 && <label className="field">공정 특성<select name="characteristic_ids" multiple size={Math.min(4, Math.max(2, characteristics.length))}>{characteristics.map((item) => <option key={item.characteristic_id} value={item.characteristic_id}>{item.characteristic_id} · {item.name}</option>)}</select><small>필요한 특성을 모두 선택</small></label>}
           <label className="field">심각도 S<input name="severity" type="number" min="1" max="10" required defaultValue="5" /></label>
           <label className="field">발생도 O<input name="occurrence" type="number" min="1" max="10" required defaultValue="5" /></label>
           <label className="field">검출도 D<input name="detection" type="number" min="1" max="10" required defaultValue="5" /></label>

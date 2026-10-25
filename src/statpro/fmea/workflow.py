@@ -11,9 +11,14 @@ from statpro.fmea.models import (
     ActionPriorityPolicy,
     ActionStatus,
     AuditEvent,
+    CharacteristicType,
+    ControlPlanItem,
+    ControlPlanPhase,
     FailureAnalysis,
     FmeaInputError,
     FmeaStudySnapshot,
+    ProcessCharacteristic,
+    ProcessStep,
     RecommendedAction,
     RiskRatings,
     StudyStatus,
@@ -74,6 +79,9 @@ def _revise(
     actions: tuple[RecommendedAction, ...] | None = None,
     status: StudyStatus | None = None,
     policy: ActionPriorityPolicy | None = None,
+    process_steps: tuple[ProcessStep, ...] | None = None,
+    characteristics: tuple[ProcessCharacteristic, ...] | None = None,
+    control_plan_items: tuple[ControlPlanItem, ...] | None = None,
 ) -> FmeaStudySnapshot:
     revised = replace(
         study,
@@ -93,6 +101,13 @@ def _revise(
         action_priority_policy_key=(
             study.action_priority_policy_key if policy is None else policy.policy_key
         ),
+        process_steps=study.process_steps if process_steps is None else process_steps,
+        characteristics=(
+            study.characteristics if characteristics is None else characteristics
+        ),
+        control_plan_items=(
+            study.control_plan_items if control_plan_items is None else control_plan_items
+        ),
     )
     return replace(revised, digest=_snapshot_digest(revised))
 
@@ -101,6 +116,15 @@ def _require_draft(study: FmeaStudySnapshot) -> None:
     if study.status != StudyStatus.DRAFT:
         raise FmeaInputError(
             "study_not_editable", "Only draft FMEA studies can be structurally edited.", "status"
+        )
+
+
+def _require_process_study(study: FmeaStudySnapshot) -> None:
+    if study.study_type != StudyType.PROCESS:
+        raise FmeaInputError(
+            "process_traceability_requires_pfmea",
+            "Process flow and Control Plan traceability require a Process FMEA Study.",
+            "study_type",
         )
 
 
@@ -184,12 +208,47 @@ def add_failure_analysis(
     actor: str,
     occurred_at: str,
     policy: ActionPriorityPolicy | None = None,
+    process_step_id: str | None = None,
+    characteristic_ids: tuple[str, ...] = (),
 ) -> FmeaStudySnapshot:
     _require_draft(study)
     _validate_policy(study, policy)
     normalized_id = _required(item_id, "item_id")
     if any(item.item_id == normalized_id for item in study.items):
         raise FmeaInputError("duplicate_item_id", "Failure Analysis ID is duplicated.", "item_id")
+    normalized_step_id = None if process_step_id is None else _required(process_step_id, "process_step_id")
+    normalized_characteristic_ids = tuple(
+        dict.fromkeys(_required(value, "characteristic_ids") for value in characteristic_ids)
+    )
+    if study.process_steps and normalized_step_id is None:
+        raise FmeaInputError(
+            "process_step_required",
+            "Failure Analysis must reference a Process Step when a process flow exists.",
+            "process_step_id",
+        )
+    if normalized_step_id is not None and not any(
+        step.step_id == normalized_step_id for step in study.process_steps
+    ):
+        raise FmeaInputError(
+            "unknown_process_step", "Failure Analysis references an unknown Process Step.", "process_step_id"
+        )
+    characteristic_by_id = {
+        item.characteristic_id: item for item in study.characteristics
+    }
+    for characteristic_id in normalized_characteristic_ids:
+        characteristic = characteristic_by_id.get(characteristic_id)
+        if characteristic is None:
+            raise FmeaInputError(
+                "unknown_characteristic",
+                "Failure Analysis references an unknown Process Characteristic.",
+                "characteristic_ids",
+            )
+        if normalized_step_id != characteristic.process_step_id:
+            raise FmeaInputError(
+                "characteristic_step_mismatch",
+                "Failure Analysis and Process Characteristic must reference the same Process Step.",
+                "characteristic_ids",
+            )
     action_priority, action_priority_reason = _evaluate_priority(policy, ratings)
     item = FailureAnalysis(
         item_id=normalized_id,
@@ -205,9 +264,200 @@ def add_failure_analysis(
         current_ratings=ratings,
         action_priority=action_priority,
         action_priority_reason=action_priority_reason,
+        process_step_id=normalized_step_id,
+        characteristic_ids=normalized_characteristic_ids,
     )
     event = _event(study, "failure_analysis_added", actor, occurred_at, {"item_id": normalized_id})
     return _revise(study, event=event, items=study.items + (item,), policy=policy)
+
+
+def add_process_step(
+    study: FmeaStudySnapshot,
+    *,
+    step_id: str,
+    sequence: int,
+    name: str,
+    operation: str,
+    actor: str,
+    occurred_at: str,
+) -> FmeaStudySnapshot:
+    _require_draft(study)
+    _require_process_study(study)
+    normalized_id = _required(step_id, "step_id")
+    if isinstance(sequence, bool) or not isinstance(sequence, int) or sequence < 1:
+        raise FmeaInputError(
+            "invalid_process_step_sequence",
+            "Process Step sequence must be a positive integer.",
+            "sequence",
+        )
+    if any(step.step_id == normalized_id for step in study.process_steps):
+        raise FmeaInputError("duplicate_process_step_id", "Process Step ID is duplicated.", "step_id")
+    if any(step.sequence == sequence for step in study.process_steps):
+        raise FmeaInputError(
+            "duplicate_process_step_sequence",
+            "Process Step sequence is duplicated.",
+            "sequence",
+        )
+    step = ProcessStep(
+        step_id=normalized_id,
+        sequence=sequence,
+        name=_required(name, "name"),
+        operation=_required(operation, "operation"),
+    )
+    steps = tuple(sorted(study.process_steps + (step,), key=lambda item: item.sequence))
+    event = _event(
+        study,
+        "process_step_added",
+        actor,
+        occurred_at,
+        {"step_id": normalized_id, "sequence": sequence},
+    )
+    return _revise(study, event=event, process_steps=steps)
+
+
+def add_process_characteristic(
+    study: FmeaStudySnapshot,
+    *,
+    characteristic_id: str,
+    process_step_id: str,
+    name: str,
+    characteristic_type: CharacteristicType,
+    specification: str,
+    special_classification: str | None,
+    actor: str,
+    occurred_at: str,
+) -> FmeaStudySnapshot:
+    _require_draft(study)
+    _require_process_study(study)
+    normalized_id = _required(characteristic_id, "characteristic_id")
+    normalized_step_id = _required(process_step_id, "process_step_id")
+    if any(item.characteristic_id == normalized_id for item in study.characteristics):
+        raise FmeaInputError(
+            "duplicate_characteristic_id",
+            "Process Characteristic ID is duplicated.",
+            "characteristic_id",
+        )
+    if not any(step.step_id == normalized_step_id for step in study.process_steps):
+        raise FmeaInputError(
+            "unknown_process_step",
+            "Process Characteristic references an unknown Process Step.",
+            "process_step_id",
+        )
+    classification = None
+    if special_classification is not None and special_classification.strip():
+        classification = special_classification.strip()
+    characteristic = ProcessCharacteristic(
+        characteristic_id=normalized_id,
+        process_step_id=normalized_step_id,
+        name=_required(name, "name"),
+        characteristic_type=characteristic_type,
+        specification=_required(specification, "specification"),
+        special_classification=classification,
+    )
+    event = _event(
+        study,
+        "process_characteristic_added",
+        actor,
+        occurred_at,
+        {"characteristic_id": normalized_id, "process_step_id": normalized_step_id},
+    )
+    return _revise(
+        study,
+        event=event,
+        characteristics=study.characteristics + (characteristic,),
+    )
+
+
+def add_control_plan_item(
+    study: FmeaStudySnapshot,
+    *,
+    control_id: str,
+    phase: ControlPlanPhase,
+    characteristic_id: str,
+    failure_item_ids: tuple[str, ...],
+    measurement_method: str,
+    sample_size: int,
+    frequency: str,
+    control_method: str,
+    reaction_plan: str,
+    reaction_owner: str,
+    actor: str,
+    occurred_at: str,
+) -> FmeaStudySnapshot:
+    _require_draft(study)
+    _require_process_study(study)
+    normalized_id = _required(control_id, "control_id")
+    if any(item.control_id == normalized_id for item in study.control_plan_items):
+        raise FmeaInputError("duplicate_control_id", "Control Plan ID is duplicated.", "control_id")
+    if isinstance(sample_size, bool) or not isinstance(sample_size, int) or sample_size < 1:
+        raise FmeaInputError(
+            "invalid_control_plan_sample_size",
+            "Control Plan sample size must be a positive integer.",
+            "sample_size",
+        )
+    characteristic = next(
+        (item for item in study.characteristics if item.characteristic_id == characteristic_id),
+        None,
+    )
+    if characteristic is None:
+        raise FmeaInputError(
+            "unknown_characteristic",
+            "Control Plan references an unknown Process Characteristic.",
+            "characteristic_id",
+        )
+    normalized_failure_ids = tuple(
+        dict.fromkeys(_required(value, "failure_item_ids") for value in failure_item_ids)
+    )
+    if not normalized_failure_ids:
+        raise FmeaInputError(
+            "control_plan_failure_required",
+            "Control Plan item must trace to at least one PFMEA Failure Analysis.",
+            "failure_item_ids",
+        )
+    failures = {item.item_id: item for item in study.items}
+    for failure_id in normalized_failure_ids:
+        failure = failures.get(failure_id)
+        if failure is None:
+            raise FmeaInputError(
+                "unknown_item", "Control Plan references an unknown Failure Analysis.", "failure_item_ids"
+            )
+        if (
+            failure.process_step_id != characteristic.process_step_id
+            or characteristic.characteristic_id not in failure.characteristic_ids
+        ):
+            raise FmeaInputError(
+                "control_plan_traceability_mismatch",
+                "Control Plan characteristic must be explicitly linked by each PFMEA Failure Analysis.",
+                "failure_item_ids",
+            )
+    control = ControlPlanItem(
+        control_id=normalized_id,
+        phase=phase,
+        characteristic_id=characteristic.characteristic_id,
+        failure_item_ids=normalized_failure_ids,
+        measurement_method=_required(measurement_method, "measurement_method"),
+        sample_size=sample_size,
+        frequency=_required(frequency, "frequency"),
+        control_method=_required(control_method, "control_method"),
+        reaction_plan=_required(reaction_plan, "reaction_plan"),
+        reaction_owner=_required(reaction_owner, "reaction_owner"),
+    )
+    event = _event(
+        study,
+        "control_plan_item_added",
+        actor,
+        occurred_at,
+        {
+            "control_id": normalized_id,
+            "characteristic_id": characteristic.characteristic_id,
+            "failure_item_ids": list(normalized_failure_ids),
+        },
+    )
+    return _revise(
+        study,
+        event=event,
+        control_plan_items=study.control_plan_items + (control,),
+    )
 
 
 def attach_action_priority_policy(

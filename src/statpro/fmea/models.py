@@ -33,6 +33,18 @@ class ActionStatus(str, Enum):
     CANCELLED = "cancelled"
 
 
+class CharacteristicType(str, Enum):
+    PRODUCT = "product"
+    PROCESS = "process"
+
+
+class ControlPlanPhase(str, Enum):
+    PROTOTYPE = "prototype"
+    PRE_LAUNCH = "pre_launch"
+    PRODUCTION = "production"
+    SAFE_LAUNCH = "safe_launch"
+
+
 class SevenStepId(str, Enum):
     PLANNING_AND_PREPARATION = "planning_and_preparation"
     STRUCTURE_ANALYSIS = "structure_analysis"
@@ -244,11 +256,60 @@ class FailureAnalysis:
     current_ratings: RiskRatings
     action_priority: str | None
     action_priority_reason: str | None
+    process_step_id: str | None = None
+    characteristic_ids: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
         payload["initial_ratings"] = self.initial_ratings.to_dict()
         payload["current_ratings"] = self.current_ratings.to_dict()
+        payload["characteristic_ids"] = list(self.characteristic_ids)
+        return payload
+
+
+@dataclass(frozen=True, slots=True)
+class ProcessStep:
+    step_id: str
+    sequence: int
+    name: str
+    operation: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(frozen=True, slots=True)
+class ProcessCharacteristic:
+    characteristic_id: str
+    process_step_id: str
+    name: str
+    characteristic_type: CharacteristicType
+    specification: str
+    special_classification: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        payload = asdict(self)
+        payload["characteristic_type"] = self.characteristic_type.value
+        return payload
+
+
+@dataclass(frozen=True, slots=True)
+class ControlPlanItem:
+    control_id: str
+    phase: ControlPlanPhase
+    characteristic_id: str
+    failure_item_ids: tuple[str, ...]
+    measurement_method: str
+    sample_size: int
+    frequency: str
+    control_method: str
+    reaction_plan: str
+    reaction_owner: str
+
+    def to_dict(self) -> dict[str, Any]:
+        payload = asdict(self)
+        payload["phase"] = self.phase.value
+        payload["failure_item_ids"] = list(self.failure_item_ids)
         return payload
 
 
@@ -295,6 +356,9 @@ class FmeaStudySnapshot:
     action_priority_policy_id: str | None = None
     action_priority_policy_digest: str | None = None
     action_priority_policy_key: str | None = None
+    process_steps: tuple[ProcessStep, ...] = ()
+    characteristics: tuple[ProcessCharacteristic, ...] = ()
+    control_plan_items: tuple[ControlPlanItem, ...] = ()
 
     @property
     def seven_step_progress(self) -> tuple[SevenStepProgress, ...]:
@@ -316,6 +380,9 @@ class FmeaStudySnapshot:
             "action_priority_policy_id": self.action_priority_policy_id,
             "action_priority_policy_digest": self.action_priority_policy_digest,
             "action_priority_policy_key": self.action_priority_policy_key,
+            "process_steps": [step.to_dict() for step in self.process_steps],
+            "characteristics": [item.to_dict() for item in self.characteristics],
+            "control_plan_items": [item.to_dict() for item in self.control_plan_items],
             "seven_step_progress": [step.to_dict() for step in self.seven_step_progress],
         }
 
@@ -354,6 +421,8 @@ class FmeaStudySnapshot:
                     current_ratings=ratings(item["current_ratings"]),
                     action_priority=item["action_priority"],
                     action_priority_reason=item["action_priority_reason"],
+                    process_step_id=item.get("process_step_id"),
+                    characteristic_ids=tuple(item.get("characteristic_ids", ())),
                 )
                 for item in payload["items"]
             ),
@@ -383,12 +452,55 @@ class FmeaStudySnapshot:
             action_priority_policy_id=payload.get("action_priority_policy_id"),
             action_priority_policy_digest=payload.get("action_priority_policy_digest"),
             action_priority_policy_key=payload.get("action_priority_policy_key"),
+            process_steps=tuple(
+                ProcessStep(
+                    step_id=step["step_id"],
+                    sequence=step["sequence"],
+                    name=step["name"],
+                    operation=step["operation"],
+                )
+                for step in payload.get("process_steps", ())
+            ),
+            characteristics=tuple(
+                ProcessCharacteristic(
+                    characteristic_id=item["characteristic_id"],
+                    process_step_id=item["process_step_id"],
+                    name=item["name"],
+                    characteristic_type=CharacteristicType(item["characteristic_type"]),
+                    specification=item["specification"],
+                    special_classification=item.get("special_classification"),
+                )
+                for item in payload.get("characteristics", ())
+            ),
+            control_plan_items=tuple(
+                ControlPlanItem(
+                    control_id=item["control_id"],
+                    phase=ControlPlanPhase(item["phase"]),
+                    characteristic_id=item["characteristic_id"],
+                    failure_item_ids=tuple(item["failure_item_ids"]),
+                    measurement_method=item["measurement_method"],
+                    sample_size=item["sample_size"],
+                    frequency=item["frequency"],
+                    control_method=item["control_method"],
+                    reaction_plan=item["reaction_plan"],
+                    reaction_owner=item["reaction_owner"],
+                )
+                for item in payload.get("control_plan_items", ())
+            ),
         )
 
 
 def derive_seven_step_progress(study: FmeaStudySnapshot) -> tuple[SevenStepProgress, ...]:
     """Project owned FMEA facts onto the public seven-step workflow vocabulary."""
 
+    structure_evidence_count = len(study.process_steps) or len(study.items)
+    function_evidence_count = len(study.characteristics) or len(study.items)
+    structure_status = (
+        StepStatus.COMPLETE if structure_evidence_count else StepStatus.NOT_STARTED
+    )
+    function_status = (
+        StepStatus.COMPLETE if function_evidence_count else StepStatus.NOT_STARTED
+    )
     item_status = StepStatus.COMPLETE if study.items else StepStatus.NOT_STARTED
     item_gap = () if study.items else ("failure_analysis_item",)
     terminal_actions = {ActionStatus.COMPLETE, ActionStatus.CANCELLED}
@@ -420,8 +532,8 @@ def derive_seven_step_progress(study: FmeaStudySnapshot) -> tuple[SevenStepProgr
 
     return (
         SevenStepProgress(1, SevenStepId.PLANNING_AND_PREPARATION, "Planning and Preparation", StepStatus.COMPLETE, 1),
-        SevenStepProgress(2, SevenStepId.STRUCTURE_ANALYSIS, "Structure Analysis", item_status, len(study.items), item_gap),
-        SevenStepProgress(3, SevenStepId.FUNCTION_ANALYSIS, "Function Analysis", item_status, len(study.items), item_gap),
+        SevenStepProgress(2, SevenStepId.STRUCTURE_ANALYSIS, "Structure Analysis", structure_status, structure_evidence_count, () if structure_evidence_count else ("process_step",)),
+        SevenStepProgress(3, SevenStepId.FUNCTION_ANALYSIS, "Function Analysis", function_status, function_evidence_count, () if function_evidence_count else ("process_characteristic",)),
         SevenStepProgress(4, SevenStepId.FAILURE_ANALYSIS, "Failure Analysis", item_status, len(study.items), item_gap),
         SevenStepProgress(5, SevenStepId.RISK_ANALYSIS, "Risk Analysis", item_status, len(study.items), item_gap),
         SevenStepProgress(6, SevenStepId.OPTIMIZATION, "Optimization", optimization_status, len(study.actions), optimization_gaps),

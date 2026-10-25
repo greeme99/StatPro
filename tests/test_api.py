@@ -575,6 +575,119 @@ class LocalApiContractTests(unittest.TestCase):
         listed = self.client.get("/v1/fmea-action-priority-policies").json()
         self.assertEqual([item["policy_key"] for item in listed["items"]], [policy_key])
 
+    def test_pfmea_process_flow_and_control_plan_are_traceable_by_id(self) -> None:
+        created = self.client.post(
+            "/v1/fmea-studies",
+            json={
+                "study_id": "PFMEA-TRACE",
+                "name": "Connector Assembly",
+                "study_type": "process",
+                "standard_version": "customer-standard-2026",
+                "actor": "quality.engineer",
+                "occurred_at": "2026-10-20T10:00:00+09:00",
+            },
+        )
+        step = self.client.post(
+            "/v1/fmea-studies/PFMEA-TRACE/process-steps",
+            json={
+                "expected_storage_version": created.json()["storage_version"],
+                "step_id": "STEP-010",
+                "sequence": 10,
+                "name": "Connector insertion",
+                "operation": "Seat connector in fixture",
+                "actor": "process.engineer",
+                "occurred_at": "2026-10-20T10:05:00+09:00",
+            },
+        )
+        self.assertEqual(step.status_code, 200)
+        characteristic = self.client.post(
+            "/v1/fmea-studies/PFMEA-TRACE/process-characteristics",
+            json={
+                "expected_storage_version": step.json()["storage_version"],
+                "characteristic_id": "CHAR-001",
+                "process_step_id": "STEP-010",
+                "name": "Insertion depth",
+                "characteristic_type": "product",
+                "specification": "12.0 +/- 0.2 mm",
+                "special_classification": "SC",
+                "actor": "quality.engineer",
+                "occurred_at": "2026-10-20T10:10:00+09:00",
+            },
+        )
+        self.assertEqual(characteristic.status_code, 200)
+        failure = self.client.post(
+            "/v1/fmea-studies/PFMEA-TRACE/failure-analyses",
+            json={
+                "expected_storage_version": characteristic.json()["storage_version"],
+                "item_id": "FA-001",
+                "structure_element": "Connector",
+                "function": "Maintain contact",
+                "requirement": "Resistance within specification",
+                "failure_mode": "Incomplete insertion",
+                "effect": "Open circuit",
+                "cause": "Fixture drift",
+                "prevention_control": "Setup checklist",
+                "detection_control": "Depth gauge",
+                "ratings": {"severity": 8, "occurrence": 4, "detection": 5},
+                "process_step_id": "STEP-010",
+                "characteristic_ids": ["CHAR-001"],
+                "actor": "quality.engineer",
+                "occurred_at": "2026-10-20T10:15:00+09:00",
+            },
+        )
+        self.assertEqual(failure.status_code, 200)
+        control = self.client.post(
+            "/v1/fmea-studies/PFMEA-TRACE/control-plan-items",
+            json={
+                "expected_storage_version": failure.json()["storage_version"],
+                "control_id": "CP-001",
+                "phase": "production",
+                "characteristic_id": "CHAR-001",
+                "failure_item_ids": ["FA-001"],
+                "measurement_method": "Digital depth gauge",
+                "sample_size": 5,
+                "frequency": "Every lot",
+                "control_method": "Xbar-R chart",
+                "reaction_plan": "Stop line and segregate lot",
+                "reaction_owner": "line.supervisor",
+                "actor": "quality.engineer",
+                "occurred_at": "2026-10-20T10:20:00+09:00",
+            },
+        )
+
+        self.assertEqual(control.status_code, 200)
+        study = control.json()["study"]
+        self.assertEqual(study["process_steps"][0]["step_id"], "STEP-010")
+        self.assertEqual(
+            study["characteristics"][0]["process_step_id"], "STEP-010"
+        )
+        self.assertEqual(study["items"][0]["characteristic_ids"], ["CHAR-001"])
+        self.assertEqual(
+            study["control_plan_items"][0]["failure_item_ids"], ["FA-001"]
+        )
+        self.assertEqual(study["audit_events"][-1]["event_type"], "control_plan_item_added")
+
+        stale = self.client.post(
+            "/v1/fmea-studies/PFMEA-TRACE/control-plan-items",
+            json={
+                "expected_storage_version": failure.json()["storage_version"],
+                "control_id": "CP-002",
+                "phase": "production",
+                "characteristic_id": "CHAR-001",
+                "failure_item_ids": ["FA-001"],
+                "measurement_method": "Depth gauge",
+                "sample_size": 1,
+                "frequency": "Every shift",
+                "control_method": "Check sheet",
+                "reaction_plan": "Stop line",
+                "reaction_owner": "supervisor",
+                "actor": "quality.engineer",
+                "occurred_at": "2026-10-20T10:25:00+09:00",
+            },
+        )
+        self.assertEqual(stale.status_code, 409)
+        self.assertEqual(stale.json()["error"]["code"], "storage_conflict")
+
     def test_fmea_action_is_completed_reassessed_and_study_approved(self) -> None:
         created = self.client.post(
             "/v1/fmea-studies",

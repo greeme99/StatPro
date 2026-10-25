@@ -9,12 +9,17 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from statpro.fmea import (
     ActionPriorityEntry,
     ActionPriorityPolicy,
+    CharacteristicType,
+    ControlPlanPhase,
     FmeaInputError,
     RiskRatings,
     StepStatus,
     StudyStatus,
     StudyType,
+    add_control_plan_item,
     add_failure_analysis,
+    add_process_characteristic,
+    add_process_step,
     add_recommended_action,
     approve_study,
     attach_action_priority_policy,
@@ -99,6 +104,153 @@ class FmeaValueObjectTests(unittest.TestCase):
 
 
 class FmeaWorkflowTests(unittest.TestCase):
+    def test_process_flow_pfmea_and_control_plan_form_a_persisted_trace_chain(self) -> None:
+        study = create_fmea_study(
+            study_id="PFMEA-TRACE",
+            name="Connector Assembly",
+            study_type=StudyType.PROCESS,
+            standard_version="customer-standard-2026",
+            actor="quality.engineer",
+            occurred_at=NOW,
+        )
+        study = add_process_step(
+            study,
+            step_id="STEP-010",
+            sequence=10,
+            name="Connector insertion",
+            operation="Seat connector in fixture",
+            actor="process.engineer",
+            occurred_at=NOW,
+        )
+        study = add_process_characteristic(
+            study,
+            characteristic_id="CHAR-001",
+            process_step_id="STEP-010",
+            name="Insertion depth",
+            characteristic_type=CharacteristicType.PRODUCT,
+            specification="12.0 +/- 0.2 mm",
+            special_classification="SC",
+            actor="quality.engineer",
+            occurred_at=NOW,
+        )
+        study = add_failure_analysis(
+            study,
+            item_id="FA-001",
+            structure_element="Connector assembly",
+            function="Maintain electrical contact",
+            requirement="Contact resistance within specification",
+            failure_mode="Incomplete insertion",
+            effect="Intermittent open circuit",
+            cause="Fixture alignment drift",
+            prevention_control="Fixture setup checklist",
+            detection_control="Insertion depth gauge",
+            ratings=RiskRatings(8, 4, 5),
+            process_step_id="STEP-010",
+            characteristic_ids=("CHAR-001",),
+            actor="quality.engineer",
+            occurred_at=NOW,
+        )
+        traced = add_control_plan_item(
+            study,
+            control_id="CP-001",
+            phase=ControlPlanPhase.PRODUCTION,
+            characteristic_id="CHAR-001",
+            failure_item_ids=("FA-001",),
+            measurement_method="Digital depth gauge",
+            sample_size=5,
+            frequency="Every lot",
+            control_method="Xbar-R chart",
+            reaction_plan="Stop line, segregate lot, correct fixture",
+            reaction_owner="line.supervisor",
+            actor="quality.engineer",
+            occurred_at=NOW,
+        )
+
+        self.assertEqual(traced.revision, 5)
+        self.assertEqual(traced.parent_digest, study.digest)
+        self.assertEqual(traced.process_steps[0].step_id, "STEP-010")
+        self.assertEqual(traced.characteristics[0].process_step_id, "STEP-010")
+        self.assertEqual(traced.items[0].characteristic_ids, ("CHAR-001",))
+        self.assertEqual(traced.control_plan_items[0].failure_item_ids, ("FA-001",))
+        self.assertEqual(traced.audit_events[-1].event_type, "control_plan_item_added")
+        self.assertEqual(type(traced).from_dict(traced.to_dict()), traced)
+
+    def test_process_traceability_is_pfmea_only_and_rejects_mismatched_links(self) -> None:
+        design_study = create_fmea_study(
+            study_id="DFMEA-TRACE",
+            name="Connector Design",
+            study_type=StudyType.DESIGN,
+            standard_version="customer-standard-2026",
+            actor="design.engineer",
+            occurred_at=NOW,
+        )
+        with self.assertRaises(FmeaInputError) as design_context:
+            add_process_step(
+                design_study,
+                step_id="STEP-010",
+                sequence=10,
+                name="Assembly",
+                operation="Assemble",
+                actor="design.engineer",
+                occurred_at=NOW,
+            )
+        self.assertEqual(
+            design_context.exception.detail.code,
+            "process_traceability_requires_pfmea",
+        )
+
+        process_study = create_fmea_study(
+            study_id="PFMEA-MISMATCH",
+            name="Connector Assembly",
+            study_type=StudyType.PROCESS,
+            standard_version="customer-standard-2026",
+            actor="quality.engineer",
+            occurred_at=NOW,
+        )
+        for sequence, step_id in ((10, "STEP-010"), (20, "STEP-020")):
+            process_study = add_process_step(
+                process_study,
+                step_id=step_id,
+                sequence=sequence,
+                name=step_id,
+                operation="Assembly",
+                actor="process.engineer",
+                occurred_at=NOW,
+            )
+        process_study = add_process_characteristic(
+            process_study,
+            characteristic_id="CHAR-020",
+            process_step_id="STEP-020",
+            name="Insertion depth",
+            characteristic_type=CharacteristicType.PRODUCT,
+            specification="12.0 +/- 0.2 mm",
+            special_classification=None,
+            actor="quality.engineer",
+            occurred_at=NOW,
+        )
+        with self.assertRaises(FmeaInputError) as mismatch_context:
+            add_failure_analysis(
+                process_study,
+                item_id="FA-001",
+                structure_element="Connector",
+                function="Connect",
+                requirement="Conduct",
+                failure_mode="Open",
+                effect="No signal",
+                cause="Misalignment",
+                prevention_control="Fixture",
+                detection_control="Test",
+                ratings=RiskRatings(8, 4, 5),
+                process_step_id="STEP-010",
+                characteristic_ids=("CHAR-020",),
+                actor="quality.engineer",
+                occurred_at=NOW,
+            )
+        self.assertEqual(
+            mismatch_context.exception.detail.code,
+            "characteristic_step_mismatch",
+        )
+
     def test_external_policy_attachment_reassesses_items_and_is_audited(self) -> None:
         study = create_fmea_study(
             study_id="PFMEA-POLICY",

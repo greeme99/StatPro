@@ -63,11 +63,16 @@ from statpro.domain.schema import result_bundle_schema
 from statpro.fmea import (
     ActionPriorityEntry,
     ActionPriorityPolicy,
+    CharacteristicType,
+    ControlPlanPhase,
     FmeaInputError,
     FmeaStudySnapshot,
     RiskRatings,
     StudyType,
+    add_control_plan_item,
     add_failure_analysis,
+    add_process_characteristic,
+    add_process_step,
     add_recommended_action,
     approve_study,
     attach_action_priority_policy,
@@ -288,6 +293,46 @@ class AddFailureAnalysisRequest(ApiModel):
     prevention_control: str
     detection_control: str
     ratings: RiskRatingsRequest
+    process_step_id: RunId | None = None
+    characteristic_ids: list[RunId] = Field(default_factory=list)
+    actor: str
+    occurred_at: str
+
+
+class AddProcessStepRequest(ApiModel):
+    expected_storage_version: int = Field(ge=1)
+    step_id: RunId
+    sequence: StrictInt = Field(ge=1)
+    name: str
+    operation: str
+    actor: str
+    occurred_at: str
+
+
+class AddProcessCharacteristicRequest(ApiModel):
+    expected_storage_version: int = Field(ge=1)
+    characteristic_id: RunId
+    process_step_id: RunId
+    name: str
+    characteristic_type: CharacteristicType
+    specification: str
+    special_classification: str | None = None
+    actor: str
+    occurred_at: str
+
+
+class AddControlPlanItemRequest(ApiModel):
+    expected_storage_version: int = Field(ge=1)
+    control_id: RunId
+    phase: ControlPlanPhase
+    characteristic_id: RunId
+    failure_item_ids: list[RunId] = Field(min_length=1)
+    measurement_method: str
+    sample_size: StrictInt = Field(ge=1)
+    frequency: str
+    control_method: str
+    reaction_plan: str
+    reaction_owner: str
     actor: str
     occurred_at: str
 
@@ -1278,6 +1323,62 @@ def create_app(repository: DocumentRepository) -> FastAPI:
         return _fmea_response(saved)
 
     @app.post(
+        "/v1/fmea-studies/{study_id}/process-steps",
+        response_model=StoredFmeaStudyResponse,
+    )
+    def add_fmea_process_step(
+        study_id: RunId,
+        request: AddProcessStepRequest,
+        response: Response,
+    ) -> StoredFmeaStudyResponse:
+        _stored, study = _load_fmea_study(repository, study_id)
+        revised = add_process_step(
+            study,
+            step_id=request.step_id,
+            sequence=request.sequence,
+            name=request.name,
+            operation=request.operation,
+            actor=request.actor,
+            occurred_at=request.occurred_at,
+        )
+        saved = _save_fmea_study(
+            repository,
+            revised,
+            expected_version=request.expected_storage_version,
+        )
+        response.headers["ETag"] = f'"{saved.etag}"'
+        return _fmea_response(saved)
+
+    @app.post(
+        "/v1/fmea-studies/{study_id}/process-characteristics",
+        response_model=StoredFmeaStudyResponse,
+    )
+    def add_fmea_process_characteristic(
+        study_id: RunId,
+        request: AddProcessCharacteristicRequest,
+        response: Response,
+    ) -> StoredFmeaStudyResponse:
+        _stored, study = _load_fmea_study(repository, study_id)
+        revised = add_process_characteristic(
+            study,
+            characteristic_id=request.characteristic_id,
+            process_step_id=request.process_step_id,
+            name=request.name,
+            characteristic_type=request.characteristic_type,
+            specification=request.specification,
+            special_classification=request.special_classification,
+            actor=request.actor,
+            occurred_at=request.occurred_at,
+        )
+        saved = _save_fmea_study(
+            repository,
+            revised,
+            expected_version=request.expected_storage_version,
+        )
+        response.headers["ETag"] = f'"{saved.etag}"'
+        return _fmea_response(saved)
+
+    @app.post(
         "/v1/fmea-studies/{study_id}/failure-analyses",
         response_model=StoredFmeaStudyResponse,
     )
@@ -1303,6 +1404,41 @@ def create_app(repository: DocumentRepository) -> FastAPI:
             actor=request.actor,
             occurred_at=request.occurred_at,
             policy=policy,
+            process_step_id=request.process_step_id,
+            characteristic_ids=tuple(request.characteristic_ids),
+        )
+        saved = _save_fmea_study(
+            repository,
+            revised,
+            expected_version=request.expected_storage_version,
+        )
+        response.headers["ETag"] = f'"{saved.etag}"'
+        return _fmea_response(saved)
+
+    @app.post(
+        "/v1/fmea-studies/{study_id}/control-plan-items",
+        response_model=StoredFmeaStudyResponse,
+    )
+    def add_fmea_control_plan_item(
+        study_id: RunId,
+        request: AddControlPlanItemRequest,
+        response: Response,
+    ) -> StoredFmeaStudyResponse:
+        _stored, study = _load_fmea_study(repository, study_id)
+        revised = add_control_plan_item(
+            study,
+            control_id=request.control_id,
+            phase=request.phase,
+            characteristic_id=request.characteristic_id,
+            failure_item_ids=tuple(request.failure_item_ids),
+            measurement_method=request.measurement_method,
+            sample_size=request.sample_size,
+            frequency=request.frequency,
+            control_method=request.control_method,
+            reaction_plan=request.reaction_plan,
+            reaction_owner=request.reaction_owner,
+            actor=request.actor,
+            occurred_at=request.occurred_at,
         )
         saved = _save_fmea_study(
             repository,

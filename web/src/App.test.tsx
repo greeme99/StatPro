@@ -217,6 +217,38 @@ describe("StatPro UI", () => {
     expect(JSON.parse(String((attachCall?.[1] as RequestInit).body)).policy_key).toBe(policy.policy_key);
   });
 
+  it("adds a PFMEA process step and renders the traceability chain", async () => {
+    const study = {
+      study_id: "PFMEA-TRACE", name: "Connector Assembly", study_type: "process", standard_version: "customer-standard-2026", status: "draft", revision: 1, parent_digest: null, digest: "b".repeat(64),
+      items: [], actions: [], audit_events: [], action_priority_policy_id: null, action_priority_policy_digest: null, action_priority_policy_key: null,
+      process_steps: [], characteristics: [], control_plan_items: [],
+    };
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url.endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      if (url.includes("/fmea-action-priority-policies")) return new Response(JSON.stringify({ items: [], next_after: null }), { status: 200 });
+      if (url.endsWith("/process-steps") && init?.method === "POST") {
+        return new Response(JSON.stringify({
+          study_id: study.study_id,
+          storage_version: 2,
+          etag: "c".repeat(64),
+          study: { ...study, revision: 2, process_steps: [{ step_id: "STEP-010", sequence: 10, name: "Connector insertion", operation: "Seat connector" }] },
+        }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ study_id: study.study_id, storage_version: 1, etag: "a".repeat(64), study }), { status: 200 });
+    });
+
+    render(<MemoryRouter initialEntries={["/fmea/PFMEA-TRACE"]}><App /></MemoryRouter>);
+    await userEvent.click(await screen.findByRole("button", { name: "공정 단계" }));
+    await userEvent.type(screen.getByRole("textbox", { name: "단계명" }), "Connector insertion");
+    await userEvent.type(screen.getByRole("textbox", { name: "작업 내용" }), "Seat connector");
+    await userEvent.click(screen.getByRole("button", { name: "공정 단계 저장" }));
+
+    expect(await screen.findByText("STEP-010")).toBeInTheDocument();
+    const stepCall = fetchMock.mock.calls.find(([url, init]) => String(url).endsWith("/process-steps") && (init as RequestInit | undefined)?.method === "POST");
+    expect(JSON.parse(String((stepCall?.[1] as RequestInit).body))).toMatchObject({ expected_storage_version: 1, step_id: "STEP-010", sequence: 10, name: "Connector insertion" });
+  });
+
   it("adds and completes an FMEA action with revised risk ratings", async () => {
     const item = {
       item_id: "FA-001", structure_element: "Connector", function: "Maintain contact", requirement: "Resistance", failure_mode: "Incomplete insertion", effect: "Open circuit", cause: "Fixture drift", prevention_control: "Checklist", detection_control: "Continuity test",
