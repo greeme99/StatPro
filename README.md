@@ -10,7 +10,7 @@ The repository starts with a dependency-free Python statistical core so formulas
 - Individuals and Moving Range (I-MR) control chart with selectable 3-sigma-only, NIST/Western Electric, or Nelson eight-test rules
 - Xbar-R control chart for constant subgroup sizes 2–10 with Nelson tests 1–8 on Xbar and tests 1–4 on R
 - Normal capability for individual observations with within/overall variation kept distinct
-- Reproducible two-level full factorial DOE analysis, regular fractional-factorial generation/main-effect analysis with full resolution-III foldover, central-composite quadratic modelling with stationary-point/canonical analysis, bounded two-factor surface grids, accessible iso-response contours and projected 3D wireframes, plus Plackett–Burman screening design/response analysis from 12 to 48 runs
+- Reproducible two-level full factorial DOE analysis, regular fractional-factorial generation/main-effect analysis with full resolution-III foldover, 3–5 factor Box–Behnken and central-composite response-surface designs, central-composite quadratic modelling with stationary-point/canonical analysis, bounded two-factor surface grids, accessible iso-response contours and projected 3D wireframes, plus Plackett–Burman screening design/response analysis from 12 to 48 runs
 - Balanced crossed Gage R&R using two-way random-effects ANOVA variance components
 - Immutable CSV Dataset snapshots and revisioned Worksheet cell edits
 - Packaged Draft 2020-12 `ResultBundle` JSON Schema
@@ -18,7 +18,7 @@ The repository starts with a dependency-free Python statistical core so formulas
 - Versioned external Action Priority policy contract without bundled proprietary decision tables
 - Loopback-only FastAPI adapter with Analysis Run, revisioned Worksheet/FMEA storage, ETags, optimistic concurrency, and cursor paging
 - Atomic local JSON document adapter plus an in-memory contract-test adapter
-- React workbench with dashboard, CSV Worksheet import/editing, I-MR setup/results, DOE analysis/fractional/Plackett–Burman/response-optimizer flows, FMEA list/editor/review flow, provenance drawer, theme, and connection states
+- React workbench with dashboard, CSV Worksheet import/editing, I-MR setup/results, DOE analysis/fractional/Plackett–Burman/Box–Behnken/response-optimizer flows, FMEA list/editor/review flow, provenance drawer, theme, and connection states
 - Accessible control-chart summaries and table alternatives with a 768px minimum supported viewport
 - Typed validation errors
 - JSON CLI
@@ -35,6 +35,7 @@ py -3.12 -m statpro.cli capability-normal --input samples\capability-normal.json
 py -3.12 -m statpro.cli doe-full-factorial --input samples\doe-full-factorial.json
 py -3.12 -m statpro.cli doe-fractional-factorial --input samples\doe-fractional-factorial.json
 py -3.12 -m statpro.cli doe-analyze-fractional-factorial --input samples\doe-fractional-factorial-analysis.json
+py -3.12 -m statpro.cli doe-box-behnken --input samples\doe-box-behnken.json
 py -3.12 -m statpro.cli doe-analyze-central-composite --input samples\doe-central-composite-analysis.json
 py -3.12 -m statpro.cli doe-explore-central-composite --input samples\doe-central-composite-surface.json
 py -3.12 -m statpro.cli doe-plackett-burman --input samples\doe-plackett-burman.json

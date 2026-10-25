@@ -22,6 +22,7 @@ from statpro.analyses.doe import (
     analyze_fractional_factorial_2level,
     analyze_full_factorial_2level,
     analyze_plackett_burman,
+    box_behnken_design,
     central_composite_design,
     explore_central_composite_surface,
     fractional_factorial_2level,
@@ -161,6 +162,15 @@ class CentralCompositeRunRequest(ApiModel):
     factors: list[FactorRequest] = Field(min_length=2, max_length=6)
     design_type: Literal["rotatable", "face_centered"] = "rotatable"
     center_points: int = Field(default=5, ge=1)
+    replicates: int = Field(default=1, ge=1)
+    randomize: bool = True
+    seed: int = 0
+
+
+class BoxBehnkenRunRequest(ApiModel):
+    run_id: RunId
+    factors: list[FactorRequest] = Field(min_length=3, max_length=5)
+    center_points: int | None = Field(default=None, ge=1)
     replicates: int = Field(default=1, ge=1)
     randomize: bool = True
     seed: int = 0
@@ -614,6 +624,29 @@ def create_app(repository: DocumentRepository) -> FastAPI:
                 generators,
                 replicates=request.replicates,
                 foldover=request.foldover,
+                randomize=request.randomize,
+                seed=request.seed,
+            ),
+        )
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _response(stored)
+
+    @app.post(
+        "/v1/analysis-runs/doe-box-behnken",
+        status_code=201,
+        response_model=StoredRunResponse,
+    )
+    def run_box_behnken_doe(
+        request: BoxBehnkenRunRequest, response: Response
+    ) -> StoredRunResponse:
+        factors = [FactorDefinition(**factor.model_dump()) for factor in request.factors]
+        stored = _save_run(
+            repository,
+            request.run_id,
+            box_behnken_design(
+                factors,
+                center_points=request.center_points,
+                replicates=request.replicates,
                 randomize=request.randomize,
                 seed=request.seed,
             ),

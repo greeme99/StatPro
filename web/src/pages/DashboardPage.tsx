@@ -18,6 +18,7 @@ const labels: Record<string, string> = {
   "doe.fractional_factorial_2level": "2수준 일부요인 DOE",
   "doe.fractional_factorial_2level_analysis": "2수준 일부요인 DOE 분석",
   "doe.central_composite": "중앙합성 반응표면 DOE",
+  "doe.box_behnken": "Box–Behnken 반응표면 DOE",
   "doe.central_composite_analysis": "중앙합성 2차 모형 분석",
   "doe.central_composite_surface": "반응표면 정상점·격자 탐색",
   "doe.plackett_burman": "Plackett–Burman 선별 DOE",
@@ -48,7 +49,7 @@ export function DashboardPage() {
           <h1>공정 판단을 한 화면에서</h1>
           <p>분석 실행부터 관리한계, 경고, 계산 근거까지 같은 기록으로 확인합니다.</p>
         </div>
-        <div className="page-actions"><Link to="/analyses/doe/central-composite"><Button icon={<FlaskConical />}>DOE 반응표면</Button></Link><Link to="/analyses/doe/plackett-burman"><Button icon={<FlaskConical />}>DOE 선별설계</Button></Link><Link to="/analyses/doe/fractional-factorial"><Button icon={<FlaskConical />}>DOE 일부요인</Button></Link><Link to="/analyses/doe/response-optimizer"><Button icon={<FlaskConical />}>DOE 응답 최적화</Button></Link><Link to="/analyses/doe/full-factorial"><Button icon={<FlaskConical />}>새 DOE 분석</Button></Link><Link to="/analyses/imr/new"><Button variant="primary" icon={<FlaskConical />}>새 I-MR 분석</Button></Link></div>
+        <div className="page-actions"><Link to="/analyses/doe/box-behnken"><Button icon={<FlaskConical />}>DOE Box–Behnken</Button></Link><Link to="/analyses/doe/central-composite"><Button icon={<FlaskConical />}>DOE 반응표면</Button></Link><Link to="/analyses/doe/plackett-burman"><Button icon={<FlaskConical />}>DOE 선별설계</Button></Link><Link to="/analyses/doe/fractional-factorial"><Button icon={<FlaskConical />}>DOE 일부요인</Button></Link><Link to="/analyses/doe/response-optimizer"><Button icon={<FlaskConical />}>DOE 응답 최적화</Button></Link><Link to="/analyses/doe/full-factorial"><Button icon={<FlaskConical />}>새 DOE 분석</Button></Link><Link to="/analyses/imr/new"><Button variant="primary" icon={<FlaskConical />}>새 I-MR 분석</Button></Link></div>
       </section>
 
       <section className="metric-grid" aria-label="분석 현황">

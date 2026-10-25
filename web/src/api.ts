@@ -116,6 +116,20 @@ export type DoeCentralCompositePayload = {
   seed: number;
 };
 
+export function createDoeBoxBehnkenRun(payload: {
+  run_id: string;
+  factors: Array<{ name: string; low: number; high: number }>;
+  center_points?: number;
+  replicates: number;
+  randomize: boolean;
+  seed: number;
+}): Promise<StoredRun> {
+  return request("/v1/analysis-runs/doe-box-behnken", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function createDoeCentralCompositeRun(payload: DoeCentralCompositePayload): Promise<StoredRun> {
   return request("/v1/analysis-runs/doe-central-composite", {
     method: "POST",

@@ -35,6 +35,11 @@ NIST_CENTRAL_COMPOSITE_SOURCE = ProvenanceSource(
     url="https://www.itl.nist.gov/div898/handbook/pri/section3/pri3361.htm",
 )
 
+NIST_BOX_BEHNKEN_SOURCE = ProvenanceSource(
+    title="NIST/SEMATECH 5.3.3.6.2 Box-Behnken designs",
+    url="https://www.itl.nist.gov/div898/handbook/pri/section3/pri3362.htm",
+)
+
 NIST_RESPONSE_SURFACE_MODEL_SOURCE = ProvenanceSource(
     title="NIST/SEMATECH 5.5.3.1.4 Quadratic response-surface optimization",
     url="https://www.itl.nist.gov/div898/handbook/pri/section5/pri5314.htm",
@@ -1620,6 +1625,169 @@ def analyze_fractional_factorial_2level(
             NIST_DOE_MODEL_SOURCE,
             MINITAB_FACTORIAL_EFFECTS_SOURCE,
         ),
+    )
+
+
+def box_behnken_design(
+    factors: Sequence[FactorDefinition],
+    *,
+    center_points: int | None = None,
+    replicates: int = 1,
+    randomize: bool = True,
+    seed: int = 0,
+) -> ResultBundle:
+    """Generate a bounded three-level Box-Behnken design for 3–5 factors."""
+
+    normalized = _normalize_factors(
+        factors,
+        max_count=5,
+        design_name="Box-Behnken response-surface design",
+    )
+    if len(normalized) < 3:
+        raise AnalysisInputError(
+            "insufficient_box_behnken_factors",
+            "A Box-Behnken design requires at least three quantitative factors.",
+            "factors",
+        )
+    if isinstance(replicates, bool) or not isinstance(replicates, int) or replicates < 1:
+        raise AnalysisInputError(
+            "invalid_replicates", "Replicates must be a positive integer.", "replicates"
+        )
+    if center_points is None:
+        center_points = 6 if len(normalized) == 5 else 3
+    if (
+        isinstance(center_points, bool)
+        or not isinstance(center_points, int)
+        or center_points < 1
+    ):
+        raise AnalysisInputError(
+            "invalid_center_points",
+            "A Box-Behnken design requires at least one center point.",
+            "center_points",
+        )
+    if isinstance(seed, bool) or not isinstance(seed, int):
+        raise AnalysisInputError("invalid_seed", "Random seed must be an integer.", "seed")
+
+    factor_names = [factor.name for factor in normalized]
+    factor_by_name = {factor.name: factor for factor in normalized}
+
+    def actual_values(coded: Mapping[str, float]) -> dict[str, float]:
+        return {
+            name: (
+                (factor_by_name[name].low + factor_by_name[name].high) / 2.0
+                + coded[name]
+                * (factor_by_name[name].high - factor_by_name[name].low)
+                / 2.0
+            )
+            for name in factor_names
+        }
+
+    base_coded: list[tuple[int, dict[str, float]]] = []
+    for block, (left, right) in enumerate(combinations(factor_names, 2), start=1):
+        for standard_index in range(4):
+            coded = {name: 0.0 for name in factor_names}
+            coded[left] = 1.0 if standard_index & 1 else -1.0
+            coded[right] = 1.0 if standard_index & 2 else -1.0
+            base_coded.append((block, coded))
+
+    total_run_count = len(base_coded) * replicates + center_points
+    if total_run_count > 100_000:
+        raise AnalysisInputError(
+            "design_too_large",
+            "The requested design exceeds the 100,000-run safety limit.",
+            "replicates",
+        )
+
+    rows: list[dict[str, object]] = []
+    for replicate in range(1, replicates + 1):
+        for standard_order, (block, coded) in enumerate(base_coded, start=1):
+            rows.append(
+                {
+                    "standard_order": standard_order,
+                    "replicate": replicate,
+                    "block": block,
+                    "point_type": "edge_midpoint",
+                    "coded": coded,
+                    "actual": actual_values(coded),
+                }
+            )
+
+    center_coded = {name: 0.0 for name in factor_names}
+    for center_index in range(1, center_points + 1):
+        rows.append(
+            {
+                "standard_order": None,
+                "replicate": center_index,
+                "block": None,
+                "point_type": "center",
+                "coded": center_coded.copy(),
+                "actual": actual_values(center_coded),
+            }
+        )
+
+    if randomize:
+        random.Random(seed).shuffle(rows)
+    for run_order, row in enumerate(rows, start=1):
+        row["run_order"] = run_order
+
+    warnings = [
+        "Box-Behnken designs omit simultaneous all-factor corner extremes; verify every generated setting is physically safe and feasible.",
+        "Prediction precision is not uniform across the design cube, so confirm fitted optima with independent runs.",
+    ]
+    if not randomize:
+        warnings.append(
+            "Runs are not randomized; time-related nuisance factors may be confounded with model terms."
+        )
+
+    factor_payload = [asdict(factor) for factor in normalized]
+    payload = {
+        "factors": factor_payload,
+        "center_points": center_points,
+        "replicates": replicates,
+        "randomize": randomize,
+        "seed": seed,
+    }
+    model_term_count = 1 + 2 * len(normalized) + len(normalized) * (len(normalized) - 1) // 2
+    _, model_matrix = _quadratic_model_columns(rows, factor_names)
+    cross_product = [
+        [
+            sum(row[left] * row[right] for row in model_matrix)
+            for right in range(model_term_count)
+        ]
+        for left in range(model_term_count)
+    ]
+    try:
+        _invert_matrix(cross_product, field="factors")
+        quadratic_model_estimable = True
+    except AnalysisInputError:
+        quadratic_model_estimable = False
+    return ResultBundle(
+        analysis_type="doe.box_behnken",
+        engine_version=ENGINE_VERSION,
+        input_digest=input_digest(payload),
+        parameters=payload,
+        tables={"design": rows},
+        plots={},
+        diagnostics={
+            "factor_count": len(normalized),
+            "edge_block_count": len(base_coded) // 4,
+            "edge_point_count": len(base_coded) * replicates,
+            "center_point_count": center_points,
+            "total_run_count": total_run_count,
+            "coded_levels": [-1, 0, 1],
+            "corner_points_included": False,
+            "quadratic_model_term_count": model_term_count,
+            "quadratic_model_estimable": quadratic_model_estimable,
+            "construction": "all-pairs-four-corners",
+        },
+        assumptions=(
+            "All factors are quantitative and can be operated at low, midpoint, and high settings.",
+            "The stated low/high levels map to coded -1/+1 and their midpoint maps to coded 0.",
+            "Each edge block varies one factor pair while every other factor remains at its midpoint.",
+            "The supplied random seed is retained for reproducibility.",
+        ),
+        warnings=tuple(warnings),
+        provenance=(NIST_BOX_BEHNKEN_SOURCE,),
     )
 
 

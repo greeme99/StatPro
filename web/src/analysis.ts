@@ -188,6 +188,25 @@ export type DoeCentralCompositeRow = {
   actual: Record<string, number>;
 };
 
+export type DoeBoxBehnkenRow = {
+  run_order: number;
+  standard_order: number | null;
+  replicate: number;
+  block: number | null;
+  point_type: "edge_midpoint" | "center";
+  coded: Record<string, number>;
+  actual: Record<string, number>;
+};
+
+export type DoeBoxBehnkenView = {
+  design: DoeBoxBehnkenRow[];
+  factorCount: number;
+  edgeBlocks: number;
+  edgePoints: number;
+  centerPoints: number;
+  quadraticModelEstimable: boolean;
+};
+
 export type DoeCentralCompositeView = {
   design: DoeCentralCompositeRow[];
   alpha: number;
@@ -388,6 +407,20 @@ export function toDoeCentralCompositeView(result: ResultBundle | undefined): Doe
     factorialRuns: Number(result.diagnostics.factorial_run_count ?? 0),
     axialRuns: Number(result.diagnostics.axial_run_count ?? 0),
     centerPoints: Number(result.diagnostics.center_point_count ?? 0),
+  };
+}
+
+export function toDoeBoxBehnkenView(result: ResultBundle | undefined): DoeBoxBehnkenView | null {
+  if (!result || result.analysis_type !== "doe.box_behnken") return null;
+  const design = result.tables.design;
+  if (!Array.isArray(design)) return null;
+  return {
+    design: design as DoeBoxBehnkenRow[],
+    factorCount: Number(result.diagnostics.factor_count ?? 0),
+    edgeBlocks: Number(result.diagnostics.edge_block_count ?? 0),
+    edgePoints: Number(result.diagnostics.edge_point_count ?? 0),
+    centerPoints: Number(result.diagnostics.center_point_count ?? 0),
+    quadraticModelEstimable: result.diagnostics.quadratic_model_estimable === true,
   };
 }
 

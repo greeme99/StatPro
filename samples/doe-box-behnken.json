@@ -1,0 +1,9 @@
+{
+  "factors": [
+    { "name": "Temperature", "low": 140, "high": 180 },
+    { "name": "Pressure", "low": 2, "high": 6 },
+    { "name": "Time", "low": 20, "high": 40 }
+  ],
+  "randomize": true,
+  "seed": 20261025
+}

@@ -11,11 +11,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from statpro.analyses.doe import (
     FactorDefinition,
     GeneratorDefinition,
+    ResponseObjective,
     analyze_central_composite,
     analyze_fractional_factorial_2level,
-    ResponseObjective,
     analyze_full_factorial_2level,
     analyze_plackett_burman,
+    box_behnken_design,
     central_composite_design,
     composite_desirability,
     explore_central_composite_surface,
@@ -278,6 +279,67 @@ class FractionalFactorialAnalysisTests(unittest.TestCase):
                 randomize=False,
             )
         self.assertEqual(context.exception.detail.code, "response_count_mismatch")
+
+
+class BoxBehnkenDesignTests(unittest.TestCase):
+    def test_three_factor_standard_order_matches_nist_table(self) -> None:
+        factors = [FactorDefinition(name, 10, 20) for name in "ABC"]
+        result = box_behnken_design(factors, randomize=False)
+
+        coded = [tuple(row["coded"][name] for name in "ABC") for row in result.tables["design"]]
+        self.assertEqual(
+            coded,
+            [
+                (-1.0, -1.0, 0.0),
+                (1.0, -1.0, 0.0),
+                (-1.0, 1.0, 0.0),
+                (1.0, 1.0, 0.0),
+                (-1.0, 0.0, -1.0),
+                (1.0, 0.0, -1.0),
+                (-1.0, 0.0, 1.0),
+                (1.0, 0.0, 1.0),
+                (0.0, -1.0, -1.0),
+                (0.0, 1.0, -1.0),
+                (0.0, -1.0, 1.0),
+                (0.0, 1.0, 1.0),
+                (0.0, 0.0, 0.0),
+                (0.0, 0.0, 0.0),
+                (0.0, 0.0, 0.0),
+            ],
+        )
+        self.assertEqual(result.diagnostics["edge_block_count"], 3)
+        self.assertFalse(result.diagnostics["corner_points_included"])
+        self.assertTrue(result.diagnostics["quadratic_model_estimable"])
+
+    def test_five_factor_defaults_to_six_centers_and_46_runs(self) -> None:
+        result = box_behnken_design(
+            [FactorDefinition(name, 0, 10) for name in "ABCDE"],
+            randomize=False,
+        )
+
+        rows = result.tables["design"]
+        edge_rows = [row for row in rows if row["point_type"] == "edge_midpoint"]
+        self.assertEqual(len(rows), 46)
+        self.assertEqual(len(edge_rows), 40)
+        self.assertTrue(
+            all(sum(value != 0 for value in row["coded"].values()) == 2 for row in edge_rows)
+        )
+        self.assertEqual(result.diagnostics["center_point_count"], 6)
+
+    def test_randomization_is_reproducible_and_six_factors_are_rejected(self) -> None:
+        factors = [FactorDefinition(name, 0, 1) for name in "ABCD"]
+        first = box_behnken_design(factors, seed=19)
+        second = box_behnken_design(factors, seed=19)
+        self.assertEqual(first.tables["design"], second.tables["design"])
+        self.assertEqual(first.input_digest, second.input_digest)
+
+        with self.assertRaises(AnalysisInputError) as context:
+            box_behnken_design([FactorDefinition(name, 0, 1) for name in "ABCDEF"])
+        self.assertEqual(context.exception.detail.code, "too_many_factors")
+
+        with self.assertRaises(AnalysisInputError) as context:
+            box_behnken_design(factors, replicates=5_000)
+        self.assertEqual(context.exception.detail.code, "design_too_large")
 
 
 class CentralCompositeDesignTests(unittest.TestCase):

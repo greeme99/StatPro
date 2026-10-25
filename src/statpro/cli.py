@@ -16,6 +16,7 @@ from statpro.analyses.doe import (
     analyze_fractional_factorial_2level,
     analyze_full_factorial_2level,
     analyze_plackett_burman,
+    box_behnken_design,
     central_composite_design,
     explore_central_composite_surface,
     fractional_factorial_2level,
@@ -38,6 +39,7 @@ def _parser() -> argparse.ArgumentParser:
         "capability-normal",
         "doe-full-factorial",
         "doe-central-composite",
+        "doe-box-behnken",
         "doe-analyze-central-composite",
         "doe-explore-central-composite",
         "doe-fractional-factorial",
@@ -83,6 +85,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         elif args.command in {
             "doe-full-factorial",
             "doe-central-composite",
+            "doe-box-behnken",
             "doe-analyze-central-composite",
             "doe-explore-central-composite",
             "doe-fractional-factorial",
@@ -100,7 +103,15 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "Each factor requires name, low, and high fields.",
                     "factors",
                 ) from error
-            if args.command == "doe-analyze-plackett-burman":
+            if args.command == "doe-box-behnken":
+                result = box_behnken_design(
+                    factors,
+                    center_points=payload.get("center_points"),
+                    replicates=payload.get("replicates", 1),
+                    randomize=payload.get("randomize", True),
+                    seed=payload.get("seed", 0),
+                )
+            elif args.command == "doe-analyze-plackett-burman":
                 result = analyze_plackett_burman(
                     factors,
                     payload["responses"],

@@ -335,6 +335,40 @@ describe("StatPro UI", () => {
     expect(body).toMatchObject({ design_type: "rotatable", center_points: 5, response_name: "Response" });
   });
 
+  it("submits a Box-Behnken design with automatic center points", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      return new Response(JSON.stringify({}), { status: init?.method === "POST" ? 201 : 200, headers: { "Content-Type": "application/json" } });
+    });
+    render(<MemoryRouter initialEntries={["/analyses/doe/box-behnken"]}><App /></MemoryRouter>);
+
+    expect(await screen.findByText("예상 실행 수: 15회 · 중심점 3회")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Box–Behnken 설계 생성" }));
+    await waitFor(() => expect(fetchMock.mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === "POST")).toBe(true));
+    const post = fetchMock.mock.calls.find(([url, init]) => String(url).endsWith("/doe-box-behnken") && (init as RequestInit | undefined)?.method === "POST");
+    const body = JSON.parse(String((post?.[1] as RequestInit).body));
+    expect(body.factors).toHaveLength(3);
+    expect(body.center_points).toBeUndefined();
+    expect(body).toMatchObject({ replicates: 1, randomize: true, seed: 0 });
+  });
+
+  it("renders a Box-Behnken design matrix and estimability summary", async () => {
+    const result = {
+      analysis_type: "doe.box_behnken", engine_version: "0.6.0", input_digest: "b".repeat(64), warnings: [], assumptions: [], provenance: [], parameters: {}, plots: {},
+      diagnostics: { factor_count: 3, edge_block_count: 3, edge_point_count: 12, center_point_count: 3, total_run_count: 15, quadratic_model_estimable: true },
+      tables: { design: [{ run_order: 1, standard_order: 1, replicate: 1, block: 1, point_type: "edge_midpoint", coded: { A: -1, B: -1, C: 0 }, actual: { A: 0, B: 0, C: 15 } }] },
+    };
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      return new Response(JSON.stringify({ run_id: "doe-bbd-001", storage_version: 1, etag: "a".repeat(64), result }), { status: 200 });
+    });
+
+    render(<MemoryRouter initialEntries={["/runs/doe-bbd-001"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "Box–Behnken 실행 설계표" })).toBeInTheDocument();
+    expect(screen.getByText("추정 가능")).toBeInTheDocument();
+    expect(screen.getByText("Edge midpoint")).toBeInTheDocument();
+  });
+
   it("submits central composite responses for stationary-point surface exploration", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });

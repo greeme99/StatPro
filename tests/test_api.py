@@ -134,6 +134,19 @@ class LocalApiContractTests(unittest.TestCase):
                 "doe.fractional_factorial_2level",
             ),
             (
+                "/v1/analysis-runs/doe-box-behnken",
+                {
+                    "run_id": "doe-box-behnken",
+                    "factors": [
+                        {"name": "A", "low": 0, "high": 10},
+                        {"name": "B", "low": 0, "high": 20},
+                        {"name": "C", "low": 0, "high": 30},
+                    ],
+                    "randomize": False,
+                },
+                "doe.box_behnken",
+            ),
+            (
                 "/v1/analysis-runs/doe-central-composite",
                 {
                     "run_id": "doe-central-composite",

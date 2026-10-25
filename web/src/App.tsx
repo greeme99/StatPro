@@ -12,6 +12,7 @@ import { DoeOptimizerPage } from "./pages/DoeOptimizerPage";
 import { DoeFractionalSetupPage } from "./pages/DoeFractionalSetupPage";
 import { DoePlackettBurmanSetupPage } from "./pages/DoePlackettBurmanSetupPage";
 import { DoeCentralCompositeSetupPage } from "./pages/DoeCentralCompositeSetupPage";
+import { DoeBoxBehnkenSetupPage } from "./pages/DoeBoxBehnkenSetupPage";
 
 export default function App() {
   return (
@@ -23,6 +24,7 @@ export default function App() {
         <Route path="/analyses/doe/fractional-factorial" element={<DoeFractionalSetupPage />} />
         <Route path="/analyses/doe/plackett-burman" element={<DoePlackettBurmanSetupPage />} />
         <Route path="/analyses/doe/central-composite" element={<DoeCentralCompositeSetupPage />} />
+        <Route path="/analyses/doe/box-behnken" element={<DoeBoxBehnkenSetupPage />} />
         <Route path="/analyses/doe/response-optimizer" element={<DoeOptimizerPage />} />
         <Route path="/runs/:runId" element={<ResultPage />} />
         <Route path="/data" element={<DataPage />} />

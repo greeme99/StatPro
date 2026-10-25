@@ -254,6 +254,31 @@ class CliBoundaryTests(unittest.TestCase):
             ["Constant", "A", "B", "A*B", "A^2", "B^2"],
         )
 
+    def test_box_behnken_returns_three_level_edge_design(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "box-behnken.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "factors": [
+                            {"name": "A", "low": 0, "high": 10},
+                            {"name": "B", "low": 0, "high": 20},
+                            {"name": "C", "low": 0, "high": 30},
+                        ],
+                        "randomize": False,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            output = io.StringIO()
+            with redirect_stdout(output):
+                exit_code = main(["doe-box-behnken", "--input", str(path)])
+
+        self.assertEqual(exit_code, 0)
+        result = json.loads(output.getvalue())["result"]
+        self.assertEqual(result["analysis_type"], "doe.box_behnken")
+        self.assertEqual(result["diagnostics"]["total_run_count"], 15)
+
     def test_central_composite_surface_returns_stationary_point_and_grid(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "central-composite-surface.json"
