@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import math
 from collections import defaultdict
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 from statistics import fmean
-from typing import Sequence
 
-from statpro.analyses.common import finite_values, input_digest
+from statpro.analyses.common import finite_values
 from statpro.domain.errors import AnalysisInputError
+from statpro.domain.identity import input_digest
 from statpro.domain.models import ProvenanceSource, ResultBundle
 from statpro.version import ENGINE_VERSION
 

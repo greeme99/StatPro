@@ -6,11 +6,12 @@ import csv
 import hashlib
 import io
 import math
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any
 
 from statpro.domain.errors import AnalysisInputError
 from statpro.domain.identity import input_digest
@@ -54,7 +55,7 @@ class DataColumn:
         }
 
     @classmethod
-    def from_dict(cls, payload: dict[str, Any]) -> "DataColumn":
+    def from_dict(cls, payload: dict[str, Any]) -> DataColumn:
         return cls(
             name=payload["name"],
             data_type=DataType(payload["data_type"]),
@@ -86,7 +87,7 @@ class DatasetSnapshot:
         }
 
     @classmethod
-    def from_dict(cls, payload: dict[str, Any]) -> "DatasetSnapshot":
+    def from_dict(cls, payload: dict[str, Any]) -> DatasetSnapshot:
         source = payload["source"]
         return cls(
             dataset_id=payload["dataset_id"],
@@ -131,7 +132,7 @@ class WorksheetSnapshot:
         }
 
     @classmethod
-    def from_dict(cls, payload: dict[str, Any]) -> "WorksheetSnapshot":
+    def from_dict(cls, payload: dict[str, Any]) -> WorksheetSnapshot:
         return cls(
             worksheet_id=payload["worksheet_id"],
             name=payload["name"],

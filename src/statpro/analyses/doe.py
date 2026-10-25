@@ -3,15 +3,15 @@
 from __future__ import annotations
 
 import random
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import asdict, dataclass
 from itertools import combinations
 from math import atan2, cos, exp, isfinite, lgamma, log, log1p, sin, sqrt
 from statistics import NormalDist, median
-from typing import Sequence
 
-from statpro.analyses.common import finite_values, input_digest
+from statpro.analyses.common import finite_values
 from statpro.domain.errors import AnalysisInputError
+from statpro.domain.identity import input_digest
 from statpro.domain.models import ProvenanceSource, ResultBundle
 from statpro.version import ENGINE_VERSION
 
@@ -376,8 +376,10 @@ def plackett_burman_design(
         row["run_order"] = run_order
 
     warnings = [
-        "Resolution III screening aliases main effects with two-factor interactions; "
-        "interpret effects only when interactions are reasonably negligible.",
+        (
+            "Resolution III screening aliases main effects with two-factor interactions; "
+            "interpret effects only when interactions are reasonably negligible."
+        ),
         "Confirm selected factors with a follow-up factorial or response-surface experiment.",
     ]
     if center_points:
@@ -700,12 +702,18 @@ def analyze_plackett_burman(
         },
         assumptions=(
             "Responses correspond one-for-one to the generated design run order.",
-            "Two-factor and higher-order interactions are negligible relative to the "
-            "main effects during screening.",
-            "Lenth inference, when used, assumes sparse active effects and is a "
-            "screening rule rather than replicated-error evidence.",
-            "Confirmation candidates require an independent follow-up experiment "
-            "before process decisions.",
+            (
+                "Two-factor and higher-order interactions are negligible relative to the "
+                "main effects during screening."
+            ),
+            (
+                "Lenth inference, when used, assumes sparse active effects and is a "
+                "screening rule rather than replicated-error evidence."
+            ),
+            (
+                "Confirmation candidates require an independent follow-up experiment "
+                "before process decisions."
+            ),
         ),
         warnings=tuple(warnings),
         provenance=(
@@ -3139,8 +3147,10 @@ def analyze_full_factorial_2level(
         assumptions=(
             "Responses correspond one-for-one to the generated design run order.",
             "The coded model is linear in the selected main effects and interactions.",
-            "Residuals are expected to be independent with constant variance and "
-            "approximately normal when inferential statistics are interpreted.",
+            (
+                "Residuals are expected to be independent with constant variance and "
+                "approximately normal when inferential statistics are interpreted."
+            ),
             "Prediction points are restricted to the fitted experimental region.",
             "For this multilinear two-level model, maximum and minimum searches evaluate every factorial vertex.",
         ),

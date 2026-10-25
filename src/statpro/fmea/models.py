@@ -220,7 +220,7 @@ class FmeaStudySnapshot:
         }
 
     @classmethod
-    def from_dict(cls, payload: dict[str, Any]) -> "FmeaStudySnapshot":
+    def from_dict(cls, payload: dict[str, Any]) -> FmeaStudySnapshot:
         """Restore a persisted snapshot at the bounded-context boundary."""
 
         def ratings(value: dict[str, Any]) -> RiskRatings:

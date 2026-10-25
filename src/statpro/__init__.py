@@ -17,13 +17,19 @@ from statpro.analyses.doe import (
 )
 from statpro.analyses.msa import MeasurementRecord, gage_rr_crossed
 from statpro.analyses.spc import individuals_moving_range, xbar_r
-from statpro.domain.models import ResultBundle
 from statpro.domain.data import DatasetSnapshot, DataType, WorksheetSnapshot
+from statpro.domain.models import ResultBundle
 from statpro.version import __version__
 
 __all__ = [
+    "DataType",
+    "DatasetSnapshot",
     "FactorDefinition",
     "GeneratorDefinition",
+    "MeasurementRecord",
+    "ResultBundle",
+    "WorksheetSnapshot",
+    "__version__",
     "analyze_box_behnken",
     "analyze_central_composite",
     "analyze_fractional_factorial_2level",
@@ -31,16 +37,11 @@ __all__ = [
     "box_behnken_design",
     "central_composite_design",
     "explore_central_composite_surface",
-    "DatasetSnapshot",
-    "DataType",
-    "MeasurementRecord",
-    "ResultBundle",
-    "WorksheetSnapshot",
-    "full_factorial_2level",
     "fractional_factorial_2level",
-    "plackett_burman_design",
+    "full_factorial_2level",
     "gage_rr_crossed",
     "individuals_moving_range",
     "normal_process_capability",
+    "plackett_burman_design",
     "xbar_r",
 ]

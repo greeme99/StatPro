@@ -42,15 +42,15 @@ from statpro.application.documents import (
     InvalidDocumentKeyError,
     StoredDocument,
 )
-from statpro.domain.errors import AnalysisInputError, DomainInputError
 from statpro.domain.data import (
-    DataType,
     DatasetSnapshot,
+    DataType,
     WorksheetSnapshot,
     create_worksheet,
     import_csv_bytes,
     replace_worksheet_cell,
 )
+from statpro.domain.errors import AnalysisInputError, DomainInputError
 from statpro.domain.models import ResultBundle
 from statpro.domain.schema import result_bundle_schema
 from statpro.fmea import (
@@ -1041,7 +1041,7 @@ def create_app(repository: DocumentRepository) -> FastAPI:
         request: AddFailureAnalysisRequest,
         response: Response,
     ) -> StoredFmeaStudyResponse:
-        stored, study = _load_fmea_study(repository, study_id)
+        _stored, study = _load_fmea_study(repository, study_id)
         revised = add_failure_analysis(
             study,
             item_id=request.item_id,

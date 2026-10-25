@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
+from itertools import pairwise
 from statistics import NormalDist, fmean, stdev
-from typing import Sequence
 
-from statpro.analyses.common import finite_values, input_digest
+from statpro.analyses.common import finite_values
 from statpro.domain.errors import AnalysisInputError
+from statpro.domain.identity import input_digest
 from statpro.domain.models import ProvenanceSource, ResultBundle
 from statpro.version import ENGINE_VERSION
 
@@ -56,7 +58,7 @@ def normal_process_capability(
 
     process_mean = fmean(observations)
     moving_ranges = [
-        abs(current - previous) for previous, current in zip(observations, observations[1:])
+        abs(current - previous) for previous, current in pairwise(observations)
     ]
     within_sigma = fmean(moving_ranges) / 1.128
     overall_sigma = stdev(observations)

@@ -1,4 +1,4 @@
-"""Shared normalization and identity helpers owned by the analysis boundary."""
+"""Shared numeric normalization owned by the analysis boundary."""
 
 from __future__ import annotations
 
@@ -6,7 +6,6 @@ import math
 from collections.abc import Iterable
 
 from statpro.domain.errors import AnalysisInputError
-from statpro.domain.identity import input_digest
 
 
 def finite_values(values: Iterable[object], field: str) -> list[float]:

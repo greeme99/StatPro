@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+from itertools import pairwise
 from statistics import fmean
-from typing import Sequence
 
-from statpro.analyses.common import finite_values, input_digest
+from statpro.analyses.common import finite_values
 from statpro.domain.errors import AnalysisInputError
+from statpro.domain.identity import input_digest
 from statpro.domain.models import ProvenanceSource, ResultBundle
 from statpro.version import ENGINE_VERSION
 
@@ -110,18 +112,18 @@ def western_electric_signals(
     for end in range(5, len(observations)):
         start = end - 5
         window = observations[start : end + 1]
-        if all(left < right for left, right in zip(window, window[1:])):
+        if all(left < right for left, right in pairwise(window)):
             _append_rule_signal(signals, "TREND-6", start, end, "increasing", list(range(start, end + 1)))
-        elif all(left > right for left, right in zip(window, window[1:])):
+        elif all(left > right for left, right in pairwise(window)):
             _append_rule_signal(signals, "TREND-6", start, end, "decreasing", list(range(start, end + 1)))
 
     for end in range(13, len(observations)):
         start = end - 13
         window = observations[start : end + 1]
-        differences = [right - left for left, right in zip(window, window[1:])]
+        differences = [right - left for left, right in pairwise(window)]
         if all(
             current != 0.0 and following != 0.0 and current * following < 0.0
-            for current, following in zip(differences, differences[1:])
+            for current, following in pairwise(differences)
         ):
             _append_rule_signal(signals, "ALTERNATING-14", start, end, "alternating", list(range(start, end + 1)))
 
@@ -196,19 +198,19 @@ def nelson_signals(
         for end in range(5, len(observations)):
             start = end - 5
             window = observations[start : end + 1]
-            if all(left < right for left, right in zip(window, window[1:])):
+            if all(left < right for left, right in pairwise(window)):
                 _append_rule_signal(signals, "NELSON-3", start, end, "increasing", list(range(start, end + 1)))
-            elif all(left > right for left, right in zip(window, window[1:])):
+            elif all(left > right for left, right in pairwise(window)):
                 _append_rule_signal(signals, "NELSON-3", start, end, "decreasing", list(range(start, end + 1)))
 
     if 4 in selected:
         for end in range(13, len(observations)):
             start = end - 13
             window = observations[start : end + 1]
-            differences = [right - left for left, right in zip(window, window[1:])]
+            differences = [right - left for left, right in pairwise(window)]
             if all(
                 current != 0.0 and following != 0.0 and current * following < 0.0
-                for current, following in zip(differences, differences[1:])
+                for current, following in pairwise(differences)
             ):
                 _append_rule_signal(signals, "NELSON-4", start, end, "alternating", list(range(start, end + 1)))
 
@@ -277,7 +279,7 @@ def individuals_moving_range(
         )
 
     center = fmean(observations) if target is None else finite_values([target], "target")[0]
-    moving_ranges = [abs(current - previous) for previous, current in zip(observations, observations[1:])]
+    moving_ranges = [abs(current - previous) for previous, current in pairwise(observations)]
     average_moving_range = fmean(moving_ranges)
     estimated_sigma = average_moving_range / 1.128
     individuals_ucl = center + 3.0 * estimated_sigma

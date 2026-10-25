@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence
 
 from statpro.analyses.capability import normal_process_capability
 from statpro.analyses.doe import (
@@ -27,8 +27,8 @@ from statpro.analyses.doe import (
 )
 from statpro.analyses.msa import MeasurementRecord, gage_rr_crossed
 from statpro.analyses.spc import individuals_moving_range, xbar_r
-from statpro.domain.errors import AnalysisInputError
 from statpro.domain.data import import_csv_dataset
+from statpro.domain.errors import AnalysisInputError
 
 
 def _parser() -> argparse.ArgumentParser:
