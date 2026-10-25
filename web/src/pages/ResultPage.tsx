@@ -2,12 +2,13 @@ import { AlertTriangle, ArrowLeft, BookOpen, CheckCircle2, X } from "lucide-reac
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { getRun } from "../api";
-import { toAttributeChartView, toDoeBoxBehnkenAnalysisView, toDoeBoxBehnkenView, toDoeCentralCompositeAnalysisView, toDoeCentralCompositeSurfaceView, toDoeCentralCompositeView, toDoeDesirabilityView, toDoeFractionalAnalysisView, toDoeFractionalView, toDoePlackettBurmanAnalysisView, toDoePlackettBurmanView, toDoeView, toImrView, toXbarSView, type AttributeChartView, type DoeBoxBehnkenView, type DoeCentralCompositeSurfaceView, type DoeCentralCompositeView, type DoeDesirabilityView, type DoeFractionalAnalysisView, type DoeFractionalView, type DoePlackettBurmanAnalysisView, type DoePlackettBurmanView, type DoeQuadraticAnalysisView, type DoeView, type XbarSView } from "../analysis";
+import { toAttributeChartView, toDoeBoxBehnkenAnalysisView, toDoeBoxBehnkenView, toDoeCentralCompositeAnalysisView, toDoeCentralCompositeSurfaceView, toDoeCentralCompositeView, toDoeDesirabilityView, toDoeFractionalAnalysisView, toDoeFractionalView, toDoePlackettBurmanAnalysisView, toDoePlackettBurmanView, toDoeView, toEwmaView, toImrView, toXbarSView, type AttributeChartView, type DoeBoxBehnkenView, type DoeCentralCompositeSurfaceView, type DoeCentralCompositeView, type DoeDesirabilityView, type DoeFractionalAnalysisView, type DoeFractionalView, type DoePlackettBurmanAnalysisView, type DoePlackettBurmanView, type DoeQuadraticAnalysisView, type DoeView, type EwmaView, type XbarSView } from "../analysis";
 import { Button } from "../components/Button";
 import type { StoredRun } from "../types";
 
 const ProcessRail = lazy(() => import("../components/ProcessRail").then((module) => ({ default: module.ProcessRail })));
 const AttributeControlChart = lazy(() => import("../components/AttributeControlChart").then((module) => ({ default: module.AttributeControlChart })));
+const EwmaControlChart = lazy(() => import("../components/EwmaControlChart").then((module) => ({ default: module.EwmaControlChart })));
 
 export function ResultPage() {
   const { runId = "" } = useParams();
@@ -49,6 +50,7 @@ export function ResultPage() {
   const imr = toImrView(result);
   const attributeChart = toAttributeChartView(result);
   const xbarS = toXbarSView(result);
+  const ewma = toEwmaView(result);
   const doe = toDoeView(result);
   const optimizer = toDoeDesirabilityView(result);
   const fractional = toDoeFractionalView(result);
@@ -88,7 +90,7 @@ export function ResultPage() {
         <header className="panel-heading"><div><span className="eyebrow">ACCESSIBLE DATA</span><h2>관리도 원본 표</h2></div></header>
         <div className="table-scroll"><table><thead><tr><th scope="col">순서</th><th scope="col">관측값</th><th scope="col">상태</th></tr></thead><tbody>{imr.points.map((point) => <tr key={point.index}><td>{point.index}</td><td>{point.value.toFixed(4)}</td><td>{point.signal ? <span className="status-text is-danger"><AlertTriangle aria-hidden="true" /> {point.rules.length ? point.rules.join(", ") : "3σ 한계 이탈"}</span> : <span className="status-text is-success"><CheckCircle2 aria-hidden="true" /> 정상</span>}</td></tr>)}</tbody></table></div>
       </section>
-      </> : xbarS ? <XbarSResult view={xbarS} /> : attributeChart ? <AttributeChartResult view={attributeChart} /> : doe ? <DoeResult doe={doe} /> : optimizer ? <DoeDesirabilityResult optimizer={optimizer} /> : fractional ? <DoeFractionalResult design={fractional} /> : fractionalAnalysis ? <DoeFractionalAnalysisResult analysis={fractionalAnalysis} /> : boxBehnken ? <DoeBoxBehnkenResult design={boxBehnken} /> : boxBehnkenAnalysis ? <DoeQuadraticAnalysisResult analysis={boxBehnkenAnalysis} designLabel="Box–Behnken" methodLabel="Edge-midpoint design" /> : centralComposite ? <DoeCentralCompositeResult design={centralComposite} /> : centralCompositeAnalysis ? <DoeQuadraticAnalysisResult analysis={centralCompositeAnalysis} designLabel="중앙합성" methodLabel={centralCompositeAnalysis.rotatable ? "Rotatable" : "Face-centered"} /> : centralCompositeSurface ? <DoeCentralCompositeSurfaceResult surface={centralCompositeSurface} /> : plackettBurman ? <DoePlackettBurmanResult design={plackettBurman} /> : plackettBurmanAnalysis ? <DoePlackettBurmanAnalysisResult analysis={plackettBurmanAnalysis} /> : <section className="panel generic-result-panel"><header className="panel-heading"><div><span className="eyebrow">RESULT BUNDLE</span><h2>분석 결과 요약</h2></div></header><dl><div><dt>분석 유형</dt><dd>{result.analysis_type}</dd></div><div><dt>진단 항목</dt><dd>{Object.keys(result.diagnostics).length}개</dd></div><div><dt>결과 표</dt><dd>{Object.keys(result.tables).join(", ") || "없음"}</dd></div></dl><p>이 분석의 전용 시각화는 다음 개발 증분에서 제공됩니다. 계산 근거와 원본 ResultBundle은 보존되어 있습니다.</p></section>}
+      </> : ewma ? <EwmaResult view={ewma} /> : xbarS ? <XbarSResult view={xbarS} /> : attributeChart ? <AttributeChartResult view={attributeChart} /> : doe ? <DoeResult doe={doe} /> : optimizer ? <DoeDesirabilityResult optimizer={optimizer} /> : fractional ? <DoeFractionalResult design={fractional} /> : fractionalAnalysis ? <DoeFractionalAnalysisResult analysis={fractionalAnalysis} /> : boxBehnken ? <DoeBoxBehnkenResult design={boxBehnken} /> : boxBehnkenAnalysis ? <DoeQuadraticAnalysisResult analysis={boxBehnkenAnalysis} designLabel="Box–Behnken" methodLabel="Edge-midpoint design" /> : centralComposite ? <DoeCentralCompositeResult design={centralComposite} /> : centralCompositeAnalysis ? <DoeQuadraticAnalysisResult analysis={centralCompositeAnalysis} designLabel="중앙합성" methodLabel={centralCompositeAnalysis.rotatable ? "Rotatable" : "Face-centered"} /> : centralCompositeSurface ? <DoeCentralCompositeSurfaceResult surface={centralCompositeSurface} /> : plackettBurman ? <DoePlackettBurmanResult design={plackettBurman} /> : plackettBurmanAnalysis ? <DoePlackettBurmanAnalysisResult analysis={plackettBurmanAnalysis} /> : <section className="panel generic-result-panel"><header className="panel-heading"><div><span className="eyebrow">RESULT BUNDLE</span><h2>분석 결과 요약</h2></div></header><dl><div><dt>분석 유형</dt><dd>{result.analysis_type}</dd></div><div><dt>진단 항목</dt><dd>{Object.keys(result.diagnostics).length}개</dd></div><div><dt>결과 표</dt><dd>{Object.keys(result.tables).join(", ") || "없음"}</dd></div></dl><p>이 분석의 전용 시각화는 다음 개발 증분에서 제공됩니다. 계산 근거와 원본 ResultBundle은 보존되어 있습니다.</p></section>}
       {result.warnings.length > 0 && <section className="warning-panel"><AlertTriangle aria-hidden="true" /><div><h2>해석 전 확인</h2><ul>{result.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></div></section>}
       {drawerOpen && <><button className="drawer-scrim" aria-label="계산 근거 닫기" onClick={closeDrawer} /><aside ref={drawer} className="detail-drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title"><header><div><span className="eyebrow">EVIDENCE</span><h2 id="drawer-title">계산 근거</h2></div><button ref={closeButton} className="icon-button" aria-label="닫기" onClick={closeDrawer}><X /></button></header><section><h3>분석 가정</h3><ul>{result.assumptions.map((item) => <li key={item}>{item}</li>)}</ul></section><section><h3>공개 출처</h3>{result.provenance.map((source) => <a className="source-link" href={source.url} target="_blank" rel="noreferrer" key={source.url}><strong>{source.title}</strong><span>{source.authority}</span></a>)}</section><section><h3>재현 정보</h3><dl><div><dt>엔진</dt><dd>{result.engine_version}</dd></div><div><dt>Storage version</dt><dd>{run.storage_version}</dd></div><div><dt>ETag</dt><dd className="digest">{run.etag}</dd></div></dl></section></aside></>}
     </div>
@@ -99,6 +101,26 @@ function statistic(value: number | null, digits = 4) {
   if (value === null) return "—";
   if (!Number.isFinite(value)) return value > 0 ? "∞" : "—";
   return value.toFixed(digits);
+}
+
+function EwmaResult({ view }: { view: EwmaView }) {
+  const signalCount = view.points.filter((point) => point.signal).length;
+  return <>
+    <section className="metric-grid result-metrics" aria-label="EWMA 관리도 요약">
+      <article className="metric-card"><span>가중치 λ</span><strong>{statistic(view.weight, 3)}</strong><small>최근 관측 가중치</small></article>
+      <article className="metric-card"><span>한계 폭 L</span><strong>{statistic(view.limitWidth, 2)}</strong><small>시작 시점 보정</small></article>
+      <article className="metric-card"><span>공정 σ</span><strong>{statistic(view.processSigma)}</strong><small>{view.sigmaSource === "historical" ? "과거 기준" : "MRbar / 1.128 추정"}</small></article>
+      <article className="metric-card"><span>신호</span><strong>{signalCount}</strong><small>{signalCount ? "조사 필요" : "신호 없음"}</small></article>
+    </section>
+    <section className="panel result-chart-panel">
+      <header className="panel-heading"><div><span className="eyebrow">TIME-WEIGHTED CONTROL CHART</span><h2>EWMA 관리도</h2></div><span>평균 {view.meanSource === "historical" ? "과거 기준" : "현재 자료 추정"}</span></header>
+      <Suspense fallback={<div className="skeleton chart-skeleton" aria-label="EWMA 관리도 불러오는 중" />}><EwmaControlChart points={view.points} /></Suspense>
+    </section>
+    <section className="panel table-panel">
+      <header className="panel-heading"><div><span className="eyebrow">ACCESSIBLE DATA</span><h2>EWMA 관측값과 관리한계</h2></div></header>
+      <div className="table-scroll"><table><thead><tr><th scope="col">순서</th><th scope="col">관측값</th><th scope="col">EWMA</th><th scope="col">LCL</th><th scope="col">CL</th><th scope="col">UCL</th><th scope="col">상태</th></tr></thead><tbody>{view.points.map((point) => <tr key={point.index}><td>{point.index}</td><td>{statistic(point.observation)}</td><td>{statistic(point.ewma)}</td><td>{statistic(point.lcl)}</td><td>{statistic(point.center)}</td><td>{statistic(point.ucl)}</td><td>{point.signal ? <span className="status-text is-danger"><AlertTriangle aria-hidden="true" /> 관리한계 이탈</span> : <span className="status-text is-success"><CheckCircle2 aria-hidden="true" /> 정상</span>}</td></tr>)}</tbody></table></div>
+    </section>
+  </>;
 }
 
 function XbarSResult({ view }: { view: XbarSView }) {

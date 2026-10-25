@@ -26,6 +26,18 @@ NIST_XBAR_S_SOURCE = ProvenanceSource(
     title="NIST/SEMATECH 6.3.2.1 Shewhart X bar and S Control Charts",
     url="https://www.itl.nist.gov/div898/handbook/pmc/section3/pmc321.htm",
 )
+NIST_EWMA_SOURCE = ProvenanceSource(
+    title="NIST/SEMATECH 6.3.2.4 EWMA Control Charts",
+    url="https://www.itl.nist.gov/div898/handbook/pmc/section3/pmc324.htm",
+)
+MINITAB_EWMA_SOURCE = ProvenanceSource(
+    title="Minitab public documentation: Time-weighted control charts",
+    url=(
+        "https://support.minitab.com/en-us/minitab/help-and-how-to/quality-and-process-improvement/"
+        "control-charts/supporting-topics/understanding-time-weighted-control-charts/"
+        "time-weighted-control-charts-in-minitab/"
+    ),
+)
 MINITAB_XBAR_S_SOURCE = ProvenanceSource(
     title="Minitab public documentation: Overview for Xbar-S Chart",
     url=(
@@ -728,6 +740,141 @@ def individuals_moving_range(
         ),
         warnings=tuple(warnings),
         provenance=provenance,
+    )
+
+
+def ewma_chart(
+    values: Sequence[float],
+    *,
+    target: float | None = None,
+    sigma: float | None = None,
+    weight: float = 0.2,
+    limit_width: float = 3.0,
+) -> ResultBundle:
+    """Calculate a startup-adjusted EWMA chart for individual observations."""
+
+    observations = finite_values(values, "values")
+    if len(observations) < 2:
+        raise AnalysisInputError(
+            "insufficient_observations",
+            "EWMA requires at least two finite observations.",
+            "values",
+        )
+    normalized_weight = finite_values([weight], "weight")[0]
+    if not 0.0 < normalized_weight <= 1.0:
+        raise AnalysisInputError(
+            "invalid_ewma_weight",
+            "EWMA weight must be greater than 0 and no greater than 1.",
+            "weight",
+        )
+    normalized_limit_width = finite_values([limit_width], "limit_width")[0]
+    if not 0.0 < normalized_limit_width <= 10.0:
+        raise AnalysisInputError(
+            "invalid_limit_width",
+            "EWMA limit width must be greater than 0 and no greater than 10.",
+            "limit_width",
+        )
+
+    center = fmean(observations) if target is None else finite_values([target], "target")[0]
+    moving_ranges = [abs(current - previous) for previous, current in pairwise(observations)]
+    average_moving_range = fmean(moving_ranges)
+    if sigma is None:
+        process_sigma = average_moving_range / 1.128
+        sigma_source = "estimated_moving_range"
+    else:
+        process_sigma = finite_values([sigma], "sigma")[0]
+        sigma_source = "historical"
+        if process_sigma <= 0.0:
+            raise AnalysisInputError(
+                "invalid_process_sigma",
+                "Historical process sigma must be greater than 0.",
+                "sigma",
+            )
+
+    ewma_values: list[float] = []
+    points: list[dict[str, object]] = []
+    previous = center
+    steady_state_standard_error = process_sigma * sqrt(
+        normalized_weight / (2.0 - normalized_weight)
+    )
+    for index, observation in enumerate(observations):
+        current = normalized_weight * observation + (1.0 - normalized_weight) * previous
+        time = index + 1
+        standard_error = steady_state_standard_error * sqrt(
+            max(0.0, 1.0 - (1.0 - normalized_weight) ** (2 * time))
+        )
+        lcl = center - normalized_limit_width * standard_error
+        ucl = center + normalized_limit_width * standard_error
+        signal = current < lcl or current > ucl
+        ewma_values.append(current)
+        points.append(
+            {
+                "index": index,
+                "observation": observation,
+                "ewma": current,
+                "center": center,
+                "lcl": lcl,
+                "ucl": ucl,
+                "standard_error": standard_error,
+                "signal": signal,
+            }
+        )
+        previous = current
+
+    signal_indices = [int(point["index"]) for point in points if point["signal"]]
+    warnings: list[str] = []
+    if target is None:
+        warnings.append(
+            "The center was estimated from the monitored observations; use a stable historical mean for prospective monitoring."
+        )
+    if sigma is None:
+        warnings.append(
+            "Process sigma was estimated as average two-point moving range divided by 1.128; use a stable historical sigma when available."
+        )
+    if process_sigma == 0.0:
+        warnings.append(
+            "Estimated process sigma is zero, so the EWMA control limits collapse to the center line."
+        )
+
+    payload = {
+        "values": observations,
+        "target": center if target is not None else None,
+        "sigma": process_sigma if sigma is not None else None,
+        "weight": normalized_weight,
+        "limit_width": normalized_limit_width,
+    }
+    provenance = [NIST_EWMA_SOURCE, MINITAB_EWMA_SOURCE]
+    if sigma is None:
+        provenance.append(NIST_IMR_SOURCE)
+    return ResultBundle(
+        analysis_type="spc.ewma",
+        engine_version=ENGINE_VERSION,
+        input_digest=input_digest(payload),
+        parameters={
+            "weight": normalized_weight,
+            "limit_width": normalized_limit_width,
+            "target": center,
+            "process_sigma": process_sigma,
+            "mean_source": "estimated" if target is None else "historical",
+            "sigma_source": sigma_source,
+            "startup_adjusted_limits": True,
+        },
+        tables={"chart_points": points},
+        plots={"ewma": {"values": ewma_values, "signal_indices": signal_indices}},
+        diagnostics={
+            "signal_indices": signal_indices,
+            "average_moving_range": average_moving_range,
+            "steady_state_standard_error": steady_state_standard_error,
+            "final_ewma": ewma_values[-1],
+        },
+        assumptions=(
+            "Observations are continuous, independent, and ordered in process time.",
+            "The process mean and sigma represent an in-control baseline.",
+            "Startup-adjusted limits use the exact finite-time EWMA variance factor.",
+            "A limit signal is an investigation candidate and does not establish a special cause by itself.",
+        ),
+        warnings=tuple(warnings),
+        provenance=tuple(provenance),
     )
 
 

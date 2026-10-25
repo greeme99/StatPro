@@ -10,6 +10,7 @@ The repository starts with a dependency-free Python statistical core so formulas
 - Individuals and Moving Range (I-MR) control chart with selectable 3-sigma-only, NIST/Western Electric, or Nelson eight-test rules
 - Xbar-R control chart for constant subgroup sizes 2–10 with Nelson tests 1–8 on Xbar and tests 1–4 on R
 - Xbar-S control chart for constant subgroup sizes 2–100 using c4-corrected sigma, with Nelson tests 1–8 on Xbar and tests 1–4 on S
+- Startup-adjusted EWMA chart for individual observations with historical or explicitly estimated center/sigma and configurable lambda/L
 - Binomial p/np and Poisson c/u attribute control charts with pooled Phase I centers, opportunity-specific limits for p/u, constant-opportunity enforcement for np/c, and accessible chart/table results
 - Normal capability for individual observations with within/overall variation kept distinct
 - Reproducible two-level full factorial DOE analysis, regular fractional-factorial generation/main-effect analysis with bounded automatic minimum-run/minimum-aberration generator selection, explicit regular block generators and full resolution-III foldover, 3–5 factor Box–Behnken and central-composite response-surface designs with complete-quadratic modelling, stationary-point/canonical analysis, bounded two-factor surface grids, accessible iso-response contours and projected 3D wireframes, plus Plackett–Burman screening design/response analysis from 12 to 48 runs
@@ -21,7 +22,7 @@ The repository starts with a dependency-free Python statistical core so formulas
 - Process Flow → characteristic → PFMEA → Control Plan ID traceability with revision history, link validation, and reaction-plan ownership
 - Loopback-only FastAPI adapter with Analysis Run, revisioned Worksheet/FMEA storage, ETags, optimistic concurrency, and cursor paging
 - Atomic local JSON document adapter plus an in-memory contract-test adapter
-- React workbench with dashboard, CSV Worksheet import/editing, I-MR, Xbar-S, and p/np/c/u setup/results, DOE analysis/fractional/Plackett–Burman/Box–Behnken/response-optimizer flows, FMEA seven-step/editor/review, external AP policy management, PFMEA/Control Plan traceability, provenance drawer, theme, and connection states
+- React workbench with dashboard, CSV Worksheet import/editing, I-MR, Xbar-S, EWMA, and p/np/c/u setup/results, DOE analysis/fractional/Plackett–Burman/Box–Behnken/response-optimizer flows, FMEA seven-step/editor/review, external AP policy management, PFMEA/Control Plan traceability, provenance drawer, theme, and connection states
 - Accessible control-chart summaries and table alternatives with a 768px minimum supported viewport
 - Typed validation errors
 - JSON CLI
@@ -39,6 +40,7 @@ py -3.12 -m statpro.cli c-chart --input samples\c-chart.json
 py -3.12 -m statpro.cli u-chart --input samples\u-chart.json
 py -3.12 -m statpro.cli xbar-r --input samples\xbar-r.json
 py -3.12 -m statpro.cli xbar-s --input samples\xbar-s.json
+py -3.12 -m statpro.cli ewma --input samples\ewma.json
 py -3.12 -m statpro.cli capability-normal --input samples\capability-normal.json
 py -3.12 -m statpro.cli doe-full-factorial --input samples\doe-full-factorial.json
 py -3.12 -m statpro.cli doe-fractional-factorial --input samples\doe-fractional-factorial.json

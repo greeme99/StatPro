@@ -93,6 +93,62 @@ export function toXbarSView(result: ResultBundle | undefined): XbarSView | null 
   };
 }
 
+export type EwmaPoint = {
+  index: number;
+  observation: number;
+  ewma: number;
+  center: number;
+  ucl: number;
+  lcl: number;
+  signal: boolean;
+};
+
+export type EwmaView = {
+  points: EwmaPoint[];
+  weight: number;
+  limitWidth: number;
+  processSigma: number;
+  meanSource: string;
+  sigmaSource: string;
+};
+
+export function toEwmaView(result: ResultBundle | undefined): EwmaView | null {
+  if (!result || result.analysis_type !== "spc.ewma") return null;
+  const rows = result.tables.chart_points;
+  if (!Array.isArray(rows)) return null;
+  const points: EwmaPoint[] = [];
+  for (const row of rows) {
+    if (
+      typeof row !== "object" || row === null
+      || !["index", "observation", "ewma", "center", "ucl", "lcl"].every(
+        (key) => typeof row[key] === "number" && Number.isFinite(row[key]),
+      )
+      || typeof row.signal !== "boolean"
+    ) return null;
+    points.push({
+      index: row.index + 1,
+      observation: row.observation,
+      ewma: row.ewma,
+      center: row.center,
+      ucl: row.ucl,
+      lcl: row.lcl,
+      signal: row.signal,
+    });
+  }
+  const weight = result.parameters.weight;
+  const limitWidth = result.parameters.limit_width;
+  const processSigma = result.parameters.process_sigma;
+  const meanSource = result.parameters.mean_source;
+  const sigmaSource = result.parameters.sigma_source;
+  if (
+    typeof weight !== "number" || !Number.isFinite(weight)
+    || typeof limitWidth !== "number" || !Number.isFinite(limitWidth)
+    || typeof processSigma !== "number" || !Number.isFinite(processSigma)
+    || typeof meanSource !== "string" || typeof sigmaSource !== "string"
+  ) return null;
+  return { points, weight, limitWidth, processSigma, meanSource, sigmaSource };
+}
+
 export type AttributeChartPoint = {
   index: number;
   eventCount: number;

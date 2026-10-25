@@ -37,6 +37,7 @@ from statpro.analyses.doe import (
 from statpro.analyses.msa import MeasurementRecord, gage_rr_crossed
 from statpro.analyses.spc import (
     c_chart,
+    ewma_chart,
     individuals_moving_range,
     np_chart,
     p_chart,
@@ -109,6 +110,15 @@ class XbarRRunRequest(ApiModel):
     run_id: RunId
     subgroups: list[list[float]]
     rules: Literal["basic", "nelson"] = "basic"
+
+
+class EwmaRunRequest(ApiModel):
+    run_id: RunId
+    values: list[float]
+    target: float | None = None
+    sigma: float | None = None
+    weight: float = 0.2
+    limit_width: float = 3.0
 
 
 class AttributeChartRunRequest(ApiModel):
@@ -748,6 +758,22 @@ def create_app(repository: DocumentRepository) -> FastAPI:
             repository,
             request.run_id,
             xbar_s(request.subgroups, rules=request.rules),
+        )
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _response(stored)
+
+    @app.post("/v1/analysis-runs/ewma", status_code=201, response_model=StoredRunResponse)
+    def run_ewma(request: EwmaRunRequest, response: Response) -> StoredRunResponse:
+        stored = _save_run(
+            repository,
+            request.run_id,
+            ewma_chart(
+                request.values,
+                target=request.target,
+                sigma=request.sigma,
+                weight=request.weight,
+                limit_width=request.limit_width,
+            ),
         )
         response.headers["ETag"] = f'"{stored.etag}"'
         return _response(stored)

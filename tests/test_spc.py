@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from statpro.analyses.spc import (
     c_chart,
+    ewma_chart,
     individuals_moving_range,
     nelson_signals,
     np_chart,
@@ -111,6 +112,63 @@ class IndividualsMovingRangeTests(unittest.TestCase):
         with self.assertRaises(AnalysisInputError) as context:
             individuals_moving_range([1, 2, 3], rules="nelson-all")
         self.assertEqual(context.exception.detail.code, "invalid_control_rule_set")
+
+
+class EwmaChartTests(unittest.TestCase):
+    def test_matches_public_startup_adjusted_formula(self) -> None:
+        result = ewma_chart(
+            [52.0, 47.0, 53.0],
+            target=50.0,
+            sigma=2.0539,
+            weight=0.3,
+            limit_width=3.0,
+        )
+        first = result.tables["chart_points"][0]
+        expected_standard_error = 2.0539 * math.sqrt(
+            0.3 / 1.7 * (1.0 - 0.7**2)
+        )
+
+        self.assertEqual(result.analysis_type, "spc.ewma")
+        self.assertAlmostEqual(first["ewma"], 50.6)
+        self.assertAlmostEqual(first["ucl"], 50.0 + 3.0 * expected_standard_error)
+        self.assertAlmostEqual(first["lcl"], 50.0 - 3.0 * expected_standard_error)
+        self.assertAlmostEqual(
+            result.diagnostics["steady_state_standard_error"],
+            2.0539 * math.sqrt(0.3 / 1.7),
+        )
+        self.assertEqual(len(result.plots["ewma"]["values"]), 3)
+        self.assertAlmostEqual(result.plots["ewma"]["values"][-1], 50.564)
+
+    def test_estimates_center_and_sigma_with_explicit_provenance(self) -> None:
+        result = ewma_chart([10.0, 10.2, 9.9, 10.1])
+
+        self.assertEqual(result.parameters["mean_source"], "estimated")
+        self.assertEqual(result.parameters["sigma_source"], "estimated_moving_range")
+        self.assertEqual(len(result.warnings), 2)
+
+    def test_detects_persistent_small_shift(self) -> None:
+        result = ewma_chart(
+            [50.0] * 5 + [52.0] * 10,
+            target=50.0,
+            sigma=1.0,
+            weight=0.2,
+        )
+
+        self.assertTrue(result.diagnostics["signal_indices"])
+        self.assertGreaterEqual(result.diagnostics["signal_indices"][0], 5)
+
+    def test_rejects_invalid_design_parameters(self) -> None:
+        cases = [
+            ({"weight": 0.0}, "invalid_ewma_weight"),
+            ({"weight": 1.1}, "invalid_ewma_weight"),
+            ({"limit_width": 0.0}, "invalid_limit_width"),
+            ({"sigma": 0.0}, "invalid_process_sigma"),
+        ]
+        for kwargs, code in cases:
+            with self.subTest(code=code):
+                with self.assertRaises(AnalysisInputError) as context:
+                    ewma_chart([1.0, 2.0], **kwargs)
+                self.assertEqual(context.exception.detail.code, code)
 
 
 class XbarRTests(unittest.TestCase):

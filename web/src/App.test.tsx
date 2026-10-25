@@ -11,6 +11,45 @@ afterEach(() => {
 });
 
 describe("StatPro UI", () => {
+  it("submits EWMA observations with historical parameters", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      return new Response(JSON.stringify({}), { status: init?.method === "POST" ? 201 : 200, headers: { "Content-Type": "application/json" } });
+    });
+    render(<MemoryRouter initialEntries={["/analyses/spc/ewma"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "EWMA 관리도" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "EWMA 실행" }));
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith("/ewma") && (init as RequestInit | undefined)?.method === "POST")).toBe(true));
+    const post = fetchMock.mock.calls.find(([url, init]) => String(url).endsWith("/ewma") && (init as RequestInit | undefined)?.method === "POST");
+    expect(JSON.parse(String((post?.[1] as RequestInit).body))).toMatchObject({
+      values: [50, 50, 50, 50, 50, 51, 51, 52, 52, 52, 52, 52],
+      target: 50,
+      sigma: 1,
+      weight: 0.2,
+      limit_width: 3,
+    });
+  });
+
+  it("renders startup-adjusted EWMA limits with an accessible table", async () => {
+    const points = [
+      { index: 0, observation: 50, ewma: 50, center: 50, lcl: 49.4, ucl: 50.6, standard_error: 0.2, signal: false },
+      { index: 1, observation: 55, ewma: 51, center: 50, lcl: 49.23, ucl: 50.77, standard_error: 0.256, signal: true },
+    ];
+    const result = {
+      analysis_type: "spc.ewma", engine_version: "0.6.0", input_digest: "e".repeat(64), warnings: [], assumptions: [], provenance: [],
+      parameters: { weight: 0.2, limit_width: 3, target: 50, process_sigma: 1, mean_source: "historical", sigma_source: "historical", startup_adjusted_limits: true },
+      diagnostics: { signal_indices: [1] }, tables: { chart_points: points }, plots: { ewma: { points, signal_indices: [1] } },
+    };
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      return new Response(JSON.stringify({ run_id: "ewma-001", storage_version: 1, etag: "a".repeat(64), result }), { status: 200 });
+    });
+    render(<MemoryRouter initialEntries={["/runs/ewma-001"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "EWMA 관리도" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "EWMA 관측값과 관리한계" })).toBeInTheDocument();
+    expect(screen.getByText("관리한계 이탈")).toBeInTheDocument();
+  });
+
   it("submits equal-sized rational subgroups for Xbar-S", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });

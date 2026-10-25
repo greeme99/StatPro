@@ -50,6 +50,20 @@ export function createXbarSRun(payload: {
   });
 }
 
+export function createEwmaRun(payload: {
+  run_id: string;
+  values: number[];
+  target?: number;
+  sigma?: number;
+  weight: number;
+  limit_width: number;
+}): Promise<StoredRun> {
+  return request("/v1/analysis-runs/ewma", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function createAttributeChartRun(payload: {
   run_id: string;
   chart: "p" | "np" | "c" | "u";

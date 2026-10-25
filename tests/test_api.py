@@ -178,6 +178,18 @@ class LocalApiContractTests(unittest.TestCase):
                 "spc.xbar_s",
             ),
             (
+                "/v1/analysis-runs/ewma",
+                {
+                    "run_id": "ewma",
+                    "values": [50, 50, 50, 52, 52, 52, 52],
+                    "target": 50,
+                    "sigma": 1,
+                    "weight": 0.2,
+                    "limit_width": 3,
+                },
+                "spc.ewma",
+            ),
+            (
                 "/v1/analysis-runs/capability-normal",
                 {"run_id": "cap", "values": [98, 99, 100, 101, 102], "lsl": 95, "usl": 105},
                 "capability.normal_individuals",

@@ -145,6 +145,31 @@ class CliBoundaryTests(unittest.TestCase):
         self.assertAlmostEqual(result["parameters"]["c4"], 0.9726592741)
         self.assertEqual(len(result["plots"]["standard_deviation"]["values"]), 6)
 
+    def test_ewma_returns_startup_adjusted_limits_and_signals(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "ewma.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "values": [50, 50, 50, 52, 52, 52, 52],
+                        "target": 50,
+                        "sigma": 1,
+                        "weight": 0.2,
+                        "limit_width": 3,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            output = io.StringIO()
+            with redirect_stdout(output):
+                exit_code = main(["ewma", "--input", str(path)])
+
+        result = json.loads(output.getvalue())["result"]
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(result["analysis_type"], "spc.ewma")
+        self.assertTrue(result["parameters"]["startup_adjusted_limits"])
+        self.assertEqual(len(result["tables"]["chart_points"]), 7)
+
     def test_doe_analysis_returns_effects_anova_and_residuals(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "doe-analysis.json"

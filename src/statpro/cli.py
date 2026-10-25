@@ -31,6 +31,7 @@ from statpro.analyses.doe import (
 from statpro.analyses.msa import MeasurementRecord, gage_rr_crossed
 from statpro.analyses.spc import (
     c_chart,
+    ewma_chart,
     individuals_moving_range,
     np_chart,
     p_chart,
@@ -47,6 +48,7 @@ def _parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
     for command in (
         "c-chart",
+        "ewma",
         "imr",
         "np-chart",
         "p-chart",
@@ -99,6 +101,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             result = c_chart(payload["defects"], payload.get("inspection_units"))
         elif args.command == "u-chart":
             result = u_chart(payload["defects"], payload["inspection_units"])
+        elif args.command == "ewma":
+            result = ewma_chart(
+                payload["values"],
+                target=payload.get("target"),
+                sigma=payload.get("sigma"),
+                weight=payload.get("weight", 0.2),
+                limit_width=payload.get("limit_width", 3.0),
+            )
         elif args.command == "xbar-r":
             result = xbar_r(
                 payload["subgroups"],
