@@ -61,12 +61,16 @@ from statpro.domain.errors import AnalysisInputError, DomainInputError
 from statpro.domain.models import ResultBundle
 from statpro.domain.schema import result_bundle_schema
 from statpro.fmea import (
+    ActionPriorityEntry,
+    ActionPriorityPolicy,
+    FmeaInputError,
     FmeaStudySnapshot,
     RiskRatings,
     StudyType,
     add_failure_analysis,
     add_recommended_action,
     approve_study,
+    attach_action_priority_policy,
     complete_action,
     create_fmea_study,
     submit_for_review,
@@ -77,6 +81,7 @@ ANALYSIS_RUNS = "analysis-runs"
 DATASETS = "datasets"
 WORKSHEETS = "worksheets"
 FMEA_STUDIES = "fmea-studies"
+FMEA_AP_POLICIES = "fmea-action-priority-policies"
 RunId = Annotated[str, Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")]
 
 
@@ -287,6 +292,19 @@ class AddFailureAnalysisRequest(ApiModel):
     occurred_at: str
 
 
+class ActionPriorityEntryRequest(ApiModel):
+    severity: StrictInt = Field(ge=1, le=10)
+    occurrence: StrictInt = Field(ge=1, le=10)
+    detection: StrictInt = Field(ge=1, le=10)
+    priority: str = Field(min_length=1, max_length=32)
+
+
+class CreateActionPriorityPolicyRequest(ApiModel):
+    policy_id: RunId
+    standard_version: str = Field(min_length=1, max_length=128)
+    entries: list[ActionPriorityEntryRequest] = Field(min_length=1, max_length=1000)
+
+
 class AddRecommendedActionRequest(ApiModel):
     expected_storage_version: int = Field(ge=1)
     action_id: RunId
@@ -313,11 +331,22 @@ class FmeaTransitionRequest(ApiModel):
     occurred_at: str
 
 
+class AttachActionPriorityPolicyRequest(FmeaTransitionRequest):
+    policy_key: RunId
+
+
 class StoredFmeaStudyResponse(ApiModel):
     study_id: str
     storage_version: int
     etag: str
     study: dict[str, Any]
+
+
+class StoredActionPriorityPolicyResponse(ApiModel):
+    policy_key: str
+    storage_version: int
+    etag: str
+    policy: dict[str, Any]
 
 
 class ImportCsvWorksheetRequest(ApiModel):
@@ -360,6 +389,68 @@ def _fmea_response(stored: StoredDocument) -> StoredFmeaStudyResponse:
         etag=stored.etag,
         study=study.to_dict(),
     )
+
+
+def _deserialize_action_priority_policy(stored: StoredDocument) -> ActionPriorityPolicy:
+    try:
+        return ActionPriorityPolicy.from_dict(stored.document["policy"])
+    except (KeyError, TypeError, ValueError, FmeaInputError) as error:
+        raise DocumentStoreError(
+            f"Stored Action Priority policy {stored.key} does not match its owned format."
+        ) from error
+
+
+def _action_priority_policy_response(
+    stored: StoredDocument,
+) -> StoredActionPriorityPolicyResponse:
+    policy = _deserialize_action_priority_policy(stored)
+    return StoredActionPriorityPolicyResponse(
+        policy_key=stored.key,
+        storage_version=stored.storage_version,
+        etag=stored.etag,
+        policy=policy.to_dict(),
+    )
+
+
+def _load_action_priority_policy(
+    repository: DocumentRepository, policy_key: str
+) -> tuple[StoredDocument, ActionPriorityPolicy]:
+    stored = repository.load(FMEA_AP_POLICIES, policy_key)
+    policy = _deserialize_action_priority_policy(stored)
+    if policy.policy_key != stored.key:
+        raise DocumentStoreError(
+            f"Stored Action Priority policy {stored.key} has a mismatched identity."
+        )
+    return stored, policy
+
+
+def _load_attached_action_priority_policy(
+    repository: DocumentRepository, study: FmeaStudySnapshot
+) -> ActionPriorityPolicy | None:
+    if study.action_priority_policy_digest is None:
+        if (
+            study.action_priority_policy_id is not None
+            or study.action_priority_policy_key is not None
+        ):
+            raise DocumentStoreError(
+                "FMEA Study has an incomplete Action Priority policy identity."
+            )
+        return None
+    if study.action_priority_policy_key is None:
+        raise DocumentStoreError(
+            "Attached Action Priority policy has no lookup key; reattach an imported policy."
+        )
+    _stored, policy = _load_action_priority_policy(
+        repository, study.action_priority_policy_key
+    )
+    if (
+        policy.policy_id != study.action_priority_policy_id
+        or policy.digest != study.action_priority_policy_digest
+    ):
+        raise DocumentStoreError(
+            "Attached Action Priority policy identity does not match the FMEA Study."
+        )
+    return policy
 
 
 def _deserialize_fmea_study(stored: StoredDocument) -> FmeaStudySnapshot:
@@ -1071,6 +1162,59 @@ def create_app(repository: DocumentRepository) -> FastAPI:
         response.headers["ETag"] = f'"{saved.etag}"'
         return _worksheet_response(saved)
 
+    @app.post(
+        "/v1/fmea-action-priority-policies",
+        status_code=201,
+        response_model=StoredActionPriorityPolicyResponse,
+    )
+    def create_action_priority_policy(
+        request: CreateActionPriorityPolicyRequest,
+        response: Response,
+    ) -> StoredActionPriorityPolicyResponse:
+        policy = ActionPriorityPolicy(
+            policy_id=request.policy_id,
+            standard_version=request.standard_version,
+            entries=tuple(
+                ActionPriorityEntry(**entry.model_dump()) for entry in request.entries
+            ),
+        )
+        stored = repository.save(
+            FMEA_AP_POLICIES,
+            policy.policy_key,
+            {"kind": "fmea_action_priority_policy", "policy": policy.to_dict()},
+            expected_version=0,
+        )
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _action_priority_policy_response(stored)
+
+    @app.get("/v1/fmea-action-priority-policies")
+    def list_action_priority_policies(
+        limit: Annotated[int, Query(ge=1, le=100)] = 50,
+        after: Annotated[str | None, Query(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")] = None,
+    ) -> dict[str, Any]:
+        stored = repository.list_documents(
+            FMEA_AP_POLICIES, after=after, limit=limit + 1
+        )
+        has_more = len(stored) > limit
+        page = stored[:limit]
+        return {
+            "items": [
+                _action_priority_policy_response(item).model_dump() for item in page
+            ],
+            "next_after": page[-1].key if has_more and page else None,
+        }
+
+    @app.get(
+        "/v1/fmea-action-priority-policies/{policy_key}",
+        response_model=StoredActionPriorityPolicyResponse,
+    )
+    def get_action_priority_policy(
+        policy_key: RunId, response: Response
+    ) -> StoredActionPriorityPolicyResponse:
+        stored, _policy = _load_action_priority_policy(repository, policy_key)
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _action_priority_policy_response(stored)
+
     @app.post("/v1/fmea-studies", status_code=201, response_model=StoredFmeaStudyResponse)
     def create_study(
         request: CreateFmeaStudyRequest, response: Response
@@ -1107,6 +1251,33 @@ def create_app(repository: DocumentRepository) -> FastAPI:
         return _fmea_response(stored)
 
     @app.post(
+        "/v1/fmea-studies/{study_id}/action-priority-policy",
+        response_model=StoredFmeaStudyResponse,
+    )
+    def attach_fmea_action_priority_policy(
+        study_id: RunId,
+        request: AttachActionPriorityPolicyRequest,
+        response: Response,
+    ) -> StoredFmeaStudyResponse:
+        _stored, study = _load_fmea_study(repository, study_id)
+        _policy_document, policy = _load_action_priority_policy(
+            repository, request.policy_key
+        )
+        revised = attach_action_priority_policy(
+            study,
+            policy=policy,
+            actor=request.actor,
+            occurred_at=request.occurred_at,
+        )
+        saved = _save_fmea_study(
+            repository,
+            revised,
+            expected_version=request.expected_storage_version,
+        )
+        response.headers["ETag"] = f'"{saved.etag}"'
+        return _fmea_response(saved)
+
+    @app.post(
         "/v1/fmea-studies/{study_id}/failure-analyses",
         response_model=StoredFmeaStudyResponse,
     )
@@ -1116,6 +1287,7 @@ def create_app(repository: DocumentRepository) -> FastAPI:
         response: Response,
     ) -> StoredFmeaStudyResponse:
         _stored, study = _load_fmea_study(repository, study_id)
+        policy = _load_attached_action_priority_policy(repository, study)
         revised = add_failure_analysis(
             study,
             item_id=request.item_id,
@@ -1130,6 +1302,7 @@ def create_app(repository: DocumentRepository) -> FastAPI:
             ratings=RiskRatings(**request.ratings.model_dump()),
             actor=request.actor,
             occurred_at=request.occurred_at,
+            policy=policy,
         )
         saved = _save_fmea_study(
             repository,
@@ -1178,6 +1351,7 @@ def create_app(repository: DocumentRepository) -> FastAPI:
         response: Response,
     ) -> StoredFmeaStudyResponse:
         _stored, study = _load_fmea_study(repository, study_id)
+        policy = _load_attached_action_priority_policy(repository, study)
         revised = complete_action(
             study,
             action_id=action_id,
@@ -1186,6 +1360,7 @@ def create_app(repository: DocumentRepository) -> FastAPI:
             revised_ratings=RiskRatings(**request.revised_ratings.model_dump()),
             actor=request.actor,
             occurred_at=request.occurred_at,
+            policy=policy,
         )
         saved = _save_fmea_study(
             repository,

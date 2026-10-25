@@ -90,6 +90,9 @@ def _revise(
         action_priority_policy_digest=(
             study.action_priority_policy_digest if policy is None else policy.digest
         ),
+        action_priority_policy_key=(
+            study.action_priority_policy_key if policy is None else policy.policy_key
+        ),
     )
     return replace(revised, digest=_snapshot_digest(revised))
 
@@ -205,6 +208,50 @@ def add_failure_analysis(
     )
     event = _event(study, "failure_analysis_added", actor, occurred_at, {"item_id": normalized_id})
     return _revise(study, event=event, items=study.items + (item,), policy=policy)
+
+
+def attach_action_priority_policy(
+    study: FmeaStudySnapshot,
+    *,
+    policy: ActionPriorityPolicy,
+    actor: str,
+    occurred_at: str,
+) -> FmeaStudySnapshot:
+    """Attach one authorized external policy and reassess existing current ratings."""
+
+    _require_draft(study)
+    _validate_policy(study, policy)
+    if (
+        study.action_priority_policy_digest == policy.digest
+        and study.action_priority_policy_key == policy.policy_key
+    ):
+        raise FmeaInputError(
+            "action_priority_policy_already_attached",
+            "This Action Priority policy revision is already attached.",
+            "policy_key",
+        )
+    def reassess(item: FailureAnalysis) -> FailureAnalysis:
+        priority, reason = _evaluate_priority(policy, item.current_ratings)
+        return replace(
+            item,
+            action_priority=priority,
+            action_priority_reason=reason,
+        )
+
+    items = tuple(reassess(item) for item in study.items)
+    event = _event(
+        study,
+        "action_priority_policy_attached",
+        actor,
+        occurred_at,
+        {
+            "policy_key": policy.policy_key,
+            "policy_id": policy.policy_id,
+            "policy_digest": policy.digest,
+            "standard_version": policy.standard_version,
+        },
+    )
+    return _revise(study, event=event, items=items, policy=policy)
 
 
 def add_recommended_action(

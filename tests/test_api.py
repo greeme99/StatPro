@@ -504,6 +504,77 @@ class LocalApiContractTests(unittest.TestCase):
             submitted.json()["study"]["seven_step_progress"][6]["status"], "in_progress"
         )
 
+    def test_external_action_priority_policy_is_imported_attached_and_reused(self) -> None:
+        imported = self.client.post(
+            "/v1/fmea-action-priority-policies",
+            json={
+                "policy_id": "customer-ap-matrix",
+                "standard_version": "customer-standard-2026",
+                "entries": [
+                    {"severity": 8, "occurrence": 4, "detection": 5, "priority": "H"},
+                    {"severity": 8, "occurrence": 2, "detection": 2, "priority": "M"},
+                ],
+            },
+        )
+        self.assertEqual(imported.status_code, 201)
+        policy_key = imported.json()["policy_key"]
+        self.assertTrue(policy_key.startswith("ap-"))
+
+        created = self.client.post(
+            "/v1/fmea-studies",
+            json={
+                "study_id": "PFMEA-POLICY",
+                "name": "Policy Lifecycle",
+                "study_type": "process",
+                "standard_version": "customer-standard-2026",
+                "actor": "quality.engineer",
+                "occurred_at": "2026-10-20T10:00:00+09:00",
+            },
+        )
+        attached = self.client.post(
+            "/v1/fmea-studies/PFMEA-POLICY/action-priority-policy",
+            json={
+                "expected_storage_version": created.json()["storage_version"],
+                "policy_key": policy_key,
+                "actor": "quality.admin",
+                "occurred_at": "2026-10-20T10:05:00+09:00",
+            },
+        )
+        self.assertEqual(attached.status_code, 200)
+        self.assertEqual(
+            attached.json()["study"]["action_priority_policy_key"], policy_key
+        )
+        self.assertEqual(
+            attached.json()["study"]["audit_events"][-1]["event_type"],
+            "action_priority_policy_attached",
+        )
+
+        failure = self.client.post(
+            "/v1/fmea-studies/PFMEA-POLICY/failure-analyses",
+            json={
+                "expected_storage_version": attached.json()["storage_version"],
+                "item_id": "FA-001",
+                "structure_element": "Connector",
+                "function": "Maintain contact",
+                "requirement": "Resistance within specification",
+                "failure_mode": "Incomplete insertion",
+                "effect": "Open circuit",
+                "cause": "Fixture drift",
+                "prevention_control": "Setup checklist",
+                "detection_control": "Continuity test",
+                "ratings": {"severity": 8, "occurrence": 4, "detection": 5},
+                "actor": "quality.engineer",
+                "occurred_at": "2026-10-20T10:10:00+09:00",
+            },
+        )
+        self.assertEqual(failure.status_code, 200)
+        self.assertEqual(failure.json()["study"]["items"][0]["action_priority"], "H")
+        self.assertIsNone(
+            failure.json()["study"]["items"][0]["action_priority_reason"]
+        )
+        listed = self.client.get("/v1/fmea-action-priority-policies").json()
+        self.assertEqual([item["policy_key"] for item in listed["items"]], [policy_key])
+
     def test_fmea_action_is_completed_reassessed_and_study_approved(self) -> None:
         created = self.client.post(
             "/v1/fmea-studies",

@@ -1,4 +1,4 @@
-import type { ApiError, CellValue, FmeaStudyPage, StoredFmeaStudy, RunPage, StoredRun, StoredWorksheet, WorksheetPage } from "./types";
+import type { ActionPriorityPolicyPage, ApiError, CellValue, FmeaStudyPage, StoredActionPriorityPolicy, StoredFmeaStudy, RunPage, StoredRun, StoredWorksheet, WorksheetPage } from "./types";
 
 const API_BASE = import.meta.env.VITE_STATPRO_API_URL ?? "/api";
 
@@ -258,6 +258,33 @@ export function createFmeaStudy(payload: {
   occurred_at: string;
 }): Promise<StoredFmeaStudy> {
   return request("/v1/fmea-studies", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export function listActionPriorityPolicies(limit = 100): Promise<ActionPriorityPolicyPage> {
+  return request(`/v1/fmea-action-priority-policies?limit=${limit}`);
+}
+
+export function createActionPriorityPolicy(payload: {
+  policy_id: string;
+  standard_version: string;
+  entries: Array<{ severity: number; occurrence: number; detection: number; priority: string }>;
+}): Promise<StoredActionPriorityPolicy> {
+  return request("/v1/fmea-action-priority-policies", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function attachActionPriorityPolicy(studyId: string, payload: {
+  expected_storage_version: number;
+  policy_key: string;
+  actor: string;
+  occurred_at: string;
+}): Promise<StoredFmeaStudy> {
+  return request(`/v1/fmea-studies/${encodeURIComponent(studyId)}/action-priority-policy`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
 
 export function addFmeaFailure(studyId: string, payload: {

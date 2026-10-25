@@ -189,6 +189,34 @@ describe("StatPro UI", () => {
     expect(JSON.parse(String((reviewCall?.[1] as RequestInit).body)).expected_storage_version).toBe(2);
   });
 
+  it("imports and attaches an external Action Priority policy", async () => {
+    const policy = {
+      policy_key: `ap-${"d".repeat(64)}`, policy_id: "customer-ap-matrix", standard_version: "customer-standard-2026", digest: "d".repeat(64),
+      entries: [{ severity: 8, occurrence: 4, detection: 5, priority: "H" }],
+    };
+    const study = { study_id: "PFMEA-POLICY", name: "Policy Lifecycle", study_type: "process", standard_version: "customer-standard-2026", status: "draft", revision: 1, parent_digest: null, digest: "b".repeat(64), items: [], actions: [], audit_events: [], action_priority_policy_id: null, action_priority_policy_digest: null, action_priority_policy_key: null };
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url.endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      if (url.includes("/fmea-action-priority-policies") && init?.method === "POST") return new Response(JSON.stringify({ policy_key: policy.policy_key, storage_version: 1, etag: "e".repeat(64), policy }), { status: 201 });
+      if (url.endsWith("/fmea-studies/PFMEA-POLICY/action-priority-policy") && init?.method === "POST") return new Response(JSON.stringify({ study_id: study.study_id, storage_version: 2, etag: "f".repeat(64), study: { ...study, revision: 2, action_priority_policy_id: policy.policy_id, action_priority_policy_digest: policy.digest, action_priority_policy_key: policy.policy_key } }), { status: 200 });
+      if (url.includes("/fmea-action-priority-policies")) return new Response(JSON.stringify({ items: [], next_after: null }), { status: 200 });
+      return new Response(JSON.stringify({ study_id: study.study_id, storage_version: 1, etag: "a".repeat(64), study }), { status: 200 });
+    });
+
+    render(<MemoryRouter initialEntries={["/fmea/PFMEA-POLICY"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "Action Priority 정책" })).toBeInTheDocument();
+    await userEvent.type(screen.getByRole("textbox", { name: "정책 ID" }), "customer-ap-matrix");
+    await userEvent.type(screen.getByRole("textbox", { name: /S,O,D,우선순위/ }), "8,4,5,H");
+    await userEvent.click(screen.getByRole("button", { name: "불변 정책으로 가져오기" }));
+    await userEvent.selectOptions(await screen.findByRole("combobox", { name: /호환 정책/ }), policy.policy_key);
+    await userEvent.click(screen.getByRole("button", { name: "정책 연결" }));
+
+    expect(await screen.findByText("customer-ap-matrix")).toBeInTheDocument();
+    const attachCall = fetchMock.mock.calls.find(([url, init]) => String(url).endsWith("/action-priority-policy") && (init as RequestInit | undefined)?.method === "POST");
+    expect(JSON.parse(String((attachCall?.[1] as RequestInit).body)).policy_key).toBe(policy.policy_key);
+  });
+
   it("adds and completes an FMEA action with revised risk ratings", async () => {
     const item = {
       item_id: "FA-001", structure_element: "Connector", function: "Maintain contact", requirement: "Resistance", failure_mode: "Incomplete insertion", effect: "Open circuit", cause: "Fixture drift", prevention_control: "Checklist", detection_control: "Continuity test",

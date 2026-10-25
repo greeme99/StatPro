@@ -17,6 +17,7 @@ from statpro.fmea import (
     add_failure_analysis,
     add_recommended_action,
     approve_study,
+    attach_action_priority_policy,
     complete_action,
     create_fmea_study,
     submit_for_review,
@@ -77,9 +78,80 @@ class FmeaValueObjectTests(unittest.TestCase):
         self.assertEqual(first.evaluate(RiskRatings(8, 4, 5)), "H")
         self.assertIsNone(first.evaluate(RiskRatings(1, 1, 1)))
         self.assertEqual(first.digest, second.digest)
+        self.assertEqual(first.policy_key, f"ap-{first.digest}")
+        self.assertEqual(ActionPriorityPolicy.from_dict(first.to_dict()), first)
+
+    def test_action_priority_policy_rejects_tampered_persisted_identity(self) -> None:
+        payload = policy().to_dict()
+        payload["digest"] = "0" * 64
+        with self.assertRaises(FmeaInputError) as context:
+            ActionPriorityPolicy.from_dict(payload)
+        self.assertEqual(
+            context.exception.detail.code, "action_priority_policy_digest_mismatch"
+        )
+
+        with self.assertRaises(FmeaInputError) as empty_context:
+            ActionPriorityPolicy("empty-policy", "standard-2026", ())
+        self.assertEqual(
+            empty_context.exception.detail.code,
+            "invalid_action_priority_policy_size",
+        )
 
 
 class FmeaWorkflowTests(unittest.TestCase):
+    def test_external_policy_attachment_reassesses_items_and_is_audited(self) -> None:
+        study = create_fmea_study(
+            study_id="PFMEA-POLICY",
+            name="Assembly Process",
+            study_type=StudyType.PROCESS,
+            standard_version="licensed-standard-2026",
+            actor="quality.engineer",
+            occurred_at=NOW,
+        )
+        study = add_failure_analysis(
+            study,
+            item_id="FA-001",
+            structure_element="Connector assembly",
+            function="Maintain electrical contact",
+            requirement="Contact resistance within specification",
+            failure_mode="Incomplete insertion",
+            effect="Intermittent open circuit",
+            cause="Fixture alignment drift",
+            prevention_control="Fixture setup checklist",
+            detection_control="End-of-line continuity test",
+            ratings=RiskRatings(8, 4, 5),
+            actor="quality.engineer",
+            occurred_at=NOW,
+        )
+
+        attached = attach_action_priority_policy(
+            study,
+            policy=policy(),
+            actor="quality.admin",
+            occurred_at=NOW,
+        )
+
+        self.assertEqual(attached.items[0].action_priority, "H")
+        self.assertIsNone(attached.items[0].action_priority_reason)
+        self.assertEqual(attached.action_priority_policy_key, policy().policy_key)
+        self.assertEqual(
+            attached.audit_events[-1].event_type, "action_priority_policy_attached"
+        )
+        self.assertEqual(
+            attached.audit_events[-1].details["policy_digest"], policy().digest
+        )
+
+        legacy_payload = study_with_item().to_dict()
+        legacy_payload["action_priority_policy_key"] = None
+        legacy_study = type(attached).from_dict(legacy_payload)
+        migrated = attach_action_priority_policy(
+            legacy_study,
+            policy=policy(),
+            actor="quality.admin",
+            occurred_at=NOW,
+        )
+        self.assertEqual(migrated.action_priority_policy_key, policy().policy_key)
+
     def test_seven_step_progress_is_derived_from_owned_study_evidence(self) -> None:
         initial = create_fmea_study(
             study_id="PFMEA-STEPS",

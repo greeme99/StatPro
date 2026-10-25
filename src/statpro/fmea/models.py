@@ -117,18 +117,29 @@ class ActionPriorityPolicy:
     entries: tuple[ActionPriorityEntry, ...]
 
     def __post_init__(self) -> None:
-        if not self.policy_id.strip() or not self.standard_version.strip():
+        policy_id = self.policy_id.strip()
+        standard_version = self.standard_version.strip()
+        if not policy_id or not standard_version:
             raise FmeaInputError(
                 "invalid_action_priority_policy",
                 "Action Priority policy ID and standard version are required.",
                 "policy",
             )
+        if not self.entries or len(self.entries) > 1000:
+            raise FmeaInputError(
+                "invalid_action_priority_policy_size",
+                "Action Priority policy must contain 1 to 1000 rating combinations.",
+                "entries",
+            )
         keys: set[tuple[int, int, int]] = set()
         for entry in self.entries:
             ratings = entry.ratings()
-            if not entry.priority.strip():
+            priority = entry.priority.strip()
+            if not priority or len(priority) > 32:
                 raise FmeaInputError(
-                    "invalid_action_priority", "Action Priority cannot be empty.", "priority"
+                    "invalid_action_priority",
+                    "Action Priority must contain 1 to 32 characters.",
+                    "priority",
                 )
             key = (ratings.severity, ratings.occurrence, ratings.detection)
             if key in keys:
@@ -138,12 +149,22 @@ class ActionPriorityPolicy:
                     "entries",
                 )
             keys.add(key)
+        object.__setattr__(self, "policy_id", policy_id)
+        object.__setattr__(self, "standard_version", standard_version)
         object.__setattr__(
             self,
             "entries",
             tuple(
                 sorted(
-                    self.entries,
+                    (
+                        ActionPriorityEntry(
+                            entry.severity,
+                            entry.occurrence,
+                            entry.detection,
+                            entry.priority.strip(),
+                        )
+                        for entry in self.entries
+                    ),
                     key=lambda entry: (
                         entry.severity,
                         entry.occurrence,
@@ -163,6 +184,42 @@ class ActionPriorityPolicy:
                 "entries": [asdict(entry) for entry in self.entries],
             }
         )
+
+    @property
+    def policy_key(self) -> str:
+        return f"ap-{self.digest}"
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "policy_key": self.policy_key,
+            "policy_id": self.policy_id,
+            "standard_version": self.standard_version,
+            "digest": self.digest,
+            "entries": [asdict(entry) for entry in self.entries],
+        }
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> ActionPriorityPolicy:
+        policy = cls(
+            policy_id=payload["policy_id"],
+            standard_version=payload["standard_version"],
+            entries=tuple(ActionPriorityEntry(**entry) for entry in payload["entries"]),
+        )
+        expected_digest = payload.get("digest")
+        expected_key = payload.get("policy_key")
+        if expected_digest is not None and expected_digest != policy.digest:
+            raise FmeaInputError(
+                "action_priority_policy_digest_mismatch",
+                "Stored Action Priority policy digest does not match its entries.",
+                "digest",
+            )
+        if expected_key is not None and expected_key != policy.policy_key:
+            raise FmeaInputError(
+                "action_priority_policy_key_mismatch",
+                "Stored Action Priority policy key does not match its identity.",
+                "policy_key",
+            )
+        return policy
 
     def evaluate(self, ratings: RiskRatings) -> str | None:
         key = (ratings.severity, ratings.occurrence, ratings.detection)
@@ -237,6 +294,7 @@ class FmeaStudySnapshot:
     audit_events: tuple[AuditEvent, ...]
     action_priority_policy_id: str | None = None
     action_priority_policy_digest: str | None = None
+    action_priority_policy_key: str | None = None
 
     @property
     def seven_step_progress(self) -> tuple[SevenStepProgress, ...]:
@@ -257,6 +315,7 @@ class FmeaStudySnapshot:
             "audit_events": [asdict(event) for event in self.audit_events],
             "action_priority_policy_id": self.action_priority_policy_id,
             "action_priority_policy_digest": self.action_priority_policy_digest,
+            "action_priority_policy_key": self.action_priority_policy_key,
             "seven_step_progress": [step.to_dict() for step in self.seven_step_progress],
         }
 
@@ -323,6 +382,7 @@ class FmeaStudySnapshot:
             ),
             action_priority_policy_id=payload.get("action_priority_policy_id"),
             action_priority_policy_digest=payload.get("action_priority_policy_digest"),
+            action_priority_policy_key=payload.get("action_priority_policy_key"),
         )
 
 

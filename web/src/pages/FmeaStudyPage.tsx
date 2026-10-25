@@ -1,9 +1,9 @@
-import { AlertTriangle, ArrowLeft, CheckCircle2, ClipboardCheck, FilePlus2, ShieldAlert, Wrench } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CheckCircle2, ClipboardCheck, FilePlus2, Link2, ShieldAlert, Upload, Wrench } from "lucide-react";
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { addFmeaAction, addFmeaFailure, approveFmeaStudy, completeFmeaAction, getFmeaStudy, submitFmeaForReview } from "../api";
+import { addFmeaAction, addFmeaFailure, approveFmeaStudy, attachActionPriorityPolicy, completeFmeaAction, createActionPriorityPolicy, getFmeaStudy, listActionPriorityPolicies, submitFmeaForReview } from "../api";
 import { Button } from "../components/Button";
-import type { FailureAnalysis, RecommendedAction, StoredFmeaStudy } from "../types";
+import type { FailureAnalysis, RecommendedAction, StoredActionPriorityPolicy, StoredFmeaStudy } from "../types";
 
 const statusLabels = { draft: "작성 중", in_review: "검토 중", approved: "승인됨", archived: "보관됨" };
 const stepStatusLabels = { not_started: "미착수", in_progress: "진행 중", complete: "완료" };
@@ -21,6 +21,7 @@ export function FmeaStudyPage() {
   const { studyId = "" } = useParams();
   const itemIdRef = useRef<HTMLInputElement>(null);
   const [stored, setStored] = useState<StoredFmeaStudy | null>(null);
+  const [policies, setPolicies] = useState<StoredActionPriorityPolicy[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [showActionForm, setShowActionForm] = useState(false);
@@ -34,6 +35,9 @@ export function FmeaStudyPage() {
     getFmeaStudy(studyId)
       .then((value) => { if (active) { setStored(value); setSelectedId(value.study.items[0]?.item_id ?? null); } })
       .catch((requestError) => { if (active) setError(requestError instanceof Error ? requestError.message : "Study를 불러오지 못했습니다."); });
+    listActionPriorityPolicies()
+      .then((page) => { if (active) setPolicies(Array.isArray(page.items) ? page.items : []); })
+      .catch(() => { if (active) setPolicies([]); });
     return () => { active = false; };
   }, [studyId]);
 
@@ -153,8 +157,57 @@ export function FmeaStudyPage() {
     } finally { setBusy(false); }
   }
 
+  async function handleAttachPolicy(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!stored) return;
+    const form = new FormData(event.currentTarget);
+    setBusy(true);
+    setError("");
+    try {
+      setStored(await attachActionPriorityPolicy(studyId, {
+        expected_storage_version: stored.storage_version,
+        policy_key: String(form.get("policy_key") ?? ""),
+        actor: String(form.get("actor") ?? "").trim(),
+        occurred_at: new Date().toISOString(),
+      }));
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "AP 정책을 연결하지 못했습니다.");
+    } finally { setBusy(false); }
+  }
+
+  async function handleImportPolicy(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!stored) return;
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
+    const lines = String(form.get("entries") ?? "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    const entries = lines.map((line) => {
+      const [severity, occurrence, detection, priority, ...extra] = line.split(/[\t,;]/).map((value) => value.trim());
+      return { severity: Number(severity), occurrence: Number(occurrence), detection: Number(detection), priority, valid: extra.length === 0 && Boolean(priority) };
+    });
+    if (entries.length === 0 || entries.some((entry) => !entry.valid || ![entry.severity, entry.occurrence, entry.detection].every((value) => Number.isInteger(value) && value >= 1 && value <= 10))) {
+      setError("AP 항목은 한 줄에 S,O,D,우선순위 형식으로 입력하고 S/O/D는 1–10 정수여야 합니다.");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      const created = await createActionPriorityPolicy({
+        policy_id: String(form.get("policy_id") ?? "").trim(),
+        standard_version: String(form.get("standard_version") ?? "").trim(),
+        entries: entries.map(({ severity, occurrence, detection, priority }) => ({ severity, occurrence, detection, priority })),
+      });
+      setPolicies((current) => [...current.filter((item) => item.policy_key !== created.policy_key), created].sort((left, right) => left.policy_key.localeCompare(right.policy_key)));
+      formElement.reset();
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "AP 정책을 가져오지 못했습니다.");
+    } finally { setBusy(false); }
+  }
+
   if (!stored) return <div className="page" data-density="compact">{error ? <div className="error-banner" role="alert"><AlertTriangle aria-hidden="true" /><p>{error}</p></div> : <div className="skeleton page-skeleton" aria-label="FMEA Study 불러오는 중" />}</div>;
   const { study } = stored;
+  const attachedPolicy = policies.find((item) => item.policy_key === study.action_priority_policy_key);
+  const compatiblePolicies = policies.filter((item) => item.policy.standard_version === study.standard_version);
 
   return (
     <div className="page fmea-page" data-density="compact">
@@ -171,6 +224,29 @@ export function FmeaStudyPage() {
           <span className="step-number">{step.step_number}</span><div><strong>{stepTitles[step.step_id] ?? step.title}</strong><span>{stepStatusLabels[step.status]} · 증거 {step.evidence_count}건</span>{step.gaps.length > 0 && <small>남은 항목: {step.gaps.join(", ")}</small>}</div>
         </li>)}</ol>
       </section>}
+
+      <section className="panel ap-policy-panel" aria-labelledby="ap-policy-title">
+        <header className="panel-heading"><div><span className="eyebrow">AUTHORIZED POLICY</span><h2 id="ap-policy-title">Action Priority 정책</h2></div><ShieldAlert aria-hidden="true" /></header>
+        <div className="ap-policy-grid">
+          <article className="policy-status-card">
+            <h3>Study 연결 상태</h3>
+            {study.action_priority_policy_key ? <><p><strong>{study.action_priority_policy_id}</strong></p><p>{attachedPolicy?.policy.standard_version ?? study.standard_version} · 항목 {attachedPolicy?.policy.entries.length ?? "확인 불가"}개</p><code>{study.action_priority_policy_digest}</code></> : <p className="status-text is-muted">연결된 정책이 없어 AP는 미계산 상태입니다.</p>}
+            {study.status === "draft" && !study.action_priority_policy_key && <form className="form-stack" onSubmit={handleAttachPolicy}>
+              <label className="field">호환 정책<select name="policy_key" required defaultValue=""><option value="" disabled>정책 선택</option>{compatiblePolicies.map(({ policy_key, policy }) => <option key={policy_key} value={policy_key}>{policy.policy_id} · {policy.entries.length}개 항목</option>)}</select><small>Study 표준 버전과 정확히 일치하는 정책만 표시합니다.</small></label>
+              <label className="field">연결 담당자<input name="actor" required defaultValue="quality.admin" /></label>
+              <Button type="submit" loading={busy} disabled={compatiblePolicies.length === 0} icon={<Link2 />}>정책 연결</Button>
+            </form>}
+          </article>
+          <form className="policy-import-form" onSubmit={handleImportPolicy}>
+            <h3>외부 정책 가져오기</h3>
+            <p>고객이 적법하게 제공한 판정 항목만 입력합니다. StatPro는 독점 AP 표를 기본 제공하지 않습니다.</p>
+            <label className="field">정책 ID<input name="policy_id" required placeholder="customer-ap-matrix" /></label>
+            <label className="field">표준 버전<input name="standard_version" required defaultValue={study.standard_version} /></label>
+            <label className="field">S,O,D,우선순위<textarea name="entries" required placeholder={"8,4,5,H\n8,2,2,M"} /><small>쉼표·탭·세미콜론 구분, 한 줄에 한 조합</small></label>
+            <Button type="submit" loading={busy} icon={<Upload />}>불변 정책으로 가져오기</Button>
+          </form>
+        </div>
+      </section>
 
       {showForm && <form className="panel failure-form" onSubmit={handleAddFailure}>
         <header className="panel-heading"><div><span className="eyebrow">FAILURE ANALYSIS</span><h2>고장 모드 추가</h2></div><span>저장 시 새 revision 생성</span></header>

@@ -71,6 +71,33 @@ export type SevenStepProgress = {
   gaps: string[];
 };
 
+export type ActionPriorityEntry = {
+  severity: number;
+  occurrence: number;
+  detection: number;
+  priority: string;
+};
+
+export type ActionPriorityPolicy = {
+  policy_key: string;
+  policy_id: string;
+  standard_version: string;
+  digest: string;
+  entries: ActionPriorityEntry[];
+};
+
+export type StoredActionPriorityPolicy = {
+  policy_key: string;
+  storage_version: number;
+  etag: string;
+  policy: ActionPriorityPolicy;
+};
+
+export type ActionPriorityPolicyPage = {
+  items: StoredActionPriorityPolicy[];
+  next_after: string | null;
+};
+
 export type FmeaStudy = {
   study_id: string;
   name: string;
@@ -91,6 +118,7 @@ export type FmeaStudy = {
   }>;
   action_priority_policy_id: string | null;
   action_priority_policy_digest: string | null;
+  action_priority_policy_key: string | null;
   seven_step_progress?: SevenStepProgress[];
 };
 
