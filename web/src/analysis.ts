@@ -213,6 +213,7 @@ export type DoeAliasRow = {
 
 export type DoeFractionalView = {
   design: DoeFractionalDesignRow[];
+  generators: Array<{ factor: string; terms: string[]; expression: string }>;
   mainEffectAliases: DoeAliasRow[];
   twoFactorAliases: DoeAliasRow[];
   definingRelation: string;
@@ -220,6 +221,10 @@ export type DoeFractionalView = {
   resolutionLabel: string;
   fraction: string;
   designNotation: string;
+  automaticSelection: boolean;
+  selectionObjective: string | null;
+  candidateSetsExamined: number | null;
+  wordLengthPattern: Record<string, number>;
 };
 
 export type DoeFractionalAnalysisEffect = DoeScreeningEffect & {
@@ -432,6 +437,7 @@ export function toDoeFractionalView(result: ResultBundle | undefined): DoeFracti
   if (!Array.isArray(design) || !Array.isArray(mainEffectAliases) || !Array.isArray(twoFactorAliases) || !Array.isArray(relation) || relation.length !== 1) return null;
   return {
     design: design as DoeFractionalDesignRow[],
+    generators: Array.isArray(result.tables.generators) ? result.tables.generators as Array<{ factor: string; terms: string[]; expression: string }> : [],
     mainEffectAliases: mainEffectAliases as DoeAliasRow[],
     twoFactorAliases: twoFactorAliases as DoeAliasRow[],
     definingRelation: String(relation[0].expression ?? "I"),
@@ -439,6 +445,10 @@ export function toDoeFractionalView(result: ResultBundle | undefined): DoeFracti
     resolutionLabel: String(result.diagnostics.resolution_label ?? "—"),
     fraction: String(result.diagnostics.fraction ?? "—"),
     designNotation: String(result.diagnostics.design_notation ?? "—"),
+    automaticSelection: result.diagnostics.generator_selection_mode === "automatic",
+    selectionObjective: typeof result.diagnostics.selection_objective === "string" ? result.diagnostics.selection_objective : null,
+    candidateSetsExamined: typeof result.diagnostics.candidate_sets_examined === "number" ? result.diagnostics.candidate_sets_examined : null,
+    wordLengthPattern: typeof result.diagnostics.word_length_pattern === "object" && result.diagnostics.word_length_pattern !== null ? result.diagnostics.word_length_pattern as Record<string, number> : {},
   };
 }
 

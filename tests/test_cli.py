@@ -234,6 +234,41 @@ class CliBoundaryTests(unittest.TestCase):
         self.assertEqual(response["result"]["diagnostics"]["resolution_label"], "IV")
         self.assertEqual(len(response["result"]["tables"]["design"]), 8)
 
+    def test_automatic_fractional_factorial_selects_and_reports_generators(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "fractional-auto.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "factors": [
+                            {"name": name, "low": 0, "high": 1}
+                            for name in "ABCDE"
+                        ],
+                        "runs": 8,
+                        "minimum_resolution": 3,
+                        "randomize": False,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            output = io.StringIO()
+
+            with redirect_stdout(output):
+                exit_code = main(
+                    ["doe-fractional-factorial-auto", "--input", str(path)]
+                )
+
+        result = json.loads(output.getvalue())["result"]
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(result["diagnostics"]["generator_selection_mode"], "automatic")
+        self.assertEqual(
+            result["tables"]["generators"],
+            [
+                {"factor": "D", "terms": ["A", "B"], "expression": "D=A*B"},
+                {"factor": "E", "terms": ["A", "C"], "expression": "E=A*C"},
+            ],
+        )
+
     def test_fractional_factorial_analysis_returns_ranked_effects(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "fractional-analysis.json"

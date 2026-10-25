@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import random
 from collections.abc import Callable, Iterable, Mapping, Sequence
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from itertools import combinations
 from math import atan2, cos, exp, isfinite, lgamma, log, log1p, sin, sqrt
 from statistics import NormalDist, median
@@ -23,6 +23,11 @@ NIST_FACTORIAL_SOURCE = ProvenanceSource(
 NIST_FRACTIONAL_FACTORIAL_SOURCE = ProvenanceSource(
     title="NIST/SEMATECH 5.3.3.4.4 Fractional factorial specifications and resolution",
     url="https://www.itl.nist.gov/div898/handbook/pri/section3/pri3344.htm",
+)
+
+NIST_FRACTIONAL_CATALOG_SOURCE = ProvenanceSource(
+    title="NIST/SEMATECH 5.3.3.4.7 Useful fractional factorial designs",
+    url="https://www.itl.nist.gov/div898/handbook/pri/section3/pri3347.htm",
 )
 
 NIST_MIRROR_FOLDOVER_SOURCE = ProvenanceSource(
@@ -880,6 +885,146 @@ def _roman_resolution(resolution: int) -> str:
     return labels.get(resolution, str(resolution))
 
 
+def _automatic_generator_selection(
+    factor_names: Sequence[str],
+    *,
+    runs: int | None,
+    minimum_resolution: int,
+) -> tuple[list[GeneratorDefinition], dict[str, object]]:
+    """Select a bounded regular fraction by runs, resolution, and aberration.
+
+    Candidate columns are all products of two or more base-factor columns. For a
+    selected run size, every distinct assignment is examined. The word-length
+    pattern A3, A4, ... is minimized lexicographically, which first maximizes
+    resolution and then minimizes the count of shortest defining words.
+    """
+
+    factor_count = len(factor_names)
+    if factor_count < 3:
+        raise AnalysisInputError(
+            "insufficient_fractional_factors",
+            "Automatic fractional selection requires at least three factors.",
+            "factors",
+        )
+    if factor_count > 10:
+        raise AnalysisInputError(
+            "automatic_selection_too_many_factors",
+            "Bounded automatic generator selection supports at most 10 factors; use explicit generators for larger designs.",
+            "factors",
+        )
+    if (
+        isinstance(minimum_resolution, bool)
+        or not isinstance(minimum_resolution, int)
+        or not 3 <= minimum_resolution <= factor_count
+    ):
+        raise AnalysisInputError(
+            "invalid_minimum_resolution",
+            f"Minimum resolution must be an integer from 3 to {factor_count}.",
+            "minimum_resolution",
+        )
+
+    if runs is None:
+        base_factor_counts = range(2, factor_count)
+    else:
+        if (
+            isinstance(runs, bool)
+            or not isinstance(runs, int)
+            or runs < 4
+            or runs & (runs - 1)
+        ):
+            raise AnalysisInputError(
+                "invalid_fractional_runs",
+                "Runs must be a power of two of at least 4.",
+                "runs",
+            )
+        base_factor_count = runs.bit_length() - 1
+        if base_factor_count >= factor_count:
+            raise AnalysisInputError(
+                "fractional_runs_not_smaller_than_full",
+                "Automatic fractional runs must be smaller than the full factorial run count.",
+                "runs",
+            )
+        base_factor_counts = (base_factor_count,)
+
+    examined = 0
+    best_available_resolution = 0
+    for base_factor_count in base_factor_counts:
+        generated_factor_count = factor_count - base_factor_count
+        base_names = list(factor_names[:base_factor_count])
+        generated_names = list(factor_names[base_factor_count:])
+        candidate_terms = [
+            term_indices
+            for term_count in range(2, base_factor_count + 1)
+            for term_indices in combinations(range(base_factor_count), term_count)
+        ]
+        if len(candidate_terms) < generated_factor_count:
+            continue
+
+        best_terms: tuple[tuple[int, ...], ...] | None = None
+        best_pattern: tuple[int, ...] | None = None
+        best_resolution = 0
+        for selected_terms in combinations(candidate_terms, generated_factor_count):
+            examined += 1
+            relation_masks = [0]
+            for generated_offset, term_indices in enumerate(selected_terms):
+                word_mask = 1 << (base_factor_count + generated_offset)
+                for term_index in term_indices:
+                    word_mask |= 1 << term_index
+                relation_masks += [word ^ word_mask for word in relation_masks]
+            word_lengths = [word.bit_count() for word in relation_masks[1:]]
+            resolution = min(word_lengths)
+            pattern = tuple(
+                word_lengths.count(length) for length in range(3, factor_count + 1)
+            )
+            if best_pattern is None or pattern < best_pattern:
+                best_terms = selected_terms
+                best_pattern = pattern
+                best_resolution = resolution
+
+        best_available_resolution = max(best_available_resolution, best_resolution)
+        if best_terms is None or best_resolution < minimum_resolution:
+            continue
+
+        generators = [
+            GeneratorDefinition(
+                factor=generated_name,
+                terms=[base_names[index] for index in term_indices],
+            )
+            for generated_name, term_indices in zip(
+                generated_names, best_terms, strict=True
+            )
+        ]
+        return generators, {
+            "requested_runs": runs,
+            "selected_base_run_count": 2**base_factor_count,
+            "minimum_resolution": minimum_resolution,
+            "selected_resolution": best_resolution,
+            "word_length_pattern": {
+                str(length): count
+                for length, count in zip(
+                    range(3, factor_count + 1), best_pattern, strict=True
+                )
+            },
+            "candidate_sets_examined": examined,
+            "selection_objective": (
+                "minimum_runs_then_minimum_aberration"
+                if runs is None
+                else "minimum_aberration_at_requested_runs"
+            ),
+            "search_space_complete": True,
+        }
+
+    requested = "the requested run count" if runs is not None else "a fractional run count"
+    raise AnalysisInputError(
+        "automatic_generator_unavailable",
+        (
+            f"No bounded regular fraction at {requested} reaches resolution "
+            f"{minimum_resolution}; the best examined resolution was {best_available_resolution}."
+        ),
+        "minimum_resolution",
+    )
+
+
 def fractional_factorial_2level(
     factors: Sequence[FactorDefinition],
     generators: Sequence[GeneratorDefinition],
@@ -1219,6 +1364,110 @@ def fractional_factorial_2level(
             *((NIST_MIRROR_FOLDOVER_SOURCE,) if foldover else ()),
         ),
     )
+
+
+def _with_automatic_generator_metadata(
+    result: ResultBundle,
+    selection: Mapping[str, object],
+) -> ResultBundle:
+    selection_payload = {
+        "mode": "automatic",
+        **selection,
+    }
+    parameters = {
+        **result.parameters,
+        "generator_selection": selection_payload,
+    }
+    provenance = result.provenance
+    if NIST_FRACTIONAL_CATALOG_SOURCE not in provenance:
+        provenance = (*provenance, NIST_FRACTIONAL_CATALOG_SOURCE)
+    return replace(
+        result,
+        input_digest=input_digest(parameters),
+        parameters=parameters,
+        diagnostics={
+            **result.diagnostics,
+            "generator_selection_mode": "automatic",
+            **selection,
+        },
+        warnings=(
+            *result.warnings,
+            "Automatic selection returns one deterministic minimum-aberration design; equivalent factor relabelings can exist.",
+        ),
+        provenance=provenance,
+    )
+
+
+def automatic_fractional_factorial_2level(
+    factors: Sequence[FactorDefinition],
+    *,
+    runs: int | None = None,
+    minimum_resolution: int = 3,
+    replicates: int = 1,
+    foldover: bool = False,
+    randomize: bool = True,
+    seed: int = 0,
+) -> ResultBundle:
+    """Generate a regular fraction with bounded exhaustive generator selection."""
+
+    normalized = _normalize_factors(
+        factors,
+        max_count=10,
+        design_name="automatic two-level fractional factorial design",
+    )
+    generators, selection = _automatic_generator_selection(
+        [factor.name for factor in normalized],
+        runs=runs,
+        minimum_resolution=minimum_resolution,
+    )
+    result = fractional_factorial_2level(
+        normalized,
+        generators,
+        replicates=replicates,
+        foldover=foldover,
+        randomize=randomize,
+        seed=seed,
+    )
+    return _with_automatic_generator_metadata(result, selection)
+
+
+def analyze_automatic_fractional_factorial_2level(
+    factors: Sequence[FactorDefinition],
+    responses: Sequence[float],
+    *,
+    response_name: str = "Response",
+    runs: int | None = None,
+    minimum_resolution: int = 3,
+    replicates: int = 1,
+    foldover: bool = False,
+    randomize: bool = True,
+    seed: int = 0,
+    alpha: float = 0.05,
+) -> ResultBundle:
+    """Analyze main effects after deterministic automatic generator selection."""
+
+    normalized = _normalize_factors(
+        factors,
+        max_count=10,
+        design_name="automatic two-level fractional factorial design",
+    )
+    generators, selection = _automatic_generator_selection(
+        [factor.name for factor in normalized],
+        runs=runs,
+        minimum_resolution=minimum_resolution,
+    )
+    result = analyze_fractional_factorial_2level(
+        normalized,
+        generators,
+        responses,
+        response_name=response_name,
+        replicates=replicates,
+        foldover=foldover,
+        randomize=randomize,
+        seed=seed,
+        alpha=alpha,
+    )
+    return _with_automatic_generator_metadata(result, selection)
 
 
 def _beta_continued_fraction(a: float, b: float, x: float) -> float:

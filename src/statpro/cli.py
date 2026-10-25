@@ -12,11 +12,13 @@ from statpro.analyses.doe import (
     FactorDefinition,
     GeneratorDefinition,
     ResponseObjective,
+    analyze_automatic_fractional_factorial_2level,
     analyze_box_behnken,
     analyze_central_composite,
     analyze_fractional_factorial_2level,
     analyze_full_factorial_2level,
     analyze_plackett_burman,
+    automatic_fractional_factorial_2level,
     box_behnken_design,
     central_composite_design,
     explore_central_composite_surface,
@@ -56,7 +58,9 @@ def _parser() -> argparse.ArgumentParser:
         "doe-analyze-central-composite",
         "doe-explore-central-composite",
         "doe-fractional-factorial",
+        "doe-fractional-factorial-auto",
         "doe-analyze-fractional-factorial",
+        "doe-analyze-fractional-factorial-auto",
         "doe-plackett-burman",
         "doe-analyze-plackett-burman",
         "doe-analyze-full-factorial",
@@ -111,7 +115,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             "doe-analyze-central-composite",
             "doe-explore-central-composite",
             "doe-fractional-factorial",
+            "doe-fractional-factorial-auto",
             "doe-analyze-fractional-factorial",
+            "doe-analyze-fractional-factorial-auto",
             "doe-plackett-burman",
             "doe-analyze-plackett-burman",
             "doe-analyze-full-factorial",
@@ -237,6 +243,31 @@ def main(argv: Sequence[str] | None = None) -> int:
                         factors,
                         generators,
                         **fractional_arguments,
+                    )
+            elif args.command in {
+                "doe-fractional-factorial-auto",
+                "doe-analyze-fractional-factorial-auto",
+            }:
+                automatic_arguments = {
+                    "runs": payload.get("runs"),
+                    "minimum_resolution": payload.get("minimum_resolution", 3),
+                    "replicates": payload.get("replicates", 1),
+                    "foldover": payload.get("foldover", False),
+                    "randomize": payload.get("randomize", True),
+                    "seed": payload.get("seed", 0),
+                }
+                if args.command == "doe-analyze-fractional-factorial-auto":
+                    result = analyze_automatic_fractional_factorial_2level(
+                        factors,
+                        payload["responses"],
+                        response_name=payload.get("response_name", "Response"),
+                        alpha=payload.get("alpha", 0.05),
+                        **automatic_arguments,
+                    )
+                else:
+                    result = automatic_fractional_factorial_2level(
+                        factors,
+                        **automatic_arguments,
                     )
             elif args.command == "doe-optimize-responses":
                 try:

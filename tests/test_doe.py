@@ -12,11 +12,13 @@ from statpro.analyses.doe import (
     FactorDefinition,
     GeneratorDefinition,
     ResponseObjective,
+    analyze_automatic_fractional_factorial_2level,
     analyze_box_behnken,
     analyze_central_composite,
     analyze_fractional_factorial_2level,
     analyze_full_factorial_2level,
     analyze_plackett_burman,
+    automatic_fractional_factorial_2level,
     box_behnken_design,
     central_composite_design,
     composite_desirability,
@@ -84,6 +86,86 @@ class FullFactorialDesignTests(unittest.TestCase):
 
 
 class FractionalFactorialDesignTests(unittest.TestCase):
+    def test_automatic_selection_matches_minimum_aberration_quarter_fraction(self) -> None:
+        factors = [FactorDefinition(name, 0, 1) for name in "ABCDE"]
+        result = automatic_fractional_factorial_2level(
+            factors,
+            runs=8,
+            minimum_resolution=3,
+            randomize=False,
+        )
+
+        self.assertEqual(
+            result.tables["generators"],
+            [
+                {"factor": "D", "terms": ["A", "B"], "expression": "D=A*B"},
+                {"factor": "E", "terms": ["A", "C"], "expression": "E=A*C"},
+            ],
+        )
+        self.assertEqual(result.diagnostics["resolution"], 3)
+        self.assertEqual(
+            result.diagnostics["word_length_pattern"], {"3": 2, "4": 1, "5": 0}
+        )
+        self.assertEqual(result.diagnostics["candidate_sets_examined"], 6)
+        self.assertTrue(result.diagnostics["search_space_complete"])
+        self.assertEqual(
+            result.parameters["generator_selection"]["selection_objective"],
+            "minimum_aberration_at_requested_runs",
+        )
+
+    def test_automatic_selection_chooses_smallest_runs_meeting_resolution(self) -> None:
+        factors = [FactorDefinition(name, 0, 1) for name in "ABCDEF"]
+        first = automatic_fractional_factorial_2level(
+            factors,
+            minimum_resolution=4,
+            randomize=False,
+        )
+        second = automatic_fractional_factorial_2level(
+            factors,
+            minimum_resolution=4,
+            randomize=False,
+        )
+
+        self.assertEqual(first.diagnostics["selected_base_run_count"], 16)
+        self.assertEqual(first.diagnostics["resolution"], 4)
+        self.assertEqual(first.diagnostics["word_length_pattern"]["3"], 0)
+        self.assertEqual(first.tables["generators"], second.tables["generators"])
+        self.assertEqual(first.input_digest, second.input_digest)
+
+    def test_automatic_selection_rejects_unavailable_resolution_at_fixed_runs(self) -> None:
+        factors = [FactorDefinition(name, 0, 1) for name in "ABCDEF"]
+        with self.assertRaises(AnalysisInputError) as context:
+            automatic_fractional_factorial_2level(
+                factors,
+                runs=8,
+                minimum_resolution=4,
+            )
+        self.assertEqual(context.exception.detail.code, "automatic_generator_unavailable")
+
+    def test_automatic_analysis_retains_selection_and_alias_evidence(self) -> None:
+        factors = [FactorDefinition(name, 0, 1) for name in "ABCDE"]
+        design = automatic_fractional_factorial_2level(
+            factors,
+            runs=8,
+            randomize=False,
+        )
+        responses = [
+            10 + 2 * row["coded"]["A"] + 3 * row["coded"]["B"]
+            for row in design.tables["design"]
+        ]
+        result = analyze_automatic_fractional_factorial_2level(
+            factors,
+            responses,
+            runs=8,
+            randomize=False,
+        )
+
+        self.assertEqual(result.diagnostics["generator_selection_mode"], "automatic")
+        self.assertEqual(result.diagnostics["selected_base_run_count"], 8)
+        self.assertEqual(result.parameters["generator_selection"]["mode"], "automatic")
+        self.assertEqual(len(result.tables["main_effect_aliases"]), 5)
+        json.dumps(result.to_dict(), allow_nan=False)
+
     def test_half_fraction_standard_order_relation_resolution_and_aliases(self) -> None:
         factors = [FactorDefinition(name, 0, 1) for name in "ABCD"]
         result = fractional_factorial_2level(

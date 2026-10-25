@@ -18,11 +18,13 @@ from statpro.analyses.doe import (
     FactorDefinition,
     GeneratorDefinition,
     ResponseObjective,
+    analyze_automatic_fractional_factorial_2level,
     analyze_box_behnken,
     analyze_central_composite,
     analyze_fractional_factorial_2level,
     analyze_full_factorial_2level,
     analyze_plackett_burman,
+    automatic_fractional_factorial_2level,
     box_behnken_design,
     central_composite_design,
     explore_central_composite_surface,
@@ -164,6 +166,25 @@ class FractionalFactorialRunRequest(ApiModel):
 
 
 class FractionalFactorialAnalysisRunRequest(FractionalFactorialRunRequest):
+    responses: list[float]
+    response_name: str = "Response"
+    alpha: float = Field(default=0.05, ge=0.001, le=0.5)
+
+
+class AutomaticFractionalFactorialRunRequest(ApiModel):
+    run_id: RunId
+    factors: list[FactorRequest] = Field(min_length=3, max_length=10)
+    runs: StrictInt | None = Field(default=None, ge=4, le=512)
+    minimum_resolution: StrictInt = Field(default=3, ge=3, le=10)
+    replicates: StrictInt = Field(default=1, ge=1)
+    foldover: bool = False
+    randomize: bool = True
+    seed: int = 0
+
+
+class AutomaticFractionalFactorialAnalysisRunRequest(
+    AutomaticFractionalFactorialRunRequest
+):
     responses: list[float]
     response_name: str = "Response"
     alpha: float = Field(default=0.05, ge=0.001, le=0.5)
@@ -849,6 +870,32 @@ def create_app(repository: DocumentRepository) -> FastAPI:
         return _response(stored)
 
     @app.post(
+        "/v1/analysis-runs/doe-fractional-factorial-auto",
+        status_code=201,
+        response_model=StoredRunResponse,
+    )
+    def run_automatic_fractional_doe(
+        request: AutomaticFractionalFactorialRunRequest,
+        response: Response,
+    ) -> StoredRunResponse:
+        factors = [FactorDefinition(**factor.model_dump()) for factor in request.factors]
+        stored = _save_run(
+            repository,
+            request.run_id,
+            automatic_fractional_factorial_2level(
+                factors,
+                runs=request.runs,
+                minimum_resolution=request.minimum_resolution,
+                replicates=request.replicates,
+                foldover=request.foldover,
+                randomize=request.randomize,
+                seed=request.seed,
+            ),
+        )
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _response(stored)
+
+    @app.post(
         "/v1/analysis-runs/doe-box-behnken",
         status_code=201,
         response_model=StoredRunResponse,
@@ -999,6 +1046,35 @@ def create_app(repository: DocumentRepository) -> FastAPI:
                 generators,
                 request.responses,
                 response_name=request.response_name,
+                replicates=request.replicates,
+                foldover=request.foldover,
+                randomize=request.randomize,
+                seed=request.seed,
+                alpha=request.alpha,
+            ),
+        )
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _response(stored)
+
+    @app.post(
+        "/v1/analysis-runs/doe-fractional-factorial-auto-analysis",
+        status_code=201,
+        response_model=StoredRunResponse,
+    )
+    def analyze_automatic_fractional_doe(
+        request: AutomaticFractionalFactorialAnalysisRunRequest,
+        response: Response,
+    ) -> StoredRunResponse:
+        factors = [FactorDefinition(**factor.model_dump()) for factor in request.factors]
+        stored = _save_run(
+            repository,
+            request.run_id,
+            analyze_automatic_fractional_factorial_2level(
+                factors,
+                request.responses,
+                response_name=request.response_name,
+                runs=request.runs,
+                minimum_resolution=request.minimum_resolution,
                 replicates=request.replicates,
                 foldover=request.foldover,
                 randomize=request.randomize,

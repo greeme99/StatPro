@@ -107,6 +107,35 @@ export function createDoeFractionalFactorialAnalysisRun(payload: {
   });
 }
 
+export type DoeAutomaticFractionalPayload = {
+  run_id: string;
+  factors: Array<{ name: string; low: number; high: number }>;
+  runs?: number;
+  minimum_resolution: number;
+  replicates: number;
+  foldover: boolean;
+  randomize: boolean;
+  seed: number;
+};
+
+export function createDoeAutomaticFractionalFactorialRun(payload: DoeAutomaticFractionalPayload): Promise<StoredRun> {
+  return request("/v1/analysis-runs/doe-fractional-factorial-auto", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function createDoeAutomaticFractionalFactorialAnalysisRun(payload: DoeAutomaticFractionalPayload & {
+  responses: number[];
+  response_name: string;
+  alpha: number;
+}): Promise<StoredRun> {
+  return request("/v1/analysis-runs/doe-fractional-factorial-auto-analysis", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function createDoePlackettBurmanRun(payload: {
   run_id: string;
   factors: Array<{ name: string; low: number; high: number }>;

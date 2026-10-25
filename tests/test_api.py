@@ -187,6 +187,20 @@ class LocalApiContractTests(unittest.TestCase):
                 "doe.fractional_factorial_2level",
             ),
             (
+                "/v1/analysis-runs/doe-fractional-factorial-auto",
+                {
+                    "run_id": "doe-fractional-auto",
+                    "factors": [
+                        {"name": name, "low": 0, "high": 1}
+                        for name in "ABCDE"
+                    ],
+                    "runs": 8,
+                    "minimum_resolution": 3,
+                    "randomize": False,
+                },
+                "doe.fractional_factorial_2level",
+            ),
+            (
                 "/v1/analysis-runs/doe-box-behnken",
                 {
                     "run_id": "doe-box-behnken",
@@ -267,6 +281,22 @@ class LocalApiContractTests(unittest.TestCase):
                         {"name": name, "low": 0, "high": 1} for name in "ABCD"
                     ],
                     "generators": [{"factor": "D", "terms": ["A", "B", "C"]}],
+                    "responses": [5, 9, 11, 15, 5, 9, 11, 15],
+                    "response_name": "Yield",
+                    "randomize": False,
+                },
+                "doe.fractional_factorial_2level_analysis",
+            ),
+            (
+                "/v1/analysis-runs/doe-fractional-factorial-auto-analysis",
+                {
+                    "run_id": "doe-fractional-auto-analysis",
+                    "factors": [
+                        {"name": name, "low": 0, "high": 1}
+                        for name in "ABCDE"
+                    ],
+                    "runs": 8,
+                    "minimum_resolution": 3,
                     "responses": [5, 9, 11, 15, 5, 9, 11, 15],
                     "response_name": "Yield",
                     "randomize": False,
@@ -381,11 +411,21 @@ class LocalApiContractTests(unittest.TestCase):
                     )
                 if analysis_type == "doe.fractional_factorial_2level":
                     result = response.json()["result"]
-                    self.assertEqual(result["diagnostics"]["resolution"], 4)
-                    self.assertEqual(
-                        result["tables"]["defining_relation"][0]["expression"],
-                        "I = A*B*C*D",
-                    )
+                    if payload["run_id"] == "doe-fractional-auto":
+                        self.assertEqual(
+                            result["diagnostics"]["generator_selection_mode"],
+                            "automatic",
+                        )
+                        self.assertEqual(
+                            result["diagnostics"]["word_length_pattern"],
+                            {"3": 2, "4": 1, "5": 0},
+                        )
+                    else:
+                        self.assertEqual(result["diagnostics"]["resolution"], 4)
+                        self.assertEqual(
+                            result["tables"]["defining_relation"][0]["expression"],
+                            "I = A*B*C*D",
+                        )
                 if analysis_type == "doe.central_composite":
                     result = response.json()["result"]
                     self.assertEqual(result["diagnostics"]["total_run_count"], 13)
@@ -403,7 +443,10 @@ class LocalApiContractTests(unittest.TestCase):
                 if analysis_type == "doe.fractional_factorial_2level_analysis":
                     result = response.json()["result"]
                     self.assertEqual(result["diagnostics"]["response_name"], "Yield")
-                    self.assertEqual(len(result["tables"]["coefficients"]), 4)
+                    self.assertEqual(
+                        len(result["tables"]["coefficients"]),
+                        5 if payload["run_id"] == "doe-fractional-auto-analysis" else 4,
+                    )
                 if analysis_type == "doe.full_factorial_2level_desirability":
                     solution = response.json()["result"]["tables"]["solution"][0]
                     self.assertEqual(solution["actual"], {"A": 1.0, "B": 0.0})

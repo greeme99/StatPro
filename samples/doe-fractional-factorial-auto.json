@@ -1,0 +1,14 @@
+{
+  "factors": [
+    {"name": "A", "low": 50, "high": 70},
+    {"name": "B", "low": 120, "high": 160},
+    {"name": "C", "low": 5, "high": 9},
+    {"name": "D", "low": 20, "high": 40},
+    {"name": "E", "low": 1, "high": 3}
+  ],
+  "runs": 8,
+  "minimum_resolution": 3,
+  "replicates": 1,
+  "randomize": true,
+  "seed": 20261025
+}

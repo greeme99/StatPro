@@ -379,6 +379,23 @@ describe("StatPro UI", () => {
     expect(body.foldover).toBe(false);
   });
 
+  it("submits automatic minimum-aberration fractional selection", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      return new Response(JSON.stringify({}), { status: init?.method === "POST" ? 201 : 200, headers: { "Content-Type": "application/json" } });
+    });
+    render(<MemoryRouter initialEntries={["/analyses/doe/fractional-factorial"]}><App /></MemoryRouter>);
+
+    await userEvent.click(await screen.findByRole("radio", { name: "자동 선택 · 최소 이상률" }));
+    expect(screen.getByRole("checkbox", { name: "해상도 III full mirror-image foldover 추가" })).toBeDisabled();
+    await userEvent.click(screen.getByRole("button", { name: "일부요인배치 생성" }));
+    await waitFor(() => expect(fetchMock.mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === "POST")).toBe(true));
+    const post = fetchMock.mock.calls.find(([url, init]) => String(url).endsWith("/doe-fractional-factorial-auto") && (init as RequestInit | undefined)?.method === "POST");
+    const body = JSON.parse(String((post?.[1] as RequestInit).body));
+    expect(body).toMatchObject({ runs: 8, minimum_resolution: 3, foldover: false });
+    expect(body.generators).toBeUndefined();
+  });
+
   it("submits fractional responses for main-effect analysis", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
@@ -399,8 +416,9 @@ describe("StatPro UI", () => {
   it("renders fractional defining relation, aliases, and design matrix", async () => {
     const result = {
       analysis_type: "doe.fractional_factorial_2level", engine_version: "0.6.0", input_digest: "d".repeat(64), warnings: [], assumptions: [], provenance: [], parameters: {}, plots: {},
-      diagnostics: { resolution: 4, resolution_label: "IV", fraction: "1/2", design_notation: "2^(4-1)" },
+      diagnostics: { resolution: 4, resolution_label: "IV", fraction: "1/2", design_notation: "2^(4-1)", generator_selection_mode: "automatic", selection_objective: "minimum_aberration_at_requested_runs", candidate_sets_examined: 4, word_length_pattern: { "3": 0, "4": 1 } },
       tables: {
+        generators: [{ factor: "D", terms: ["A", "B", "C"], expression: "D=A*B*C" }],
         defining_relation: [{ identity: "I", words: ["A*B*C*D"], expression: "I = A*B*C*D" }],
         main_effect_aliases: [{ effect: "A", alias_set: ["A", "B*C*D"] }],
         two_factor_aliases: [{ effect: "A*B", alias_set: ["A*B", "C*D"] }],
@@ -414,6 +432,8 @@ describe("StatPro UI", () => {
 
     render(<MemoryRouter initialEntries={["/runs/doe-frac-001"]}><App /></MemoryRouter>);
     expect(await screen.findByRole("heading", { name: "정의관계" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "자동 생성자 선택 근거" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "선택된 생성식" })).toBeInTheDocument();
     expect(screen.getByText("I = A*B*C*D")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "주효과 별칭구조" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "실행 설계표" })).toBeInTheDocument();
