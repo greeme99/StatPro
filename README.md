@@ -15,11 +15,11 @@ The repository starts with a dependency-free Python statistical core so formulas
 - Balanced crossed Gage R&R using two-way random-effects ANOVA variance components
 - Immutable CSV Dataset snapshots and revisioned Worksheet cell edits
 - Packaged Draft 2020-12 `ResultBundle` JSON Schema
-- Immutable Design/Process FMEA study revisions with action ownership, completion evidence, risk reassessment, review, approval, and audit history
+- Immutable Design/Process FMEA study revisions with an evidence-derived AIAG/VDA seven-step progress view, action ownership, completion evidence, risk reassessment, review, approval, and audit history
 - Versioned external Action Priority policy contract without bundled proprietary decision tables
 - Loopback-only FastAPI adapter with Analysis Run, revisioned Worksheet/FMEA storage, ETags, optimistic concurrency, and cursor paging
 - Atomic local JSON document adapter plus an in-memory contract-test adapter
-- React workbench with dashboard, CSV Worksheet import/editing, I-MR and p/np setup/results, DOE analysis/fractional/Plackett–Burman/Box–Behnken/response-optimizer flows, FMEA list/editor/review flow, provenance drawer, theme, and connection states
+- React workbench with dashboard, CSV Worksheet import/editing, I-MR and p/np/c/u setup/results, DOE analysis/fractional/Plackett–Burman/Box–Behnken/response-optimizer flows, FMEA seven-step/editor/review flow, provenance drawer, theme, and connection states
 - Accessible control-chart summaries and table alternatives with a 768px minimum supported viewport
 - Typed validation errors
 - JSON CLI

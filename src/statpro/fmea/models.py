@@ -33,6 +33,42 @@ class ActionStatus(str, Enum):
     CANCELLED = "cancelled"
 
 
+class SevenStepId(str, Enum):
+    PLANNING_AND_PREPARATION = "planning_and_preparation"
+    STRUCTURE_ANALYSIS = "structure_analysis"
+    FUNCTION_ANALYSIS = "function_analysis"
+    FAILURE_ANALYSIS = "failure_analysis"
+    RISK_ANALYSIS = "risk_analysis"
+    OPTIMIZATION = "optimization"
+    RESULTS_DOCUMENTATION = "results_documentation"
+
+
+class StepStatus(str, Enum):
+    NOT_STARTED = "not_started"
+    IN_PROGRESS = "in_progress"
+    COMPLETE = "complete"
+
+
+@dataclass(frozen=True, slots=True)
+class SevenStepProgress:
+    step_number: int
+    step_id: SevenStepId
+    title: str
+    status: StepStatus
+    evidence_count: int
+    gaps: tuple[str, ...] = ()
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "step_number": self.step_number,
+            "step_id": self.step_id.value,
+            "title": self.title,
+            "status": self.status.value,
+            "evidence_count": self.evidence_count,
+            "gaps": list(self.gaps),
+        }
+
+
 @dataclass(frozen=True, slots=True)
 class RiskRatings:
     severity: int
@@ -202,6 +238,10 @@ class FmeaStudySnapshot:
     action_priority_policy_id: str | None = None
     action_priority_policy_digest: str | None = None
 
+    @property
+    def seven_step_progress(self) -> tuple[SevenStepProgress, ...]:
+        return derive_seven_step_progress(self)
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "study_id": self.study_id,
@@ -217,6 +257,7 @@ class FmeaStudySnapshot:
             "audit_events": [asdict(event) for event in self.audit_events],
             "action_priority_policy_id": self.action_priority_policy_id,
             "action_priority_policy_digest": self.action_priority_policy_digest,
+            "seven_step_progress": [step.to_dict() for step in self.seven_step_progress],
         }
 
     @classmethod
@@ -283,3 +324,46 @@ class FmeaStudySnapshot:
             action_priority_policy_id=payload.get("action_priority_policy_id"),
             action_priority_policy_digest=payload.get("action_priority_policy_digest"),
         )
+
+
+def derive_seven_step_progress(study: FmeaStudySnapshot) -> tuple[SevenStepProgress, ...]:
+    """Project owned FMEA facts onto the public seven-step workflow vocabulary."""
+
+    item_status = StepStatus.COMPLETE if study.items else StepStatus.NOT_STARTED
+    item_gap = () if study.items else ("failure_analysis_item",)
+    terminal_actions = {ActionStatus.COMPLETE, ActionStatus.CANCELLED}
+    if not study.actions:
+        optimization_status = StepStatus.NOT_STARTED
+        optimization_gaps = ("recommended_action",)
+    elif all(action.status in terminal_actions for action in study.actions):
+        optimization_status = StepStatus.COMPLETE
+        optimization_gaps = ()
+    else:
+        optimization_status = StepStatus.IN_PROGRESS
+        optimization_gaps = tuple(
+            action.action_id for action in study.actions if action.status not in terminal_actions
+        )
+
+    documentation_events = sum(
+        event.event_type in {"study_submitted", "study_approved"}
+        for event in study.audit_events
+    )
+    if study.status in {StudyStatus.APPROVED, StudyStatus.ARCHIVED}:
+        documentation_status = StepStatus.COMPLETE
+        documentation_gaps: tuple[str, ...] = ()
+    elif study.status == StudyStatus.IN_REVIEW:
+        documentation_status = StepStatus.IN_PROGRESS
+        documentation_gaps = ("approval",)
+    else:
+        documentation_status = StepStatus.NOT_STARTED
+        documentation_gaps = ("review_submission",)
+
+    return (
+        SevenStepProgress(1, SevenStepId.PLANNING_AND_PREPARATION, "Planning and Preparation", StepStatus.COMPLETE, 1),
+        SevenStepProgress(2, SevenStepId.STRUCTURE_ANALYSIS, "Structure Analysis", item_status, len(study.items), item_gap),
+        SevenStepProgress(3, SevenStepId.FUNCTION_ANALYSIS, "Function Analysis", item_status, len(study.items), item_gap),
+        SevenStepProgress(4, SevenStepId.FAILURE_ANALYSIS, "Failure Analysis", item_status, len(study.items), item_gap),
+        SevenStepProgress(5, SevenStepId.RISK_ANALYSIS, "Risk Analysis", item_status, len(study.items), item_gap),
+        SevenStepProgress(6, SevenStepId.OPTIMIZATION, "Optimization", optimization_status, len(study.actions), optimization_gaps),
+        SevenStepProgress(7, SevenStepId.RESULTS_DOCUMENTATION, "Results Documentation", documentation_status, documentation_events, documentation_gaps),
+    )

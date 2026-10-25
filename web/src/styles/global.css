@@ -146,6 +146,13 @@ dd { margin: var(--space-0); }
 .failure-fields .field-wide { grid-column: span 2; }
 .failure-form .form-actions { padding: var(--space-0) var(--card-pad) var(--card-pad); }
 .fmea-workbench { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(0, 4fr); gap: var(--grid-gap); align-items: start; }
+.seven-step-list { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+.seven-step-list li { display: flex; gap: var(--space-2); min-width: 0; padding: var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-bg-subtle); }
+.seven-step-list li.step-complete { border-color: var(--color-status-success); }
+.seven-step-list li.step-in_progress { border-color: var(--color-status-warning); }
+.seven-step-list .step-number { display: grid; place-items: center; flex: 0 0 var(--space-6); width: var(--space-6); height: var(--space-6); border-radius: var(--radius-pill); color: var(--color-text-onbrand); background: var(--color-fill-brand); }
+.seven-step-list div { display: grid; gap: var(--space-1); min-width: 0; }
+.seven-step-list span, .seven-step-list small { color: var(--color-text-muted); }
 .structure-list { list-style: none; margin: var(--space-0); padding: var(--space-2); }
 .structure-list button { width: 100%; display: grid; gap: var(--space-1); padding: var(--space-3); text-align: left; color: var(--color-text-primary); background: transparent; border: var(--border-width) solid transparent; border-radius: var(--radius-md); cursor: pointer; }
 .structure-list button:hover { background: var(--color-bg-hover); }
@@ -229,6 +236,7 @@ dd { margin: var(--space-0); }
   .inline-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 767px) {
+  .seven-step-list { grid-template-columns: 1fr; }
   body { min-width: 0; }
   .app-header, .sidebar, .main-content { display: none; }
   .viewport-warning { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-3); padding: var(--space-8); text-align: center; }

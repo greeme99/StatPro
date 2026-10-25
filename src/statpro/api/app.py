@@ -353,22 +353,27 @@ def _response(stored: StoredDocument) -> StoredRunResponse:
 
 
 def _fmea_response(stored: StoredDocument) -> StoredFmeaStudyResponse:
+    study = _deserialize_fmea_study(stored)
     return StoredFmeaStudyResponse(
         study_id=stored.key,
         storage_version=stored.storage_version,
         etag=stored.etag,
-        study=stored.document["study"],
+        study=study.to_dict(),
     )
+
+
+def _deserialize_fmea_study(stored: StoredDocument) -> FmeaStudySnapshot:
+    try:
+        return FmeaStudySnapshot.from_dict(stored.document["study"])
+    except (KeyError, TypeError, ValueError) as error:
+        raise DocumentStoreError(
+            f"Stored FMEA study {stored.key} does not match its owned format."
+        ) from error
 
 
 def _load_fmea_study(repository: DocumentRepository, study_id: str) -> tuple[StoredDocument, FmeaStudySnapshot]:
     stored = repository.load(FMEA_STUDIES, study_id)
-    try:
-        study = FmeaStudySnapshot.from_dict(stored.document["study"])
-    except (KeyError, TypeError, ValueError) as error:
-        raise DocumentStoreError(
-            f"Stored FMEA study {study_id} does not match its owned format."
-        ) from error
+    study = _deserialize_fmea_study(stored)
     return stored, study
 
 

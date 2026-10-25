@@ -166,7 +166,13 @@ describe("StatPro UI", () => {
       item_id: "FA-001", structure_element: "Connector", function: "Maintain contact", requirement: "Resistance", failure_mode: "Incomplete insertion", effect: "Open circuit", cause: "Fixture drift", prevention_control: "Checklist", detection_control: "Continuity test",
       initial_ratings: { severity: 8, occurrence: 4, detection: 5, rpn: 160 }, current_ratings: { severity: 8, occurrence: 4, detection: 5, rpn: 160 }, action_priority: null, action_priority_reason: "policy_not_supplied",
     };
-    const study = { study_id: "PFMEA-001", name: "Connector Assembly", study_type: "process", standard_version: "customer-standard-2026", status: "draft", revision: 2, parent_digest: "a", digest: "b".repeat(64), items: [item], actions: [], audit_events: [], action_priority_policy_id: null, action_priority_policy_digest: null };
+    const sevenStepProgress = [
+      ["planning_and_preparation", "Planning and Preparation"], ["structure_analysis", "Structure Analysis"],
+      ["function_analysis", "Function Analysis"], ["failure_analysis", "Failure Analysis"],
+      ["risk_analysis", "Risk Analysis"], ["optimization", "Optimization"],
+      ["results_documentation", "Results Documentation"],
+    ].map(([step_id, title], index) => ({ step_number: index + 1, step_id, title, status: index < 5 ? "complete" : "not_started", evidence_count: index < 5 ? 1 : 0, gaps: index < 5 ? [] : ["required_evidence"] }));
+    const study = { study_id: "PFMEA-001", name: "Connector Assembly", study_type: "process", standard_version: "customer-standard-2026", status: "draft", revision: 2, parent_digest: "a", digest: "b".repeat(64), items: [item], actions: [], audit_events: [], action_priority_policy_id: null, action_priority_policy_digest: null, seven_step_progress: sevenStepProgress };
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       const url = String(input);
       if (url.endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
@@ -175,6 +181,8 @@ describe("StatPro UI", () => {
     });
 
     render(<MemoryRouter initialEntries={["/fmea/PFMEA-001"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "FMEA 7단계 진행" })).toBeInTheDocument();
+    expect(screen.getByText("기획 및 준비")).toBeInTheDocument();
     await userEvent.click(await screen.findByRole("button", { name: "검토 요청" }));
     expect(await screen.findByText("검토 중")).toBeInTheDocument();
     const reviewCall = fetchMock.mock.calls.find(([url, init]) => String(url).includes("submit-review") && (init as RequestInit | undefined)?.method === "POST");

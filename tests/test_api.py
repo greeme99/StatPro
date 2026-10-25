@@ -440,6 +440,18 @@ class LocalApiContractTests(unittest.TestCase):
         )
         self.assertEqual(created.status_code, 201)
         self.assertEqual(created.json()["study"]["revision"], 1)
+        self.assertEqual(
+            [step["step_id"] for step in created.json()["study"]["seven_step_progress"]],
+            [
+                "planning_and_preparation",
+                "structure_analysis",
+                "function_analysis",
+                "failure_analysis",
+                "risk_analysis",
+                "optimization",
+                "results_documentation",
+            ],
+        )
 
         failure = {
             "expected_storage_version": 1,
@@ -463,6 +475,9 @@ class LocalApiContractTests(unittest.TestCase):
         self.assertEqual(revised.json()["storage_version"], 2)
         self.assertEqual(revised.json()["study"]["items"][0]["current_ratings"]["rpn"], 160)
         self.assertEqual(revised.json()["study"]["items"][0]["action_priority_reason"], "policy_not_supplied")
+        self.assertEqual(
+            revised.json()["study"]["seven_step_progress"][4]["status"], "complete"
+        )
 
         conflict = self.client.post(
             "/v1/fmea-studies/PFMEA-001/failure-analyses",
@@ -485,6 +500,9 @@ class LocalApiContractTests(unittest.TestCase):
         self.assertEqual(submitted.status_code, 200)
         self.assertEqual(submitted.json()["study"]["status"], "in_review")
         self.assertEqual(submitted.json()["study"]["revision"], 3)
+        self.assertEqual(
+            submitted.json()["study"]["seven_step_progress"][6]["status"], "in_progress"
+        )
 
     def test_fmea_action_is_completed_reassessed_and_study_approved(self) -> None:
         created = self.client.post(

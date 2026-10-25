@@ -62,6 +62,15 @@ export type RecommendedAction = {
   evidence_refs: string[];
 };
 
+export type SevenStepProgress = {
+  step_number: number;
+  step_id: "planning_and_preparation" | "structure_analysis" | "function_analysis" | "failure_analysis" | "risk_analysis" | "optimization" | "results_documentation";
+  title: string;
+  status: "not_started" | "in_progress" | "complete";
+  evidence_count: number;
+  gaps: string[];
+};
+
 export type FmeaStudy = {
   study_id: string;
   name: string;
@@ -82,6 +91,7 @@ export type FmeaStudy = {
   }>;
   action_priority_policy_id: string | null;
   action_priority_policy_digest: string | null;
+  seven_step_progress?: SevenStepProgress[];
 };
 
 export type StoredFmeaStudy = {

@@ -6,6 +6,16 @@ import { Button } from "../components/Button";
 import type { FailureAnalysis, RecommendedAction, StoredFmeaStudy } from "../types";
 
 const statusLabels = { draft: "작성 중", in_review: "검토 중", approved: "승인됨", archived: "보관됨" };
+const stepStatusLabels = { not_started: "미착수", in_progress: "진행 중", complete: "완료" };
+const stepTitles: Record<string, string> = {
+  planning_and_preparation: "기획 및 준비",
+  structure_analysis: "구조 분석",
+  function_analysis: "기능 분석",
+  failure_analysis: "고장 분석",
+  risk_analysis: "위험 분석",
+  optimization: "최적화",
+  results_documentation: "결과 문서화",
+};
 
 export function FmeaStudyPage() {
   const { studyId = "" } = useParams();
@@ -154,6 +164,13 @@ export function FmeaStudyPage() {
         <div className="result-actions"><span className={`status-badge status-${study.status}`}>{statusLabels[study.status]}</span>{study.status === "draft" && <><Button onClick={() => setShowForm((value) => !value)} icon={<FilePlus2 />}>{showForm ? "입력 닫기" : "고장 모드 추가"}</Button><Button onClick={() => setShowActionForm((value) => !value)} disabled={study.items.length === 0} icon={<Wrench />}>{showActionForm ? "조치 입력 닫기" : "권고조치 추가"}</Button><Button variant="primary" disabled={study.items.length === 0} loading={busy} onClick={handleSubmitReview} icon={<ClipboardCheck />}>검토 요청</Button></>}{study.status === "in_review" && <Button variant="primary" loading={busy} onClick={handleApprove} icon={<CheckCircle2 />}>승인</Button>}</div>
       </section>
       {error && <div className="error-banner" role="alert"><AlertTriangle aria-hidden="true" /><p>{error}</p></div>}
+
+      {study.seven_step_progress && <section className="panel seven-step-panel" aria-labelledby="seven-step-title">
+        <header className="panel-heading"><div><span className="eyebrow">AIAG/VDA WORKFLOW</span><h2 id="seven-step-title">FMEA 7단계 진행</h2></div><span>실제 Study 증거에서 자동 산정</span></header>
+        <ol className="seven-step-list">{study.seven_step_progress.map((step) => <li key={step.step_id} className={`step-${step.status}`}>
+          <span className="step-number">{step.step_number}</span><div><strong>{stepTitles[step.step_id] ?? step.title}</strong><span>{stepStatusLabels[step.status]} · 증거 {step.evidence_count}건</span>{step.gaps.length > 0 && <small>남은 항목: {step.gaps.join(", ")}</small>}</div>
+        </li>)}</ol>
+      </section>}
 
       {showForm && <form className="panel failure-form" onSubmit={handleAddFailure}>
         <header className="panel-heading"><div><span className="eyebrow">FAILURE ANALYSIS</span><h2>고장 모드 추가</h2></div><span>저장 시 새 revision 생성</span></header>

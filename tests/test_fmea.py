@@ -11,6 +11,7 @@ from statpro.fmea import (
     ActionPriorityPolicy,
     FmeaInputError,
     RiskRatings,
+    StepStatus,
     StudyStatus,
     StudyType,
     add_failure_analysis,
@@ -79,6 +80,38 @@ class FmeaValueObjectTests(unittest.TestCase):
 
 
 class FmeaWorkflowTests(unittest.TestCase):
+    def test_seven_step_progress_is_derived_from_owned_study_evidence(self) -> None:
+        initial = create_fmea_study(
+            study_id="PFMEA-STEPS",
+            name="Assembly Process",
+            study_type=StudyType.PROCESS,
+            standard_version="licensed-standard-2026",
+            actor="quality.engineer",
+            occurred_at=NOW,
+        )
+        self.assertEqual(len(initial.seven_step_progress), 7)
+        self.assertEqual(initial.seven_step_progress[0].status, StepStatus.COMPLETE)
+        self.assertTrue(
+            all(
+                step.status == StepStatus.NOT_STARTED
+                for step in initial.seven_step_progress[1:]
+            )
+        )
+
+        analyzed = study_with_item()
+        self.assertTrue(
+            all(
+                step.status == StepStatus.COMPLETE
+                for step in analyzed.seven_step_progress[1:5]
+            )
+        )
+        self.assertEqual(analyzed.seven_step_progress[5].status, StepStatus.NOT_STARTED)
+
+        legacy_payload = initial.to_dict()
+        legacy_payload.pop("seven_step_progress")
+        restored = type(initial).from_dict(legacy_payload)
+        self.assertEqual(len(restored.to_dict()["seven_step_progress"]), 7)
+
     def test_adding_failure_analysis_creates_revision_and_preserves_parent(self) -> None:
         initial = create_fmea_study(
             study_id="PFMEA-001",
@@ -201,3 +234,6 @@ class FmeaWorkflowTests(unittest.TestCase):
             [event.sequence for event in approved.audit_events], [1, 2, 3, 4, 5, 6]
         )
         self.assertEqual(approved.audit_events[-1].event_type, "study_approved")
+        self.assertEqual(approved.seven_step_progress[5].status, StepStatus.COMPLETE)
+        self.assertEqual(approved.seven_step_progress[6].status, StepStatus.COMPLETE)
+        self.assertEqual(approved.to_dict()["seven_step_progress"][6]["status"], "complete")
