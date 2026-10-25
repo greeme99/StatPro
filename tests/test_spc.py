@@ -10,6 +10,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from statpro.analyses.spc import (
     individuals_moving_range,
     nelson_signals,
+    np_chart,
+    p_chart,
     western_electric_signals,
     xbar_r,
 )
@@ -159,6 +161,58 @@ class XbarRTests(unittest.TestCase):
         with self.assertRaises(AnalysisInputError) as context:
             xbar_r([[1, 2], [3, 4]], rules="western_electric")
         self.assertEqual(context.exception.detail.code, "invalid_control_rule_set")
+
+
+class AttributeChartTests(unittest.TestCase):
+    def test_p_chart_uses_pooled_center_and_per_subgroup_limits(self) -> None:
+        result = p_chart([5, 8, 12], [100, 200, 100])
+        points = result.tables["chart_points"]
+
+        self.assertEqual(result.analysis_type, "spc.p_chart")
+        self.assertAlmostEqual(result.tables["summary"]["pooled_proportion"], 0.0625)
+        self.assertAlmostEqual(points[0]["statistic"], 0.05)
+        self.assertAlmostEqual(points[1]["statistic"], 0.04)
+        self.assertLess(points[1]["ucl"], points[0]["ucl"])
+        self.assertEqual(result.parameters["sample_size_mode"], "variable")
+
+    def test_p_chart_flags_a_point_outside_its_three_sigma_limit(self) -> None:
+        result = p_chart([2, 3, 2, 3, 25], [100, 100, 100, 100, 100])
+
+        self.assertEqual(result.diagnostics["signal_indices"], [4])
+        self.assertTrue(result.tables["chart_points"][4]["signal"])
+
+    def test_np_chart_uses_count_scale_and_constant_sample_size(self) -> None:
+        result = np_chart([2, 3, 2, 3, 25], [100, 100, 100, 100, 100])
+        point = result.tables["chart_points"][0]
+
+        self.assertEqual(result.analysis_type, "spc.np_chart")
+        self.assertAlmostEqual(point["center"], 7.0)
+        self.assertEqual(point["statistic"], 2.0)
+        self.assertEqual(result.diagnostics["signal_indices"], [4])
+
+    def test_np_chart_rejects_variable_sample_sizes(self) -> None:
+        with self.assertRaises(AnalysisInputError) as context:
+            np_chart([2, 3], [100, 120])
+        self.assertEqual(context.exception.detail.code, "unequal_sample_size")
+
+    def test_attribute_charts_reject_invalid_counts(self) -> None:
+        cases = [
+            (([1.5, 2], [100, 100]), "invalid_count"),
+            (([1, 2], [100, 0]), "invalid_sample_size"),
+            (([101, 2], [100, 100]), "count_exceeds_sample_size"),
+            (([1, 2], [100]), "mismatched_subgroups"),
+        ]
+        for arguments, code in cases:
+            with self.subTest(code=code):
+                with self.assertRaises(AnalysisInputError) as context:
+                    p_chart(*arguments)
+                self.assertEqual(context.exception.detail.code, code)
+
+    def test_attribute_chart_digest_normalizes_equivalent_integer_inputs(self) -> None:
+        first = p_chart([1, 2], [100, 100])
+        second = p_chart([1.0, 2.0], [100.0, 100.0])
+
+        self.assertEqual(first.input_digest, second.input_digest)
 
 
 if __name__ == "__main__":

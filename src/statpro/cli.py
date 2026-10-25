@@ -26,7 +26,7 @@ from statpro.analyses.doe import (
     plackett_burman_design,
 )
 from statpro.analyses.msa import MeasurementRecord, gage_rr_crossed
-from statpro.analyses.spc import individuals_moving_range, xbar_r
+from statpro.analyses.spc import individuals_moving_range, np_chart, p_chart, xbar_r
 from statpro.domain.data import import_csv_dataset
 from statpro.domain.errors import AnalysisInputError
 
@@ -36,6 +36,8 @@ def _parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
     for command in (
         "imr",
+        "np-chart",
+        "p-chart",
         "xbar-r",
         "capability-normal",
         "doe-full-factorial",
@@ -72,6 +74,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                 target=payload.get("target"),
                 rules=payload.get("rules", "western_electric"),
             )
+        elif args.command == "p-chart":
+            result = p_chart(payload["nonconforming"], payload["sample_sizes"])
+        elif args.command == "np-chart":
+            result = np_chart(payload["nonconforming"], payload["sample_sizes"])
         elif args.command == "xbar-r":
             result = xbar_r(
                 payload["subgroups"],

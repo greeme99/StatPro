@@ -46,6 +46,35 @@ describe("StatPro UI", () => {
     expect(JSON.parse(String((post?.[1] as RequestInit).body)).rules).toBe("nelson");
   });
 
+  it("submits a p chart with subgroup counts and sample sizes", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      return new Response(JSON.stringify({}), { status: init?.method === "POST" ? 201 : 200, headers: { "Content-Type": "application/json" } });
+    });
+    render(<MemoryRouter initialEntries={["/analyses/spc/attribute"]}><App /></MemoryRouter>);
+
+    await userEvent.click(await screen.findByRole("button", { name: "관리도 실행" }));
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith("/p-chart") && (init as RequestInit | undefined)?.method === "POST")).toBe(true));
+    const post = fetchMock.mock.calls.find(([url, init]) => String(url).endsWith("/p-chart") && (init as RequestInit | undefined)?.method === "POST");
+    expect(JSON.parse(String((post?.[1] as RequestInit).body))).toMatchObject({
+      nonconforming: [2, 3, 2, 3, 25],
+      sample_sizes: [100, 100, 100, 100, 100],
+    });
+  });
+
+  it("rejects variable sample sizes for an np chart before calling the API", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch");
+    render(<MemoryRouter initialEntries={["/analyses/spc/attribute"]}><App /></MemoryRouter>);
+    await userEvent.selectOptions(await screen.findByRole("combobox", { name: "관리도" }), "np");
+    const sizes = screen.getByRole("textbox", { name: /^표본 크기/ });
+    await userEvent.clear(sizes);
+    await userEvent.type(sizes, "100 120 100 100 100");
+    await userEvent.click(screen.getByRole("button", { name: "관리도 실행" }));
+
+    expect(await screen.findByText(/np 관리도는 모든 부분군의 표본 크기가 같아야 합니다/)).toBeInTheDocument();
+    expect(fetchMock.mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === "POST")).toBe(false);
+  });
+
   it("toggles dark theme with an accessible control", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ items: [], next_after: null }), { status: 200, headers: { "Content-Type": "application/json" } }));
     render(<MemoryRouter><App /></MemoryRouter>);
@@ -86,6 +115,29 @@ describe("StatPro UI", () => {
     render(<MemoryRouter initialEntries={["/runs/run-trend"]}><App /></MemoryRouter>);
     expect(await screen.findByText("신호 관측값")).toBeInTheDocument();
     expect(screen.getAllByText("TREND-6").length).toBeGreaterThan(0);
+  });
+
+  it("renders a p chart with varying subgroup limits and an accessible table", async () => {
+    const points = [
+      { index: 0, nonconforming: 2, sample_size: 100, statistic: 0.02, center: 0.07, lcl: 0, ucl: 0.1465, signal: false },
+      { index: 1, nonconforming: 25, sample_size: 100, statistic: 0.25, center: 0.07, lcl: 0, ucl: 0.1465, signal: true },
+    ];
+    const result = {
+      analysis_type: "spc.p_chart", engine_version: "0.6.0", input_digest: "b".repeat(64),
+      warnings: [], assumptions: [], provenance: [], parameters: { chart: "p" },
+      diagnostics: { signal_indices: [1] },
+      tables: { chart_points: points, summary: { total_nonconforming: 27, total_inspected: 200, pooled_proportion: 0.135 } },
+      plots: { attribute_chart: { points, signal_indices: [1] } },
+    };
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      return new Response(JSON.stringify({ run_id: "p-chart-001", storage_version: 1, etag: "a".repeat(64), result }), { status: 200 });
+    });
+
+    render(<MemoryRouter initialEntries={["/runs/p-chart-001"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "p · 부적합률 관리도" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "부분군별 관리한계" })).toBeInTheDocument();
+    expect(screen.getByText("3σ 한계 이탈")).toBeInTheDocument();
   });
 
   it("renders persisted FMEA studies in the risk workbench", async () => {

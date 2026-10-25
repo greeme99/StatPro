@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from itertools import pairwise
+from math import sqrt
 from statistics import fmean
+from typing import Literal
 
 from statpro.analyses.common import finite_values
 from statpro.domain.errors import AnalysisInputError
@@ -24,6 +26,10 @@ NIST_WECO_SOURCE = ProvenanceSource(
     title="NIST/SEMATECH 6.3.2 Variables Control Charts and WECO Rules",
     url="https://www.itl.nist.gov/div898/handbook/pmc/section3/pmc32.htm",
 )
+NIST_ATTRIBUTE_SOURCE = ProvenanceSource(
+    title="NIST/SEMATECH 6.3.3 What are Attributes Control Charts?",
+    url="https://www.itl.nist.gov/div898/handbook/pmc/section3/pmc33.htm",
+)
 MINITAB_SPECIAL_CAUSE_SOURCE = ProvenanceSource(
     title="Minitab public documentation: Tests for special causes in control charts",
     url="https://support.minitab.com/en-us/minitab/help-and-how-to/quality-and-process-improvement/control-charts/supporting-topics/basics/using-tests-for-special-causes/",
@@ -40,6 +46,186 @@ _XBAR_R_CONSTANTS: dict[int, tuple[float, float, float]] = {
     9: (0.337, 0.184, 1.816),
     10: (0.308, 0.223, 1.777),
 }
+
+
+def _nonnegative_integers(values: Sequence[object], field: str) -> list[int]:
+    normalized = finite_values(values, field)
+    integers: list[int] = []
+    for index, value in enumerate(normalized):
+        if value < 0.0 or not value.is_integer():
+            raise AnalysisInputError(
+                "invalid_count",
+                f"Value at index {index} must be a nonnegative integer count.",
+                field,
+            )
+        integers.append(int(value))
+    return integers
+
+
+def _positive_integers(values: Sequence[object], field: str) -> list[int]:
+    normalized = _nonnegative_integers(values, field)
+    for index, value in enumerate(normalized):
+        if value == 0:
+            raise AnalysisInputError(
+                "invalid_sample_size",
+                f"Sample size at index {index} must be a positive integer.",
+                field,
+            )
+    return normalized
+
+
+def _binomial_attribute_chart(
+    nonconforming: Sequence[object],
+    sample_sizes: Sequence[object],
+    *,
+    chart: Literal["p", "np"],
+) -> ResultBundle:
+    """Own normalization and result construction for binomial attribute charts."""
+
+    counts = _nonnegative_integers(nonconforming, "nonconforming")
+    sizes = _positive_integers(sample_sizes, "sample_sizes")
+    if len(counts) < 2:
+        raise AnalysisInputError(
+            "insufficient_subgroups",
+            "Attribute control charts require at least two ordered subgroups.",
+            "nonconforming",
+        )
+    if len(counts) != len(sizes):
+        raise AnalysisInputError(
+            "mismatched_subgroups",
+            "Nonconforming counts and sample sizes must have the same length.",
+            "sample_sizes",
+        )
+    for index, (count, size) in enumerate(zip(counts, sizes, strict=True)):
+        if count > size:
+            raise AnalysisInputError(
+                "count_exceeds_sample_size",
+                f"Nonconforming count at index {index} exceeds its sample size.",
+                "nonconforming",
+            )
+    if chart == "np" and any(size != sizes[0] for size in sizes[1:]):
+        raise AnalysisInputError(
+            "unequal_sample_size",
+            "An np chart requires the same inspected sample size in every subgroup; use a p chart when sample sizes vary.",
+            "sample_sizes",
+        )
+
+    total_nonconforming = sum(counts)
+    total_inspected = sum(sizes)
+    pooled_proportion = total_nonconforming / total_inspected
+    points: list[dict[str, object]] = []
+    signal_indices: list[int] = []
+    unclamped_limits: list[dict[str, float]] = []
+
+    for index, (count, size) in enumerate(zip(counts, sizes, strict=True)):
+        if chart == "p":
+            statistic = count / size
+            center = pooled_proportion
+            sigma = sqrt(pooled_proportion * (1.0 - pooled_proportion) / size)
+            lower_bound, upper_bound = 0.0, 1.0
+        else:
+            statistic = float(count)
+            center = size * pooled_proportion
+            sigma = sqrt(size * pooled_proportion * (1.0 - pooled_proportion))
+            lower_bound, upper_bound = 0.0, float(size)
+        raw_lcl = center - 3.0 * sigma
+        raw_ucl = center + 3.0 * sigma
+        lcl = max(lower_bound, raw_lcl)
+        ucl = min(upper_bound, raw_ucl)
+        signal = statistic < lcl or statistic > ucl
+        if signal:
+            signal_indices.append(index)
+        points.append(
+            {
+                "index": index,
+                "nonconforming": count,
+                "sample_size": size,
+                "statistic": statistic,
+                "center": center,
+                "lcl": lcl,
+                "ucl": ucl,
+                "signal": signal,
+            }
+        )
+        unclamped_limits.append({"lcl": raw_lcl, "ucl": raw_ucl})
+
+    warnings: list[str] = []
+    if pooled_proportion in {0.0, 1.0}:
+        warnings.append(
+            "The pooled nonconforming proportion is at a boundary, so estimated binomial variation and all three-sigma limits collapse."
+        )
+    if any(
+        size * pooled_proportion < 5.0 or size * (1.0 - pooled_proportion) < 5.0
+        for size in sizes
+    ):
+        warnings.append(
+            "At least one subgroup has fewer than five expected conforming or nonconforming units; the normal-approximation limits may be inaccurate."
+        )
+
+    analysis_type = f"spc.{chart}_chart"
+    payload = {"nonconforming": counts, "sample_sizes": sizes, "chart": chart}
+    return ResultBundle(
+        analysis_type=analysis_type,
+        engine_version=ENGINE_VERSION,
+        input_digest=input_digest(payload),
+        parameters={
+            "chart": chart,
+            "distribution": "binomial",
+            "sigma_multiplier": 3.0,
+            "limit_method": "normal_approximation",
+            "sample_size_mode": "variable" if len(set(sizes)) > 1 else "constant",
+        },
+        tables={
+            "chart_points": points,
+            "summary": {
+                "total_nonconforming": total_nonconforming,
+                "total_inspected": total_inspected,
+                "pooled_proportion": pooled_proportion,
+            },
+        },
+        plots={
+            "attribute_chart": {
+                "points": points,
+                "signal_indices": signal_indices,
+            }
+        },
+        diagnostics={
+            "subgroup_count": len(points),
+            "signal_indices": signal_indices,
+            "signal_count": len(signal_indices),
+            "unclamped_limits": unclamped_limits,
+            "limits_clamped_to_parameter_space": any(
+                raw["lcl"] < 0.0
+                or raw["ucl"] > (1.0 if chart == "p" else float(sizes[index]))
+                for index, raw in enumerate(unclamped_limits)
+            ),
+        },
+        assumptions=(
+            "Subgroups are ordered in process time and represent comparable process conditions.",
+            "Each inspected unit is classified once as conforming or nonconforming.",
+            "Within each subgroup, unit classifications are independent with a stable nonconforming probability.",
+            "Phase I center lines use the pooled nonconforming proportion from all supplied subgroups.",
+            "Signals identify investigation candidates and do not by themselves prove a special cause.",
+        ),
+        warnings=tuple(warnings),
+        provenance=(NIST_ATTRIBUTE_SOURCE,),
+    )
+
+
+def p_chart(
+    nonconforming: Sequence[object], sample_sizes: Sequence[object]
+) -> ResultBundle:
+    """Calculate a p chart for subgroup nonconforming proportions."""
+
+    return _binomial_attribute_chart(nonconforming, sample_sizes, chart="p")
+
+
+def np_chart(
+    nonconforming: Sequence[object], sample_sizes: Sequence[object]
+) -> ResultBundle:
+    """Calculate an np chart for subgroup nonconforming counts."""
+
+    return _binomial_attribute_chart(nonconforming, sample_sizes, chart="np")
 
 
 def _append_rule_signal(

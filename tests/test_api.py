@@ -28,6 +28,8 @@ class LocalApiContractTests(unittest.TestCase):
         self.assertEqual(schema.json()["$schema"], "https://json-schema.org/draft/2020-12/schema")
         self.assertEqual(openapi.status_code, 200)
         self.assertIn("/v1/analysis-runs/imr", openapi.json()["paths"])
+        self.assertIn("/v1/analysis-runs/p-chart", openapi.json()["paths"])
+        self.assertIn("/v1/analysis-runs/np-chart", openapi.json()["paths"])
 
     def test_imr_run_is_created_then_retrieved_with_same_etag(self) -> None:
         created = self.client.post(
@@ -76,8 +78,40 @@ class LocalApiContractTests(unittest.TestCase):
         self.assertEqual(request_error.json()["error"]["code"], "invalid_request")
         self.assertNotIn("input", request_error.json()["error"]["details"][0])
 
+    def test_attribute_chart_request_rejects_coerced_counts(self) -> None:
+        for value in (True, 1.5):
+            with self.subTest(value=value):
+                response = self.client.post(
+                    "/v1/analysis-runs/p-chart",
+                    json={
+                        "run_id": f"strict-{str(value).replace('.', '-')}",
+                        "nonconforming": [value, 2],
+                        "sample_sizes": [100, 100],
+                    },
+                )
+                self.assertEqual(response.status_code, 422)
+                self.assertEqual(response.json()["error"]["code"], "invalid_request")
+
     def test_analysis_catalog_adapters_execute_supported_methods(self) -> None:
         requests = [
+            (
+                "/v1/analysis-runs/p-chart",
+                {
+                    "run_id": "p-chart",
+                    "nonconforming": [2, 3, 2, 3, 25],
+                    "sample_sizes": [100, 120, 80, 100, 100],
+                },
+                "spc.p_chart",
+            ),
+            (
+                "/v1/analysis-runs/np-chart",
+                {
+                    "run_id": "np-chart",
+                    "nonconforming": [2, 3, 2, 3, 25],
+                    "sample_sizes": [100, 100, 100, 100, 100],
+                },
+                "spc.np_chart",
+            ),
             (
                 "/v1/analysis-runs/xbar-r",
                 {
@@ -309,6 +343,10 @@ class LocalApiContractTests(unittest.TestCase):
                             for signal in response.json()["result"]["plots"]["xbar"]["rule_signals"]
                         ],
                     )
+                if analysis_type in {"spc.p_chart", "spc.np_chart"}:
+                    result = response.json()["result"]
+                    self.assertEqual(result["diagnostics"]["signal_indices"], [4])
+                    self.assertEqual(len(result["tables"]["chart_points"]), 5)
                 if analysis_type == "doe.full_factorial_2level_analysis":
                     tables = response.json()["result"]["tables"]
                     self.assertAlmostEqual(

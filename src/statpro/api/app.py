@@ -11,7 +11,7 @@ from fastapi import FastAPI, Query, Response
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StrictInt
 
 from statpro.analyses.capability import normal_process_capability
 from statpro.analyses.doe import (
@@ -32,7 +32,7 @@ from statpro.analyses.doe import (
     plackett_burman_design,
 )
 from statpro.analyses.msa import MeasurementRecord, gage_rr_crossed
-from statpro.analyses.spc import individuals_moving_range, xbar_r
+from statpro.analyses.spc import individuals_moving_range, np_chart, p_chart, xbar_r
 from statpro.application.documents import (
     AtomicJsonDocumentRepository,
     DocumentConflictError,
@@ -88,6 +88,12 @@ class XbarRRunRequest(ApiModel):
     run_id: RunId
     subgroups: list[list[float]]
     rules: Literal["basic", "nelson"] = "basic"
+
+
+class AttributeChartRunRequest(ApiModel):
+    run_id: RunId
+    nonconforming: list[StrictInt]
+    sample_sizes: list[StrictInt]
 
 
 class CapabilityRunRequest(ApiModel):
@@ -540,6 +546,30 @@ def create_app(repository: DocumentRepository) -> FastAPI:
             repository,
             request.run_id,
             xbar_r(request.subgroups, rules=request.rules),
+        )
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _response(stored)
+
+    @app.post("/v1/analysis-runs/p-chart", status_code=201, response_model=StoredRunResponse)
+    def run_p_chart(
+        request: AttributeChartRunRequest, response: Response
+    ) -> StoredRunResponse:
+        stored = _save_run(
+            repository,
+            request.run_id,
+            p_chart(request.nonconforming, request.sample_sizes),
+        )
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _response(stored)
+
+    @app.post("/v1/analysis-runs/np-chart", status_code=201, response_model=StoredRunResponse)
+    def run_np_chart(
+        request: AttributeChartRunRequest, response: Response
+    ) -> StoredRunResponse:
+        stored = _save_run(
+            repository,
+            request.run_id,
+            np_chart(request.nonconforming, request.sample_sizes),
         )
         response.headers["ETag"] = f'"{stored.etag}"'
         return _response(stored)

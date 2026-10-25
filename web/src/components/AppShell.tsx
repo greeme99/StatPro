@@ -5,7 +5,7 @@ import { getHealth } from "../api";
 
 const navigation = [
   { to: "/", label: "홈", icon: Home },
-  { to: "/analyses/imr/new", label: "분석", icon: BarChart3 },
+  { to: "/analyses/spc/attribute", label: "SPC", icon: BarChart3 },
   { to: "/data", label: "데이터", icon: Database },
   { to: "/fmea", label: "FMEA", icon: FileWarning },
 ];

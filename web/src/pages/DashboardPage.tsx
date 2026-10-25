@@ -10,6 +10,8 @@ const ProcessRail = lazy(() => import("../components/ProcessRail").then((module)
 
 const labels: Record<string, string> = {
   "spc.imr": "I-MR 관리도",
+  "spc.p_chart": "p 관리도",
+  "spc.np_chart": "np 관리도",
   "spc.xbar_r": "Xbar-R 관리도",
   "capability.normal_individuals": "정규 공정능력",
   "doe.full_factorial_2level": "2수준 완전요인 DOE",
@@ -49,7 +51,7 @@ export function DashboardPage() {
           <h1>공정 판단을 한 화면에서</h1>
           <p>분석 실행부터 관리한계, 경고, 계산 근거까지 같은 기록으로 확인합니다.</p>
         </div>
-        <div className="page-actions"><Link to="/analyses/doe/box-behnken"><Button icon={<FlaskConical />}>DOE Box–Behnken</Button></Link><Link to="/analyses/doe/central-composite"><Button icon={<FlaskConical />}>DOE 반응표면</Button></Link><Link to="/analyses/doe/plackett-burman"><Button icon={<FlaskConical />}>DOE 선별설계</Button></Link><Link to="/analyses/doe/fractional-factorial"><Button icon={<FlaskConical />}>DOE 일부요인</Button></Link><Link to="/analyses/doe/response-optimizer"><Button icon={<FlaskConical />}>DOE 응답 최적화</Button></Link><Link to="/analyses/doe/full-factorial"><Button icon={<FlaskConical />}>새 DOE 분석</Button></Link><Link to="/analyses/imr/new"><Button variant="primary" icon={<FlaskConical />}>새 I-MR 분석</Button></Link></div>
+        <div className="page-actions"><Link to="/analyses/doe/box-behnken"><Button icon={<FlaskConical />}>DOE Box–Behnken</Button></Link><Link to="/analyses/doe/central-composite"><Button icon={<FlaskConical />}>DOE 반응표면</Button></Link><Link to="/analyses/doe/plackett-burman"><Button icon={<FlaskConical />}>DOE 선별설계</Button></Link><Link to="/analyses/doe/fractional-factorial"><Button icon={<FlaskConical />}>DOE 일부요인</Button></Link><Link to="/analyses/doe/response-optimizer"><Button icon={<FlaskConical />}>DOE 응답 최적화</Button></Link><Link to="/analyses/doe/full-factorial"><Button icon={<FlaskConical />}>새 DOE 분석</Button></Link><Link to="/analyses/spc/attribute"><Button icon={<Gauge />}>p · np 관리도</Button></Link><Link to="/analyses/imr/new"><Button variant="primary" icon={<FlaskConical />}>새 I-MR 분석</Button></Link></div>
       </section>
 
       <section className="metric-grid" aria-label="분석 현황">

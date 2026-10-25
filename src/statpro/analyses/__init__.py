@@ -16,7 +16,7 @@ from statpro.analyses.doe import (
     full_factorial_2level,
     plackett_burman_design,
 )
-from statpro.analyses.spc import individuals_moving_range, xbar_r
+from statpro.analyses.spc import individuals_moving_range, np_chart, p_chart, xbar_r
 
 __all__ = [
     "FactorDefinition",
@@ -33,6 +33,8 @@ __all__ = [
     "full_factorial_2level",
     "individuals_moving_range",
     "normal_process_capability",
+    "np_chart",
+    "p_chart",
     "plackett_burman_design",
     "xbar_r",
 ]

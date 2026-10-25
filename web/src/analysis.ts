@@ -49,6 +49,69 @@ export function toImrView(result: ResultBundle | undefined): ImrView | null {
   return { points, center: limits.center, ucl: limits.ucl, lcl: limits.lcl };
 }
 
+export type AttributeChartPoint = {
+  index: number;
+  nonconforming: number;
+  sampleSize: number;
+  statistic: number;
+  center: number;
+  ucl: number;
+  lcl: number;
+  signal: boolean;
+};
+
+export type AttributeChartView = {
+  chart: "p" | "np";
+  points: AttributeChartPoint[];
+  pooledProportion: number;
+  totalNonconforming: number;
+  totalInspected: number;
+  signalCount: number;
+};
+
+export function toAttributeChartView(
+  result: ResultBundle | undefined,
+): AttributeChartView | null {
+  if (!result || !["spc.p_chart", "spc.np_chart"].includes(result.analysis_type)) return null;
+  const rows = result.tables.chart_points;
+  const summary = result.tables.summary;
+  if (!Array.isArray(rows) || !summary) return null;
+
+  const points: AttributeChartPoint[] = [];
+  for (const row of rows) {
+    if (
+      typeof row !== "object" || row === null
+      || !["index", "nonconforming", "sample_size", "statistic", "center", "ucl", "lcl"].every(
+        (key) => typeof row[key] === "number" && Number.isFinite(row[key]),
+      )
+      || typeof row.signal !== "boolean"
+    ) return null;
+    points.push({
+      index: row.index + 1,
+      nonconforming: row.nonconforming,
+      sampleSize: row.sample_size,
+      statistic: row.statistic,
+      center: row.center,
+      ucl: row.ucl,
+      lcl: row.lcl,
+      signal: row.signal,
+    });
+  }
+  if (
+    typeof summary.pooled_proportion !== "number"
+    || typeof summary.total_nonconforming !== "number"
+    || typeof summary.total_inspected !== "number"
+  ) return null;
+  return {
+    chart: result.analysis_type === "spc.p_chart" ? "p" : "np",
+    points,
+    pooledProportion: summary.pooled_proportion,
+    totalNonconforming: summary.total_nonconforming,
+    totalInspected: summary.total_inspected,
+    signalCount: points.filter((point) => point.signal).length,
+  };
+}
+
 export type DoeCoefficient = {
   term: string;
   order: number;

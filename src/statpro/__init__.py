@@ -16,7 +16,7 @@ from statpro.analyses.doe import (
     plackett_burman_design,
 )
 from statpro.analyses.msa import MeasurementRecord, gage_rr_crossed
-from statpro.analyses.spc import individuals_moving_range, xbar_r
+from statpro.analyses.spc import individuals_moving_range, np_chart, p_chart, xbar_r
 from statpro.domain.data import DatasetSnapshot, DataType, WorksheetSnapshot
 from statpro.domain.models import ResultBundle
 from statpro.version import __version__
@@ -42,6 +42,8 @@ __all__ = [
     "gage_rr_crossed",
     "individuals_moving_range",
     "normal_process_capability",
+    "np_chart",
+    "p_chart",
     "plackett_burman_design",
     "xbar_r",
 ]

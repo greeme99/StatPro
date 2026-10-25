@@ -39,6 +39,19 @@ export function createImrRun(payload: {
   });
 }
 
+export function createAttributeChartRun(payload: {
+  run_id: string;
+  chart: "p" | "np";
+  nonconforming: number[];
+  sample_sizes: number[];
+}): Promise<StoredRun> {
+  const { chart, ...body } = payload;
+  return request(`/v1/analysis-runs/${chart}-chart`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
 export function createDoeAnalysisRun(payload: {
   run_id: string;
   factors: Array<{ name: string; low: number; high: number }>;

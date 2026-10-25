@@ -14,6 +14,33 @@ from statpro.cli import main
 
 
 class CliBoundaryTests(unittest.TestCase):
+    def test_attribute_chart_commands_return_shared_point_contract(self) -> None:
+        for command, expected_type in (
+            ("p-chart", "spc.p_chart"),
+            ("np-chart", "spc.np_chart"),
+        ):
+            with self.subTest(command=command), tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / f"{command}.json"
+                path.write_text(
+                    json.dumps(
+                        {
+                            "nonconforming": [2, 3, 2, 3, 25],
+                            "sample_sizes": [100, 100, 100, 100, 100],
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+                output = io.StringIO()
+
+                with redirect_stdout(output):
+                    exit_code = main([command, "--input", str(path)])
+
+                result = json.loads(output.getvalue())["result"]
+                self.assertEqual(exit_code, 0)
+                self.assertEqual(result["analysis_type"], expected_type)
+                self.assertEqual(result["diagnostics"]["signal_indices"], [4])
+                self.assertEqual(len(result["tables"]["chart_points"]), 5)
+
     def test_imr_returns_selected_supplementary_rule_signals(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "imr.json"
