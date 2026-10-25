@@ -190,6 +190,18 @@ class LocalApiContractTests(unittest.TestCase):
                 "spc.ewma",
             ),
             (
+                "/v1/analysis-runs/cusum",
+                {
+                    "run_id": "cusum",
+                    "values": [0, 0, 1, 1, 1, 1, 1, 1, 1],
+                    "target": 0,
+                    "sigma": 1,
+                    "reference_value": 0.5,
+                    "decision_interval": 4,
+                },
+                "spc.cusum",
+            ),
+            (
                 "/v1/analysis-runs/capability-normal",
                 {"run_id": "cap", "values": [98, 99, 100, 101, 102], "lsl": 95, "usl": 105},
                 "capability.normal_individuals",

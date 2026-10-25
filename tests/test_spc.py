@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from statpro.analyses.spc import (
     c_chart,
+    cusum_chart,
     ewma_chart,
     individuals_moving_range,
     nelson_signals,
@@ -169,6 +170,61 @@ class EwmaChartTests(unittest.TestCase):
                 with self.assertRaises(AnalysisInputError) as context:
                     ewma_chart([1.0, 2.0], **kwargs)
                 self.assertEqual(context.exception.detail.code, code)
+
+
+class CusumChartTests(unittest.TestCase):
+    def test_matches_public_standardized_tabular_recurrence(self) -> None:
+        result = cusum_chart(
+            [1.0] * 10,
+            target=0.0,
+            sigma=1.0,
+            reference_value=0.5,
+            decision_interval=4.0,
+        )
+
+        points = result.tables["chart_points"]
+        self.assertEqual(result.analysis_type, "spc.cusum")
+        self.assertAlmostEqual(points[0]["upper_cusum"], 0.5)
+        self.assertAlmostEqual(points[7]["upper_cusum"], 4.0)
+        self.assertFalse(points[7]["signal"])
+        self.assertTrue(points[8]["signal"])
+        self.assertEqual(points[8]["signal_direction"], "upper")
+
+    def test_detects_negative_shift_on_lower_cusum(self) -> None:
+        result = cusum_chart(
+            [-1.0] * 10,
+            target=0.0,
+            sigma=1.0,
+            reference_value=0.5,
+            decision_interval=4.0,
+        )
+
+        self.assertEqual(result.diagnostics["upper_signal_indices"], [])
+        self.assertEqual(result.diagnostics["lower_signal_indices"][0], 8)
+        self.assertAlmostEqual(result.tables["chart_points"][8]["lower_cusum"], -4.5)
+
+    def test_estimates_target_and_sigma_with_explicit_warnings(self) -> None:
+        result = cusum_chart([10.0, 10.2, 9.9, 10.1])
+
+        self.assertEqual(result.parameters["mean_source"], "estimated")
+        self.assertEqual(result.parameters["sigma_source"], "estimated_moving_range")
+        self.assertEqual(len(result.warnings), 2)
+
+    def test_rejects_invalid_design_parameters_and_zero_variation(self) -> None:
+        cases = [
+            ({"reference_value": -0.1}, "invalid_reference_value"),
+            ({"decision_interval": 0.0}, "invalid_decision_interval"),
+            ({"decision_interval": 101.0}, "invalid_decision_interval"),
+            ({"sigma": 0.0}, "invalid_process_sigma"),
+        ]
+        for kwargs, code in cases:
+            with self.subTest(code=code):
+                with self.assertRaises(AnalysisInputError) as context:
+                    cusum_chart([1.0, 2.0], **kwargs)
+                self.assertEqual(context.exception.detail.code, code)
+        with self.assertRaises(AnalysisInputError) as context:
+            cusum_chart([1.0, 1.0, 1.0])
+        self.assertEqual(context.exception.detail.code, "invalid_process_sigma")
 
 
 class XbarRTests(unittest.TestCase):

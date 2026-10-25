@@ -170,6 +170,31 @@ class CliBoundaryTests(unittest.TestCase):
         self.assertTrue(result["parameters"]["startup_adjusted_limits"])
         self.assertEqual(len(result["tables"]["chart_points"]), 7)
 
+    def test_cusum_returns_two_sided_standardized_sums(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "cusum.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "values": [1] * 10,
+                        "target": 0,
+                        "sigma": 1,
+                        "reference_value": 0.5,
+                        "decision_interval": 4,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            output = io.StringIO()
+            with redirect_stdout(output):
+                exit_code = main(["cusum", "--input", str(path)])
+
+        result = json.loads(output.getvalue())["result"]
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(result["analysis_type"], "spc.cusum")
+        self.assertEqual(result["diagnostics"]["upper_signal_indices"][0], 8)
+        self.assertEqual(result["diagnostics"]["lower_signal_indices"], [])
+
     def test_doe_analysis_returns_effects_anova_and_residuals(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "doe-analysis.json"

@@ -30,6 +30,18 @@ NIST_EWMA_SOURCE = ProvenanceSource(
     title="NIST/SEMATECH 6.3.2.4 EWMA Control Charts",
     url="https://www.itl.nist.gov/div898/handbook/pmc/section3/pmc324.htm",
 )
+NIST_CUSUM_SOURCE = ProvenanceSource(
+    title="NIST/SEMATECH 6.3.2.3 CUSUM Control Charts",
+    url="https://www.itl.nist.gov/div898/handbook/pmc/section3/pmc323.htm",
+)
+MINITAB_CUSUM_SOURCE = ProvenanceSource(
+    title="Minitab public documentation: Methods and formulas for CUSUM Chart",
+    url=(
+        "https://support.minitab.com/en-us/minitab/help-and-how-to/quality-and-process-improvement/"
+        "control-charts/how-to/time-weighted-charts/cusum-chart/methods-and-formulas/"
+        "methods-and-formulas/"
+    ),
+)
 MINITAB_EWMA_SOURCE = ProvenanceSource(
     title="Minitab public documentation: Time-weighted control charts",
     url=(
@@ -872,6 +884,157 @@ def ewma_chart(
             "The process mean and sigma represent an in-control baseline.",
             "Startup-adjusted limits use the exact finite-time EWMA variance factor.",
             "A limit signal is an investigation candidate and does not establish a special cause by itself.",
+        ),
+        warnings=tuple(warnings),
+        provenance=tuple(provenance),
+    )
+
+
+def cusum_chart(
+    values: Sequence[float],
+    *,
+    target: float | None = None,
+    sigma: float | None = None,
+    reference_value: float = 0.5,
+    decision_interval: float = 4.0,
+) -> ResultBundle:
+    """Calculate a standardized two-sided tabular CUSUM for individuals."""
+
+    observations = finite_values(values, "values")
+    if len(observations) < 2:
+        raise AnalysisInputError(
+            "insufficient_observations",
+            "CUSUM requires at least two finite observations.",
+            "values",
+        )
+    k = finite_values([reference_value], "reference_value")[0]
+    h = finite_values([decision_interval], "decision_interval")[0]
+    if k < 0.0:
+        raise AnalysisInputError(
+            "invalid_reference_value",
+            "CUSUM reference value k must be nonnegative.",
+            "reference_value",
+        )
+    if not 0.0 < h <= 100.0:
+        raise AnalysisInputError(
+            "invalid_decision_interval",
+            "CUSUM decision interval h must be greater than 0 and no greater than 100.",
+            "decision_interval",
+        )
+
+    center = fmean(observations) if target is None else finite_values([target], "target")[0]
+    moving_ranges = [abs(current - previous) for previous, current in pairwise(observations)]
+    average_moving_range = fmean(moving_ranges)
+    if sigma is None:
+        process_sigma = average_moving_range / 1.128
+        sigma_source = "estimated_moving_range"
+    else:
+        process_sigma = finite_values([sigma], "sigma")[0]
+        sigma_source = "historical"
+    if process_sigma <= 0.0:
+        raise AnalysisInputError(
+            "invalid_process_sigma",
+            "CUSUM process sigma must be greater than 0.",
+            "sigma" if sigma is not None else "values",
+        )
+
+    upper = 0.0
+    lower_magnitude = 0.0
+    upper_values: list[float] = []
+    lower_values: list[float] = []
+    points: list[dict[str, object]] = []
+    upper_signal_indices: list[int] = []
+    lower_signal_indices: list[int] = []
+    for index, observation in enumerate(observations):
+        standardized = (observation - center) / process_sigma
+        upper = max(0.0, upper + standardized - k)
+        lower_magnitude = max(0.0, lower_magnitude - standardized - k)
+        lower = -lower_magnitude if lower_magnitude > 0.0 else 0.0
+        upper_signal = upper > h
+        lower_signal = lower < -h
+        if upper_signal:
+            upper_signal_indices.append(index)
+        if lower_signal:
+            lower_signal_indices.append(index)
+        direction = (
+            "both"
+            if upper_signal and lower_signal
+            else "upper"
+            if upper_signal
+            else "lower"
+            if lower_signal
+            else None
+        )
+        upper_values.append(upper)
+        lower_values.append(lower)
+        points.append(
+            {
+                "index": index,
+                "observation": observation,
+                "standardized_observation": standardized,
+                "upper_cusum": upper,
+                "lower_cusum": lower,
+                "center": 0.0,
+                "lcl": -h,
+                "ucl": h,
+                "signal": direction is not None,
+                "signal_direction": direction,
+            }
+        )
+
+    signal_indices = sorted(set(upper_signal_indices + lower_signal_indices))
+    warnings: list[str] = []
+    if target is None:
+        warnings.append(
+            "The target was estimated from the monitored observations; use a stable historical target for prospective monitoring."
+        )
+    if sigma is None:
+        warnings.append(
+            "Process sigma was estimated as average two-point moving range divided by 1.128; use a stable historical sigma when available."
+        )
+    payload = {
+        "values": observations,
+        "target": center if target is not None else None,
+        "sigma": process_sigma if sigma is not None else None,
+        "reference_value": k,
+        "decision_interval": h,
+    }
+    provenance = [NIST_CUSUM_SOURCE, MINITAB_CUSUM_SOURCE]
+    if sigma is None:
+        provenance.append(NIST_IMR_SOURCE)
+    return ResultBundle(
+        analysis_type="spc.cusum",
+        engine_version=ENGINE_VERSION,
+        input_digest=input_digest(payload),
+        parameters={
+            "target": center,
+            "process_sigma": process_sigma,
+            "mean_source": "estimated" if target is None else "historical",
+            "sigma_source": sigma_source,
+            "reference_value": k,
+            "decision_interval": h,
+            "standardized": True,
+            "initial_cusum": 0.0,
+        },
+        tables={"chart_points": points},
+        plots={
+            "cusum": {
+                "upper_values": upper_values,
+                "lower_values": lower_values,
+                "signal_indices": signal_indices,
+            }
+        },
+        diagnostics={
+            "signal_indices": signal_indices,
+            "upper_signal_indices": upper_signal_indices,
+            "lower_signal_indices": lower_signal_indices,
+            "average_moving_range": average_moving_range,
+        },
+        assumptions=(
+            "Observations are continuous, independent, and ordered in process time.",
+            "The process target and sigma represent an in-control baseline.",
+            "Reference value k and decision interval h are expressed in process-sigma units.",
+            "A CUSUM limit signal is an investigation candidate and does not establish a special cause by itself.",
         ),
         warnings=tuple(warnings),
         provenance=tuple(provenance),

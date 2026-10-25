@@ -37,6 +37,7 @@ from statpro.analyses.doe import (
 from statpro.analyses.msa import MeasurementRecord, gage_rr_crossed
 from statpro.analyses.spc import (
     c_chart,
+    cusum_chart,
     ewma_chart,
     individuals_moving_range,
     np_chart,
@@ -119,6 +120,15 @@ class EwmaRunRequest(ApiModel):
     sigma: float | None = None
     weight: float = 0.2
     limit_width: float = 3.0
+
+
+class CusumRunRequest(ApiModel):
+    run_id: RunId
+    values: list[float]
+    target: float | None = None
+    sigma: float | None = None
+    reference_value: float = 0.5
+    decision_interval: float = 4.0
 
 
 class AttributeChartRunRequest(ApiModel):
@@ -773,6 +783,22 @@ def create_app(repository: DocumentRepository) -> FastAPI:
                 sigma=request.sigma,
                 weight=request.weight,
                 limit_width=request.limit_width,
+            ),
+        )
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _response(stored)
+
+    @app.post("/v1/analysis-runs/cusum", status_code=201, response_model=StoredRunResponse)
+    def run_cusum(request: CusumRunRequest, response: Response) -> StoredRunResponse:
+        stored = _save_run(
+            repository,
+            request.run_id,
+            cusum_chart(
+                request.values,
+                target=request.target,
+                sigma=request.sigma,
+                reference_value=request.reference_value,
+                decision_interval=request.decision_interval,
             ),
         )
         response.headers["ETag"] = f'"{stored.etag}"'

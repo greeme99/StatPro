@@ -149,6 +149,67 @@ export function toEwmaView(result: ResultBundle | undefined): EwmaView | null {
   return { points, weight, limitWidth, processSigma, meanSource, sigmaSource };
 }
 
+export type CusumPoint = {
+  index: number;
+  observation: number;
+  upperCusum: number;
+  lowerCusum: number;
+  center: number;
+  ucl: number;
+  lcl: number;
+  signal: boolean;
+  signalDirection: "upper" | "lower" | "both" | null;
+};
+
+export type CusumView = {
+  points: CusumPoint[];
+  referenceValue: number;
+  decisionInterval: number;
+  processSigma: number;
+  meanSource: string;
+  sigmaSource: string;
+};
+
+export function toCusumView(result: ResultBundle | undefined): CusumView | null {
+  if (!result || result.analysis_type !== "spc.cusum") return null;
+  const rows = result.tables.chart_points;
+  if (!Array.isArray(rows)) return null;
+  const points: CusumPoint[] = [];
+  for (const row of rows) {
+    if (
+      typeof row !== "object" || row === null
+      || !["index", "observation", "upper_cusum", "lower_cusum", "center", "ucl", "lcl"].every(
+        (key) => typeof row[key] === "number" && Number.isFinite(row[key]),
+      )
+      || typeof row.signal !== "boolean"
+      || (row.signal_direction !== null && !["upper", "lower", "both"].includes(String(row.signal_direction)))
+    ) return null;
+    points.push({
+      index: row.index + 1,
+      observation: row.observation,
+      upperCusum: row.upper_cusum,
+      lowerCusum: row.lower_cusum,
+      center: row.center,
+      ucl: row.ucl,
+      lcl: row.lcl,
+      signal: row.signal,
+      signalDirection: row.signal_direction as CusumPoint["signalDirection"],
+    });
+  }
+  const referenceValue = result.parameters.reference_value;
+  const decisionInterval = result.parameters.decision_interval;
+  const processSigma = result.parameters.process_sigma;
+  const meanSource = result.parameters.mean_source;
+  const sigmaSource = result.parameters.sigma_source;
+  if (
+    typeof referenceValue !== "number" || !Number.isFinite(referenceValue)
+    || typeof decisionInterval !== "number" || !Number.isFinite(decisionInterval)
+    || typeof processSigma !== "number" || !Number.isFinite(processSigma)
+    || typeof meanSource !== "string" || typeof sigmaSource !== "string"
+  ) return null;
+  return { points, referenceValue, decisionInterval, processSigma, meanSource, sigmaSource };
+}
+
 export type AttributeChartPoint = {
   index: number;
   eventCount: number;

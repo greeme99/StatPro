@@ -31,6 +31,7 @@ from statpro.analyses.doe import (
 from statpro.analyses.msa import MeasurementRecord, gage_rr_crossed
 from statpro.analyses.spc import (
     c_chart,
+    cusum_chart,
     ewma_chart,
     individuals_moving_range,
     np_chart,
@@ -48,6 +49,7 @@ def _parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
     for command in (
         "c-chart",
+        "cusum",
         "ewma",
         "imr",
         "np-chart",
@@ -108,6 +110,14 @@ def main(argv: Sequence[str] | None = None) -> int:
                 sigma=payload.get("sigma"),
                 weight=payload.get("weight", 0.2),
                 limit_width=payload.get("limit_width", 3.0),
+            )
+        elif args.command == "cusum":
+            result = cusum_chart(
+                payload["values"],
+                target=payload.get("target"),
+                sigma=payload.get("sigma"),
+                reference_value=payload.get("reference_value", 0.5),
+                decision_interval=payload.get("decision_interval", 4.0),
             )
         elif args.command == "xbar-r":
             result = xbar_r(

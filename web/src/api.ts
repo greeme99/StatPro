@@ -64,6 +64,20 @@ export function createEwmaRun(payload: {
   });
 }
 
+export function createCusumRun(payload: {
+  run_id: string;
+  values: number[];
+  target?: number;
+  sigma?: number;
+  reference_value: number;
+  decision_interval: number;
+}): Promise<StoredRun> {
+  return request("/v1/analysis-runs/cusum", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function createAttributeChartRun(payload: {
   run_id: string;
   chart: "p" | "np" | "c" | "u";

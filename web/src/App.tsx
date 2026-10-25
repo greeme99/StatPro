@@ -16,6 +16,7 @@ import { DoeBoxBehnkenSetupPage } from "./pages/DoeBoxBehnkenSetupPage";
 import { AttributeChartSetupPage } from "./pages/AttributeChartSetupPage";
 import { XbarSSetupPage } from "./pages/XbarSSetupPage";
 import { EwmaSetupPage } from "./pages/EwmaSetupPage";
+import { CusumSetupPage } from "./pages/CusumSetupPage";
 
 export default function App() {
   return (
@@ -26,6 +27,7 @@ export default function App() {
         <Route path="/analyses/spc/attribute" element={<AttributeChartSetupPage />} />
         <Route path="/analyses/spc/xbar-s" element={<XbarSSetupPage />} />
         <Route path="/analyses/spc/ewma" element={<EwmaSetupPage />} />
+        <Route path="/analyses/spc/cusum" element={<CusumSetupPage />} />
         <Route path="/analyses/doe/full-factorial" element={<DoeSetupPage />} />
         <Route path="/analyses/doe/fractional-factorial" element={<DoeFractionalSetupPage />} />
         <Route path="/analyses/doe/plackett-burman" element={<DoePlackettBurmanSetupPage />} />
