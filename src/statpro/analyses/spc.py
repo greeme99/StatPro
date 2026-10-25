@@ -30,6 +30,10 @@ NIST_ATTRIBUTE_SOURCE = ProvenanceSource(
     title="NIST/SEMATECH 6.3.3 What are Attributes Control Charts?",
     url="https://www.itl.nist.gov/div898/handbook/pmc/section3/pmc33.htm",
 )
+NIST_POISSON_SOURCE = ProvenanceSource(
+    title="NIST/SEMATECH 6.3.3.1 Counts Control Charts",
+    url="https://www.itl.nist.gov/div898/handbook/pmc/section3/pmc331.htm",
+)
 MINITAB_SPECIAL_CAUSE_SOURCE = ProvenanceSource(
     title="Minitab public documentation: Tests for special causes in control charts",
     url="https://support.minitab.com/en-us/minitab/help-and-how-to/quality-and-process-improvement/control-charts/supporting-topics/basics/using-tests-for-special-causes/",
@@ -138,6 +142,8 @@ def _binomial_attribute_chart(
         points.append(
             {
                 "index": index,
+                "event_count": count,
+                "opportunity": size,
                 "nonconforming": count,
                 "sample_size": size,
                 "statistic": statistic,
@@ -226,6 +232,154 @@ def np_chart(
     """Calculate an np chart for subgroup nonconforming counts."""
 
     return _binomial_attribute_chart(nonconforming, sample_sizes, chart="np")
+
+
+def _poisson_attribute_chart(
+    defects: Sequence[object],
+    inspection_units: Sequence[object],
+    *,
+    chart: Literal["c", "u"],
+) -> ResultBundle:
+    """Own normalization and calculation for Poisson attribute charts."""
+
+    counts = _nonnegative_integers(defects, "defects")
+    units = finite_values(inspection_units, "inspection_units")
+    if len(counts) < 2:
+        raise AnalysisInputError(
+            "insufficient_subgroups",
+            "Attribute control charts require at least two ordered subgroups.",
+            "defects",
+        )
+    if len(counts) != len(units):
+        raise AnalysisInputError(
+            "mismatched_subgroups",
+            "Defect counts and inspection units must have the same length.",
+            "inspection_units",
+        )
+    for index, unit_count in enumerate(units):
+        if unit_count <= 0.0:
+            raise AnalysisInputError(
+                "invalid_inspection_units",
+                f"Inspection units at index {index} must be positive.",
+                "inspection_units",
+            )
+    if chart == "c" and any(unit_count != units[0] for unit_count in units[1:]):
+        raise AnalysisInputError(
+            "unequal_opportunity",
+            "A c chart requires equal inspection opportunity in every subgroup; use a u chart when opportunity varies.",
+            "inspection_units",
+        )
+
+    total_defects = sum(counts)
+    total_units = sum(units)
+    average_rate = total_defects / total_units
+    points: list[dict[str, object]] = []
+    signal_indices: list[int] = []
+    unclamped_limits: list[dict[str, float]] = []
+    for index, (count, unit_count) in enumerate(zip(counts, units, strict=True)):
+        if chart == "c":
+            statistic = float(count)
+            center = average_rate * unit_count
+            sigma = sqrt(center)
+        else:
+            statistic = count / unit_count
+            center = average_rate
+            sigma = sqrt(average_rate / unit_count)
+        raw_lcl = center - 3.0 * sigma
+        raw_ucl = center + 3.0 * sigma
+        lcl = max(0.0, raw_lcl)
+        ucl = raw_ucl
+        signal = statistic < lcl or statistic > ucl
+        if signal:
+            signal_indices.append(index)
+        points.append(
+            {
+                "index": index,
+                "event_count": count,
+                "opportunity": unit_count,
+                "defects": count,
+                "inspection_units": unit_count,
+                "statistic": statistic,
+                "center": center,
+                "lcl": lcl,
+                "ucl": ucl,
+                "signal": signal,
+            }
+        )
+        unclamped_limits.append({"lcl": raw_lcl, "ucl": raw_ucl})
+
+    warnings: list[str] = []
+    if average_rate == 0.0:
+        warnings.append(
+            "The estimated defect rate is zero, so estimated Poisson variation and all three-sigma limits collapse."
+        )
+    if any(unit_count * average_rate < 5.0 for unit_count in units):
+        warnings.append(
+            "At least one subgroup has fewer than five expected defects; the normal-approximation limits may be inaccurate."
+        )
+
+    payload = {"defects": counts, "inspection_units": units, "chart": chart}
+    return ResultBundle(
+        analysis_type=f"spc.{chart}_chart",
+        engine_version=ENGINE_VERSION,
+        input_digest=input_digest(payload),
+        parameters={
+            "chart": chart,
+            "distribution": "poisson",
+            "sigma_multiplier": 3.0,
+            "limit_method": "normal_approximation",
+            "opportunity_mode": "variable" if len(set(units)) > 1 else "constant",
+        },
+        tables={
+            "chart_points": points,
+            "summary": {
+                "total_defects": total_defects,
+                "total_inspection_units": total_units,
+                "average_defects_per_unit": average_rate,
+            },
+        },
+        plots={
+            "attribute_chart": {
+                "points": points,
+                "signal_indices": signal_indices,
+            }
+        },
+        diagnostics={
+            "subgroup_count": len(points),
+            "signal_indices": signal_indices,
+            "signal_count": len(signal_indices),
+            "unclamped_limits": unclamped_limits,
+            "limits_clamped_to_parameter_space": any(
+                raw["lcl"] < 0.0 for raw in unclamped_limits
+            ),
+        },
+        assumptions=(
+            "Subgroups are ordered in process time and represent comparable process conditions.",
+            "Defects are discrete events and more than one defect may occur on an inspected unit.",
+            "Defects occur independently at a stable average Poisson rate within the Phase I baseline.",
+            "Inspection opportunity is comparable after applying the supplied inspection-unit exposure.",
+            "Signals identify investigation candidates and do not by themselves prove a special cause.",
+        ),
+        warnings=tuple(warnings),
+        provenance=(NIST_ATTRIBUTE_SOURCE, NIST_POISSON_SOURCE),
+    )
+
+
+def c_chart(
+    defects: Sequence[object], inspection_units: Sequence[object] | None = None
+) -> ResultBundle:
+    """Calculate a c chart for defect counts with equal inspection opportunity."""
+
+    units = [1.0] * len(defects) if inspection_units is None else inspection_units
+    return _poisson_attribute_chart(defects, units, chart="c")
+
+
+def u_chart(
+    defects: Sequence[object], inspection_units: Sequence[object]
+) -> ResultBundle:
+    """Calculate a u chart for defects per inspection unit."""
+
+    return _poisson_attribute_chart(defects, inspection_units, chart="u")
 
 
 def _append_rule_signal(

@@ -16,7 +16,14 @@ from statpro.analyses.doe import (
     full_factorial_2level,
     plackett_burman_design,
 )
-from statpro.analyses.spc import individuals_moving_range, np_chart, p_chart, xbar_r
+from statpro.analyses.spc import (
+    c_chart,
+    individuals_moving_range,
+    np_chart,
+    p_chart,
+    u_chart,
+    xbar_r,
+)
 
 __all__ = [
     "FactorDefinition",
@@ -27,6 +34,7 @@ __all__ = [
     "analyze_full_factorial_2level",
     "analyze_plackett_burman",
     "box_behnken_design",
+    "c_chart",
     "central_composite_design",
     "explore_central_composite_surface",
     "fractional_factorial_2level",
@@ -36,5 +44,6 @@ __all__ = [
     "np_chart",
     "p_chart",
     "plackett_burman_design",
+    "u_chart",
     "xbar_r",
 ]

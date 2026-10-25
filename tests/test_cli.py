@@ -41,6 +41,28 @@ class CliBoundaryTests(unittest.TestCase):
                 self.assertEqual(result["diagnostics"]["signal_indices"], [4])
                 self.assertEqual(len(result["tables"]["chart_points"]), 5)
 
+    def test_poisson_attribute_chart_commands_return_shared_point_contract(self) -> None:
+        cases = (
+            ("c-chart", "spc.c_chart", {"defects": [1, 2, 1, 2, 12]}),
+            (
+                "u-chart",
+                "spc.u_chart",
+                {"defects": [1, 2, 1, 2, 12], "inspection_units": [1, 2, 1, 2, 2]},
+            ),
+        )
+        for command, expected_type, payload in cases:
+            with self.subTest(command=command), tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / f"{command}.json"
+                path.write_text(json.dumps(payload), encoding="utf-8")
+                output = io.StringIO()
+                with redirect_stdout(output):
+                    exit_code = main([command, "--input", str(path)])
+
+                result = json.loads(output.getvalue())["result"]
+                self.assertEqual(exit_code, 0)
+                self.assertEqual(result["analysis_type"], expected_type)
+                self.assertEqual(len(result["tables"]["chart_points"]), 5)
+
     def test_imr_returns_selected_supplementary_rule_signals(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "imr.json"

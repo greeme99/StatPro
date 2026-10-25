@@ -9,7 +9,7 @@ The repository starts with a dependency-free Python statistical core so formulas
 - Reproducible `ResultBundle` with input SHA-256, engine version, warnings, and public-source provenance
 - Individuals and Moving Range (I-MR) control chart with selectable 3-sigma-only, NIST/Western Electric, or Nelson eight-test rules
 - Xbar-R control chart for constant subgroup sizes 2–10 with Nelson tests 1–8 on Xbar and tests 1–4 on R
-- Binomial p and np attribute control charts with pooled Phase I centers, subgroup-specific limits for p, constant-size enforcement for np, and accessible chart/table results
+- Binomial p/np and Poisson c/u attribute control charts with pooled Phase I centers, opportunity-specific limits for p/u, constant-opportunity enforcement for np/c, and accessible chart/table results
 - Normal capability for individual observations with within/overall variation kept distinct
 - Reproducible two-level full factorial DOE analysis, regular fractional-factorial generation/main-effect analysis with full resolution-III foldover, 3–5 factor Box–Behnken design and complete-quadratic response analysis, central-composite response-surface design/modelling with stationary-point/canonical analysis, bounded two-factor surface grids, accessible iso-response contours and projected 3D wireframes, plus Plackett–Burman screening design/response analysis from 12 to 48 runs
 - Balanced crossed Gage R&R using two-way random-effects ANOVA variance components
@@ -33,6 +33,8 @@ $env:PYTHONPATH = "src"
 py -3.12 -m statpro.cli imr --input samples\imr-nist.json
 py -3.12 -m statpro.cli p-chart --input samples\p-chart.json
 py -3.12 -m statpro.cli np-chart --input samples\np-chart.json
+py -3.12 -m statpro.cli c-chart --input samples\c-chart.json
+py -3.12 -m statpro.cli u-chart --input samples\u-chart.json
 py -3.12 -m statpro.cli xbar-r --input samples\xbar-r.json
 py -3.12 -m statpro.cli capability-normal --input samples\capability-normal.json
 py -3.12 -m statpro.cli doe-full-factorial --input samples\doe-full-factorial.json

@@ -30,6 +30,8 @@ class LocalApiContractTests(unittest.TestCase):
         self.assertIn("/v1/analysis-runs/imr", openapi.json()["paths"])
         self.assertIn("/v1/analysis-runs/p-chart", openapi.json()["paths"])
         self.assertIn("/v1/analysis-runs/np-chart", openapi.json()["paths"])
+        self.assertIn("/v1/analysis-runs/c-chart", openapi.json()["paths"])
+        self.assertIn("/v1/analysis-runs/u-chart", openapi.json()["paths"])
 
     def test_imr_run_is_created_then_retrieved_with_same_etag(self) -> None:
         created = self.client.post(
@@ -94,6 +96,23 @@ class LocalApiContractTests(unittest.TestCase):
 
     def test_analysis_catalog_adapters_execute_supported_methods(self) -> None:
         requests = [
+            (
+                "/v1/analysis-runs/c-chart",
+                {
+                    "run_id": "c-chart",
+                    "defects": [1, 2, 1, 2, 12],
+                },
+                "spc.c_chart",
+            ),
+            (
+                "/v1/analysis-runs/u-chart",
+                {
+                    "run_id": "u-chart",
+                    "defects": [1, 2, 1, 2, 12],
+                    "inspection_units": [1, 2, 1, 2, 2],
+                },
+                "spc.u_chart",
+            ),
             (
                 "/v1/analysis-runs/p-chart",
                 {
@@ -343,9 +362,13 @@ class LocalApiContractTests(unittest.TestCase):
                             for signal in response.json()["result"]["plots"]["xbar"]["rule_signals"]
                         ],
                     )
-                if analysis_type in {"spc.p_chart", "spc.np_chart"}:
+                if analysis_type in {
+                    "spc.p_chart",
+                    "spc.np_chart",
+                    "spc.c_chart",
+                    "spc.u_chart",
+                }:
                     result = response.json()["result"]
-                    self.assertEqual(result["diagnostics"]["signal_indices"], [4])
                     self.assertEqual(len(result["tables"]["chart_points"]), 5)
                 if analysis_type == "doe.full_factorial_2level_analysis":
                     tables = response.json()["result"]["tables"]

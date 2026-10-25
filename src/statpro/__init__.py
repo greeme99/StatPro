@@ -16,7 +16,14 @@ from statpro.analyses.doe import (
     plackett_burman_design,
 )
 from statpro.analyses.msa import MeasurementRecord, gage_rr_crossed
-from statpro.analyses.spc import individuals_moving_range, np_chart, p_chart, xbar_r
+from statpro.analyses.spc import (
+    c_chart,
+    individuals_moving_range,
+    np_chart,
+    p_chart,
+    u_chart,
+    xbar_r,
+)
 from statpro.domain.data import DatasetSnapshot, DataType, WorksheetSnapshot
 from statpro.domain.models import ResultBundle
 from statpro.version import __version__
@@ -35,6 +42,7 @@ __all__ = [
     "analyze_fractional_factorial_2level",
     "analyze_plackett_burman",
     "box_behnken_design",
+    "c_chart",
     "central_composite_design",
     "explore_central_composite_surface",
     "fractional_factorial_2level",
@@ -45,5 +53,6 @@ __all__ = [
     "np_chart",
     "p_chart",
     "plackett_burman_design",
+    "u_chart",
     "xbar_r",
 ]

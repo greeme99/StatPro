@@ -101,13 +101,15 @@ function statistic(value: number | null, digits = 4) {
 }
 
 function AttributeChartResult({ view }: { view: AttributeChartView }) {
-  const chartLabel = view.chart === "p" ? "p · 부적합률" : "np · 부적합품 수";
-  const statisticLabel = view.chart === "p" ? "부적합률" : "부적합품 수";
+  const chartLabel = { p: "p · 부적합률", np: "np · 부적합품 수", c: "c · 결점 수", u: "u · 단위당 결점 수" }[view.chart];
+  const statisticLabel = { p: "부적합률", np: "부적합품 수", c: "결점 수", u: "단위당 결점 수" }[view.chart];
+  const eventLabel = view.chart === "p" || view.chart === "np" ? "부적합품" : "결점";
+  const opportunityLabel = view.chart === "p" || view.chart === "np" ? "표본 크기" : "검사 단위";
   return <>
     <section className="metric-grid result-metrics" aria-label={`${chartLabel} 결과 요약`}>
       <article className="metric-card"><span>부분군</span><strong>{view.points.length}</strong><small>시간 순서</small></article>
-      <article className="metric-card"><span>전체 검사</span><strong>{view.totalInspected}</strong><small>부적합품 {view.totalNonconforming}</small></article>
-      <article className="metric-card"><span>통합 부적합률</span><strong>{view.pooledProportion.toFixed(4)}</strong><small>Phase I 중심 추정</small></article>
+      <article className="metric-card"><span>전체 검사 기회</span><strong>{view.totalOpportunity}</strong><small>{eventLabel} {view.totalEvents}</small></article>
+      <article className="metric-card"><span>통합 발생률</span><strong>{view.pooledRate.toFixed(4)}</strong><small>Phase I 중심 추정</small></article>
       <article className="metric-card"><span>한계 이탈</span><strong>{view.signalCount}</strong><small>{view.signalCount ? "조사 필요" : "신호 없음"}</small></article>
     </section>
     <section className="panel result-chart-panel">
@@ -116,7 +118,7 @@ function AttributeChartResult({ view }: { view: AttributeChartView }) {
     </section>
     <section className="panel table-panel">
       <header className="panel-heading"><div><span className="eyebrow">ACCESSIBLE DATA</span><h2>부분군별 관리한계</h2></div></header>
-      <div className="table-scroll"><table><thead><tr><th scope="col">부분군</th><th scope="col">부적합품</th><th scope="col">표본 크기</th><th scope="col">{statisticLabel}</th><th scope="col">LCL</th><th scope="col">CL</th><th scope="col">UCL</th><th scope="col">상태</th></tr></thead><tbody>{view.points.map((point) => <tr key={point.index}><td>{point.index}</td><td>{point.nonconforming}</td><td>{point.sampleSize}</td><td>{statistic(point.statistic)}</td><td>{statistic(point.lcl)}</td><td>{statistic(point.center)}</td><td>{statistic(point.ucl)}</td><td>{point.signal ? <span className="status-text is-danger"><AlertTriangle aria-hidden="true" /> 3σ 한계 이탈</span> : <span className="status-text is-success"><CheckCircle2 aria-hidden="true" /> 정상</span>}</td></tr>)}</tbody></table></div>
+      <div className="table-scroll"><table><thead><tr><th scope="col">부분군</th><th scope="col">{eventLabel}</th><th scope="col">{opportunityLabel}</th><th scope="col">{statisticLabel}</th><th scope="col">LCL</th><th scope="col">CL</th><th scope="col">UCL</th><th scope="col">상태</th></tr></thead><tbody>{view.points.map((point) => <tr key={point.index}><td>{point.index}</td><td>{point.eventCount}</td><td>{point.opportunity}</td><td>{statistic(point.statistic)}</td><td>{statistic(point.lcl)}</td><td>{statistic(point.center)}</td><td>{statistic(point.ucl)}</td><td>{point.signal ? <span className="status-text is-danger"><AlertTriangle aria-hidden="true" /> 3σ 한계 이탈</span> : <span className="status-text is-success"><CheckCircle2 aria-hidden="true" /> 정상</span>}</td></tr>)}</tbody></table></div>
     </section>
   </>;
 }

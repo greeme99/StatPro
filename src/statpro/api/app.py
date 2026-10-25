@@ -32,7 +32,14 @@ from statpro.analyses.doe import (
     plackett_burman_design,
 )
 from statpro.analyses.msa import MeasurementRecord, gage_rr_crossed
-from statpro.analyses.spc import individuals_moving_range, np_chart, p_chart, xbar_r
+from statpro.analyses.spc import (
+    c_chart,
+    individuals_moving_range,
+    np_chart,
+    p_chart,
+    u_chart,
+    xbar_r,
+)
 from statpro.application.documents import (
     AtomicJsonDocumentRepository,
     DocumentConflictError,
@@ -94,6 +101,18 @@ class AttributeChartRunRequest(ApiModel):
     run_id: RunId
     nonconforming: list[StrictInt]
     sample_sizes: list[StrictInt]
+
+
+class CChartRunRequest(ApiModel):
+    run_id: RunId
+    defects: list[StrictInt]
+    inspection_units: list[float] | None = None
+
+
+class UChartRunRequest(ApiModel):
+    run_id: RunId
+    defects: list[StrictInt]
+    inspection_units: list[float]
 
 
 class CapabilityRunRequest(ApiModel):
@@ -570,6 +589,26 @@ def create_app(repository: DocumentRepository) -> FastAPI:
             repository,
             request.run_id,
             np_chart(request.nonconforming, request.sample_sizes),
+        )
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _response(stored)
+
+    @app.post("/v1/analysis-runs/c-chart", status_code=201, response_model=StoredRunResponse)
+    def run_c_chart(request: CChartRunRequest, response: Response) -> StoredRunResponse:
+        stored = _save_run(
+            repository,
+            request.run_id,
+            c_chart(request.defects, request.inspection_units),
+        )
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _response(stored)
+
+    @app.post("/v1/analysis-runs/u-chart", status_code=201, response_model=StoredRunResponse)
+    def run_u_chart(request: UChartRunRequest, response: Response) -> StoredRunResponse:
+        stored = _save_run(
+            repository,
+            request.run_id,
+            u_chart(request.defects, request.inspection_units),
         )
         response.headers["ETag"] = f'"{stored.etag}"'
         return _response(stored)

@@ -41,11 +41,14 @@ export function createImrRun(payload: {
 
 export function createAttributeChartRun(payload: {
   run_id: string;
-  chart: "p" | "np";
-  nonconforming: number[];
-  sample_sizes: number[];
+  chart: "p" | "np" | "c" | "u";
+  counts: number[];
+  opportunities: number[];
 }): Promise<StoredRun> {
-  const { chart, ...body } = payload;
+  const { chart, run_id, counts, opportunities } = payload;
+  const body = chart === "p" || chart === "np"
+    ? { run_id, nonconforming: counts, sample_sizes: opportunities }
+    : { run_id, defects: counts, inspection_units: opportunities };
   return request(`/v1/analysis-runs/${chart}-chart`, {
     method: "POST",
     body: JSON.stringify(body),

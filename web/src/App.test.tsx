@@ -71,7 +71,7 @@ describe("StatPro UI", () => {
     await userEvent.type(sizes, "100 120 100 100 100");
     await userEvent.click(screen.getByRole("button", { name: "관리도 실행" }));
 
-    expect(await screen.findByText(/np 관리도는 모든 부분군의 표본 크기가 같아야 합니다/)).toBeInTheDocument();
+    expect(await screen.findByText(/np 관리도는 모든 부분군의 검사 기회가 같아야 합니다/)).toBeInTheDocument();
     expect(fetchMock.mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === "POST")).toBe(false);
   });
 
@@ -119,8 +119,8 @@ describe("StatPro UI", () => {
 
   it("renders a p chart with varying subgroup limits and an accessible table", async () => {
     const points = [
-      { index: 0, nonconforming: 2, sample_size: 100, statistic: 0.02, center: 0.07, lcl: 0, ucl: 0.1465, signal: false },
-      { index: 1, nonconforming: 25, sample_size: 100, statistic: 0.25, center: 0.07, lcl: 0, ucl: 0.1465, signal: true },
+      { index: 0, event_count: 2, opportunity: 100, nonconforming: 2, sample_size: 100, statistic: 0.02, center: 0.07, lcl: 0, ucl: 0.1465, signal: false },
+      { index: 1, event_count: 25, opportunity: 100, nonconforming: 25, sample_size: 100, statistic: 0.25, center: 0.07, lcl: 0, ucl: 0.1465, signal: true },
     ];
     const result = {
       analysis_type: "spc.p_chart", engine_version: "0.6.0", input_digest: "b".repeat(64),

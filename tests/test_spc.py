@@ -8,10 +8,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from statpro.analyses.spc import (
+    c_chart,
     individuals_moving_range,
     nelson_signals,
     np_chart,
     p_chart,
+    u_chart,
     western_electric_signals,
     xbar_r,
 )
@@ -213,6 +215,34 @@ class AttributeChartTests(unittest.TestCase):
         second = p_chart([1.0, 2.0], [100.0, 100.0])
 
         self.assertEqual(first.input_digest, second.input_digest)
+
+    def test_c_chart_uses_poisson_count_limits(self) -> None:
+        result = c_chart([1, 2, 1, 2, 12])
+        point = result.tables["chart_points"][0]
+
+        self.assertEqual(result.analysis_type, "spc.c_chart")
+        self.assertAlmostEqual(point["center"], 3.6)
+        self.assertAlmostEqual(point["ucl"], 3.6 + 3.0 * math.sqrt(3.6))
+        self.assertEqual(result.diagnostics["signal_indices"], [4])
+
+    def test_u_chart_uses_weighted_rate_and_variable_opportunity(self) -> None:
+        result = u_chart([1, 2, 1, 2, 12], [1, 2, 1, 2, 2])
+        point = result.tables["chart_points"][1]
+
+        self.assertEqual(result.analysis_type, "spc.u_chart")
+        self.assertAlmostEqual(result.tables["summary"]["average_defects_per_unit"], 2.25)
+        self.assertAlmostEqual(point["statistic"], 1.0)
+        self.assertEqual(result.parameters["opportunity_mode"], "variable")
+
+    def test_c_chart_rejects_unequal_inspection_opportunity(self) -> None:
+        with self.assertRaises(AnalysisInputError) as context:
+            c_chart([1, 2], [1, 2])
+        self.assertEqual(context.exception.detail.code, "unequal_opportunity")
+
+    def test_u_chart_rejects_nonpositive_inspection_units(self) -> None:
+        with self.assertRaises(AnalysisInputError) as context:
+            u_chart([1, 2], [1, 0])
+        self.assertEqual(context.exception.detail.code, "invalid_inspection_units")
 
 
 if __name__ == "__main__":

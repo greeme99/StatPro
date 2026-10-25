@@ -12,6 +12,8 @@ const labels: Record<string, string> = {
   "spc.imr": "I-MR 관리도",
   "spc.p_chart": "p 관리도",
   "spc.np_chart": "np 관리도",
+  "spc.c_chart": "c 관리도",
+  "spc.u_chart": "u 관리도",
   "spc.xbar_r": "Xbar-R 관리도",
   "capability.normal_individuals": "정규 공정능력",
   "doe.full_factorial_2level": "2수준 완전요인 DOE",

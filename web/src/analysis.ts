@@ -51,8 +51,8 @@ export function toImrView(result: ResultBundle | undefined): ImrView | null {
 
 export type AttributeChartPoint = {
   index: number;
-  nonconforming: number;
-  sampleSize: number;
+  eventCount: number;
+  opportunity: number;
   statistic: number;
   center: number;
   ucl: number;
@@ -61,18 +61,18 @@ export type AttributeChartPoint = {
 };
 
 export type AttributeChartView = {
-  chart: "p" | "np";
+  chart: "p" | "np" | "c" | "u";
   points: AttributeChartPoint[];
-  pooledProportion: number;
-  totalNonconforming: number;
-  totalInspected: number;
+  pooledRate: number;
+  totalEvents: number;
+  totalOpportunity: number;
   signalCount: number;
 };
 
 export function toAttributeChartView(
   result: ResultBundle | undefined,
 ): AttributeChartView | null {
-  if (!result || !["spc.p_chart", "spc.np_chart"].includes(result.analysis_type)) return null;
+  if (!result || !["spc.p_chart", "spc.np_chart", "spc.c_chart", "spc.u_chart"].includes(result.analysis_type)) return null;
   const rows = result.tables.chart_points;
   const summary = result.tables.summary;
   if (!Array.isArray(rows) || !summary) return null;
@@ -81,15 +81,15 @@ export function toAttributeChartView(
   for (const row of rows) {
     if (
       typeof row !== "object" || row === null
-      || !["index", "nonconforming", "sample_size", "statistic", "center", "ucl", "lcl"].every(
+      || !["index", "event_count", "opportunity", "statistic", "center", "ucl", "lcl"].every(
         (key) => typeof row[key] === "number" && Number.isFinite(row[key]),
       )
       || typeof row.signal !== "boolean"
     ) return null;
     points.push({
       index: row.index + 1,
-      nonconforming: row.nonconforming,
-      sampleSize: row.sample_size,
+      eventCount: row.event_count,
+      opportunity: row.opportunity,
       statistic: row.statistic,
       center: row.center,
       ucl: row.ucl,
@@ -98,16 +98,17 @@ export function toAttributeChartView(
     });
   }
   if (
-    typeof summary.pooled_proportion !== "number"
-    || typeof summary.total_nonconforming !== "number"
-    || typeof summary.total_inspected !== "number"
+    typeof (summary.pooled_proportion ?? summary.average_defects_per_unit) !== "number"
+    || typeof (summary.total_nonconforming ?? summary.total_defects) !== "number"
+    || typeof (summary.total_inspected ?? summary.total_inspection_units) !== "number"
   ) return null;
+  const chart = result.analysis_type.replace("spc.", "").replace("_chart", "") as "p" | "np" | "c" | "u";
   return {
-    chart: result.analysis_type === "spc.p_chart" ? "p" : "np",
+    chart,
     points,
-    pooledProportion: summary.pooled_proportion,
-    totalNonconforming: summary.total_nonconforming,
-    totalInspected: summary.total_inspected,
+    pooledRate: summary.pooled_proportion ?? summary.average_defects_per_unit,
+    totalEvents: summary.total_nonconforming ?? summary.total_defects,
+    totalOpportunity: summary.total_inspected ?? summary.total_inspection_units,
     signalCount: points.filter((point) => point.signal).length,
   };
 }
