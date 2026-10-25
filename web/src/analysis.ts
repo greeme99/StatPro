@@ -553,7 +553,7 @@ export function toDoeBoxBehnkenAnalysisView(result: ResultBundle | undefined): D
 }
 
 export function toDoeCentralCompositeSurfaceView(result: ResultBundle | undefined): DoeCentralCompositeSurfaceView | null {
-  if (!result || result.analysis_type !== "doe.central_composite_surface") return null;
+  if (!result || !["doe.central_composite_surface", "doe.box_behnken_surface"].includes(result.analysis_type)) return null;
   const stationary = result.tables.stationary_point;
   const canonicalAxes = result.tables.canonical_axes;
   const grid = result.tables.surface_grid;

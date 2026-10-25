@@ -23,6 +23,7 @@ const labels: Record<string, string> = {
   "doe.fractional_factorial_2level_analysis": "2수준 일부요인 DOE 분석",
   "doe.central_composite": "중앙합성 반응표면 DOE",
   "doe.box_behnken": "Box–Behnken 반응표면 DOE",
+  "doe.box_behnken_surface": "Box–Behnken 정상점·표면 탐색",
   "doe.central_composite_analysis": "중앙합성 2차 모형 분석",
   "doe.central_composite_surface": "반응표면 정상점·격자 탐색",
   "doe.plackett_burman": "Plackett–Burman 선별 DOE",

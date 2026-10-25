@@ -27,6 +27,7 @@ from statpro.analyses.doe import (
     automatic_fractional_factorial_2level,
     box_behnken_design,
     central_composite_design,
+    explore_box_behnken_surface,
     explore_central_composite_surface,
     fractional_factorial_2level,
     full_factorial_2level,
@@ -239,6 +240,13 @@ class BoxBehnkenAnalysisRunRequest(BoxBehnkenRunRequest):
     responses: list[float]
     response_name: str = "Response"
     alpha: float = Field(default=0.05, ge=0.001, le=0.5)
+
+
+class BoxBehnkenSurfaceRunRequest(BoxBehnkenAnalysisRunRequest):
+    plot_factors: list[str] | None = Field(default=None, min_length=2, max_length=2)
+    hold_values: dict[str, float] = Field(default_factory=dict)
+    grid_size: int = Field(default=21, ge=5, le=51)
+    contour_levels: int = Field(default=7, ge=1, le=12)
 
 
 class CentralCompositeAnalysisRunRequest(CentralCompositeRunRequest):
@@ -943,6 +951,36 @@ def create_app(repository: DocumentRepository) -> FastAPI:
                 randomize=request.randomize,
                 seed=request.seed,
                 alpha=request.alpha,
+            ),
+        )
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _response(stored)
+
+    @app.post(
+        "/v1/analysis-runs/doe-box-behnken-surface",
+        status_code=201,
+        response_model=StoredRunResponse,
+    )
+    def explore_box_behnken_doe_surface(
+        request: BoxBehnkenSurfaceRunRequest, response: Response
+    ) -> StoredRunResponse:
+        factors = [FactorDefinition(**factor.model_dump()) for factor in request.factors]
+        stored = _save_run(
+            repository,
+            request.run_id,
+            explore_box_behnken_surface(
+                factors,
+                request.responses,
+                response_name=request.response_name,
+                center_points=request.center_points,
+                replicates=request.replicates,
+                randomize=request.randomize,
+                seed=request.seed,
+                alpha=request.alpha,
+                plot_factors=request.plot_factors,
+                hold_values=request.hold_values,
+                grid_size=request.grid_size,
+                contour_levels=request.contour_levels,
             ),
         )
         response.headers["ETag"] = f'"{stored.etag}"'

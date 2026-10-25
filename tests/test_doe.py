@@ -22,6 +22,7 @@ from statpro.analyses.doe import (
     box_behnken_design,
     central_composite_design,
     composite_desirability,
+    explore_box_behnken_surface,
     explore_central_composite_surface,
     fractional_factorial_2level,
     full_factorial_2level,
@@ -564,6 +565,42 @@ class BoxBehnkenAnalysisTests(unittest.TestCase):
                 randomize=False,
             )
         self.assertEqual(context.exception.detail.code, "response_count_mismatch")
+
+
+class BoxBehnkenSurfaceTests(unittest.TestCase):
+    def test_reuses_quadratic_surface_boundary_for_stationary_point_and_grid(self) -> None:
+        factors = [FactorDefinition(name, 0, 10) for name in "ABC"]
+        design = box_behnken_design(factors, randomize=False)
+        responses = []
+        for row in design.tables["design"]:
+            a, b, c = (row["coded"][name] for name in "ABC")
+            responses.append(
+                100
+                - 2 * (a - 0.25) ** 2
+                - 4 * (b + 0.5) ** 2
+                - 3 * (c - 0.1) ** 2
+            )
+
+        result = explore_box_behnken_surface(
+            factors,
+            responses,
+            response_name="Yield",
+            randomize=False,
+            plot_factors=["A", "B"],
+            hold_values={"C": 0.1},
+            grid_size=11,
+        )
+
+        stationary = result.tables["stationary_point"][0]
+        self.assertEqual(result.analysis_type, "doe.box_behnken_surface")
+        self.assertEqual(stationary["classification"], "maximum")
+        self.assertTrue(stationary["inside_factorial_cube"])
+        self.assertAlmostEqual(stationary["coded"]["A"], 0.25)
+        self.assertAlmostEqual(stationary["coded"]["B"], -0.5)
+        self.assertAlmostEqual(stationary["coded"]["C"], 0.1)
+        self.assertEqual(len(result.tables["surface_grid"]), 121)
+        self.assertEqual(result.diagnostics["plot_factors"], ["A", "B"])
+        json.dumps(result.to_dict(), allow_nan=False)
 
 
 class CentralCompositeDesignTests(unittest.TestCase):

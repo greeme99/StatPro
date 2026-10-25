@@ -255,6 +255,24 @@ class LocalApiContractTests(unittest.TestCase):
                 "doe.box_behnken_analysis",
             ),
             (
+                "/v1/analysis-runs/doe-box-behnken-surface",
+                {
+                    "run_id": "doe-box-behnken-surface",
+                    "factors": [
+                        {"name": "A", "low": 0, "high": 10},
+                        {"name": "B", "low": 0, "high": 20},
+                        {"name": "C", "low": 0, "high": 30},
+                    ],
+                    "responses": [58, 52, 42, 56, 52, 56, 60, 64, 47, 41, 55, 49, 50, 50, 50],
+                    "response_name": "Yield",
+                    "randomize": False,
+                    "plot_factors": ["A", "B"],
+                    "hold_values": {"C": 0},
+                    "grid_size": 11,
+                },
+                "doe.box_behnken_surface",
+            ),
+            (
                 "/v1/analysis-runs/doe-central-composite",
                 {
                     "run_id": "doe-central-composite",

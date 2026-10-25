@@ -21,6 +21,7 @@ from statpro.analyses.doe import (
     automatic_fractional_factorial_2level,
     box_behnken_design,
     central_composite_design,
+    explore_box_behnken_surface,
     explore_central_composite_surface,
     fractional_factorial_2level,
     full_factorial_2level,
@@ -55,6 +56,7 @@ def _parser() -> argparse.ArgumentParser:
         "doe-central-composite",
         "doe-box-behnken",
         "doe-analyze-box-behnken",
+        "doe-explore-box-behnken",
         "doe-analyze-central-composite",
         "doe-explore-central-composite",
         "doe-fractional-factorial",
@@ -112,6 +114,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "doe-central-composite",
             "doe-box-behnken",
             "doe-analyze-box-behnken",
+            "doe-explore-box-behnken",
             "doe-analyze-central-composite",
             "doe-explore-central-composite",
             "doe-fractional-factorial",
@@ -149,6 +152,21 @@ def main(argv: Sequence[str] | None = None) -> int:
                     randomize=payload.get("randomize", True),
                     seed=payload.get("seed", 0),
                     alpha=payload.get("alpha", 0.05),
+                )
+            elif args.command == "doe-explore-box-behnken":
+                result = explore_box_behnken_surface(
+                    factors,
+                    payload["responses"],
+                    response_name=payload.get("response_name", "Response"),
+                    center_points=payload.get("center_points"),
+                    replicates=payload.get("replicates", 1),
+                    randomize=payload.get("randomize", True),
+                    seed=payload.get("seed", 0),
+                    alpha=payload.get("alpha", 0.05),
+                    plot_factors=payload.get("plot_factors"),
+                    hold_values=payload.get("hold_values"),
+                    grid_size=payload.get("grid_size", 21),
+                    contour_levels=payload.get("contour_levels", 7),
                 )
             elif args.command == "doe-analyze-plackett-burman":
                 result = analyze_plackett_burman(

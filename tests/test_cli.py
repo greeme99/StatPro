@@ -424,6 +424,37 @@ class CliBoundaryTests(unittest.TestCase):
         self.assertEqual(result["analysis_type"], "doe.box_behnken_analysis")
         self.assertEqual(result["diagnostics"]["coefficient_count"], 10)
 
+    def test_box_behnken_surface_returns_stationary_point_and_grid(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "box-behnken-surface.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "factors": [
+                            {"name": "A", "low": 0, "high": 10},
+                            {"name": "B", "low": 0, "high": 20},
+                            {"name": "C", "low": 0, "high": 30},
+                        ],
+                        "responses": [58, 52, 42, 56, 52, 56, 60, 64, 47, 41, 55, 49, 50, 50, 50],
+                        "response_name": "Yield",
+                        "randomize": False,
+                        "plot_factors": ["A", "B"],
+                        "hold_values": {"C": 0},
+                        "grid_size": 11,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            output = io.StringIO()
+            with redirect_stdout(output):
+                exit_code = main(["doe-explore-box-behnken", "--input", str(path)])
+
+        result = json.loads(output.getvalue())["result"]
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(result["analysis_type"], "doe.box_behnken_surface")
+        self.assertEqual(len(result["tables"]["surface_grid"]), 121)
+        self.assertEqual(result["diagnostics"]["plot_factors"], ["A", "B"])
+
     def test_central_composite_surface_returns_stationary_point_and_grid(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "central-composite-surface.json"

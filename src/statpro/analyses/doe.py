@@ -2961,13 +2961,14 @@ def _contour_segments(
     return segments
 
 
-def explore_central_composite_surface(
+def _explore_quadratic_surface(
     factors: Sequence[FactorDefinition],
     responses: Sequence[float],
     *,
+    design_kind: str,
     response_name: str = "Response",
-    design_type: str = "rotatable",
-    center_points: int = 5,
+    design_type: str | None = None,
+    center_points: int | None = None,
     replicates: int = 1,
     randomize: bool = True,
     seed: int = 0,
@@ -2977,7 +2978,7 @@ def explore_central_composite_surface(
     grid_size: int = 21,
     contour_levels: int = 7,
 ) -> ResultBundle:
-    """Classify a quadratic stationary point and evaluate a two-factor surface grid."""
+    """Own stationary-point and bounded-grid exploration for quadratic designs."""
 
     if (
         isinstance(grid_size, bool)
@@ -2996,17 +2997,33 @@ def explore_central_composite_surface(
             "Contour level count must be an integer between 1 and 12.",
             "contour_levels",
         )
-    analysis = analyze_central_composite(
-        factors,
-        responses,
-        response_name=response_name,
-        design_type=design_type,
-        center_points=center_points,
-        replicates=replicates,
-        randomize=randomize,
-        seed=seed,
-        alpha=alpha,
-    )
+    if design_kind == "central_composite":
+        analysis = analyze_central_composite(
+            factors,
+            responses,
+            response_name=response_name,
+            design_type=design_type or "rotatable",
+            center_points=center_points if center_points is not None else 5,
+            replicates=replicates,
+            randomize=randomize,
+            seed=seed,
+            alpha=alpha,
+        )
+        surface_analysis_type = "doe.central_composite_surface"
+    elif design_kind == "box_behnken":
+        analysis = analyze_box_behnken(
+            factors,
+            responses,
+            response_name=response_name,
+            center_points=center_points,
+            replicates=replicates,
+            randomize=randomize,
+            seed=seed,
+            alpha=alpha,
+        )
+        surface_analysis_type = "doe.box_behnken_surface"
+    else:
+        raise ValueError(f"Unsupported quadratic design kind: {design_kind}")
     factor_payload = analysis.parameters["factors"]
     factor_names = [str(factor["name"]) for factor in factor_payload]
     selected = list(plot_factors) if plot_factors is not None else factor_names[:2]
@@ -3185,7 +3202,7 @@ def explore_central_composite_surface(
         "contour_levels": contour_levels,
     }
     return ResultBundle(
-        analysis_type="doe.central_composite_surface",
+        analysis_type=surface_analysis_type,
         engine_version=ENGINE_VERSION,
         input_digest=input_digest(payload),
         parameters=payload,
@@ -3244,6 +3261,76 @@ def explore_central_composite_surface(
         ),
         warnings=tuple(warnings),
         provenance=(*analysis.provenance, NIST_CONTOUR_PLOT_SOURCE),
+    )
+
+
+def explore_central_composite_surface(
+    factors: Sequence[FactorDefinition],
+    responses: Sequence[float],
+    *,
+    response_name: str = "Response",
+    design_type: str = "rotatable",
+    center_points: int = 5,
+    replicates: int = 1,
+    randomize: bool = True,
+    seed: int = 0,
+    alpha: float = 0.05,
+    plot_factors: Sequence[str] | None = None,
+    hold_values: Mapping[str, float] | None = None,
+    grid_size: int = 21,
+    contour_levels: int = 7,
+) -> ResultBundle:
+    """Explore a fitted central-composite quadratic response surface."""
+
+    return _explore_quadratic_surface(
+        factors,
+        responses,
+        design_kind="central_composite",
+        response_name=response_name,
+        design_type=design_type,
+        center_points=center_points,
+        replicates=replicates,
+        randomize=randomize,
+        seed=seed,
+        alpha=alpha,
+        plot_factors=plot_factors,
+        hold_values=hold_values,
+        grid_size=grid_size,
+        contour_levels=contour_levels,
+    )
+
+
+def explore_box_behnken_surface(
+    factors: Sequence[FactorDefinition],
+    responses: Sequence[float],
+    *,
+    response_name: str = "Response",
+    center_points: int | None = None,
+    replicates: int = 1,
+    randomize: bool = True,
+    seed: int = 0,
+    alpha: float = 0.05,
+    plot_factors: Sequence[str] | None = None,
+    hold_values: Mapping[str, float] | None = None,
+    grid_size: int = 21,
+    contour_levels: int = 7,
+) -> ResultBundle:
+    """Explore a fitted Box-Behnken quadratic response surface."""
+
+    return _explore_quadratic_surface(
+        factors,
+        responses,
+        design_kind="box_behnken",
+        response_name=response_name,
+        center_points=center_points,
+        replicates=replicates,
+        randomize=randomize,
+        seed=seed,
+        alpha=alpha,
+        plot_factors=plot_factors,
+        hold_values=hold_values,
+        grid_size=grid_size,
+        contour_levels=contour_levels,
     )
 
 

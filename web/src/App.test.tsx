@@ -548,6 +548,28 @@ describe("StatPro UI", () => {
     expect(body).toMatchObject({ response_name: "Response", alpha: 0.05 });
   });
 
+  it("submits Box-Behnken responses for stationary-point surface exploration", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      return new Response(JSON.stringify({}), { status: init?.method === "POST" ? 201 : 200, headers: { "Content-Type": "application/json" } });
+    });
+    render(<MemoryRouter initialEntries={["/analyses/doe/box-behnken"]}><App /></MemoryRouter>);
+
+    await userEvent.click(await screen.findByRole("checkbox", { name: "응답을 함께 분석" }));
+    await userEvent.type(screen.getByRole("textbox", { name: /실행순서 응답/ }), "58 52 42 56 52 56 60 64 47 41 55 49 50 50 50");
+    await userEvent.click(screen.getByRole("checkbox", { name: "정상점과 2요인 응답표면 격자 탐색" }));
+    const gridSize = screen.getByRole("spinbutton", { name: "격자 크기" });
+    await userEvent.clear(gridSize);
+    await userEvent.type(gridSize, "11");
+    await userEvent.click(screen.getByRole("button", { name: "응답표면 탐색" }));
+    await waitFor(() => expect(fetchMock.mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === "POST")).toBe(true));
+    const post = fetchMock.mock.calls.find(([url, init]) => String(url).endsWith("/doe-box-behnken-surface") && (init as RequestInit | undefined)?.method === "POST");
+    const body = JSON.parse(String((post?.[1] as RequestInit).body));
+    expect(body.responses).toHaveLength(15);
+    expect(body.center_points).toBeUndefined();
+    expect(body).toMatchObject({ plot_factors: ["A", "B"], hold_values: {}, grid_size: 11, contour_levels: 7 });
+  });
+
   it("renders Box-Behnken quadratic coefficients and ANOVA", async () => {
     const result = {
       analysis_type: "doe.box_behnken_analysis", engine_version: "0.6.0", input_digest: "d".repeat(64), warnings: [], assumptions: [], provenance: [], parameters: {}, plots: {},
@@ -640,6 +662,29 @@ describe("StatPro UI", () => {
     expect(screen.getByRole("heading", { name: "3D 응답표면 와이어프레임" })).toBeInTheDocument();
     expect(screen.getByRole("img", { name: /예측 응답의 3D 와이어프레임/ })).toBeInTheDocument();
     expect(screen.getByText("최대점")).toBeInTheDocument();
+  });
+
+  it("renders Box-Behnken surface results through the shared surface view", async () => {
+    const result = {
+      analysis_type: "doe.box_behnken_surface", engine_version: "0.6.0", input_digest: "e".repeat(64), warnings: [], assumptions: [], provenance: [], parameters: {}, plots: {},
+      diagnostics: { response_name: "Yield", plot_factors: ["A", "B"], surface_grid_size: 1, contour_level_count: 0 },
+      tables: {
+        stationary_point: [{ classification: "maximum", available: true, coded: { A: 0.25, B: -0.5, C: 0.1 }, actual: { A: 6.25, B: 5, C: 16.5 }, predicted_response: 100, inside_factorial_cube: true }],
+        canonical_axes: [{ axis: 1, eigenvalue: -4 }, { axis: 2, eigenvalue: -3 }, { axis: 3, eigenvalue: -2 }],
+        surface_grid: [{ x_index: 0, y_index: 0, x_coded: 0, y_coded: 0, x_actual: 5, y_actual: 10, predicted_response: 99 }],
+        surface_slice_extrema: [{ kind: "minimum", x_index: 0, y_index: 0, x_coded: 0, y_coded: 0, x_actual: 5, y_actual: 10, predicted_response: 99 }, { kind: "maximum", x_index: 0, y_index: 0, x_coded: 0, y_coded: 0, x_actual: 5, y_actual: 10, predicted_response: 99 }],
+        surface_contours: [],
+      },
+    };
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      return new Response(JSON.stringify({ run_id: "doe-bbd-surface", storage_version: 1, etag: "a".repeat(64), result }), { status: 200 });
+    });
+
+    render(<MemoryRouter initialEntries={["/runs/doe-bbd-surface"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "정상점 분석" })).toBeInTheDocument();
+    expect(screen.getByText("최대점")).toBeInTheDocument();
+    expect(screen.getByText("C")).toBeInTheDocument();
   });
 
   it("submits a Plackett-Burman screening design", async () => {
