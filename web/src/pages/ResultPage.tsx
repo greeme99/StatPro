@@ -160,10 +160,10 @@ function XbarSResult({ view }: { view: XbarSView }) {
 }
 
 function AttributeChartResult({ view }: { view: AttributeChartView }) {
-  const chartLabel = { p: "p · 부적합률", np: "np · 부적합품 수", c: "c · 결점 수", u: "u · 단위당 결점 수" }[view.chart];
-  const statisticLabel = { p: "부적합률", np: "부적합품 수", c: "결점 수", u: "단위당 결점 수" }[view.chart];
-  const eventLabel = view.chart === "p" || view.chart === "np" ? "부적합품" : "결점";
-  const opportunityLabel = view.chart === "p" || view.chart === "np" ? "표본 크기" : "검사 단위";
+  const chartLabel = { p: "p · 부적합률", np: "np · 부적합품 수", c: "c · 결점 수", u: "u · 단위당 결점 수", p_prime: "Laney P′ · 보정 부적합률", u_prime: "Laney U′ · 보정 결점률" }[view.chart];
+  const statisticLabel = { p: "부적합률", np: "부적합품 수", c: "결점 수", u: "단위당 결점 수", p_prime: "부적합률", u_prime: "단위당 결점 수" }[view.chart];
+  const eventLabel = view.chart === "p" || view.chart === "np" || view.chart === "p_prime" ? "부적합품" : "결점";
+  const opportunityLabel = view.chart === "p" || view.chart === "np" || view.chart === "p_prime" ? "표본 크기" : "검사 단위";
   return <>
     <section className="metric-grid result-metrics" aria-label={`${chartLabel} 결과 요약`}>
       <article className="metric-card"><span>부분군</span><strong>{view.points.length}</strong><small>시간 순서</small></article>

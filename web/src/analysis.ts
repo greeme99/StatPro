@@ -222,7 +222,7 @@ export type AttributeChartPoint = {
 };
 
 export type AttributeChartView = {
-  chart: "p" | "np" | "c" | "u";
+  chart: "p" | "np" | "c" | "u" | "p_prime" | "u_prime";
   points: AttributeChartPoint[];
   pooledRate: number;
   totalEvents: number;
@@ -233,7 +233,7 @@ export type AttributeChartView = {
 export function toAttributeChartView(
   result: ResultBundle | undefined,
 ): AttributeChartView | null {
-  if (!result || !["spc.p_chart", "spc.np_chart", "spc.c_chart", "spc.u_chart"].includes(result.analysis_type)) return null;
+  if (!result || !["spc.p_chart", "spc.np_chart", "spc.c_chart", "spc.u_chart", "spc.laney_p_prime", "spc.laney_u_prime"].includes(result.analysis_type)) return null;
   const rows = result.tables.chart_points;
   const summary = result.tables.summary;
   if (!Array.isArray(rows) || !summary) return null;
@@ -259,17 +259,19 @@ export function toAttributeChartView(
     });
   }
   if (
-    typeof (summary.pooled_proportion ?? summary.average_defects_per_unit) !== "number"
-    || typeof (summary.total_nonconforming ?? summary.total_defects) !== "number"
-    || typeof (summary.total_inspected ?? summary.total_inspection_units) !== "number"
+    typeof (summary.pooled_proportion ?? summary.average_defects_per_unit ?? summary.pooled_rate) !== "number"
+    || typeof (summary.total_nonconforming ?? summary.total_defects ?? summary.total_events) !== "number"
+    || typeof (summary.total_inspected ?? summary.total_inspection_units ?? summary.total_opportunity) !== "number"
   ) return null;
-  const chart = result.analysis_type.replace("spc.", "").replace("_chart", "") as "p" | "np" | "c" | "u";
+  const chart = result.analysis_type.startsWith("spc.laney_")
+    ? result.analysis_type.replace("spc.laney_", "") as "p_prime" | "u_prime"
+    : result.analysis_type.replace("spc.", "").replace("_chart", "") as "p" | "np" | "c" | "u";
   return {
     chart,
     points,
-    pooledRate: summary.pooled_proportion ?? summary.average_defects_per_unit,
-    totalEvents: summary.total_nonconforming ?? summary.total_defects,
-    totalOpportunity: summary.total_inspected ?? summary.total_inspection_units,
+    pooledRate: summary.pooled_proportion ?? summary.average_defects_per_unit ?? summary.pooled_rate,
+    totalEvents: summary.total_nonconforming ?? summary.total_defects ?? summary.total_events,
+    totalOpportunity: summary.total_inspected ?? summary.total_inspection_units ?? summary.total_opportunity,
     signalCount: points.filter((point) => point.signal).length,
   };
 }

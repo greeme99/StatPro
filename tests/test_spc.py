@@ -12,6 +12,8 @@ from statpro.analyses.spc import (
     cusum_chart,
     ewma_chart,
     individuals_moving_range,
+    laney_p_prime,
+    laney_u_prime,
     nelson_signals,
     np_chart,
     p_chart,
@@ -225,6 +227,49 @@ class CusumChartTests(unittest.TestCase):
         with self.assertRaises(AnalysisInputError) as context:
             cusum_chart([1.0, 1.0, 1.0])
         self.assertEqual(context.exception.detail.code, "invalid_process_sigma")
+
+
+class LaneyAttributeChartTests(unittest.TestCase):
+    def test_p_prime_matches_hand_calculated_sigma_z_and_limits(self) -> None:
+        result = laney_p_prime([2, 4, 3, 8], [100, 100, 100, 100])
+        center = 17 / 400
+        sigma = math.sqrt(center * (1 - center) / 100)
+        z = [(value - center) / sigma for value in [0.02, 0.04, 0.03, 0.08]]
+        sigma_z = sum(abs(z[index] - z[index - 1]) for index in range(1, 4)) / 3 / 1.128
+
+        self.assertEqual(result.analysis_type, "spc.laney_p_prime")
+        self.assertAlmostEqual(result.parameters["sigma_z"], sigma_z)
+        self.assertAlmostEqual(result.tables["chart_points"][0]["ucl"], min(1.0, center + 3 * sigma * sigma_z))
+
+    def test_u_prime_supports_variable_inspection_units(self) -> None:
+        result = laney_u_prime([2, 7, 3, 12], [1.0, 2.0, 1.5, 3.0])
+
+        self.assertEqual(result.analysis_type, "spc.laney_u_prime")
+        self.assertEqual(len(result.tables["chart_points"]), 4)
+        self.assertTrue(result.parameters["sigma_z"] > 0)
+
+    def test_reports_overdispersion_and_underdispersion_direction(self) -> None:
+        over = laney_p_prime([0, 10, 0, 10], [100] * 4)
+        under = laney_p_prime([5, 5, 5, 5], [100] * 4)
+
+        self.assertGreater(over.parameters["sigma_z"], 1)
+        self.assertIn("overdispersion", over.warnings[0])
+        self.assertEqual(under.parameters["sigma_z"], 0)
+        self.assertIn("underdispersion", under.warnings[0])
+
+    def test_rejects_invalid_attribute_boundaries(self) -> None:
+        cases = [
+            (lambda: laney_p_prime([2], [100]), "insufficient_subgroups"),
+            (lambda: laney_p_prime([2, 3], [100]), "mismatched_subgroups"),
+            (lambda: laney_p_prime([2, 101], [100, 100]), "count_exceeds_sample_size"),
+            (lambda: laney_p_prime([0, 0], [100, 100]), "zero_theoretical_variation"),
+            (lambda: laney_u_prime([1, 2], [1, 0]), "invalid_opportunity"),
+        ]
+        for call, code in cases:
+            with self.subTest(code=code):
+                with self.assertRaises(AnalysisInputError) as context:
+                    call()
+                self.assertEqual(context.exception.detail.code, code)
 
 
 class XbarRTests(unittest.TestCase):

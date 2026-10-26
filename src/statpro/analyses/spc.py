@@ -42,6 +42,18 @@ MINITAB_CUSUM_SOURCE = ProvenanceSource(
         "methods-and-formulas/"
     ),
 )
+LANEY_P_PRIME_SOURCE = ProvenanceSource(
+    title="Open-access Laney p-prime Phase I formulas",
+    url="https://www.mdpi.com/2227-7390/11/15/3411",
+)
+MINITAB_LANEY_U_SOURCE = ProvenanceSource(
+    title="Minitab public documentation: Methods and formulas for Laney U' Chart",
+    url=(
+        "https://support.minitab.com/en-us/minitab/help-and-how-to/quality-and-process-improvement/"
+        "control-charts/how-to/attributes-charts/laney-u-chart/methods-and-formulas/"
+        "methods-and-formulas/"
+    ),
+)
 MINITAB_EWMA_SOURCE = ProvenanceSource(
     title="Minitab public documentation: Time-weighted control charts",
     url=(
@@ -415,6 +427,143 @@ def u_chart(
     """Calculate a u chart for defects per inspection unit."""
 
     return _poisson_attribute_chart(defects, inspection_units, chart="u")
+
+
+def _laney_attribute_chart(
+    counts: Sequence[object],
+    opportunities: Sequence[object],
+    *,
+    chart: Literal["p_prime", "u_prime"],
+) -> ResultBundle:
+    events = _nonnegative_integers(counts, "counts")
+    exposure = finite_values(opportunities, "opportunities")
+    if len(events) < 2:
+        raise AnalysisInputError(
+            "insufficient_subgroups",
+            "Laney attribute charts require at least two ordered subgroups.",
+            "counts",
+        )
+    if len(events) != len(exposure):
+        raise AnalysisInputError(
+            "mismatched_subgroups",
+            "Counts and opportunities must have the same length.",
+            "opportunities",
+        )
+    for index, opportunity in enumerate(exposure):
+        if opportunity <= 0.0 or (chart == "p_prime" and not opportunity.is_integer()):
+            raise AnalysisInputError(
+                "invalid_opportunity",
+                "Laney opportunities must be positive; P-prime sample sizes must be integers.",
+                f"opportunities[{index}]",
+            )
+        if chart == "p_prime" and events[index] > opportunity:
+            raise AnalysisInputError(
+                "count_exceeds_sample_size",
+                "Nonconforming count cannot exceed its sample size.",
+                f"counts[{index}]",
+            )
+
+    total_events = sum(events)
+    total_opportunity = sum(exposure)
+    center = total_events / total_opportunity
+    if center == 0.0 or (chart == "p_prime" and center == 1.0):
+        raise AnalysisInputError(
+            "zero_theoretical_variation",
+            "Laney Sigma Z cannot be estimated when theoretical attribute variation is zero.",
+            "counts",
+        )
+
+    statistics = [count / opportunity for count, opportunity in zip(events, exposure, strict=True)]
+    theoretical_sigma = [
+        sqrt(center * (1.0 - center) / opportunity)
+        if chart == "p_prime"
+        else sqrt(center / opportunity)
+        for opportunity in exposure
+    ]
+    z_scores = [
+        (statistic - center) / sigma
+        for statistic, sigma in zip(statistics, theoretical_sigma, strict=True)
+    ]
+    moving_ranges = [abs(current - previous) for previous, current in pairwise(z_scores)]
+    sigma_z = fmean(moving_ranges) / 1.128
+    points: list[dict[str, object]] = []
+    signal_indices: list[int] = []
+    for index, (count, opportunity, statistic, sigma) in enumerate(
+        zip(events, exposure, statistics, theoretical_sigma, strict=True)
+    ):
+        adjusted_sigma = sigma * sigma_z
+        lcl = max(0.0, center - 3.0 * adjusted_sigma)
+        ucl = center + 3.0 * adjusted_sigma
+        if chart == "p_prime":
+            ucl = min(1.0, ucl)
+        signal = statistic < lcl or statistic > ucl
+        if signal:
+            signal_indices.append(index)
+        points.append(
+            {
+                "index": index,
+                "event_count": count,
+                "opportunity": opportunity,
+                "statistic": statistic,
+                "center": center,
+                "lcl": lcl,
+                "ucl": ucl,
+                "signal": signal,
+                "z_score": z_scores[index],
+                "theoretical_sigma": sigma,
+                "adjusted_sigma": adjusted_sigma,
+            }
+        )
+
+    warnings: list[str] = []
+    if sigma_z > 1.0:
+        warnings.append("Sigma Z is greater than 1, indicating overdispersion relative to the theoretical model.")
+    elif sigma_z < 1.0:
+        warnings.append("Sigma Z is less than 1, indicating underdispersion relative to the theoretical model.")
+    payload = {"counts": events, "opportunities": exposure, "chart": chart}
+    return ResultBundle(
+        analysis_type=f"spc.laney_{chart}",
+        engine_version=ENGINE_VERSION,
+        input_digest=input_digest(payload),
+        parameters={
+            "chart": chart,
+            "sigma_z": sigma_z,
+            "sigma_multiplier": 3.0,
+            "distribution": "binomial" if chart == "p_prime" else "poisson",
+        },
+        tables={
+            "chart_points": points,
+            "summary": {
+                "total_events": total_events,
+                "total_opportunity": total_opportunity,
+                "pooled_rate": center,
+                "average_z_moving_range": fmean(moving_ranges),
+                "sigma_z": sigma_z,
+            },
+        },
+        plots={"attribute_chart": {"points": points, "signal_indices": signal_indices}},
+        diagnostics={"signal_indices": signal_indices, "signal_count": len(signal_indices)},
+        assumptions=(
+            "Subgroups are ordered in process time and have comparable event definitions.",
+            "The pooled binomial or Poisson rate represents the Phase I center.",
+            "Sigma Z uses the average two-point moving range of standardized subgroup statistics divided by 1.128.",
+            "Signals identify investigation candidates and do not by themselves prove a special cause.",
+        ),
+        warnings=tuple(warnings),
+        provenance=(LANEY_P_PRIME_SOURCE, MINITAB_LANEY_U_SOURCE),
+    )
+
+
+def laney_p_prime(nonconforming: Sequence[object], sample_sizes: Sequence[object]) -> ResultBundle:
+    """Calculate a Laney P-prime chart for over/underdispersed proportions."""
+
+    return _laney_attribute_chart(nonconforming, sample_sizes, chart="p_prime")
+
+
+def laney_u_prime(defects: Sequence[object], inspection_units: Sequence[object]) -> ResultBundle:
+    """Calculate a Laney U-prime chart for over/underdispersed defect rates."""
+
+    return _laney_attribute_chart(defects, inspection_units, chart="u_prime")
 
 
 def _append_rule_signal(

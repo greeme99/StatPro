@@ -80,15 +80,16 @@ export function createCusumRun(payload: {
 
 export function createAttributeChartRun(payload: {
   run_id: string;
-  chart: "p" | "np" | "c" | "u";
+  chart: "p" | "np" | "c" | "u" | "p_prime" | "u_prime";
   counts: number[];
   opportunities: number[];
 }): Promise<StoredRun> {
   const { chart, run_id, counts, opportunities } = payload;
-  const body = chart === "p" || chart === "np"
+  const body = chart === "p" || chart === "np" || chart === "p_prime"
     ? { run_id, nonconforming: counts, sample_sizes: opportunities }
     : { run_id, defects: counts, inspection_units: opportunities };
-  return request(`/v1/analysis-runs/${chart}-chart`, {
+  const path = chart === "p_prime" ? "laney-p-prime" : chart === "u_prime" ? "laney-u-prime" : `${chart}-chart`;
+  return request(`/v1/analysis-runs/${path}`, {
     method: "POST",
     body: JSON.stringify(body),
   });

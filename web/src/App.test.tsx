@@ -168,6 +168,28 @@ describe("StatPro UI", () => {
     });
   });
 
+  it("submits and renders a Laney P-prime chart", async () => {
+    const points = [
+      { index: 0, event_count: 2, opportunity: 100, statistic: 0.02, center: 0.04, lcl: 0, ucl: 0.09, signal: false, z_score: -1, theoretical_sigma: 0.02, adjusted_sigma: 0.016 },
+      { index: 1, event_count: 10, opportunity: 100, statistic: 0.1, center: 0.04, lcl: 0, ucl: 0.09, signal: true, z_score: 3, theoretical_sigma: 0.02, adjusted_sigma: 0.016 },
+    ];
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url.endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      if (init?.method === "POST") return new Response(JSON.stringify({}), { status: 201, headers: { "Content-Type": "application/json" } });
+      const result = { analysis_type: "spc.laney_p_prime", engine_version: "0.6.0", input_digest: "l".repeat(64), warnings: [], assumptions: [], provenance: [], parameters: { chart: "p_prime", sigma_z: 0.8 }, diagnostics: { signal_indices: [1] }, tables: { chart_points: points, summary: { total_events: 12, total_opportunity: 200, pooled_rate: 0.06 } }, plots: { attribute_chart: { points, signal_indices: [1] } } };
+      return new Response(JSON.stringify({ run_id: "laney-p-result", storage_version: 1, etag: "a".repeat(64), result }), { status: 200 });
+    });
+    const { unmount } = render(<MemoryRouter initialEntries={["/analyses/spc/attribute"]}><App /></MemoryRouter>);
+    await userEvent.selectOptions(await screen.findByRole("combobox", { name: "관리도" }), "p_prime");
+    await userEvent.click(screen.getByRole("button", { name: "관리도 실행" }));
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith("/laney-p-prime") && (init as RequestInit | undefined)?.method === "POST")).toBe(true));
+    unmount();
+    render(<MemoryRouter initialEntries={["/runs/laney-p-result"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "Laney P′ · 보정 부적합률 관리도" })).toBeInTheDocument();
+    expect(screen.getAllByText("3σ 한계 이탈").length).toBeGreaterThan(0);
+  });
+
   it("rejects variable sample sizes for an np chart before calling the API", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch");
     render(<MemoryRouter initialEntries={["/analyses/spc/attribute"]}><App /></MemoryRouter>);
@@ -243,7 +265,7 @@ describe("StatPro UI", () => {
     render(<MemoryRouter initialEntries={["/runs/p-chart-001"]}><App /></MemoryRouter>);
     expect(await screen.findByRole("heading", { name: "p · 부적합률 관리도" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "부분군별 관리한계" })).toBeInTheDocument();
-    expect(screen.getByText("3σ 한계 이탈")).toBeInTheDocument();
+    expect(screen.getAllByText("3σ 한계 이탈").length).toBeGreaterThan(0);
   });
 
   it("renders persisted FMEA studies in the risk workbench", async () => {

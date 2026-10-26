@@ -13,6 +13,7 @@ The repository starts with a dependency-free Python statistical core so formulas
 - Startup-adjusted EWMA chart for individual observations with historical or explicitly estimated center/sigma and configurable lambda/L
 - Standardized two-sided tabular CUSUM for individual observations with historical or explicitly estimated target/sigma and configurable k/h
 - Binomial p/np and Poisson c/u attribute control charts with pooled Phase I centers, opportunity-specific limits for p/u, constant-opportunity enforcement for np/c, and accessible chart/table results
+- Laney P′/U′ charts with moving-range Sigma Z adjustment for overdispersion and underdispersion
 - Normal capability for individual observations with within/overall variation kept distinct
 - Reproducible two-level full factorial DOE analysis, regular fractional-factorial generation/main-effect analysis with bounded automatic minimum-run/minimum-aberration generator selection, explicit regular block generators and full resolution-III foldover, 3–5 factor Box–Behnken and central-composite response-surface designs with complete-quadratic modelling, stationary-point/canonical analysis, bounded two-factor surface grids, accessible iso-response contours and projected 3D wireframes, plus Plackett–Burman screening design/response analysis from 12 to 48 runs
 - Balanced crossed Gage R&R using two-way random-effects ANOVA variance components
@@ -39,6 +40,8 @@ py -3.12 -m statpro.cli p-chart --input samples\p-chart.json
 py -3.12 -m statpro.cli np-chart --input samples\np-chart.json
 py -3.12 -m statpro.cli c-chart --input samples\c-chart.json
 py -3.12 -m statpro.cli u-chart --input samples\u-chart.json
+py -3.12 -m statpro.cli laney-p-prime --input samples\laney-p-prime.json
+py -3.12 -m statpro.cli laney-u-prime --input samples\laney-u-prime.json
 py -3.12 -m statpro.cli xbar-r --input samples\xbar-r.json
 py -3.12 -m statpro.cli xbar-s --input samples\xbar-s.json
 py -3.12 -m statpro.cli ewma --input samples\ewma.json

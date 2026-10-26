@@ -34,6 +34,8 @@ from statpro.analyses.spc import (
     cusum_chart,
     ewma_chart,
     individuals_moving_range,
+    laney_p_prime,
+    laney_u_prime,
     np_chart,
     p_chart,
     u_chart,
@@ -52,6 +54,8 @@ def _parser() -> argparse.ArgumentParser:
         "cusum",
         "ewma",
         "imr",
+        "laney-p-prime",
+        "laney-u-prime",
         "np-chart",
         "p-chart",
         "u-chart",
@@ -119,6 +123,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                 reference_value=payload.get("reference_value", 0.5),
                 decision_interval=payload.get("decision_interval", 4.0),
             )
+        elif args.command == "laney-p-prime":
+            result = laney_p_prime(payload["nonconforming"], payload["sample_sizes"])
+        elif args.command == "laney-u-prime":
+            result = laney_u_prime(payload["defects"], payload["inspection_units"])
         elif args.command == "xbar-r":
             result = xbar_r(
                 payload["subgroups"],

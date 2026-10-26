@@ -40,6 +40,8 @@ from statpro.analyses.spc import (
     cusum_chart,
     ewma_chart,
     individuals_moving_range,
+    laney_p_prime,
+    laney_u_prime,
     np_chart,
     p_chart,
     u_chart,
@@ -800,6 +802,26 @@ def create_app(repository: DocumentRepository) -> FastAPI:
                 reference_value=request.reference_value,
                 decision_interval=request.decision_interval,
             ),
+        )
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _response(stored)
+
+    @app.post("/v1/analysis-runs/laney-p-prime", status_code=201, response_model=StoredRunResponse)
+    def run_laney_p_prime(request: AttributeChartRunRequest, response: Response) -> StoredRunResponse:
+        stored = _save_run(
+            repository,
+            request.run_id,
+            laney_p_prime(request.nonconforming, request.sample_sizes),
+        )
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _response(stored)
+
+    @app.post("/v1/analysis-runs/laney-u-prime", status_code=201, response_model=StoredRunResponse)
+    def run_laney_u_prime(request: UChartRunRequest, response: Response) -> StoredRunResponse:
+        stored = _save_run(
+            repository,
+            request.run_id,
+            laney_u_prime(request.defects, request.inspection_units),
         )
         response.headers["ETag"] = f'"{stored.etag}"'
         return _response(stored)

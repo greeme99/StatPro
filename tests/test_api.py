@@ -202,6 +202,16 @@ class LocalApiContractTests(unittest.TestCase):
                 "spc.cusum",
             ),
             (
+                "/v1/analysis-runs/laney-p-prime",
+                {"run_id": "laney-p", "nonconforming": [2, 4, 3, 8], "sample_sizes": [100, 100, 100, 100]},
+                "spc.laney_p_prime",
+            ),
+            (
+                "/v1/analysis-runs/laney-u-prime",
+                {"run_id": "laney-u", "defects": [2, 7, 3, 12], "inspection_units": [1, 2, 1.5, 3]},
+                "spc.laney_u_prime",
+            ),
+            (
                 "/v1/analysis-runs/capability-normal",
                 {"run_id": "cap", "values": [98, 99, 100, 101, 102], "lsl": 95, "usl": 105},
                 "capability.normal_individuals",

@@ -195,6 +195,23 @@ class CliBoundaryTests(unittest.TestCase):
         self.assertEqual(result["diagnostics"]["upper_signal_indices"][0], 8)
         self.assertEqual(result["diagnostics"]["lower_signal_indices"], [])
 
+    def test_laney_prime_charts_return_sigma_z(self) -> None:
+        cases = [
+            ("laney-p-prime", {"nonconforming": [2, 4, 3, 8], "sample_sizes": [100] * 4}, "spc.laney_p_prime"),
+            ("laney-u-prime", {"defects": [2, 7, 3, 12], "inspection_units": [1, 2, 1.5, 3]}, "spc.laney_u_prime"),
+        ]
+        for command, payload, analysis_type in cases:
+            with self.subTest(command=command), tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / f"{command}.json"
+                path.write_text(json.dumps(payload), encoding="utf-8")
+                output = io.StringIO()
+                with redirect_stdout(output):
+                    exit_code = main([command, "--input", str(path)])
+                result = json.loads(output.getvalue())["result"]
+                self.assertEqual(exit_code, 0)
+                self.assertEqual(result["analysis_type"], analysis_type)
+                self.assertGreaterEqual(result["parameters"]["sigma_z"], 0)
+
     def test_doe_analysis_returns_effects_anova_and_residuals(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "doe-analysis.json"

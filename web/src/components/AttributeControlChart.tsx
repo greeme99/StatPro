@@ -36,10 +36,10 @@ export function AttributeControlChart({
   chart,
 }: {
   points: AttributeChartPoint[];
-  chart: "p" | "np" | "c" | "u";
+  chart: "p" | "np" | "c" | "u" | "p_prime" | "u_prime";
 }) {
   const signalCount = points.filter((point) => point.signal).length;
-  const statisticLabel = { p: "부적합률", np: "부적합품 수", c: "결점 수", u: "단위당 결점 수" }[chart];
+  const statisticLabel = { p: "부적합률", np: "부적합품 수", c: "결점 수", u: "단위당 결점 수", p_prime: "Laney 보정 부적합률", u_prime: "Laney 보정 단위당 결점 수" }[chart];
   const summary = `${chart} 관리도, 부분군 ${points.length}개, 3시그마 한계 이탈 ${signalCount}개. 표본 크기에 따라 각 점의 관리한계가 계산됩니다.`;
   return (
     <div className="process-rail-wrap">
@@ -52,7 +52,7 @@ export function AttributeControlChart({
               domain={["auto", "auto"]}
               stroke="var(--color-border-strong)"
               tick={{ fill: "var(--color-text-secondary)" }}
-              tickFormatter={(value: number) => value.toFixed(chart === "p" || chart === "u" ? 3 : 1)}
+              tickFormatter={(value: number) => value.toFixed(chart === "np" || chart === "c" ? 1 : 3)}
               width={64}
             />
             <Tooltip
