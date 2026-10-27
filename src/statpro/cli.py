@@ -97,6 +97,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             result = individuals_moving_range(
                 payload["values"],
                 target=payload.get("target"),
+                sigma=payload.get("sigma"),
+                stage=payload.get("stage", "phase_1"),
                 rules=payload.get("rules", "western_electric"),
             )
         elif args.command == "p-chart":
@@ -112,6 +114,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 payload["values"],
                 target=payload.get("target"),
                 sigma=payload.get("sigma"),
+                stage=payload.get("stage", "phase_1"),
                 weight=payload.get("weight", 0.2),
                 limit_width=payload.get("limit_width", 3.0),
             )
@@ -120,6 +123,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 payload["values"],
                 target=payload.get("target"),
                 sigma=payload.get("sigma"),
+                stage=payload.get("stage", "phase_1"),
                 reference_value=payload.get("reference_value", 0.5),
                 decision_interval=payload.get("decision_interval", 4.0),
             )

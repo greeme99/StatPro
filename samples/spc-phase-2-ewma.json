@@ -1,0 +1,8 @@
+{
+  "values": [50.0, 50.2, 49.9, 50.1, 50.3, 50.4],
+  "target": 50.0,
+  "sigma": 0.5,
+  "stage": "phase_2",
+  "weight": 0.2,
+  "limit_width": 3.0
+}

@@ -149,6 +149,18 @@ class EwmaChartTests(unittest.TestCase):
         self.assertEqual(result.parameters["sigma_source"], "estimated_moving_range")
         self.assertEqual(len(result.warnings), 2)
 
+    def test_imr_phase_two_uses_historical_sigma(self) -> None:
+        result = individuals_moving_range(
+            [10.0, 10.1, 9.9],
+            target=10.0,
+            sigma=0.5,
+            stage="phase_2",
+            rules="basic",
+        )
+        self.assertEqual(result.parameters["stage"], "phase_2")
+        self.assertEqual(result.parameters["sigma_source"], "historical")
+        self.assertAlmostEqual(result.tables["limits"]["individuals"]["ucl"], 11.5)
+
     def test_detects_persistent_small_shift(self) -> None:
         result = ewma_chart(
             [50.0] * 5 + [52.0] * 10,
@@ -172,6 +184,22 @@ class EwmaChartTests(unittest.TestCase):
                 with self.assertRaises(AnalysisInputError) as context:
                     ewma_chart([1.0, 2.0], **kwargs)
                 self.assertEqual(context.exception.detail.code, code)
+
+    def test_phase_two_requires_historical_parameters(self) -> None:
+        with self.assertRaises(AnalysisInputError) as context:
+            ewma_chart([1.0, 2.0], stage="phase_2", target=1.5)
+        self.assertEqual(context.exception.detail.code, "historical_parameters_required")
+
+    def test_phase_two_preserves_historical_ewma_contract(self) -> None:
+        result = ewma_chart(
+            [10.0, 10.2, 10.1],
+            stage="phase_2",
+            target=10.0,
+            sigma=0.5,
+        )
+        self.assertEqual(result.parameters["stage"], "phase_2")
+        self.assertEqual(result.parameters["mean_source"], "historical")
+        self.assertEqual(result.parameters["sigma_source"], "historical")
 
 
 class CusumChartTests(unittest.TestCase):
@@ -227,6 +255,11 @@ class CusumChartTests(unittest.TestCase):
         with self.assertRaises(AnalysisInputError) as context:
             cusum_chart([1.0, 1.0, 1.0])
         self.assertEqual(context.exception.detail.code, "invalid_process_sigma")
+
+    def test_phase_two_requires_historical_cusum_parameters(self) -> None:
+        with self.assertRaises(AnalysisInputError) as context:
+            cusum_chart([1.0, 2.0], stage="phase_2", target=1.5)
+        self.assertEqual(context.exception.detail.code, "historical_parameters_required")
 
 
 class LaneyAttributeChartTests(unittest.TestCase):

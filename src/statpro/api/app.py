@@ -106,6 +106,8 @@ class ImrRunRequest(ApiModel):
     run_id: RunId
     values: list[float]
     target: float | None = None
+    sigma: float | None = None
+    stage: Literal["phase_1", "phase_2"] = "phase_1"
     rules: Literal["basic", "western_electric", "nelson"] = "western_electric"
 
 
@@ -120,6 +122,7 @@ class EwmaRunRequest(ApiModel):
     values: list[float]
     target: float | None = None
     sigma: float | None = None
+    stage: Literal["phase_1", "phase_2"] = "phase_1"
     weight: float = 0.2
     limit_width: float = 3.0
 
@@ -129,6 +132,7 @@ class CusumRunRequest(ApiModel):
     values: list[float]
     target: float | None = None
     sigma: float | None = None
+    stage: Literal["phase_1", "phase_2"] = "phase_1"
     reference_value: float = 0.5
     decision_interval: float = 4.0
 
@@ -748,6 +752,8 @@ def create_app(repository: DocumentRepository) -> FastAPI:
             individuals_moving_range(
                 request.values,
                 target=request.target,
+                sigma=request.sigma,
+                stage=request.stage,
                 rules=request.rules,
             ),
         )
@@ -783,6 +789,7 @@ def create_app(repository: DocumentRepository) -> FastAPI:
                 request.values,
                 target=request.target,
                 sigma=request.sigma,
+                stage=request.stage,
                 weight=request.weight,
                 limit_width=request.limit_width,
             ),
@@ -799,6 +806,7 @@ def create_app(repository: DocumentRepository) -> FastAPI:
                 request.values,
                 target=request.target,
                 sigma=request.sigma,
+                stage=request.stage,
                 reference_value=request.reference_value,
                 decision_interval=request.decision_interval,
             ),

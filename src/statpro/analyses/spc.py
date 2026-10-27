@@ -784,6 +784,8 @@ def individuals_moving_range(
     values: Sequence[float],
     *,
     target: float | None = None,
+    sigma: float | None = None,
+    stage: str = "phase_1",
     rules: str = "western_electric",
 ) -> ResultBundle:
     """Calculate an Individuals and two-point Moving Range chart."""
@@ -801,13 +803,32 @@ def individuals_moving_range(
             "Rules must be 'basic', 'western_electric', or 'nelson'.",
             "rules",
         )
+    if stage not in {"phase_1", "phase_2"}:
+        raise AnalysisInputError(
+            "invalid_spc_stage",
+            "SPC stage must be 'phase_1' or 'phase_2'.",
+            "stage",
+        )
+    if stage == "phase_2" and (target is None or sigma is None):
+        raise AnalysisInputError(
+            "historical_parameters_required",
+            "Phase 2 monitoring requires historical target and sigma.",
+            "target",
+        )
 
     center = fmean(observations) if target is None else finite_values([target], "target")[0]
     moving_ranges = [abs(current - previous) for previous, current in pairwise(observations)]
     average_moving_range = fmean(moving_ranges)
     estimated_sigma = average_moving_range / 1.128
-    individuals_ucl = center + 3.0 * estimated_sigma
-    individuals_lcl = center - 3.0 * estimated_sigma
+    process_sigma = estimated_sigma if sigma is None else finite_values([sigma], "sigma")[0]
+    if process_sigma <= 0.0:
+        raise AnalysisInputError(
+            "invalid_process_sigma",
+            "Process sigma must be greater than 0.",
+            "sigma" if sigma is not None else "values",
+        )
+    individuals_ucl = center + 3.0 * process_sigma
+    individuals_lcl = center - 3.0 * process_sigma
     moving_range_ucl = average_moving_range * 3.267
 
     limit_signals = [
@@ -817,11 +838,11 @@ def individuals_moving_range(
     ]
     if rules == "western_electric":
         rule_signals = western_electric_signals(
-            observations, center=center, sigma=estimated_sigma
+            observations, center=center, sigma=process_sigma
         )
     elif rules == "nelson":
         rule_signals = nelson_signals(
-            observations, center=center, sigma=estimated_sigma
+            observations, center=center, sigma=process_sigma
         )
     else:
         rule_signals = [
@@ -863,12 +884,22 @@ def individuals_moving_range(
     elif rules == "nelson":
         provenance += (MINITAB_SPECIAL_CAUSE_SOURCE,)
 
-    payload = {"values": observations, "target": target, "rules": rules}
+    payload = {"values": observations, "target": target, "sigma": sigma, "stage": stage, "rules": rules}
     return ResultBundle(
         analysis_type="spc.imr",
         engine_version=ENGINE_VERSION,
         input_digest=input_digest(payload),
-        parameters={"moving_range_length": 2, "d2": 1.128, "d4": 3.267, "target": target, "rules": rules},
+        parameters={
+            "moving_range_length": 2,
+            "d2": 1.128,
+            "d4": 3.267,
+            "target": center,
+            "process_sigma": process_sigma,
+            "mean_source": "estimated" if target is None else "historical",
+            "sigma_source": "estimated_moving_range" if sigma is None else "historical",
+            "stage": stage,
+            "rules": rules,
+        },
         tables={
             "observations": observations,
             "moving_ranges": moving_ranges,
@@ -892,11 +923,12 @@ def individuals_moving_range(
             "individual_rule_signal_count": len(rule_signals),
             "moving_range_signal_indices": moving_range_signals,
             "estimated_sigma": estimated_sigma,
+            "process_sigma": process_sigma,
         },
         assumptions=(
             "Observations are ordered in process time.",
             "Successive observations provide a meaningful estimate of short-term variation.",
-            "Default limits use the two-point moving range and three-sigma convention.",
+            "Phase 1 limits may estimate center and sigma from observations; Phase 2 limits use supplied historical parameters.",
             "Supplementary rules are evaluated in observation order and mark investigation candidates, not confirmed special causes.",
         ),
         warnings=tuple(warnings),
@@ -909,6 +941,7 @@ def ewma_chart(
     *,
     target: float | None = None,
     sigma: float | None = None,
+    stage: str = "phase_1",
     weight: float = 0.2,
     limit_width: float = 3.0,
 ) -> ResultBundle:
@@ -920,6 +953,18 @@ def ewma_chart(
             "insufficient_observations",
             "EWMA requires at least two finite observations.",
             "values",
+        )
+    if stage not in {"phase_1", "phase_2"}:
+        raise AnalysisInputError(
+            "invalid_spc_stage",
+            "SPC stage must be 'phase_1' or 'phase_2'.",
+            "stage",
+        )
+    if stage == "phase_2" and (target is None or sigma is None):
+        raise AnalysisInputError(
+            "historical_parameters_required",
+            "Phase 2 monitoring requires historical target and sigma.",
+            "target",
         )
     normalized_weight = finite_values([weight], "weight")[0]
     if not 0.0 < normalized_weight <= 1.0:
@@ -1003,6 +1048,7 @@ def ewma_chart(
         "sigma": process_sigma if sigma is not None else None,
         "weight": normalized_weight,
         "limit_width": normalized_limit_width,
+        "stage": stage,
     }
     provenance = [NIST_EWMA_SOURCE, MINITAB_EWMA_SOURCE]
     if sigma is None:
@@ -1019,6 +1065,7 @@ def ewma_chart(
             "mean_source": "estimated" if target is None else "historical",
             "sigma_source": sigma_source,
             "startup_adjusted_limits": True,
+            "stage": stage,
         },
         tables={"chart_points": points},
         plots={"ewma": {"values": ewma_values, "signal_indices": signal_indices}},
@@ -1030,7 +1077,7 @@ def ewma_chart(
         },
         assumptions=(
             "Observations are continuous, independent, and ordered in process time.",
-            "The process mean and sigma represent an in-control baseline.",
+            "Phase 1 may estimate baseline parameters; Phase 2 uses supplied historical mean and sigma.",
             "Startup-adjusted limits use the exact finite-time EWMA variance factor.",
             "A limit signal is an investigation candidate and does not establish a special cause by itself.",
         ),
@@ -1044,6 +1091,7 @@ def cusum_chart(
     *,
     target: float | None = None,
     sigma: float | None = None,
+    stage: str = "phase_1",
     reference_value: float = 0.5,
     decision_interval: float = 4.0,
 ) -> ResultBundle:
@@ -1055,6 +1103,18 @@ def cusum_chart(
             "insufficient_observations",
             "CUSUM requires at least two finite observations.",
             "values",
+        )
+    if stage not in {"phase_1", "phase_2"}:
+        raise AnalysisInputError(
+            "invalid_spc_stage",
+            "SPC stage must be 'phase_1' or 'phase_2'.",
+            "stage",
+        )
+    if stage == "phase_2" and (target is None or sigma is None):
+        raise AnalysisInputError(
+            "historical_parameters_required",
+            "Phase 2 monitoring requires historical target and sigma.",
+            "target",
         )
     k = finite_values([reference_value], "reference_value")[0]
     h = finite_values([decision_interval], "decision_interval")[0]
@@ -1147,6 +1207,7 @@ def cusum_chart(
         "sigma": process_sigma if sigma is not None else None,
         "reference_value": k,
         "decision_interval": h,
+        "stage": stage,
     }
     provenance = [NIST_CUSUM_SOURCE, MINITAB_CUSUM_SOURCE]
     if sigma is None:
@@ -1164,6 +1225,7 @@ def cusum_chart(
             "decision_interval": h,
             "standardized": True,
             "initial_cusum": 0.0,
+            "stage": stage,
         },
         tables={"chart_points": points},
         plots={
@@ -1181,7 +1243,7 @@ def cusum_chart(
         },
         assumptions=(
             "Observations are continuous, independent, and ordered in process time.",
-            "The process target and sigma represent an in-control baseline.",
+            "Phase 1 may estimate baseline parameters; Phase 2 uses supplied historical target and sigma.",
             "Reference value k and decision interval h are expressed in process-sigma units.",
             "A CUSUM limit signal is an investigation candidate and does not establish a special cause by itself.",
         ),
