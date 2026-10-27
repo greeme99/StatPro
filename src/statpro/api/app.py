@@ -204,6 +204,7 @@ class FractionalFactorialRunRequest(ApiModel):
     block_generators: list[list[str]] = Field(default_factory=list, max_length=4)
     replicates: int = 1
     foldover: bool = False
+    foldover_factor: str | None = None
     randomize: bool = True
     seed: int = 0
 
@@ -222,6 +223,7 @@ class AutomaticFractionalFactorialRunRequest(ApiModel):
     block_generators: list[list[str]] = Field(default_factory=list, max_length=4)
     replicates: StrictInt = Field(default=1, ge=1)
     foldover: bool = False
+    foldover_factor: str | None = None
     randomize: bool = True
     seed: int = 0
 
@@ -1089,6 +1091,7 @@ def create_app(
                 block_generators=request.block_generators,
                 replicates=request.replicates,
                 foldover=request.foldover,
+                foldover_factor=request.foldover_factor,
                 randomize=request.randomize,
                 seed=request.seed,
             ),
@@ -1116,6 +1119,7 @@ def create_app(
                 block_generators=request.block_generators,
                 replicates=request.replicates,
                 foldover=request.foldover,
+                foldover_factor=request.foldover_factor,
                 randomize=request.randomize,
                 seed=request.seed,
             ),
@@ -1307,6 +1311,7 @@ def create_app(
                 block_generators=request.block_generators,
                 replicates=request.replicates,
                 foldover=request.foldover,
+                foldover_factor=request.foldover_factor,
                 randomize=request.randomize,
                 seed=request.seed,
                 alpha=request.alpha,
@@ -1337,6 +1342,7 @@ def create_app(
                 block_generators=request.block_generators,
                 replicates=request.replicates,
                 foldover=request.foldover,
+                foldover_factor=request.foldover_factor,
                 randomize=request.randomize,
                 seed=request.seed,
                 alpha=request.alpha,

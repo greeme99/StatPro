@@ -387,6 +387,122 @@ class FractionalFactorialDesignTests(unittest.TestCase):
             "I = B*C*D*E",
         )
 
+    def test_single_factor_foldover_reverses_selected_column_and_reduces_aliases(self) -> None:
+        factors = [FactorDefinition(name, 0, 1) for name in "ABCDE"]
+        result = fractional_factorial_2level(
+            factors,
+            [
+                GeneratorDefinition("D", ["A", "B"]),
+                GeneratorDefinition("E", ["A", "C"]),
+            ],
+            foldover_factor="D",
+            randomize=False,
+        )
+
+        rows = result.tables["design"]
+        self.assertEqual(len(rows), 16)
+        for original, folded in zip(rows[:8], rows[8:], strict=True):
+            self.assertEqual(folded["coded"]["D"], -original["coded"]["D"])
+            self.assertEqual(
+                {name: folded["coded"][name] for name in "ABCE"},
+                {name: original["coded"][name] for name in "ABCE"},
+            )
+        self.assertEqual(result.diagnostics["foldover_mode"], "single_factor")
+        self.assertEqual(result.diagnostics["foldover_factor"], "D")
+        self.assertEqual(result.diagnostics["augmented_resolution"], 3)
+        self.assertFalse(
+            result.diagnostics["main_effects_clear_of_two_factor_interactions"]
+        )
+        self.assertEqual(
+            result.tables["defining_relation"][0]["expression"],
+            "I = A*C*E",
+        )
+        aliases = {
+            row["effect"]: row for row in result.tables["main_effect_aliases"]
+        }
+        self.assertTrue(aliases["D"]["clear_of_two_factor_interactions"])
+        self.assertFalse(aliases["A"]["clear_of_two_factor_interactions"])
+
+    def test_blocked_single_factor_foldover_is_balanced_and_uses_effective_relation(self) -> None:
+        factors = [FactorDefinition(name, 0, 1) for name in "ABCDE"]
+        result = fractional_factorial_2level(
+            factors,
+            [
+                GeneratorDefinition("D", ["A", "B"]),
+                GeneratorDefinition("E", ["A", "C"]),
+            ],
+            block_generators=[["B", "C"]],
+            foldover_factor="D",
+            randomize=False,
+        )
+
+        self.assertEqual(result.diagnostics["block_count"], 2)
+        self.assertEqual(result.diagnostics["runs_per_block"], 8)
+        self.assertEqual(
+            [row["block"] for row in result.tables["design"]],
+            [1] * 8 + [2] * 8,
+        )
+        self.assertEqual(
+            result.tables["block_aliases"],
+            [{
+                "contrast": "Blk1",
+                "generator_terms": "B*C",
+                "treatment_alias_set": ["B*C", "A*B*E"],
+            }],
+        )
+
+    def test_blocked_full_foldover_preserves_balanced_blocks(self) -> None:
+        factors = [FactorDefinition(name, 0, 1) for name in "ABCDE"]
+        result = fractional_factorial_2level(
+            factors,
+            [
+                GeneratorDefinition("D", ["A", "B"]),
+                GeneratorDefinition("E", ["A", "C"]),
+            ],
+            block_generators=[["B", "C"]],
+            foldover=True,
+            randomize=False,
+        )
+
+        self.assertEqual(result.diagnostics["foldover_mode"], "all_factors")
+        self.assertEqual(result.diagnostics["block_count"], 2)
+        self.assertEqual(result.diagnostics["runs_per_block"], 8)
+        self.assertEqual(
+            [row["block"] for row in result.tables["design"]],
+            [1] * 8 + [2] * 8,
+        )
+        self.assertEqual(
+            result.tables["block_aliases"][0]["treatment_alias_set"],
+            ["B*C", "D*E"],
+        )
+
+    def test_foldover_options_reject_conflicts_unknowns_and_duplicate_only_folds(self) -> None:
+        factors = [FactorDefinition(name, 0, 1) for name in "ABCDE"]
+        generators = [
+            GeneratorDefinition("D", ["A", "B"]),
+            GeneratorDefinition("E", ["A", "C"]),
+        ]
+        cases = (
+            ({"foldover": True, "foldover_factor": "D"}, "conflicting_foldover_options"),
+            ({"foldover_factor": "Z"}, "unknown_foldover_factor"),
+        )
+        for options, expected_code in cases:
+            with self.subTest(expected_code=expected_code):
+                with self.assertRaises(AnalysisInputError) as context:
+                    fractional_factorial_2level(factors, generators, **options)
+                self.assertEqual(context.exception.detail.code, expected_code)
+
+        with self.assertRaises(AnalysisInputError) as duplicate_only:
+            fractional_factorial_2level(
+                [FactorDefinition(name, 0, 1) for name in "ABCD"],
+                [GeneratorDefinition("D", ["A", "B"])],
+                foldover_factor="C",
+            )
+        self.assertEqual(
+            duplicate_only.exception.detail.code,
+            "foldover_factor_no_alias_reduction",
+        )
+
     def test_mirror_foldover_rejects_non_resolution_three_design(self) -> None:
         with self.assertRaises(AnalysisInputError) as context:
             fractional_factorial_2level(
@@ -490,6 +606,43 @@ class FractionalFactorialAnalysisTests(unittest.TestCase):
         self.assertEqual(effects["D"]["alias_set"], ["D", "B*C*E"])
         self.assertTrue(effects["D"]["clear_of_two_factor_interactions"])
         self.assertEqual(result.diagnostics["augmented_resolution"], 4)
+
+    def test_blocked_single_factor_foldover_fits_selected_effect_and_block(self) -> None:
+        factors = [FactorDefinition(name, 0, 1) for name in "ABCDE"]
+        generators = [
+            GeneratorDefinition("D", ["A", "B"]),
+            GeneratorDefinition("E", ["A", "C"]),
+        ]
+        design = fractional_factorial_2level(
+            factors,
+            generators,
+            block_generators=[["B", "C"]],
+            foldover_factor="D",
+            randomize=False,
+        )
+        responses = [
+            10 + 2 * row["coded"]["D"] + 5 * row["block_contrasts"]["Blk1"]
+            for row in design.tables["design"]
+        ]
+
+        result = analyze_fractional_factorial_2level(
+            factors,
+            generators,
+            responses,
+            block_generators=[["B", "C"]],
+            foldover_factor="D",
+            randomize=False,
+        )
+
+        effects = {row["term"]: row for row in result.tables["coefficients"]}
+        blocks = {
+            row["contrast"]: row["coefficient"]
+            for row in result.tables["block_effects"]
+        }
+        self.assertAlmostEqual(effects["D"]["effect"], 4.0)
+        self.assertTrue(effects["D"]["clear_of_two_factor_interactions"])
+        self.assertFalse(effects["A"]["clear_of_two_factor_interactions"])
+        self.assertAlmostEqual(blocks["Blk1"], 5.0)
 
     def test_rejects_response_count_mismatch(self) -> None:
         with self.assertRaises(AnalysisInputError) as context:

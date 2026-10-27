@@ -122,6 +122,7 @@ export function createDoeFractionalFactorialRun(payload: {
   block_generators: string[][];
   replicates: number;
   foldover: boolean;
+  foldover_factor: string | null;
   randomize: boolean;
   seed: number;
 }): Promise<StoredRun> {
@@ -140,6 +141,7 @@ export function createDoeFractionalFactorialAnalysisRun(payload: {
   response_name: string;
   replicates: number;
   foldover: boolean;
+  foldover_factor: string | null;
   randomize: boolean;
   seed: number;
   alpha: number;
@@ -158,6 +160,7 @@ export type DoeAutomaticFractionalPayload = {
   block_generators: string[][];
   replicates: number;
   foldover: boolean;
+  foldover_factor: string | null;
   randomize: boolean;
   seed: number;
 };

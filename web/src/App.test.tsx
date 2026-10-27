@@ -580,7 +580,7 @@ describe("StatPro UI", () => {
     render(<MemoryRouter initialEntries={["/analyses/doe/fractional-factorial"]}><App /></MemoryRouter>);
 
     await userEvent.click(await screen.findByRole("radio", { name: "자동 선택 · 최소 이상률" }));
-    expect(screen.getByRole("checkbox", { name: "해상도 III full mirror-image foldover 추가" })).toBeDisabled();
+    expect(screen.getByRole("combobox", { name: "Foldover 방식" })).toBeEnabled();
     await userEvent.click(screen.getByRole("button", { name: "일부요인배치 생성" }));
     await waitFor(() => expect(fetchMock.mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === "POST")).toBe(true));
     const post = fetchMock.mock.calls.find(([url, init]) => String(url).endsWith("/doe-fractional-factorial-auto") && (init as RequestInit | undefined)?.method === "POST");
@@ -590,7 +590,7 @@ describe("StatPro UI", () => {
     expect(body.generators).toBeUndefined();
   });
 
-  it("submits fractional block generators and disables foldover", async () => {
+  it("submits fractional block generators with a single-factor foldover", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
       return new Response(JSON.stringify({}), { status: init?.method === "POST" ? 201 : 200, headers: { "Content-Type": "application/json" } });
@@ -598,13 +598,15 @@ describe("StatPro UI", () => {
     render(<MemoryRouter initialEntries={["/analyses/doe/fractional-factorial"]}><App /></MemoryRouter>);
 
     await userEvent.type(await screen.findByRole("textbox", { name: "블록 생성식 (선택, 줄마다 하나)" }), "A B");
-    expect(screen.getByRole("checkbox", { name: "해상도 III full mirror-image foldover 추가" })).toBeDisabled();
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Foldover 방식" }), "factor");
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "반전 요인" }), "D");
     await userEvent.click(screen.getByRole("button", { name: "일부요인배치 생성" }));
     await waitFor(() => expect(fetchMock.mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === "POST")).toBe(true));
     const post = fetchMock.mock.calls.find(([url, init]) => String(url).endsWith("/doe-fractional-factorial") && (init as RequestInit | undefined)?.method === "POST");
     const body = JSON.parse(String((post?.[1] as RequestInit).body));
     expect(body.block_generators).toEqual([["A", "B"]]);
     expect(body.foldover).toBe(false);
+    expect(body.foldover_factor).toBe("D");
   });
 
   it("submits fractional responses for main-effect analysis", async () => {
@@ -656,8 +658,8 @@ describe("StatPro UI", () => {
   it("renders fractional effects with alias interpretation", async () => {
     const effect = { term: "A", coefficient: 2, effect: 4, sum_of_squares: 32, standard_error: 1, standardized_effect: 4, p_value: 0.01, significant: true, alias_set: ["A", "B*C*D"], clear_of_two_factor_interactions: false, absolute_effect: 4, display_value: 4 };
     const result = {
-      analysis_type: "doe.fractional_factorial_2level_analysis", engine_version: "0.6.0", input_digest: "f".repeat(64), warnings: [], assumptions: [], provenance: [], parameters: { foldover: false },
-      diagnostics: { response_name: "Yield", inference_method: "residual_error", pareto_reference_line: 2.4, residual_degrees_of_freedom: 2, r_squared: 0.9, resolution_label: "IV", augmented_resolution: 4, main_effects_clear_of_two_factor_interactions: true },
+      analysis_type: "doe.fractional_factorial_2level_analysis", engine_version: "0.6.0", input_digest: "f".repeat(64), warnings: [], assumptions: [], provenance: [], parameters: { foldover: false, foldover_factor: "D" },
+      diagnostics: { response_name: "Yield", inference_method: "residual_error", pareto_reference_line: 2.4, residual_degrees_of_freedom: 2, r_squared: 0.9, resolution_label: "III", augmented_resolution: 3, foldover_mode: "single_factor", foldover_factor: "D", cleared_main_effects: ["D"], main_effects_clear_of_two_factor_interactions: false },
       tables: { coefficients: [effect], ranked_effects: [effect], residuals: [], defining_relation: [], main_effect_aliases: [] },
       plots: {},
     };
@@ -670,6 +672,8 @@ describe("StatPro UI", () => {
     expect(await screen.findByRole("heading", { name: "부분요인 주효과 Pareto" })).toBeInTheDocument();
     expect(screen.getByRole("img", { name: /가장 큰 절대 효과는 A/ })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "별칭 및 확인 범위" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "단일요인 fold 별칭 분리 범위" })).toBeInTheDocument();
+    expect(screen.getByText(/선택 요인 D의 부호만 반전했습니다/)).toBeInTheDocument();
   });
 
   it("submits central composite responses for quadratic analysis", async () => {

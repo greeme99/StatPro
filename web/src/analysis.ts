@@ -380,6 +380,7 @@ export type DoeFractionalDesignRow = {
 export type DoeAliasRow = {
   effect: string;
   alias_set: string[];
+  clear_of_two_factor_interactions?: boolean;
 };
 
 export type DoeFractionalView = {
@@ -418,6 +419,9 @@ export type DoeFractionalAnalysisView = {
   residualDegreesOfFreedom: number;
   rSquared: number | null;
   foldover: boolean;
+  foldoverMode: "none" | "all_factors" | "single_factor";
+  foldoverFactor: string | null;
+  clearedMainEffects: string[];
   resolutionLabel: string;
   augmentedResolution: number;
   mainEffectsClear: boolean;
@@ -653,6 +657,13 @@ export function toDoeFractionalAnalysisView(result: ResultBundle | undefined): D
     residualDegreesOfFreedom: Number(result.diagnostics.residual_degrees_of_freedom ?? 0),
     rSquared: typeof result.diagnostics.r_squared === "number" ? result.diagnostics.r_squared : null,
     foldover: result.parameters.foldover === true,
+    foldoverMode: ["all_factors", "single_factor"].includes(String(result.diagnostics.foldover_mode))
+      ? result.diagnostics.foldover_mode as "all_factors" | "single_factor"
+      : "none",
+    foldoverFactor: typeof result.diagnostics.foldover_factor === "string" ? result.diagnostics.foldover_factor : null,
+    clearedMainEffects: Array.isArray(result.diagnostics.cleared_main_effects)
+      ? result.diagnostics.cleared_main_effects.map(String)
+      : [],
     resolutionLabel: String(result.diagnostics.resolution_label ?? "—"),
     augmentedResolution: Number(result.diagnostics.augmented_resolution ?? result.diagnostics.resolution ?? 0),
     mainEffectsClear: result.diagnostics.main_effects_clear_of_two_factor_interactions === true,

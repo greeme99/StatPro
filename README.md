@@ -15,7 +15,7 @@ The repository starts with a dependency-free Python statistical core so formulas
 - Binomial p/np and Poisson c/u attribute control charts with pooled Phase I centers, opportunity-specific limits for p/u, constant-opportunity enforcement for np/c, and accessible chart/table results
 - Laney P′/U′ charts with moving-range Sigma Z adjustment for overdispersion and underdispersion
 - Normal capability for individual observations with within/overall variation kept distinct
-- Reproducible two-level full factorial DOE analysis with deterministic automatic blocking, regular fractional-factorial generation/main-effect analysis with bounded automatic minimum-run/minimum-aberration generator selection, explicit regular block generators and full resolution-III foldover, 3–5 factor Box–Behnken and central-composite response-surface designs with complete-quadratic modelling, stationary-point/canonical analysis, bounded two-factor surface grids, accessible iso-response contours and projected 3D wireframes, plus Plackett–Burman screening design/response analysis from 12 to 48 runs
+- Reproducible two-level full factorial DOE analysis with deterministic automatic blocking, regular fractional-factorial generation/main-effect analysis with bounded automatic minimum-run/minimum-aberration generator selection, explicit regular block generators, blocked full resolution-III foldover and single-factor foldover, 3–5 factor Box–Behnken and central-composite response-surface designs with complete-quadratic modelling, stationary-point/canonical analysis, bounded two-factor surface grids, accessible iso-response contours and projected 3D wireframes, plus Plackett–Burman screening design/response analysis from 12 to 48 runs
 - Balanced crossed Gage R&R using two-way random-effects ANOVA variance components
 - Immutable CSV Dataset snapshots and revisioned Worksheet cell edits
 - Packaged Draft 2020-12 `ResultBundle` JSON Schema
@@ -51,6 +51,7 @@ py -3.12 -m statpro.cli doe-full-factorial --input samples\doe-full-factorial.js
 py -3.12 -m statpro.cli doe-full-factorial --input samples\doe-full-factorial-blocked.json
 py -3.12 -m statpro.cli doe-fractional-factorial --input samples\doe-fractional-factorial.json
 py -3.12 -m statpro.cli doe-fractional-factorial --input samples\doe-fractional-factorial-blocked.json
+py -3.12 -m statpro.cli doe-fractional-factorial --input samples\doe-fractional-factorial-partial-foldover.json
 py -3.12 -m statpro.cli doe-fractional-factorial-auto --input samples\doe-fractional-factorial-auto.json
 py -3.12 -m statpro.cli doe-analyze-fractional-factorial --input samples\doe-fractional-factorial-analysis.json
 py -3.12 -m statpro.cli doe-box-behnken --input samples\doe-box-behnken.json

@@ -104,6 +104,31 @@ class LocalApiContractTests(unittest.TestCase):
             [1] * 4 + [2] * 4 + [3] * 4 + [4] * 4,
         )
 
+    def test_blocked_single_factor_foldover_is_exposed_through_api(self) -> None:
+        response = self.client.post(
+            "/v1/analysis-runs/doe-fractional-factorial",
+            json={
+                "run_id": "doe-blocked-partial-fold",
+                "factors": [
+                    {"name": name, "low": 0, "high": 1} for name in "ABCDE"
+                ],
+                "generators": [
+                    {"factor": "D", "terms": ["A", "B"]},
+                    {"factor": "E", "terms": ["A", "C"]},
+                ],
+                "block_generators": [["B", "C"]],
+                "foldover_factor": "D",
+                "randomize": False,
+            },
+        )
+
+        self.assertEqual(response.status_code, 201)
+        result = response.json()["result"]
+        self.assertEqual(result["diagnostics"]["foldover_mode"], "single_factor")
+        self.assertEqual(result["diagnostics"]["foldover_factor"], "D")
+        self.assertEqual(result["diagnostics"]["runs_per_block"], 8)
+        self.assertEqual(len(result["tables"]["design"]), 16)
+
     def test_full_factorial_blocks_are_selected_and_fitted_through_api(self) -> None:
         factors = [{"name": name, "low": 0, "high": 1} for name in "ABC"]
         created = self.client.post(

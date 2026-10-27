@@ -49,6 +49,20 @@ NIST_MIRROR_FOLDOVER_SOURCE = ProvenanceSource(
     url="https://www.itl.nist.gov/div898/handbook/pri/section3/pri3381.htm",
 )
 
+NIST_ALTERNATIVE_FOLDOVER_SOURCE = ProvenanceSource(
+    title="NIST/SEMATECH 5.3.3.8.2 Alternative foldover designs",
+    url="https://www.itl.nist.gov/div898/handbook/pri/section3/pri3382.htm",
+)
+
+MINITAB_FOLD_DESIGN_SOURCE = ProvenanceSource(
+    title="Minitab public documentation: Fold design",
+    url=(
+        "https://support.minitab.com/en-us/minitab/help-and-how-to/"
+        "statistical-modeling/doe/how-to/factorial/display-and-modify-design/"
+        "perform-the-analysis/fold-design/"
+    ),
+)
+
 NIST_CENTRAL_COMPOSITE_SOURCE = ProvenanceSource(
     title="NIST/SEMATECH 5.3.3.6.1 Central Composite Designs",
     url="https://www.itl.nist.gov/div898/handbook/pri/section3/pri3361.htm",
@@ -1383,6 +1397,7 @@ def fractional_factorial_2level(
     block_generators: Sequence[Sequence[str]] = (),
     replicates: int = 1,
     foldover: bool = False,
+    foldover_factor: str | None = None,
     randomize: bool = True,
     seed: int = 0,
 ) -> ResultBundle:
@@ -1482,9 +1497,32 @@ def fractional_factorial_2level(
                 f"generators[{index}].terms",
             )
 
+    normalized_foldover_factor: str | None = None
+    if foldover_factor is not None:
+        if not isinstance(foldover_factor, str) or not foldover_factor.strip():
+            raise AnalysisInputError(
+                "invalid_foldover_factor",
+                "Foldover factor must name one supplied factor.",
+                "foldover_factor",
+            )
+        normalized_foldover_factor = foldover_factor.strip()
+        if normalized_foldover_factor not in factor_by_name:
+            raise AnalysisInputError(
+                "unknown_foldover_factor",
+                f"Unknown foldover factor '{normalized_foldover_factor}'.",
+                "foldover_factor",
+            )
+    if foldover and normalized_foldover_factor is not None:
+        raise AnalysisInputError(
+            "conflicting_foldover_options",
+            "Choose either a full foldover or a single-factor foldover, not both.",
+            "foldover_factor",
+        )
+    foldover_requested = foldover or normalized_foldover_factor is not None
+
     base_run_count = 2 ** len(base_names)
     total_run_count = base_run_count * replicates
-    if total_run_count * (2 if foldover else 1) > 100_000:
+    if total_run_count * (2 if foldover_requested else 1) > 100_000:
         raise AnalysisInputError(
             "design_too_large",
             "The requested design exceeds the 100,000-run safety limit.",
@@ -1516,12 +1554,6 @@ def fractional_factorial_2level(
         )
     ]
 
-    if foldover and block_generators:
-        raise AnalysisInputError(
-            "blocked_foldover_unsupported",
-            "Blocked mirror-image foldover is not yet supported; generate the blocked base fraction without foldover.",
-            "foldover",
-        )
     if foldover and resolution != 3:
         raise AnalysisInputError(
             "mirror_foldover_requires_resolution_iii",
@@ -1529,9 +1561,28 @@ def fractional_factorial_2level(
             "for this design it would not provide the documented main-effect de-aliasing benefit.",
             "foldover",
         )
-    effective_relation = (
-        [word for word in relation if len(word) % 2 == 0] if foldover else relation
-    )
+    if normalized_foldover_factor is not None and not any(
+        normalized_foldover_factor in word for word in non_identity_words
+    ):
+        raise AnalysisInputError(
+            "foldover_factor_no_alias_reduction",
+            f"Folding factor '{normalized_foldover_factor}' would only duplicate the base fraction.",
+            "foldover_factor",
+        )
+    if foldover:
+        effective_relation = [word for word in relation if len(word) % 2 == 0]
+        folded_factors = factor_names
+        foldover_mode = "all_factors"
+    elif normalized_foldover_factor is not None:
+        effective_relation = [
+            word for word in relation if normalized_foldover_factor not in word
+        ]
+        folded_factors = [normalized_foldover_factor]
+        foldover_mode = "single_factor"
+    else:
+        effective_relation = relation
+        folded_factors = []
+        foldover_mode = "none"
     effective_non_identity_words = effective_relation[1:]
     augmented_resolution = (
         min(len(word) for word in effective_non_identity_words)
@@ -1555,7 +1606,7 @@ def fractional_factorial_2level(
         block_generators,
         factor_names=factor_names,
         factor_order=factor_order,
-        defining_relation=relation,
+        defining_relation=effective_relation,
         base_run_count=base_run_count,
     )
 
@@ -1591,10 +1642,17 @@ def fractional_factorial_2level(
                 }
             )
         rows.extend(replicate_rows)
-        if foldover:
+        if foldover_requested:
             for original in replicate_rows:
                 original_coded = original["coded"]
-                folded_coded = {name: -original_coded[name] for name in factor_names}
+                folded_coded = {
+                    name: (
+                        -original_coded[name]
+                        if name in folded_factors
+                        else original_coded[name]
+                    )
+                    for name in factor_names
+                }
                 folded_actual = {
                     name: (
                         factor_by_name[name].high
@@ -1642,7 +1700,14 @@ def fractional_factorial_2level(
         ]
 
     main_effect_aliases = [
-        {"effect": name, "alias_set": aliases_for(frozenset((name,)))}
+        {
+            "effect": name,
+            "alias_set": aliases_for(frozenset((name,))),
+            "clear_of_two_factor_interactions": not any(
+                alias.count("*") == 1
+                for alias in aliases_for(frozenset((name,)))
+            ),
+        }
         for name in factor_names
     ]
     two_factor_aliases = [
@@ -1673,6 +1738,11 @@ def fractional_factorial_2level(
             "The mirror-image foldover clears main effects from two-factor interactions, "
             "but two-factor interactions can remain aliased with one another."
         )
+    elif normalized_foldover_factor is not None:
+        warnings.append(
+            f"The single-factor foldover clears '{normalized_foldover_factor}' and its two-factor interactions, "
+            "but other main effects can remain aliased with two-factor interactions."
+        )
     if normalized_block_generators:
         warnings.append(
             "Block effects are nuisance terms confounded with the displayed treatment-interaction alias sets."
@@ -1685,6 +1755,8 @@ def fractional_factorial_2level(
         "block_generators": normalized_block_generators,
         "replicates": replicates,
         "foldover": foldover,
+        "foldover_factor": normalized_foldover_factor,
+        "foldover_mode": foldover_mode,
         "randomize": randomize,
         "seed": seed,
     }
@@ -1730,17 +1802,30 @@ def fractional_factorial_2level(
             "resolution": resolution,
             "resolution_label": _roman_resolution(resolution),
             "factorial_run_count": base_run_count,
-            "total_run_count": total_run_count * (2 if foldover else 1),
+            "total_run_count": total_run_count * (2 if foldover_requested else 1),
             "original_run_count": total_run_count,
-            "foldover_run_count": total_run_count if foldover else 0,
-            "main_effects_clear_of_two_factor_interactions": foldover or resolution >= 4,
+            "foldover_run_count": total_run_count if foldover_requested else 0,
+            "foldover_mode": foldover_mode,
+            "foldover_factor": normalized_foldover_factor,
+            "folded_factors": folded_factors,
+            "cleared_main_effects": [
+                str(row["effect"])
+                for row in main_effect_aliases
+                if row["clear_of_two_factor_interactions"]
+            ],
+            "main_effects_clear_of_two_factor_interactions": all(
+                bool(row["clear_of_two_factor_interactions"])
+                for row in main_effect_aliases
+            ),
             "augmented_resolution": augmented_resolution,
             "balanced": True,
             "orthogonal": True,
             "regular_fraction": True,
             "block_count": 2 ** len(normalized_block_generators),
             "runs_per_block": (
-                total_run_count // (2 ** len(normalized_block_generators))
+                total_run_count
+                * (2 if foldover_requested else 1)
+                // (2 ** len(normalized_block_generators))
             ),
             "blocked_resolution": (
                 blocked_resolution if normalized_block_generators else None
@@ -1759,6 +1844,7 @@ def fractional_factorial_2level(
             "Every generator is a positive product of independent base-factor columns.",
             "Alias sets follow the complete defining contrast subgroup for this regular fraction.",
             "Block generators, when supplied, are positive treatment-interaction columns independent of the treatment defining relation.",
+            "Foldover rows retain the same block-generator definitions and are randomized only within the resulting blocks.",
             "The supplied random seed is retained for reproducibility.",
         ),
         warnings=tuple(warnings),
@@ -1766,7 +1852,8 @@ def fractional_factorial_2level(
             NIST_FRACTIONAL_FACTORIAL_SOURCE,
             MINITAB_FRACTIONAL_FACTORIAL_SOURCE,
             *((NIST_FACTORIAL_BLOCKING_SOURCE, MINITAB_FACTORIAL_BLOCKING_SOURCE) if normalized_block_generators else ()),
-            *((NIST_MIRROR_FOLDOVER_SOURCE,) if foldover else ()),
+            *((NIST_MIRROR_FOLDOVER_SOURCE, MINITAB_FOLD_DESIGN_SOURCE) if foldover else ()),
+            *((NIST_ALTERNATIVE_FOLDOVER_SOURCE, MINITAB_FOLD_DESIGN_SOURCE) if normalized_foldover_factor is not None else ()),
         ),
     )
 
@@ -1811,6 +1898,7 @@ def automatic_fractional_factorial_2level(
     block_generators: Sequence[Sequence[str]] = (),
     replicates: int = 1,
     foldover: bool = False,
+    foldover_factor: str | None = None,
     randomize: bool = True,
     seed: int = 0,
 ) -> ResultBundle:
@@ -1832,6 +1920,7 @@ def automatic_fractional_factorial_2level(
         block_generators=block_generators,
         replicates=replicates,
         foldover=foldover,
+        foldover_factor=foldover_factor,
         randomize=randomize,
         seed=seed,
     )
@@ -1848,6 +1937,7 @@ def analyze_automatic_fractional_factorial_2level(
     block_generators: Sequence[Sequence[str]] = (),
     replicates: int = 1,
     foldover: bool = False,
+    foldover_factor: str | None = None,
     randomize: bool = True,
     seed: int = 0,
     alpha: float = 0.05,
@@ -1872,6 +1962,7 @@ def analyze_automatic_fractional_factorial_2level(
         block_generators=block_generators,
         replicates=replicates,
         foldover=foldover,
+        foldover_factor=foldover_factor,
         randomize=randomize,
         seed=seed,
         alpha=alpha,
@@ -2059,6 +2150,7 @@ def analyze_fractional_factorial_2level(
     block_generators: Sequence[Sequence[str]] = (),
     replicates: int = 1,
     foldover: bool = False,
+    foldover_factor: str | None = None,
     randomize: bool = True,
     seed: int = 0,
     alpha: float = 0.05,
@@ -2075,6 +2167,7 @@ def analyze_fractional_factorial_2level(
         block_generators=block_generators,
         replicates=replicates,
         foldover=foldover,
+        foldover_factor=foldover_factor,
         randomize=randomize,
         seed=seed,
     )
@@ -2166,6 +2259,10 @@ def analyze_fractional_factorial_2level(
         str(row["effect"]): list(row["alias_set"])
         for row in design.tables["main_effect_aliases"]
     }
+    alias_clearance = {
+        str(row["effect"]): bool(row["clear_of_two_factor_interactions"])
+        for row in design.tables["main_effect_aliases"]
+    }
     coefficient_rows: list[dict[str, object]] = []
     ranked_rows: list[dict[str, object]] = []
     for term, effect in zip(terms, raw_effects, strict=True):
@@ -2203,7 +2300,7 @@ def analyze_fractional_factorial_2level(
             "significant": significant,
             "alias_set": alias_set,
             "clear_of_two_factor_interactions": bool(
-                design.diagnostics["main_effects_clear_of_two_factor_interactions"]
+                alias_clearance[name]
             ),
         }
         coefficient_rows.append(row)

@@ -284,6 +284,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "block_generators": payload.get("block_generators", []),
                     "replicates": payload.get("replicates", 1),
                     "foldover": payload.get("foldover", False),
+                    "foldover_factor": payload.get("foldover_factor"),
                     "randomize": payload.get("randomize", True),
                     "seed": payload.get("seed", 0),
                 }
@@ -312,6 +313,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "block_generators": payload.get("block_generators", []),
                     "replicates": payload.get("replicates", 1),
                     "foldover": payload.get("foldover", False),
+                    "foldover_factor": payload.get("foldover_factor"),
                     "randomize": payload.get("randomize", True),
                     "seed": payload.get("seed", 0),
                 }

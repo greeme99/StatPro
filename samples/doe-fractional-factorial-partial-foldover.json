@@ -1,0 +1,16 @@
+{
+  "factors": [
+    {"name": "A", "low": 0, "high": 1},
+    {"name": "B", "low": 0, "high": 1},
+    {"name": "C", "low": 0, "high": 1},
+    {"name": "D", "low": 0, "high": 1},
+    {"name": "E", "low": 0, "high": 1}
+  ],
+  "generators": [
+    {"factor": "D", "terms": ["A", "B"]},
+    {"factor": "E", "terms": ["A", "C"]}
+  ],
+  "block_generators": [["B", "C"]],
+  "foldover_factor": "D",
+  "randomize": false
+}

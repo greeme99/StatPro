@@ -371,9 +371,11 @@ class CliBoundaryTests(unittest.TestCase):
                             for name in "ABCDE"
                         ],
                         "generators": [
-                            {"factor": "E", "terms": ["A", "B", "C", "D"]}
+                            {"factor": "D", "terms": ["A", "B"]},
+                            {"factor": "E", "terms": ["A", "C"]},
                         ],
-                        "block_generators": [["A", "B"], ["A", "C"]],
+                        "block_generators": [["B", "C"]],
+                        "foldover_factor": "D",
                         "randomize": False,
                     }
                 ),
@@ -388,10 +390,12 @@ class CliBoundaryTests(unittest.TestCase):
 
         result = json.loads(output.getvalue())["result"]
         self.assertEqual(exit_code, 0)
-        self.assertEqual(result["diagnostics"]["block_count"], 4)
+        self.assertEqual(result["diagnostics"]["block_count"], 2)
         self.assertEqual(result["diagnostics"]["blocked_resolution"], 3)
+        self.assertEqual(result["diagnostics"]["foldover_mode"], "single_factor")
+        self.assertEqual(result["diagnostics"]["runs_per_block"], 8)
         self.assertEqual(
-            result["tables"]["block_generators"][0]["expression"], "Blk1=A*B"
+            result["tables"]["block_generators"][0]["expression"], "Blk1=B*C"
         )
 
     def test_full_factorial_automatic_blocks_are_reported(self) -> None:
