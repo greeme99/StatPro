@@ -7,7 +7,9 @@ from typing import Any
 from statpro.fmea.models import FmeaStudySnapshot
 
 
-def build_study_report(study: FmeaStudySnapshot) -> dict[str, Any]:
+def build_study_report(
+    study: FmeaStudySnapshot, *, evidence_checks: list[dict[str, str]] | None = None
+) -> dict[str, Any]:
     """Join owned IDs for a reviewable report without changing the study."""
 
     steps = {step.step_id: step for step in study.process_steps}
@@ -67,8 +69,9 @@ def build_study_report(study: FmeaStudySnapshot) -> dict[str, Any]:
              "details": event.details}
             for event in study.audit_events
         ],
+        "analysis_evidence_checks": evidence_checks,
         "limitations": [
             "Actor names are self-reported workflow fields, not authenticated electronic signatures.",
-            "Stored SPC/MSA Runs were verified when linked; this report does not recheck their availability or content.",
+            "Run identity checks do not establish statistical suitability or characteristic-to-input correspondence.",
         ],
     }

@@ -15,7 +15,8 @@ from statpro.application.documents import InMemoryDocumentRepository
 
 class LocalApiContractTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.client = TestClient(create_app(InMemoryDocumentRepository()))
+        self.repository = InMemoryDocumentRepository()
+        self.client = TestClient(create_app(self.repository))
 
     def test_health_and_result_schema_are_available(self) -> None:
         health = self.client.get("/health")
@@ -852,6 +853,22 @@ class LocalApiContractTests(unittest.TestCase):
         )
         linked_report = self.client.get("/v1/fmea-studies/PFMEA-TRACE/report").json()
         self.assertEqual(linked_report["rows"][0]["control_plan_items"][0]["analysis_evidence"][1]["run_etag"], msa_run.json()["etag"])
+        self.assertEqual(
+            [check["status"] for check in linked_report["analysis_evidence_checks"]],
+            ["verified", "verified"],
+        )
+        initial_report_etag = self.client.get("/v1/fmea-studies/PFMEA-TRACE/report").headers["etag"]
+        changed_run = self.repository.load("analysis-runs", "spc-evidence").document
+        changed_run["result"]["warnings"].append("Externally changed Run")
+        self.repository.save("analysis-runs", "spc-evidence", changed_run, expected_version=1)
+        changed_report = self.client.get("/v1/fmea-studies/PFMEA-TRACE/report")
+        self.assertEqual(changed_report.json()["analysis_evidence_checks"][0]["status"], "mismatch")
+        self.assertNotEqual(changed_report.headers["etag"], initial_report_etag)
+        broken_run = self.repository.load("analysis-runs", "msa-evidence").document
+        broken_run["result"]["input_digest"] = "invalid"
+        self.repository.save("analysis-runs", "msa-evidence", broken_run, expected_version=1)
+        unavailable_report = self.client.get("/v1/fmea-studies/PFMEA-TRACE/report")
+        self.assertEqual(unavailable_report.json()["analysis_evidence_checks"][1]["status"], "unavailable")
         duplicate = self.client.post(evidence_path, json={
             "expected_storage_version": second_link.json()["storage_version"],
             "run_id": "spc-evidence", "actor": "quality.engineer",
@@ -899,6 +916,9 @@ class LocalApiContractTests(unittest.TestCase):
         )
         self.assertEqual(stale.status_code, 409)
         self.assertEqual(stale.json()["error"]["code"], "storage_conflict")
+        self.repository._documents.pop(("analysis-runs", "spc-evidence"))
+        missing_report = self.client.get("/v1/fmea-studies/PFMEA-TRACE/report")
+        self.assertEqual(missing_report.json()["analysis_evidence_checks"][0]["status"], "missing")
 
     def test_fmea_action_is_completed_reassessed_and_study_approved(self) -> None:
         created = self.client.post(

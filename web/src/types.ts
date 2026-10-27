@@ -189,6 +189,7 @@ export type FmeaStudyReport = {
   }>;
   approval_record: { actor: string; occurred_at: string; audit_sequence: number } | null;
   audit_events: FmeaStudy["audit_events"];
+  analysis_evidence_checks: Array<{ control_id: string; run_id: string; status: "verified" | "missing" | "mismatch" | "unavailable" }> | null;
   limitations: string[];
 };
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import binascii
+import re
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
@@ -66,6 +67,7 @@ from statpro.domain.data import (
     replace_worksheet_cell,
 )
 from statpro.domain.errors import AnalysisInputError, DomainInputError
+from statpro.domain.identity import input_digest
 from statpro.domain.models import ResultBundle
 from statpro.domain.schema import result_bundle_schema
 from statpro.fmea import (
@@ -672,6 +674,62 @@ def _save_run(
         },
         expected_version=0,
     )
+
+
+def _load_analysis_evidence_reference(
+    repository: DocumentRepository, run_id: str
+) -> AnalysisEvidenceRef:
+    """Parse a stored Run's owned identity once for linking and report checks."""
+
+    stored = repository.load(ANALYSIS_RUNS, run_id)
+    result = stored.document.get("result")
+    if (
+        stored.key != run_id
+        or stored.document.get("kind") != "analysis_run"
+        or stored.document.get("run_id") != run_id
+        or not isinstance(result, dict)
+        or not isinstance(result.get("analysis_type"), str)
+        or not result["analysis_type"]
+        or not isinstance(result.get("input_digest"), str)
+        or re.fullmatch(r"[0-9a-f]{64}", result["input_digest"]) is None
+    ):
+        raise DocumentStoreError("Stored analysis Run has an invalid owned format.")
+    return AnalysisEvidenceRef(
+        run_id=run_id,
+        analysis_type=result["analysis_type"],
+        run_etag=stored.etag,
+        input_digest=result["input_digest"],
+    )
+
+
+def _check_fmea_analysis_evidence(
+    repository: DocumentRepository, study: FmeaStudySnapshot
+) -> list[dict[str, str]]:
+    """Report each reference without treating missing or unreadable Runs as verified."""
+
+    checks: list[dict[str, str]] = []
+    observed: dict[str, AnalysisEvidenceRef | str] = {}
+    for control in study.control_plan_items:
+        for reference in control.analysis_evidence:
+            if reference.run_id not in observed:
+                try:
+                    observed[reference.run_id] = _load_analysis_evidence_reference(
+                        repository, reference.run_id
+                    )
+                except DocumentNotFoundError:
+                    observed[reference.run_id] = "missing"
+                except DocumentStoreError:
+                    observed[reference.run_id] = "unavailable"
+            current = observed[reference.run_id]
+            checks.append({
+                "control_id": control.control_id,
+                "run_id": reference.run_id,
+                "status": (
+                    current if isinstance(current, str)
+                    else "verified" if current == reference else "mismatch"
+                ),
+            })
+    return checks
 
 
 def create_app(repository: DocumentRepository) -> FastAPI:
@@ -1520,9 +1578,12 @@ def create_app(repository: DocumentRepository) -> FastAPI:
 
     @app.get("/v1/fmea-studies/{study_id}/report")
     def get_fmea_study_report(study_id: RunId, response: Response) -> dict[str, Any]:
-        stored, study = _load_fmea_study(repository, study_id)
-        response.headers["ETag"] = f'"{stored.etag}"'
-        return build_study_report(study)
+        _stored, study = _load_fmea_study(repository, study_id)
+        report = build_study_report(
+            study, evidence_checks=_check_fmea_analysis_evidence(repository, study)
+        )
+        response.headers["ETag"] = f'"{input_digest(report)}"'
+        return report
 
     @app.post(
         "/v1/fmea-studies/{study_id}/action-priority-policy",
@@ -1688,25 +1749,10 @@ def create_app(repository: DocumentRepository) -> FastAPI:
         response: Response,
     ) -> StoredFmeaStudyResponse:
         _stored, study = _load_fmea_study(repository, study_id)
-        run = repository.load(ANALYSIS_RUNS, request.run_id)
-        result = run.document.get("result")
-        if (
-            run.document.get("kind") != "analysis_run"
-            or run.document.get("run_id") != request.run_id
-            or not isinstance(result, dict)
-            or not isinstance(result.get("analysis_type"), str)
-            or not isinstance(result.get("input_digest"), str)
-        ):
-            raise DocumentStoreError("Stored analysis Run has an invalid owned format.")
         revised = link_control_plan_analysis_evidence(
             study,
             control_id=control_id,
-            reference=AnalysisEvidenceRef(
-                run_id=request.run_id,
-                analysis_type=result["analysis_type"],
-                run_etag=run.etag,
-                input_digest=result["input_digest"],
-            ),
+            reference=_load_analysis_evidence_reference(repository, request.run_id),
             actor=request.actor,
             occurred_at=request.occurred_at,
         )

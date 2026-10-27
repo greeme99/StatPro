@@ -468,6 +468,7 @@ class FmeaWorkflowTests(unittest.TestCase):
         self.assertEqual(approved.seven_step_progress[6].status, StepStatus.COMPLETE)
         self.assertEqual(approved.to_dict()["seven_step_progress"][6]["status"], "complete")
         report = build_study_report(approved)
+        self.assertIsNone(report["analysis_evidence_checks"])
         self.assertEqual(report["snapshot_digest"], approved.digest)
         self.assertEqual(report["approval_record"], {
             "actor": "approver", "occurred_at": NOW, "audit_sequence": 6,

@@ -7,6 +7,7 @@ import type { FailureAnalysis, FmeaStudyReport, RecommendedAction, StoredActionP
 
 const statusLabels = { draft: "작성 중", in_review: "검토 중", approved: "승인됨", archived: "보관됨" };
 const stepStatusLabels = { not_started: "미착수", in_progress: "진행 중", complete: "완료" };
+const evidenceStatusLabels = { verified: "일치", missing: "Run 없음", mismatch: "내용 불일치", unavailable: "검증 불가" };
 const stepTitles: Record<string, string> = {
   planning_and_preparation: "기획 및 준비",
   structure_analysis: "구조 분석",
@@ -349,7 +350,9 @@ export function FmeaStudyPage() {
           <p>Revision {currentReport.revision} · 상태 {statusLabels[currentReport.status]} · 항목 {currentReport.rows.length}개 · 감사 이벤트 {currentReport.audit_events.length}건</p>
           <p>스냅샷 식별값: <code>{currentReport.snapshot_digest}</code></p>
           <p>{currentReport.approval_record ? `승인 기록: ${currentReport.approval_record.actor} · ${currentReport.approval_record.occurred_at}` : "승인 기록 없음"}</p>
+          {currentReport.analysis_evidence_checks?.some((check) => check.status !== "verified") && <div className="error-banner" role="alert"><AlertTriangle aria-hidden="true" /><p>연결된 SPC/MSA Run 중 재검증되지 않은 결과가 있습니다.</p></div>}
           {currentReport.rows.length === 0 ? <p>보고할 고장 분석 항목이 없습니다.</p> : <div className="table-scroll"><table><caption>현재 revision의 FMEA 위험 분석과 공정관리 연결</caption><thead><tr><th scope="col">항목</th><th scope="col">고장 모드 · 원인</th><th scope="col">현재 S/O/D</th><th scope="col">AP</th><th scope="col">공정 단계 · 특성</th><th scope="col">Control Plan · 실행 증거</th><th scope="col">조치</th></tr></thead><tbody>{currentReport.rows.map((row) => <tr key={row.failure.item_id}><th scope="row">{row.failure.item_id}</th><td>{row.failure.failure_mode}<span className="table-subtitle">{row.failure.cause}</span></td><td>{row.failure.current_ratings.severity} / {row.failure.current_ratings.occurrence} / {row.failure.current_ratings.detection}</td><td>{row.failure.action_priority ?? "미산정"}</td><td>{row.process_step?.step_id ?? "—"} · {row.characteristics.map((item) => item.characteristic_id).join(", ") || "—"}</td><td>{row.control_plan_items.map((item) => `${item.control_id}${item.analysis_evidence?.length ? ` (${item.analysis_evidence.map((reference) => `${reference.analysis_type}: ${reference.run_id}`).join(", ")})` : ""}`).join(", ") || "—"}</td><td>{row.actions.map((item) => `${item.action_id} (${item.status})`).join(", ") || "—"}</td></tr>)}</tbody></table></div>}
+          {currentReport.analysis_evidence_checks && (currentReport.analysis_evidence_checks.length === 0 ? <p>연결된 SPC/MSA Run이 없습니다.</p> : <div className="table-scroll"><table><caption>보고서 조회 시 SPC/MSA Run 식별값 재검증</caption><thead><tr><th scope="col">Control Plan</th><th scope="col">Run ID</th><th scope="col">검증 상태</th></tr></thead><tbody>{currentReport.analysis_evidence_checks.map((check) => <tr key={`${check.control_id}:${check.run_id}`}><th scope="row">{check.control_id}</th><td>{check.run_id}</td><td>{evidenceStatusLabels[check.status]}</td></tr>)}</tbody></table></div>)}
           {currentReport.limitations.map((limitation) => <p key={limitation} className="policy-note">{limitation}</p>)}
         </>}
       </section>

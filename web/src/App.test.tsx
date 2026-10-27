@@ -470,7 +470,7 @@ describe("StatPro UI", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       const url = String(input);
       if (url.endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
-      if (url.endsWith("/report")) return new Response(JSON.stringify({ report_type: "statpro.fmea.study_review.v1", study_id: study.study_id, study_name: study.name, study_type: "process", standard_version: study.standard_version, revision: 1, snapshot_digest: digest, status: "draft", action_priority_policy: { policy_id: null, policy_digest: null }, seven_step_progress: [], rows: [], approval_record: null, audit_events: [], limitations: ["Actor names are self-reported workflow fields."] }), { status: 200 });
+      if (url.endsWith("/report")) return new Response(JSON.stringify({ report_type: "statpro.fmea.study_review.v1", study_id: study.study_id, study_name: study.name, study_type: "process", standard_version: study.standard_version, revision: 1, snapshot_digest: digest, status: "draft", action_priority_policy: { policy_id: null, policy_digest: null }, seven_step_progress: [], rows: [], approval_record: null, audit_events: [], analysis_evidence_checks: [{ control_id: "CP-001", run_id: "RUN-SPC-001", status: "mismatch" }], limitations: ["Actor names are self-reported workflow fields."] }), { status: 200 });
       if (url.includes("/fmea-action-priority-policies")) return new Response(JSON.stringify({ items: [], next_after: null }), { status: 200 });
       return new Response(JSON.stringify({ study_id: study.study_id, storage_version: 1, etag: "a".repeat(64), study }), { status: 200 });
     });
@@ -478,6 +478,9 @@ describe("StatPro UI", () => {
     await userEvent.click(await screen.findByRole("button", { name: "현재 revision 보기" }));
     expect(await screen.findByText("보고할 고장 분석 항목이 없습니다.")).toBeInTheDocument();
     expect(screen.getByText("승인 기록 없음")).toBeInTheDocument();
+    expect(screen.getByRole("table", { name: "보고서 조회 시 SPC/MSA Run 식별값 재검증" })).toBeInTheDocument();
+    expect(screen.getByText("내용 불일치")).toBeInTheDocument();
+    expect(screen.getByText("연결된 SPC/MSA Run 중 재검증되지 않은 결과가 있습니다.").closest('[role="alert"]')).toBeInTheDocument();
     expect(screen.getByText("Actor names are self-reported workflow fields.")).toBeInTheDocument();
   });
 

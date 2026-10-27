@@ -13,7 +13,7 @@ The available Minitab 14 static/dynamic evidence does not confirm a PFMEA or Con
 - A draft Process FMEA Control Plan item may link a previously stored Analysis Run. The API loads that Run, checks its owned document shape, and accepts only `spc.*` or `msa.*` analysis types. A missing Run, duplicate link on the same Control Plan item, or DOE Run is rejected.
 - The reference stores the Run ID, analysis type, storage ETag, and input digest. The client supplies only the Run ID; the server derives the other fields from the stored Run.
 - Linking creates a new FMEA revision and audit event, with optimistic storage-version concurrency. Existing Control Plan snapshots lacking `analysis_evidence` load with an empty collection.
-- The revision report and UI project the same stored reference. Report generation does not fetch or revalidate the Run at read time. Actor names are self-reported workflow fields, not authenticated signatures.
+- The revision report and UI project the same stored reference. A later increment added report-time Run identity checks, described in [the verification evidence](2026-10-27-fmea-report-run-verification.md). Actor names are self-reported workflow fields, not authenticated signatures.
 
 The evidence reference proves which Run document was observed when linked. It does not prove metrological suitability, SPC process stability, or that the Run's input belongs to the same characteristic. Those checks require a later explicit workflow contract.
 

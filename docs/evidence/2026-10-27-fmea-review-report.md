@@ -16,7 +16,7 @@ No Minitab 14 FMEA report UI, binary record, or session behavior has been establ
 
 `build_study_report` projects one stored revision with its digest, seven-step progress, failure analyses, current ratings and AP, linked process step/characteristics/Control Plan items, actions, audit events, and approval event if recorded. Joining uses owned IDs; the projection does not persist a second copy of the study. `GET /v1/fmea-studies/{study_id}/report` exposes the report, and the workbench presents its current revision in an accessible table with empty, loading, and error states.
 
-The approval event records a self-reported actor and time. It is **not** an authenticated electronic signature. SPC/MSA run references have not been linked or verified. The report displays these limitations explicitly.
+The approval event records a self-reported actor and time. It is **not** an authenticated electronic signature. Later increments added SPC/MSA Run references and report-time identity checks; see [the linkage evidence](2026-10-27-fmea-spc-msa-run-evidence.md) and [the report verification evidence](2026-10-27-fmea-report-run-verification.md). These checks do not establish analytical suitability.
 
 ## Verification
 
