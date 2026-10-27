@@ -1,0 +1,12 @@
+{
+  "factors": [
+    {"name": "A", "low": 0, "high": 1},
+    {"name": "B", "low": 10, "high": 20},
+    {"name": "C", "low": 100, "high": 200}
+  ],
+  "blocks": 2,
+  "replicates": 1,
+  "center_points": 1,
+  "randomize": false,
+  "seed": 0
+}

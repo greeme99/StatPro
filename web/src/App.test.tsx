@@ -507,18 +507,20 @@ describe("StatPro UI", () => {
     });
     render(<MemoryRouter initialEntries={["/analyses/doe/full-factorial"]}><App /></MemoryRouter>);
 
+    await userEvent.selectOptions(await screen.findByRole("combobox", { name: "블록 수" }), "2");
     await userEvent.click(await screen.findByRole("button", { name: "DOE 분석 실행" }));
     await waitFor(() => expect(fetchMock.mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === "POST")).toBe(true));
     const post = fetchMock.mock.calls.find(([, init]) => (init as RequestInit | undefined)?.method === "POST");
     const body = JSON.parse(String((post?.[1] as RequestInit).body));
     expect(body.prediction_points).toEqual([{ A: 0.75, B: 15 }]);
     expect(body.optimization_goal).toBe("maximize");
+    expect(body.blocks).toBe(2);
   });
 
   it("renders DOE effects, ANOVA, and residual diagnostics", async () => {
     const result = {
       analysis_type: "doe.full_factorial_2level_analysis", engine_version: "0.6.0", input_digest: "b".repeat(64), warnings: [], assumptions: [], provenance: [], parameters: {},
-      diagnostics: { response_name: "Strength", r_squared: 0.94366, adjusted_r_squared: 0.90141, residual_standard_deviation: 1.4142 },
+      diagnostics: { response_name: "Strength", r_squared: 0.94366, adjusted_r_squared: 0.90141, residual_standard_deviation: 1.4142, block_count: 2, blocked_resolution_label: "III" },
       tables: {
         coefficients: [
           { term: "Constant", order: 0, coefficient: 14.5, effect: null, sum_of_squares: null, f_value: null, p_value: null },
@@ -527,7 +529,11 @@ describe("StatPro UI", () => {
           { term: "A:B", order: 2, coefficient: 1.5, effect: 3, sum_of_squares: 18, f_value: 9, p_value: 0.03994 },
         ],
         anova: [{ source: "Model", degrees_of_freedom: 3, sum_of_squares: 134, mean_square: 44.6667, f_value: 22.3333, p_value: 0.0059 }],
-        residuals: [{ run_order: 1, standard_order: 1, point_type: "factorial", observed: 10, fitted: 11, residual: -1, scaled_residual: -0.7071 }],
+        block_generators: [{ contrast: "Blk1", terms: ["A", "B"], expression: "Blk1=A*B" }],
+        block_aliases: [{ contrast: "Blk1", generator_terms: "A*B", treatment_alias_set: ["A*B"] }],
+        block_effects: [{ contrast: "Blk1", coefficient: 2, effect: 4, generator_terms: "A*B", treatment_alias_set: ["A*B"] }],
+        confounded_terms: [{ term: "A:B", reason: "confounded_with_block" }],
+        residuals: [{ run_order: 1, standard_order: 1, point_type: "factorial", block: 1, observed: 10, fitted: 11, residual: -1, scaled_residual: -0.7071 }],
         predictions: [{ point: 1, actual: { A: 0.75, B: 15 }, coded: { A: 0.5, B: 0 }, predicted_response: 16.25 }],
         optimization: [{ goal: "maximize", standard_order: 4, actual: { A: 1, B: 20 }, coded: { A: 1, B: 1 }, predicted_response: 21, candidate_count: 4 }],
       },
@@ -543,6 +549,8 @@ describe("StatPro UI", () => {
     expect(screen.getByRole("img", { name: /가장 큰 절대 효과는 A/ })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "ANOVA" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "적합값과 잔차" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "블록 효과와 처리효과 교락" })).toBeInTheDocument();
+    expect(screen.getByText(/처리 모형에서 제외된 블록 교락 항: A:B/)).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "조건별 예측" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "최적 설정" })).toBeInTheDocument();
     expect(screen.getAllByText("A:B").length).toBeGreaterThan(0);

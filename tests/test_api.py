@@ -104,6 +104,48 @@ class LocalApiContractTests(unittest.TestCase):
             [1] * 4 + [2] * 4 + [3] * 4 + [4] * 4,
         )
 
+    def test_full_factorial_blocks_are_selected_and_fitted_through_api(self) -> None:
+        factors = [{"name": name, "low": 0, "high": 1} for name in "ABC"]
+        created = self.client.post(
+            "/v1/analysis-runs/doe-full-factorial",
+            json={
+                "run_id": "doe-blocked-full",
+                "factors": factors,
+                "blocks": 2,
+                "replicates": 2,
+                "randomize": False,
+            },
+        )
+        self.assertEqual(created.status_code, 201)
+        design = created.json()["result"]
+        self.assertEqual(design["diagnostics"]["block_count"], 2)
+        self.assertEqual(
+            design["tables"]["block_generators"][0]["expression"], "Blk1=A*B*C"
+        )
+        responses = [
+            10
+            + 2 * row["coded"]["A"]
+            + 5 * row["block_contrasts"]["Blk1"]
+            for row in design["tables"]["design"]
+        ]
+
+        analyzed = self.client.post(
+            "/v1/analysis-runs/doe-full-factorial-analysis",
+            json={
+                "run_id": "doe-blocked-full-analysis",
+                "factors": factors,
+                "blocks": 2,
+                "replicates": 2,
+                "interaction_order": 3,
+                "randomize": False,
+                "responses": responses,
+            },
+        )
+        self.assertEqual(analyzed.status_code, 201)
+        result = analyzed.json()["result"]
+        self.assertEqual(result["tables"]["confounded_terms"][0]["term"], "A:B:C")
+        self.assertAlmostEqual(result["tables"]["block_effects"][0]["coefficient"], 5.0)
+
     def test_domain_and_request_validation_are_tagged(self) -> None:
         domain_error = self.client.post(
             "/v1/analysis-runs/imr", json={"run_id": "short", "values": [1]}

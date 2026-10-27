@@ -394,6 +394,31 @@ class CliBoundaryTests(unittest.TestCase):
             result["tables"]["block_generators"][0]["expression"], "Blk1=A*B"
         )
 
+    def test_full_factorial_automatic_blocks_are_reported(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "full-blocked.json"
+            path.write_text(
+                json.dumps({
+                    "factors": [
+                        {"name": name, "low": 0, "high": 1} for name in "ABC"
+                    ],
+                    "blocks": 2,
+                    "center_points": 1,
+                    "randomize": False,
+                }),
+                encoding="utf-8",
+            )
+            output = io.StringIO()
+
+            with redirect_stdout(output):
+                exit_code = main(["doe-full-factorial", "--input", str(path)])
+
+        result = json.loads(output.getvalue())["result"]
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(result["diagnostics"]["block_count"], 2)
+        self.assertEqual(result["diagnostics"]["center_point_count"], 2)
+        self.assertEqual(result["tables"]["block_aliases"][0]["generator_terms"], "A*B*C")
+
     def test_fractional_factorial_analysis_returns_ranked_effects(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "fractional-analysis.json"

@@ -748,6 +748,7 @@ def full_factorial_2level(
     *,
     replicates: int = 1,
     center_points: int = 0,
+    blocks: int = 1,
     randomize: bool = True,
     seed: int = 0,
 ) -> ResultBundle:
@@ -772,7 +773,24 @@ def full_factorial_2level(
         raise AnalysisInputError("invalid_seed", "Random seed must be an integer.", "seed")
 
     factorial_run_count = 2 ** len(normalized)
-    total_run_count = factorial_run_count * replicates + center_points
+    block_generators, block_selection = _automatic_full_factorial_blocks(
+        [factor.name for factor in normalized], blocks
+    )
+    factor_names = [factor.name for factor in normalized]
+    factor_order = {name: index for index, name in enumerate(factor_names)}
+    (
+        normalized_block_generators,
+        block_aliases,
+        block_contrast_indices,
+        blocked_resolution,
+    ) = _regular_block_structure(
+        block_generators,
+        factor_names=factor_names,
+        factor_order=factor_order,
+        defining_relation=[frozenset()],
+        base_run_count=factorial_run_count,
+    )
+    total_run_count = factorial_run_count * replicates + center_points * blocks
     if total_run_count > 100_000:
         raise AnalysisInputError(
             "design_too_large",
@@ -801,21 +819,35 @@ def full_factorial_2level(
                 }
             )
 
-    center_actual = {factor.name: (factor.low + factor.high) / 2.0 for factor in normalized}
+    if normalized_block_generators:
+        for row in rows:
+            _assign_regular_block(
+                row,
+                normalized_block_generators,
+                block_aliases,
+                block_contrast_indices,
+            )
+
+    center_actual = {
+        factor.name: (factor.low + factor.high) / 2.0 for factor in normalized
+    }
     center_coded = {factor.name: 0 for factor in normalized}
-    for center_index in range(1, center_points + 1):
-        rows.append(
-            {
+    for block in range(1, blocks + 1):
+        for center_index in range(1, center_points + 1):
+            row: dict[str, object] = {
                 "standard_order": None,
                 "replicate": center_index,
                 "point_type": "center",
                 "coded": center_coded.copy(),
                 "actual": center_actual.copy(),
             }
-        )
+            if normalized_block_generators:
+                _assign_center_block(
+                    row, block, block_aliases, block_contrast_indices
+                )
+            rows.append(row)
 
-    if randomize:
-        random.Random(seed).shuffle(rows)
+    rows = _order_design_rows(rows, blocks, randomize=randomize, seed=seed)
     for run_order, row in enumerate(rows, start=1):
         row["run_order"] = run_order
 
@@ -828,12 +860,19 @@ def full_factorial_2level(
         warnings.append(
             "Runs are not randomized; time-related nuisance factors may be confounded with factor effects."
         )
+    if normalized_block_generators:
+        warnings.append(
+            "Block effects are nuisance terms confounded with the displayed high-order treatment interactions."
+        )
 
     factor_payload = [asdict(factor) for factor in normalized]
     payload = {
         "factors": factor_payload,
         "replicates": replicates,
         "center_points": center_points,
+        "blocks": blocks,
+        "block_generators": normalized_block_generators,
+        "block_generator_selection": block_selection,
         "randomize": randomize,
         "seed": seed,
     }
@@ -845,10 +884,17 @@ def full_factorial_2level(
             "factors": factor_payload,
             "replicates": replicates,
             "center_points": center_points,
+            "blocks": blocks,
+            "block_generators": normalized_block_generators,
+            "block_generator_selection": block_selection,
             "randomize": randomize,
             "seed": seed,
         },
-        tables={"design": rows},
+        tables={
+            "design": rows,
+            "block_generators": normalized_block_generators,
+            "block_aliases": block_aliases,
+        },
         plots={},
         diagnostics={
             "factor_count": len(normalized),
@@ -856,14 +902,36 @@ def full_factorial_2level(
             "total_run_count": total_run_count,
             "balanced": True,
             "full_factorial": True,
+            "block_count": blocks,
+            "runs_per_block": factorial_run_count * replicates // blocks
+            + center_points,
+            "center_points_per_block": center_points,
+            "center_point_count": center_points * blocks,
+            "blocked_resolution": (
+                blocked_resolution if normalized_block_generators else None
+            ),
+            "blocked_resolution_label": (
+                _roman_resolution(blocked_resolution)
+                if normalized_block_generators
+                else None
+            ),
+            "blocks_orthogonal_to_main_effects": bool(
+                normalized_block_generators
+            ),
+            **block_selection,
         },
         assumptions=(
             "Each factor has exactly two quantitative levels.",
             "The experiment can run every high/low factor combination.",
+            "Automatic block generators use treatment-interaction columns and keep main effects orthogonal to blocks.",
+            "Center points are added per block and randomization is performed within each block.",
             "The supplied random seed is retained for reproducibility.",
         ),
         warnings=tuple(warnings),
-        provenance=(NIST_FACTORIAL_SOURCE,),
+        provenance=(
+            NIST_FACTORIAL_SOURCE,
+            *((NIST_FACTORIAL_BLOCKING_SOURCE, MINITAB_FACTORIAL_BLOCKING_SOURCE) if normalized_block_generators else ()),
+        ),
     )
 
 
@@ -1020,6 +1088,152 @@ def _regular_block_structure(
             )
             contrast_indices.append(indices)
     return normalized, aliases, contrast_indices, blocked_resolution
+
+
+def _automatic_full_factorial_blocks(
+    factor_names: Sequence[str], blocks: int
+) -> tuple[list[list[str]], dict[str, object]]:
+    """Choose deterministic block generators from balanced simplex columns."""
+
+    if (
+        isinstance(blocks, bool)
+        or not isinstance(blocks, int)
+        or blocks < 1
+        or blocks > 16
+        or blocks & (blocks - 1)
+    ):
+        raise AnalysisInputError(
+            "invalid_block_count",
+            "Blocks must be one of 1, 2, 4, 8, or 16.",
+            "blocks",
+        )
+    factor_count = len(factor_names)
+    generator_count = blocks.bit_length() - 1
+    if blocks * 2 > 2**factor_count:
+        raise AnalysisInputError(
+            "blocks_too_small",
+            "Each block must contain at least two distinct treatment combinations per replicate.",
+            "blocks",
+        )
+    if blocks == 1:
+        return [], {
+            "block_generator_selection_mode": "none",
+            "block_candidate_sets_examined": 0,
+            "block_word_length_pattern": {},
+            "block_selection_scope": "not_applicable",
+        }
+
+    labels = list(range(1, blocks))
+    base_repetitions, remainder = divmod(factor_count, len(labels))
+    best: tuple[tuple[int, ...], tuple[int, ...], list[int]] | None = None
+    examined = 0
+    for extras in combinations(labels, remainder):
+        examined += 1
+        columns = [
+            label
+            for label in labels
+            for _ in range(base_repetitions + (1 if label in extras else 0))
+        ]
+        weights = [
+            sum((contrast & label).bit_count() % 2 for label in columns)
+            for contrast in labels
+        ]
+        if min(weights) < 2:
+            continue
+        pattern = tuple(weights.count(length) for length in range(1, factor_count + 1))
+        candidate = (pattern, tuple(columns), columns)
+        if best is None or candidate[:2] < best[:2]:
+            best = candidate
+    if best is None:
+        raise AnalysisInputError(
+            "block_generators_unavailable",
+            "No balanced automatic block-generator set keeps main effects clear of blocks.",
+            "blocks",
+        )
+
+    pattern, _, columns = best
+    generators = [
+        [
+            name
+            for name, label in zip(factor_names, columns, strict=True)
+            if label & (1 << bit)
+        ]
+        for bit in range(generator_count)
+    ]
+    return generators, {
+        "block_generator_selection_mode": "automatic_balanced_simplex",
+        "block_candidate_sets_examined": examined,
+        "block_word_length_pattern": {
+            str(length): count
+            for length, count in enumerate(pattern, start=1)
+            if count
+        },
+        "block_selection_scope": "complete_balanced_simplex_remainder_subsets",
+    }
+
+
+def _assign_regular_block(
+    row: dict[str, object],
+    generators: Sequence[Mapping[str, object]],
+    aliases: Sequence[Mapping[str, object]],
+    contrast_indices: Sequence[tuple[int, ...]],
+) -> None:
+    coded = row["coded"]
+    primary_signs = [
+        _product(coded[term] for term in generator["terms"])
+        for generator in generators
+    ]
+    row["block"] = 1 + sum(
+        1 << index for index, sign in enumerate(primary_signs) if sign > 0
+    )
+    row["block_contrasts"] = {
+        str(alias["contrast"]): _product(primary_signs[index] for index in indices)
+        for alias, indices in zip(aliases, contrast_indices, strict=True)
+    }
+
+
+def _assign_center_block(
+    row: dict[str, object],
+    block: int,
+    aliases: Sequence[Mapping[str, object]],
+    contrast_indices: Sequence[tuple[int, ...]],
+) -> None:
+    primary_signs = [
+        1 if (block - 1) & (1 << index) else -1
+        for index in range(max((max(indices) for indices in contrast_indices), default=-1) + 1)
+    ]
+    row["block"] = block
+    row["block_contrasts"] = {
+        str(alias["contrast"]): _product(primary_signs[index] for index in indices)
+        for alias, indices in zip(aliases, contrast_indices, strict=True)
+    }
+
+
+def _order_design_rows(
+    rows: Sequence[dict[str, object]],
+    blocks: int,
+    *,
+    randomize: bool,
+    seed: int,
+) -> list[dict[str, object]]:
+    ordered = list(rows)
+    if blocks == 1:
+        if randomize:
+            random.Random(seed).shuffle(ordered)
+        return ordered
+    grouped = {
+        block: [row for row in ordered if row["block"] == block]
+        for block in range(1, blocks + 1)
+    }
+    if randomize:
+        randomizer = random.Random(seed)
+        for block_rows in grouped.values():
+            randomizer.shuffle(block_rows)
+    return [
+        row
+        for block in range(1, blocks + 1)
+        for row in grouped[block]
+    ]
 
 
 def _automatic_generator_selection(
@@ -1403,37 +1617,15 @@ def fractional_factorial_2level(
     if normalized_block_generators:
         block_count = 2 ** len(normalized_block_generators)
         for row in rows:
-            coded = row["coded"]
-            primary_signs = [
-                _product(coded[term] for term in generator["terms"])
-                for generator in normalized_block_generators
-            ]
-            row["block"] = 1 + sum(
-                (1 << index) for index, sign in enumerate(primary_signs) if sign > 0
+            _assign_regular_block(
+                row,
+                normalized_block_generators,
+                block_aliases,
+                block_contrast_indices,
             )
-            row["block_contrasts"] = {
-                str(alias["contrast"]): _product(
-                    primary_signs[index] for index in indices
-                )
-                for alias, indices in zip(
-                    block_aliases, block_contrast_indices, strict=True
-                )
-            }
-        grouped_rows = {
-            block: [row for row in rows if row["block"] == block]
-            for block in range(1, block_count + 1)
-        }
-        if randomize:
-            randomizer = random.Random(seed)
-            for block_rows in grouped_rows.values():
-                randomizer.shuffle(block_rows)
-        rows = [
-            row
-            for block in range(1, block_count + 1)
-            for row in grouped_rows[block]
-        ]
-    elif randomize:
-        random.Random(seed).shuffle(rows)
+        rows = _order_design_rows(rows, block_count, randomize=randomize, seed=seed)
+    else:
+        rows = _order_design_rows(rows, 1, randomize=randomize, seed=seed)
     for run_order, row in enumerate(rows, start=1):
         row["run_order"] = run_order
 
@@ -3462,6 +3654,7 @@ def analyze_full_factorial_2level(
     response_name: str = "Response",
     replicates: int = 1,
     center_points: int = 0,
+    blocks: int = 1,
     randomize: bool = True,
     seed: int = 0,
     interaction_order: int = 2,
@@ -3474,6 +3667,7 @@ def analyze_full_factorial_2level(
         factors,
         replicates=replicates,
         center_points=center_points,
+        blocks=blocks,
         randomize=randomize,
         seed=seed,
     )
@@ -3496,7 +3690,16 @@ def analyze_full_factorial_2level(
             "optimization_goal",
         )
 
-    terms = _model_terms(factor_names, interaction_order)
+    requested_terms = _model_terms(factor_names, interaction_order)
+    block_aliases = list(design.tables["block_aliases"])
+    block_words = {
+        frozenset(str(alias["generator_terms"]).split("*"))
+        for alias in block_aliases
+    }
+    confounded_terms = [
+        term for term in requested_terms if frozenset(term) in block_words
+    ]
+    terms = [term for term in requested_terms if term not in confounded_terms]
     intercept, coefficients, coded_columns, term_sums_of_squares = (
         _fit_orthogonal_model(
             rows,
@@ -3507,9 +3710,27 @@ def analyze_full_factorial_2level(
         )
     )
 
+    block_columns: dict[str, list[float]] = {}
+    block_coefficients: dict[str, float] = {}
+    block_sums_of_squares: dict[str, float] = {}
+    for alias in block_aliases:
+        contrast = str(alias["contrast"])
+        column = [float(row["block_contrasts"][contrast]) for row in rows]
+        denominator = sum(value * value for value in column)
+        coefficient = sum(
+            x * y for x, y in zip(column, values, strict=True)
+        ) / denominator
+        block_columns[contrast] = column
+        block_coefficients[contrast] = coefficient
+        block_sums_of_squares[contrast] = coefficient * coefficient * denominator
+
     fitted = [
         intercept
         + sum(coefficients[term] * coded_columns[term][index] for term in terms)
+        + sum(
+            block_coefficients[contrast] * column[index]
+            for contrast, column in block_columns.items()
+        )
         for index in range(len(rows))
     ]
     residuals = [
@@ -3558,8 +3779,10 @@ def analyze_full_factorial_2level(
     residual_ss = sum(value * value for value in residuals)
     total_ss = sum((value - intercept) ** 2 for value in values)
     model_ss = sum(term_sums_of_squares.values())
+    block_ss = sum(block_sums_of_squares.values())
     model_df = len(terms)
-    residual_df = len(values) - len(terms) - 1
+    block_df = len(block_columns)
+    residual_df = len(values) - len(terms) - block_df - 1
     total_df = len(values) - 1
     residual_ms = residual_ss / residual_df if residual_df > 0 else None
     model_ms = model_ss / model_df if model_df > 0 else None
@@ -3573,7 +3796,10 @@ def analyze_full_factorial_2level(
 
     grouped: dict[tuple[int, ...], list[float]] = {}
     for row, response in zip(rows, values, strict=True):
-        key = tuple(int(row["coded"][name]) for name in factor_names)
+        key = (
+            int(row.get("block", 1)),
+            *(int(row["coded"][name]) for name in factor_names),
+        )
         grouped.setdefault(key, []).append(response)
     pure_error_ss = sum(
         sum((value - sum(group) / len(group)) ** 2 for value in group)
@@ -3624,8 +3850,20 @@ def analyze_full_factorial_2level(
         if lack_of_fit_f is not None
         else None
     )
+    block_ms = block_ss / block_df if block_df > 0 else None
+    block_f = _f_statistic(block_ms, residual_ms)
+    block_p = (
+        _f_survival(block_f, block_df, residual_df)
+        if block_f is not None
+        else None
+    )
     anova = [
         _anova_row("Model", model_df, model_ss, model_ms, model_f, model_p),
+        *(
+            [_anova_row("Blocks", block_df, block_ss, block_ms, block_f, block_p)]
+            if block_df
+            else []
+        ),
         _anova_row(
             "Residual Error", residual_df, residual_ss, residual_ms, None, None
         ),
@@ -3650,6 +3888,7 @@ def analyze_full_factorial_2level(
             "run_order": row["run_order"],
             "standard_order": row["standard_order"],
             "point_type": row["point_type"],
+            "block": int(row.get("block", 1)),
             "observed": observed,
             "fitted": predicted,
             "residual": residual,
@@ -3687,6 +3926,10 @@ def analyze_full_factorial_2level(
         warnings.append(
             "Optimization compares all factorial vertices for the selected fitted model; confirm the setting experimentally before use."
         )
+    if confounded_terms:
+        warnings.append(
+            "Treatment terms confounded with blocks are omitted from the fitted treatment model and listed separately."
+        )
     payload = {
         **design.parameters,
         "responses": values,
@@ -3702,6 +3945,27 @@ def analyze_full_factorial_2level(
         parameters=payload,
         tables={
             "coefficients": coefficient_rows,
+            "block_generators": design.tables["block_generators"],
+            "block_aliases": block_aliases,
+            "block_effects": [
+                {
+                    "contrast": contrast,
+                    "coefficient": block_coefficients[contrast],
+                    "effect": 2.0 * block_coefficients[contrast],
+                    "sum_of_squares": block_sums_of_squares[contrast],
+                    "generator_terms": alias["generator_terms"],
+                    "treatment_alias_set": alias["treatment_alias_set"],
+                }
+                for alias in block_aliases
+                for contrast in (str(alias["contrast"]),)
+            ],
+            "confounded_terms": [
+                {
+                    "term": ":".join(term),
+                    "reason": "confounded_with_block",
+                }
+                for term in confounded_terms
+            ],
             "anova": anova,
             "residuals": residual_table,
             "predictions": prediction_rows,
@@ -3723,9 +3987,13 @@ def analyze_full_factorial_2level(
             },
         },
         diagnostics={
+            **design.diagnostics,
             "response_name": normalized_name,
             "observation_count": len(values),
-            "coefficient_count": len(terms) + 1,
+            "coefficient_count": len(terms) + block_df + 1,
+            "treatment_coefficient_count": len(terms) + 1,
+            "block_degrees_of_freedom": block_df,
+            "confounded_term_count": len(confounded_terms),
             "residual_degrees_of_freedom": residual_df,
             "residual_standard_deviation": residual_scale,
             "r_squared": r_squared,
@@ -3741,6 +4009,7 @@ def analyze_full_factorial_2level(
         assumptions=(
             "Responses correspond one-for-one to the generated design run order.",
             "The coded model is linear in the selected main effects and interactions.",
+            "Block contrasts are fitted as nuisance terms; displayed treatment aliases identify effects that cannot be separated from blocks.",
             (
                 "Residuals are expected to be independent with constant variance and "
                 "approximately normal when inferential statistics are interpreted."
@@ -3751,6 +4020,7 @@ def analyze_full_factorial_2level(
         warnings=tuple(warnings),
         provenance=(
             NIST_FACTORIAL_SOURCE,
+            *((NIST_FACTORIAL_BLOCKING_SOURCE, MINITAB_FACTORIAL_BLOCKING_SOURCE) if block_df else ()),
             NIST_DOE_MODEL_SOURCE,
             NIST_RESIDUAL_SOURCE,
             NIST_FITTED_MODEL_SOURCE,
@@ -3764,6 +4034,7 @@ def optimize_full_factorial_desirability(
     *,
     replicates: int = 1,
     center_points: int = 0,
+    blocks: int = 1,
     randomize: bool = True,
     seed: int = 0,
     interaction_order: int = 2,
@@ -3774,13 +4045,22 @@ def optimize_full_factorial_desirability(
         factors,
         replicates=replicates,
         center_points=center_points,
+        blocks=blocks,
         randomize=randomize,
         seed=seed,
     )
     rows = design.tables["design"]
     factor_parameters = design.parameters["factors"]
     factor_names = [str(factor["name"]) for factor in factor_parameters]
-    terms = _model_terms(factor_names, interaction_order)
+    requested_terms = _model_terms(factor_names, interaction_order)
+    block_words = {
+        frozenset(str(alias["generator_terms"]).split("*"))
+        for alias in design.tables["block_aliases"]
+    }
+    confounded_terms = [
+        term for term in requested_terms if frozenset(term) in block_words
+    ]
+    terms = [term for term in requested_terms if term not in confounded_terms]
     normalized_objectives = _normalize_response_objectives(objectives)
 
     models: list[dict[str, object]] = []
@@ -3891,6 +4171,10 @@ def optimize_full_factorial_desirability(
             "Response optimization uses fitted means; verify model assumptions and run confirmation experiments at the proposed setting.",
         ]
     )
+    if confounded_terms:
+        warnings.append(
+            "Treatment terms confounded with blocks are omitted from every response model."
+        )
     if float(best["composite_desirability"]) == 0.0:
         warnings.append(
             "Every retained search solution has zero composite desirability because at least one response is outside its acceptable bounds."
@@ -3919,8 +4203,10 @@ def optimize_full_factorial_desirability(
             }
         },
         diagnostics={
+            **design.diagnostics,
             "response_count": len(normalized_objectives),
             "coefficient_count_per_response": len(terms) + 1,
+            "confounded_term_count": len(confounded_terms),
             "vertex_count": len(vertices),
             "search_start_count": len(start_scores),
             "candidate_evaluations": evaluation_count,
@@ -3930,6 +4216,7 @@ def optimize_full_factorial_desirability(
         assumptions=(
             "Every response vector corresponds one-for-one to the same generated design run order.",
             "Each response uses the same coded main-effect and interaction term structure.",
+            "Block-confounded treatment terms are omitted from response models before optimization.",
             "Individual desirabilities use one shared shape weight on both sides of a target objective.",
             "Composite desirability is the importance-weighted geometric mean of individual desirabilities.",
             "Search is restricted to the fitted experimental region.",
@@ -3937,6 +4224,7 @@ def optimize_full_factorial_desirability(
         warnings=tuple(warnings),
         provenance=(
             NIST_FACTORIAL_SOURCE,
+            *((NIST_FACTORIAL_BLOCKING_SOURCE, MINITAB_FACTORIAL_BLOCKING_SOURCE) if blocks > 1 else ()),
             NIST_DOE_MODEL_SOURCE,
             NIST_DESIRABILITY_SOURCE,
             MINITAB_RESPONSE_OPTIMIZER_SOURCE,

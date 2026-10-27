@@ -85,6 +85,53 @@ class FullFactorialDesignTests(unittest.TestCase):
             full_factorial_2level(factors)
         self.assertEqual(context.exception.detail.code, "duplicate_factor_name")
 
+    def test_automatic_blocks_use_high_order_interactions_and_center_points_per_block(self) -> None:
+        factors = [FactorDefinition(name, 0, 1) for name in "ABC"]
+        result = full_factorial_2level(
+            factors, blocks=2, center_points=1, randomize=False
+        )
+
+        self.assertEqual(result.diagnostics["block_count"], 2)
+        self.assertEqual(result.diagnostics["runs_per_block"], 5)
+        self.assertEqual(result.diagnostics["center_point_count"], 2)
+        self.assertEqual(result.diagnostics["blocked_resolution"], 4)
+        self.assertEqual(
+            result.tables["block_generators"],
+            [{"contrast": "Blk1", "terms": ["A", "B", "C"], "expression": "Blk1=A*B*C"}],
+        )
+        self.assertEqual(
+            result.tables["block_aliases"],
+            [{
+                "contrast": "Blk1",
+                "generator_terms": "A*B*C",
+                "treatment_alias_set": ["A*B*C"],
+            }],
+        )
+        self.assertEqual([row["block"] for row in result.tables["design"]], [1] * 5 + [2] * 5)
+        self.assertEqual(
+            [row["standard_order"] for row in result.tables["design"]],
+            [1, 4, 6, 7, None, 2, 3, 5, 8, None],
+        )
+
+    def test_automatic_block_selection_is_reproducible_and_bounded(self) -> None:
+        factors = [FactorDefinition(name, 0, 1) for name in "ABCD"]
+        first = full_factorial_2level(factors, blocks=4, seed=19)
+        second = full_factorial_2level(factors, blocks=4, seed=19)
+
+        self.assertEqual(first.tables["design"], second.tables["design"])
+        self.assertEqual(first.input_digest, second.input_digest)
+        self.assertEqual(first.diagnostics["block_count"], 4)
+        self.assertEqual(first.diagnostics["blocked_resolution"], 3)
+        self.assertEqual(first.diagnostics["block_word_length_pattern"], {"2": 1, "3": 2})
+        self.assertEqual(first.diagnostics["block_candidate_sets_examined"], 3)
+
+        with self.assertRaises(AnalysisInputError) as invalid:
+            full_factorial_2level(factors, blocks=3)
+        self.assertEqual(invalid.exception.detail.code, "invalid_block_count")
+        with self.assertRaises(AnalysisInputError) as too_small:
+            full_factorial_2level(factors[:2], blocks=4)
+        self.assertEqual(too_small.exception.detail.code, "blocks_too_small")
+
 
 class FractionalFactorialDesignTests(unittest.TestCase):
     def test_block_generators_assign_balanced_blocks_and_aliases(self) -> None:
@@ -933,6 +980,39 @@ class PlackettBurmanAnalysisTests(unittest.TestCase):
 
 
 class FullFactorialAnalysisTests(unittest.TestCase):
+    def test_block_effect_is_fitted_and_confounded_treatment_term_is_omitted(self) -> None:
+        factors = [FactorDefinition(name, 0, 1) for name in "ABC"]
+        design = full_factorial_2level(
+            factors, blocks=2, replicates=2, randomize=False
+        )
+        responses = [
+            10 + 2 * row["coded"]["A"] + 5 * row["block_contrasts"]["Blk1"]
+            for row in design.tables["design"]
+        ]
+
+        result = analyze_full_factorial_2level(
+            factors,
+            responses,
+            blocks=2,
+            replicates=2,
+            interaction_order=3,
+            randomize=False,
+        )
+
+        coefficients = {
+            row["term"]: row["coefficient"] for row in result.tables["coefficients"]
+        }
+        self.assertAlmostEqual(coefficients["A"], 2.0)
+        self.assertNotIn("A:B:C", coefficients)
+        self.assertEqual(
+            result.tables["confounded_terms"],
+            [{"term": "A:B:C", "reason": "confounded_with_block"}],
+        )
+        self.assertAlmostEqual(result.tables["block_effects"][0]["coefficient"], 5.0)
+        self.assertEqual(result.diagnostics["block_degrees_of_freedom"], 1)
+        self.assertTrue(any(row["source"] == "Blocks" for row in result.tables["anova"]))
+        self.assertTrue(all(abs(row["residual"]) < 1e-12 for row in result.tables["residuals"]))
+
     def test_replicated_two_factor_fixture_matches_hand_calculation(self) -> None:
         result = analyze_full_factorial_2level(
             [FactorDefinition("A", 0, 1), FactorDefinition("B", 10, 20)],

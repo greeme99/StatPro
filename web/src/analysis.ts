@@ -299,6 +299,7 @@ export type DoeResidual = {
   run_order: number;
   standard_order: number | null;
   point_type: string;
+  block: number;
   observed: number;
   fitted: number;
   residual: number;
@@ -327,6 +328,12 @@ export type DoeView = {
   residuals: DoeResidual[];
   predictions: DoePrediction[];
   optimization: DoeOptimization[];
+  blockGenerators: Array<{ contrast: string; terms: string[]; expression: string }>;
+  blockAliases: Array<{ contrast: string; generator_terms: string; treatment_alias_set: string[] }>;
+  blockEffects: Array<{ contrast: string; coefficient: number; effect: number; generator_terms: string; treatment_alias_set: string[] }>;
+  confoundedTerms: Array<{ term: string; reason: string }>;
+  blockCount: number;
+  blockedResolutionLabel: string | null;
   rSquared: number | null;
   adjustedRSquared: number | null;
   residualStandardDeviation: number | null;
@@ -579,6 +586,12 @@ export function toDoeView(result: ResultBundle | undefined): DoeView | null {
     residuals: residuals as DoeResidual[],
     predictions: predictions as DoePrediction[],
     optimization: optimization as DoeOptimization[],
+    blockGenerators: Array.isArray(result.tables.block_generators) ? result.tables.block_generators as Array<{ contrast: string; terms: string[]; expression: string }> : [],
+    blockAliases: Array.isArray(result.tables.block_aliases) ? result.tables.block_aliases as Array<{ contrast: string; generator_terms: string; treatment_alias_set: string[] }> : [],
+    blockEffects: Array.isArray(result.tables.block_effects) ? result.tables.block_effects as Array<{ contrast: string; coefficient: number; effect: number; generator_terms: string; treatment_alias_set: string[] }> : [],
+    confoundedTerms: Array.isArray(result.tables.confounded_terms) ? result.tables.confounded_terms as Array<{ term: string; reason: string }> : [],
+    blockCount: Number(result.diagnostics.block_count ?? 1),
+    blockedResolutionLabel: typeof result.diagnostics.blocked_resolution_label === "string" ? result.diagnostics.blocked_resolution_label : null,
     rSquared: typeof result.diagnostics.r_squared === "number" ? result.diagnostics.r_squared : null,
     adjustedRSquared: typeof result.diagnostics.adjusted_r_squared === "number" ? result.diagnostics.adjusted_r_squared : null,
     residualStandardDeviation: typeof result.diagnostics.residual_standard_deviation === "number" ? result.diagnostics.residual_standard_deviation : null,

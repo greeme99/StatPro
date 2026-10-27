@@ -187,6 +187,7 @@ class FullFactorialRunRequest(ApiModel):
     factors: list[FactorRequest]
     replicates: int = 1
     center_points: int = 0
+    blocks: Literal[1, 2, 4, 8, 16] = 1
     randomize: bool = True
     seed: int = 0
 
@@ -1030,6 +1031,7 @@ def create_app(
                 factors,
                 replicates=request.replicates,
                 center_points=request.center_points,
+                blocks=request.blocks,
                 randomize=request.randomize,
                 seed=request.seed,
             ),
@@ -1055,6 +1057,7 @@ def create_app(
                 response_name=request.response_name,
                 replicates=request.replicates,
                 center_points=request.center_points,
+                blocks=request.blocks,
                 randomize=request.randomize,
                 seed=request.seed,
                 interaction_order=request.interaction_order,

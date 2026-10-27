@@ -345,6 +345,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     objectives,
                     replicates=payload.get("replicates", 1),
                     center_points=payload.get("center_points", 0),
+                    blocks=payload.get("blocks", 1),
                     randomize=payload.get("randomize", True),
                     seed=payload.get("seed", 0),
                     interaction_order=payload.get("interaction_order", 2),
@@ -356,6 +357,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     response_name=payload.get("response_name", "Response"),
                     replicates=payload.get("replicates", 1),
                     center_points=payload.get("center_points", 0),
+                    blocks=payload.get("blocks", 1),
                     randomize=payload.get("randomize", True),
                     seed=payload.get("seed", 0),
                     interaction_order=payload.get("interaction_order", 2),
@@ -367,6 +369,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     factors,
                     replicates=payload.get("replicates", 1),
                     center_points=payload.get("center_points", 0),
+                    blocks=payload.get("blocks", 1),
                     randomize=payload.get("randomize", True),
                     seed=payload.get("seed", 0),
                 )

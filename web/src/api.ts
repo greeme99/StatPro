@@ -102,6 +102,7 @@ export function createDoeAnalysisRun(payload: {
   response_name: string;
   replicates: number;
   center_points: number;
+  blocks: 1 | 2 | 4 | 8 | 16;
   randomize: boolean;
   seed: number;
   interaction_order: number;
