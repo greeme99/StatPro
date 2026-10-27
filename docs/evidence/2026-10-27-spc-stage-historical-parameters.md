@@ -10,7 +10,7 @@ The contract is independent of Minitab implementation details and is designed to
 
 - `stage` accepts only `phase_1` or `phase_2`.
 - Phase 2 rejects a missing `target` or `sigma` with `historical_parameters_required`.
-- I-MR accepts an explicit historical `sigma`; its individual-chart limits use that value while the moving-range table remains an observed short-term diagnostic.
+- I-MR accepts an explicit historical `sigma`; its individual limits use that value and its moving-range center and UCL use `d2 × sigma` and `D4 × d2 × sigma`. The average moving range of monitored observations remains a separate diagnostic.
 - EWMA uses the historical target and sigma for startup-adjusted limits in Phase 2.
 - CUSUM uses the historical target and sigma for standardized accumulation in Phase 2.
 - ResultBundle parameters preserve `stage`, `mean_source`, `sigma_source`, and the resolved `process_sigma`.

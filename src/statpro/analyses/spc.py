@@ -821,15 +821,16 @@ def individuals_moving_range(
     average_moving_range = fmean(moving_ranges)
     estimated_sigma = average_moving_range / 1.128
     process_sigma = estimated_sigma if sigma is None else finite_values([sigma], "sigma")[0]
-    if process_sigma <= 0.0:
+    if sigma is not None and process_sigma <= 0.0:
         raise AnalysisInputError(
             "invalid_process_sigma",
-            "Process sigma must be greater than 0.",
-            "sigma" if sigma is not None else "values",
+            "Historical process sigma must be greater than 0.",
+            "sigma",
         )
     individuals_ucl = center + 3.0 * process_sigma
     individuals_lcl = center - 3.0 * process_sigma
-    moving_range_ucl = average_moving_range * 3.267
+    moving_range_center = average_moving_range if sigma is None else process_sigma * 1.128
+    moving_range_ucl = moving_range_center * 3.267
 
     limit_signals = [
         index
@@ -897,6 +898,7 @@ def individuals_moving_range(
             "process_sigma": process_sigma,
             "mean_source": "estimated" if target is None else "historical",
             "sigma_source": "estimated_moving_range" if sigma is None else "historical",
+            "moving_range_source": "estimated_moving_range" if sigma is None else "historical_sigma",
             "stage": stage,
             "rules": rules,
         },
@@ -905,7 +907,7 @@ def individuals_moving_range(
             "moving_ranges": moving_ranges,
             "limits": {
                 "individuals": {"center": center, "lcl": individuals_lcl, "ucl": individuals_ucl},
-                "moving_range": {"center": average_moving_range, "lcl": 0.0, "ucl": moving_range_ucl},
+                "moving_range": {"center": moving_range_center, "lcl": 0.0, "ucl": moving_range_ucl},
             },
         },
         plots={
@@ -923,6 +925,7 @@ def individuals_moving_range(
             "individual_rule_signal_count": len(rule_signals),
             "moving_range_signal_indices": moving_range_signals,
             "estimated_sigma": estimated_sigma,
+            "average_moving_range": average_moving_range,
             "process_sigma": process_sigma,
         },
         assumptions=(

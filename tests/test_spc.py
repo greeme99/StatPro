@@ -45,6 +45,12 @@ class IndividualsMovingRangeTests(unittest.TestCase):
             individuals_moving_range([1.0, math.nan])
         self.assertEqual(context.exception.detail.code, "non_finite_value")
 
+    def test_constant_phase_one_observations_keep_collapsed_limits_and_warning(self) -> None:
+        result = individuals_moving_range([4.0, 4.0, 4.0], rules="basic")
+        self.assertEqual(result.tables["limits"]["individuals"], {"center": 4.0, "lcl": 4.0, "ucl": 4.0})
+        self.assertEqual(result.tables["limits"]["moving_range"]["ucl"], 0.0)
+        self.assertIn("variation is zero", result.warnings[0])
+
     def test_digest_is_deterministic(self) -> None:
         first = individuals_moving_range([1, 2, 3])
         second = individuals_moving_range([1.0, 2.0, 3.0])
@@ -160,6 +166,9 @@ class EwmaChartTests(unittest.TestCase):
         self.assertEqual(result.parameters["stage"], "phase_2")
         self.assertEqual(result.parameters["sigma_source"], "historical")
         self.assertAlmostEqual(result.tables["limits"]["individuals"]["ucl"], 11.5)
+        self.assertAlmostEqual(result.tables["limits"]["moving_range"]["center"], 0.5 * 1.128)
+        self.assertAlmostEqual(result.tables["limits"]["moving_range"]["ucl"], 0.5 * 1.128 * 3.267)
+        self.assertEqual(result.parameters["moving_range_source"], "historical_sigma")
 
     def test_detects_persistent_small_shift(self) -> None:
         result = ewma_chart(
