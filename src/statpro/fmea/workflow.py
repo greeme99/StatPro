@@ -11,6 +11,7 @@ from statpro.fmea.models import (
     ActionPriorityPolicy,
     ActionStatus,
     AnalysisEvidenceRef,
+    ApprovalSignature,
     AuditEvent,
     CharacteristicType,
     ControlPlanItem,
@@ -658,7 +659,7 @@ def submit_for_review(
 
 
 def approve_study(
-    study: FmeaStudySnapshot, *, actor: str, occurred_at: str
+    study: FmeaStudySnapshot, *, signature: ApprovalSignature
 ) -> FmeaStudySnapshot:
     if study.status != StudyStatus.IN_REVIEW:
         raise FmeaInputError(
@@ -675,5 +676,21 @@ def approve_study(
             f"Complete or cancel actions before approval: {', '.join(open_actions)}.",
             "actions",
         )
-    event = _event(study, "study_approved", actor, occurred_at, {})
+    if signature.meaning != "approval":
+        raise FmeaInputError(
+            "invalid_signature_meaning", "FMEA approval requires approval meaning.", "meaning"
+        )
+    if signature.signed_digest != study.digest:
+        raise FmeaInputError(
+            "signature_record_mismatch",
+            "Electronic signature is not linked to the current FMEA revision.",
+            "signed_digest",
+        )
+    event = _event(
+        study,
+        "study_approved",
+        signature.signer_id,
+        signature.executed_at,
+        {"electronic_signature": signature.to_dict()},
+    )
     return _revise(study, event=event, status=StudyStatus.APPROVED)

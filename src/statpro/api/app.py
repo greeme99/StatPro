@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import binascii
 import re
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
@@ -12,7 +13,7 @@ from fastapi import FastAPI, Query, Response
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, ConfigDict, Field, StrictInt
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, StrictInt
 
 from statpro.analyses.capability import normal_process_capability
 from statpro.analyses.doe import (
@@ -49,6 +50,12 @@ from statpro.analyses.spc import (
     xbar_r,
     xbar_s,
 )
+from statpro.application.approval import (
+    ApprovalAuthenticationError,
+    ApprovalAuthorizationError,
+    ApprovalConfigurationError,
+    LocalApprovalAuthenticator,
+)
 from statpro.application.documents import (
     AtomicJsonDocumentRepository,
     DocumentConflictError,
@@ -74,6 +81,7 @@ from statpro.fmea import (
     ActionPriorityEntry,
     ActionPriorityPolicy,
     AnalysisEvidenceRef,
+    ApprovalSignature,
     CharacteristicType,
     ControlPlanPhase,
     FmeaInputError,
@@ -446,6 +454,13 @@ class FmeaTransitionRequest(ApiModel):
     occurred_at: str
 
 
+class ApproveFmeaStudyRequest(ApiModel):
+    expected_storage_version: int = Field(ge=1)
+    user_id: RunId
+    password: SecretStr = Field(min_length=1, max_length=1024)
+    meaning: Literal["approval"] = "approval"
+
+
 class AttachActionPriorityPolicyRequest(FmeaTransitionRequest):
     policy_key: RunId
 
@@ -732,7 +747,10 @@ def _check_fmea_analysis_evidence(
     return checks
 
 
-def create_app(repository: DocumentRepository) -> FastAPI:
+def create_app(
+    repository: DocumentRepository,
+    approval_authenticator: LocalApprovalAuthenticator | None = None,
+) -> FastAPI:
     """Create a testable local API with an injected persistence adapter."""
 
     app = FastAPI(
@@ -745,6 +763,40 @@ def create_app(repository: DocumentRepository) -> FastAPI:
     @app.exception_handler(DomainInputError)
     async def domain_error_handler(_request: object, error: DomainInputError) -> JSONResponse:
         return JSONResponse(status_code=422, content={"ok": False, "error": error.to_dict()})
+
+    @app.exception_handler(ApprovalAuthenticationError)
+    async def approval_authentication_handler(
+        _request: object, _error: ApprovalAuthenticationError
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=401,
+            content={"ok": False, "error": {
+                "code": "approval_authentication_failed",
+                "message": "Approval credentials are invalid.",
+            }},
+        )
+
+    @app.exception_handler(ApprovalAuthorizationError)
+    async def approval_authorization_handler(
+        _request: object, error: ApprovalAuthorizationError
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=403,
+            content={"ok": False, "error": {
+                "code": "approval_not_authorized", "message": str(error),
+            }},
+        )
+
+    @app.exception_handler(ApprovalConfigurationError)
+    async def approval_configuration_handler(
+        _request: object, error: ApprovalConfigurationError
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=503,
+            content={"ok": False, "error": {
+                "code": "approval_authentication_unavailable", "message": str(error),
+            }},
+        )
 
     @app.exception_handler(RequestValidationError)
     async def request_error_handler(
@@ -1851,14 +1903,38 @@ def create_app(repository: DocumentRepository) -> FastAPI:
     )
     def approve_fmea_study(
         study_id: RunId,
-        request: FmeaTransitionRequest,
+        request: ApproveFmeaStudyRequest,
         response: Response,
     ) -> StoredFmeaStudyResponse:
         _stored, study = _load_fmea_study(repository, study_id)
+        if approval_authenticator is None:
+            raise ApprovalConfigurationError(
+                "Configure a local approval identity before approving studies."
+            )
+        principal = approval_authenticator.authenticate(
+            request.user_id, request.password.get_secret_value()
+        )
+        evidence_checks = _check_fmea_analysis_evidence(repository, study)
+        failed_checks = [check for check in evidence_checks if check["status"] != "verified"]
+        if failed_checks:
+            raise FmeaInputError(
+                "unverified_analysis_evidence_blocks_approval",
+                "All linked SPC/MSA Runs must match before approval.",
+                "analysis_evidence",
+            )
+        executed_at = datetime.now(UTC).isoformat()
         revised = approve_study(
             study,
-            actor=request.actor,
-            occurred_at=request.occurred_at,
+            signature=ApprovalSignature(
+                signer_id=principal.user_id,
+                signer_name=principal.display_name,
+                role=principal.role,
+                meaning=request.meaning,
+                authority=principal.authority,
+                authentication_method=principal.authentication_method,
+                signed_digest=study.digest,
+                executed_at=executed_at,
+            ),
         )
         saved = _save_fmea_study(
             repository,
@@ -1871,5 +1947,11 @@ def create_app(repository: DocumentRepository) -> FastAPI:
     return app
 
 
-def create_local_app(storage_root: Path) -> FastAPI:
-    return create_app(AtomicJsonDocumentRepository(storage_root))
+def create_local_app(
+    storage_root: Path, approval_identity_file: Path | None = None
+) -> FastAPI:
+    identity_file = approval_identity_file or storage_root / "approval-identities.json"
+    authenticator = (
+        LocalApprovalAuthenticator.from_file(identity_file) if identity_file.exists() else None
+    )
+    return create_app(AtomicJsonDocumentRepository(storage_root), authenticator)

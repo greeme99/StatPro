@@ -43,6 +43,9 @@ def build_study_report(
         (event for event in reversed(study.audit_events) if event.event_type == "study_approved"),
         None,
     )
+    electronic_signature = (
+        approval.details.get("electronic_signature") if approval else None
+    )
     return {
         "report_type": "statpro.fmea.study_review.v1",
         "study_id": study.study_id,
@@ -59,8 +62,13 @@ def build_study_report(
         "seven_step_progress": [step.to_dict() for step in study.seven_step_progress],
         "rows": rows,
         "approval_record": (
-            {"actor": approval.actor, "occurred_at": approval.occurred_at,
-             "audit_sequence": approval.sequence}
+            {
+                "actor": approval.actor,
+                "occurred_at": approval.occurred_at,
+                "audit_sequence": approval.sequence,
+                "authenticated": isinstance(electronic_signature, dict),
+                "electronic_signature": electronic_signature,
+            }
             if approval else None
         ),
         "audit_events": [
@@ -71,7 +79,10 @@ def build_study_report(
         ],
         "analysis_evidence_checks": evidence_checks,
         "limitations": [
-            "Actor names are self-reported workflow fields, not authenticated electronic signatures.",
+            *(
+                ["Legacy approval actor is self-reported, not an authenticated electronic signature."]
+                if approval and not isinstance(electronic_signature, dict) else []
+            ),
             "Run identity checks do not establish statistical suitability or characteristic-to-input correspondence.",
         ],
     }

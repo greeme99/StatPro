@@ -19,7 +19,7 @@ The repository starts with a dependency-free Python statistical core so formulas
 - Balanced crossed Gage R&R using two-way random-effects ANOVA variance components
 - Immutable CSV Dataset snapshots and revisioned Worksheet cell edits
 - Packaged Draft 2020-12 `ResultBundle` JSON Schema
-- Immutable Design/Process FMEA study revisions with an evidence-derived AIAG/VDA seven-step progress view, action ownership, completion evidence, risk reassessment, review, approval, and audit history
+- Immutable Design/Process FMEA study revisions with an evidence-derived AIAG/VDA seven-step progress view, action ownership, completion evidence, risk reassessment, review, approval-time reauthentication, and audit history
 - Immutable external Action Priority policy import, version/digest validation, Study attachment, audit history, and automatic reuse without bundled proprietary decision tables
 - Process Flow → characteristic → PFMEA → Control Plan ID traceability with revision history, link validation, reaction-plan ownership, and stored SPC/MSA Run references rechecked in review reports
 - Loopback-only FastAPI adapter with Analysis Run, revisioned Worksheet/FMEA storage, ETags, optimistic concurrency, and cursor paging
@@ -68,10 +68,11 @@ py -3.12 -m statpro.cli dataset-import-csv --input samples\process-data.csv
 
 ```powershell
 py -3.12 -m pip install -e ".[api]"
+statpro-approval-user --file "D:\StatProData\approval-identities.json" --user-id quality.approver --display-name "Quality Approver"
 statpro-api --storage "D:\StatProData" --host 127.0.0.1 --port 8765
 ```
 
-Open `http://127.0.0.1:8765/docs` for the generated OpenAPI interface. The launcher rejects non-loopback hosts. Analysis Run IDs are immutable; use a new ID for recalculation.
+The identity command prompts twice for a password and stores only a salted scrypt verifier. Restart the API after changing the identity file. Open `http://127.0.0.1:8765/docs` for the generated OpenAPI interface. The launcher rejects non-loopback hosts. Analysis Run IDs are immutable; use a new ID for recalculation.
 
 ## Local Web UI
 

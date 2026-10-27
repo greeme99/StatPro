@@ -19,6 +19,7 @@ test = ["fastapi>=0.123,<1", "httpx2>=2.14,<3", "jsonschema>=4.23,<5"]
 [project.scripts]
 statpro = "statpro.cli:main"
 statpro-api = "statpro.api.server:main"
+statpro-approval-user = "statpro.application.approval:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

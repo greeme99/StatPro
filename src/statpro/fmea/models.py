@@ -62,6 +62,21 @@ class StepStatus(str, Enum):
 
 
 @dataclass(frozen=True, slots=True)
+class ApprovalSignature:
+    signer_id: str
+    signer_name: str
+    role: str
+    meaning: str
+    authority: str
+    authentication_method: str
+    signed_digest: str
+    executed_at: str
+
+    def to_dict(self) -> dict[str, str]:
+        return asdict(self)
+
+
+@dataclass(frozen=True, slots=True)
 class SevenStepProgress:
     step_number: int
     step_id: SevenStepId

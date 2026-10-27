@@ -187,7 +187,22 @@ export type FmeaStudyReport = {
     control_plan_items: ControlPlanItem[];
     actions: RecommendedAction[];
   }>;
-  approval_record: { actor: string; occurred_at: string; audit_sequence: number } | null;
+  approval_record: {
+    actor: string;
+    occurred_at: string;
+    audit_sequence: number;
+    authenticated: boolean;
+    electronic_signature: {
+      signer_id: string;
+      signer_name: string;
+      role: string;
+      meaning: "approval";
+      authority: string;
+      authentication_method: string;
+      signed_digest: string;
+      executed_at: string;
+    } | null;
+  } | null;
   audit_events: FmeaStudy["audit_events"];
   analysis_evidence_checks: Array<{ control_id: string; run_id: string; status: "verified" | "missing" | "mismatch" | "unavailable" }> | null;
   limitations: string[];

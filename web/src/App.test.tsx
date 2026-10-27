@@ -458,10 +458,13 @@ describe("StatPro UI", () => {
     });
 
     render(<MemoryRouter initialEntries={["/fmea/PFMEA-001"]}><App /></MemoryRouter>);
-    await userEvent.click(await screen.findByRole("button", { name: "승인" }));
+    await userEvent.click(await screen.findByRole("button", { name: "승인 서명" }));
+    await userEvent.type(screen.getByRole("textbox", { name: "승인자 ID" }), "quality.approver");
+    await userEvent.type(screen.getByLabelText("비밀번호"), "correct horse battery staple");
+    await userEvent.click(screen.getByRole("button", { name: "재인증 후 승인" }));
     expect(await screen.findByText("승인됨")).toBeInTheDocument();
     const approveCall = fetchMock.mock.calls.find(([url, init]) => String(url).endsWith("/approve") && (init as RequestInit | undefined)?.method === "POST");
-    expect(JSON.parse(String((approveCall?.[1] as RequestInit).body)).expected_storage_version).toBe(5);
+    expect(JSON.parse(String((approveCall?.[1] as RequestInit).body))).toEqual({ expected_storage_version: 5, user_id: "quality.approver", password: "correct horse battery staple", meaning: "approval" });
   });
 
   it("shows the report for the current FMEA revision", async () => {

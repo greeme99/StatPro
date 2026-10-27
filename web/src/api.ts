@@ -515,8 +515,9 @@ export function completeFmeaAction(studyId: string, actionId: string, payload: {
 
 export function approveFmeaStudy(studyId: string, payload: {
   expected_storage_version: number;
-  actor: string;
-  occurred_at: string;
+  user_id: string;
+  password: string;
+  meaning: "approval";
 }): Promise<StoredFmeaStudy> {
   return request(`/v1/fmea-studies/${encodeURIComponent(studyId)}/approve`, {
     method: "POST",

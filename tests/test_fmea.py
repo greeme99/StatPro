@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from statpro.fmea import (
     ActionPriorityEntry,
     ActionPriorityPolicy,
+    ApprovalSignature,
     CharacteristicType,
     ControlPlanPhase,
     FmeaInputError,
@@ -64,6 +65,19 @@ def study_with_item():
         actor="quality.engineer",
         occurred_at=NOW,
         policy=policy(),
+    )
+
+
+def approval_signature(study, *, signed_digest: str | None = None) -> ApprovalSignature:
+    return ApprovalSignature(
+        signer_id="quality.approver",
+        signer_name="Quality Approver",
+        role="fmea_approver",
+        meaning="approval",
+        authority="statpro-local",
+        authentication_method="password",
+        signed_digest=signed_digest or study.digest,
+        executed_at=NOW,
     )
 
 
@@ -431,7 +445,7 @@ class FmeaWorkflowTests(unittest.TestCase):
         )
         in_review = submit_for_review(study, actor="reviewer", occurred_at=NOW)
         with self.assertRaises(FmeaInputError) as context:
-            approve_study(in_review, actor="approver", occurred_at=NOW)
+            approve_study(in_review, signature=approval_signature(in_review))
         self.assertEqual(context.exception.detail.code, "open_actions_block_approval")
 
     def test_completed_study_can_be_reviewed_and_approved_with_audit_history(self) -> None:
@@ -456,7 +470,10 @@ class FmeaWorkflowTests(unittest.TestCase):
             policy=policy(),
         )
         study = submit_for_review(study, actor="reviewer", occurred_at=NOW)
-        approved = approve_study(study, actor="approver", occurred_at=NOW)
+        with self.assertRaises(FmeaInputError) as context:
+            approve_study(study, signature=approval_signature(study, signed_digest="0" * 64))
+        self.assertEqual(context.exception.detail.code, "signature_record_mismatch")
+        approved = approve_study(study, signature=approval_signature(study))
 
         self.assertEqual(approved.status, StudyStatus.APPROVED)
         self.assertEqual(approved.revision, 6)
@@ -471,7 +488,9 @@ class FmeaWorkflowTests(unittest.TestCase):
         self.assertIsNone(report["analysis_evidence_checks"])
         self.assertEqual(report["snapshot_digest"], approved.digest)
         self.assertEqual(report["approval_record"], {
-            "actor": "approver", "occurred_at": NOW, "audit_sequence": 6,
+            "actor": "quality.approver", "occurred_at": NOW, "audit_sequence": 6,
+            "authenticated": True,
+            "electronic_signature": approval_signature(study).to_dict(),
         })
         self.assertEqual(report["rows"][0]["actions"][0]["status"], "complete")
         self.assertEqual(report["rows"][0]["failure"]["current_ratings"]["rpn"], 32)

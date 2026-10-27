@@ -72,7 +72,7 @@ class DocumentRepository(Protocol):
     ) -> tuple[StoredDocument, ...]: ...
 
 
-def _validated_identifier(value: str, field: str) -> str:
+def validate_document_identifier(value: str, field: str) -> str:
     if not _IDENTIFIER.fullmatch(value):
         raise InvalidDocumentKeyError(
             f"{field} must start with an alphanumeric character and contain only "
@@ -116,8 +116,8 @@ class InMemoryDocumentRepository:
 
     def load(self, collection: str, key: str) -> StoredDocument:
         identity = (
-            _validated_identifier(collection, "collection"),
-            _validated_identifier(key, "key"),
+            validate_document_identifier(collection, "collection"),
+            validate_document_identifier(key, "key"),
         )
         with self._lock:
             stored = self._documents.get(identity)
@@ -135,8 +135,8 @@ class InMemoryDocumentRepository:
         *,
         expected_version: int,
     ) -> StoredDocument:
-        collection = _validated_identifier(collection, "collection")
-        key = _validated_identifier(key, "key")
+        collection = validate_document_identifier(collection, "collection")
+        key = validate_document_identifier(key, "key")
         if expected_version < 0:
             raise DocumentConflictError("Expected version cannot be negative.")
         identity = (collection, key)
@@ -156,9 +156,9 @@ class InMemoryDocumentRepository:
     def list_documents(
         self, collection: str, *, after: str | None, limit: int
     ) -> tuple[StoredDocument, ...]:
-        collection = _validated_identifier(collection, "collection")
+        collection = validate_document_identifier(collection, "collection")
         if after is not None:
-            _validated_identifier(after, "after")
+            validate_document_identifier(after, "after")
         if limit < 1:
             raise DocumentStoreError("List limit must be positive.")
         with self._lock:
@@ -178,8 +178,8 @@ class AtomicJsonDocumentRepository:
         self._lock = threading.RLock()
 
     def _path(self, collection: str, key: str) -> Path:
-        collection = _validated_identifier(collection, "collection")
-        key = _validated_identifier(key, "key")
+        collection = validate_document_identifier(collection, "collection")
+        key = validate_document_identifier(key, "key")
         return self._root / collection / f"{key}.json"
 
     def load(self, collection: str, key: str) -> StoredDocument:
@@ -264,9 +264,9 @@ class AtomicJsonDocumentRepository:
     def list_documents(
         self, collection: str, *, after: str | None, limit: int
     ) -> tuple[StoredDocument, ...]:
-        collection = _validated_identifier(collection, "collection")
+        collection = validate_document_identifier(collection, "collection")
         if after is not None:
-            _validated_identifier(after, "after")
+            validate_document_identifier(after, "after")
         if limit < 1:
             raise DocumentStoreError("List limit must be positive.")
         directory = self._root / collection

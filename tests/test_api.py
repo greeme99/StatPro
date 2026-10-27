@@ -10,13 +10,25 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from fastapi.testclient import TestClient
 
 from statpro.api import create_app
+from statpro.application.approval import (
+    LocalApprovalAuthenticator,
+    create_approval_identity,
+)
 from statpro.application.documents import InMemoryDocumentRepository
 
 
 class LocalApiContractTests(unittest.TestCase):
     def setUp(self) -> None:
         self.repository = InMemoryDocumentRepository()
-        self.client = TestClient(create_app(self.repository))
+        self.approval_password = "correct horse battery staple"
+        self.approval_authenticator = LocalApprovalAuthenticator((
+            create_approval_identity(
+                user_id="quality.approver",
+                display_name="Quality Approver",
+                password=self.approval_password,
+            ),
+        ))
+        self.client = TestClient(create_app(self.repository, self.approval_authenticator))
 
     def test_health_and_result_schema_are_available(self) -> None:
         health = self.client.get("/health")
@@ -808,7 +820,7 @@ class LocalApiContractTests(unittest.TestCase):
         self.assertEqual(report["rows"][0]["characteristics"][0]["characteristic_id"], "CHAR-001")
         self.assertEqual(report["rows"][0]["control_plan_items"][0]["control_id"], "CP-001")
         self.assertIsNone(report["approval_record"])
-        self.assertIn("self-reported", report["limitations"][0])
+        self.assertIn("statistical suitability", report["limitations"][0])
 
         spc_run = self.client.post(
             "/v1/analysis-runs/imr",
@@ -919,6 +931,21 @@ class LocalApiContractTests(unittest.TestCase):
         self.repository._documents.pop(("analysis-runs", "spc-evidence"))
         missing_report = self.client.get("/v1/fmea-studies/PFMEA-TRACE/report")
         self.assertEqual(missing_report.json()["analysis_evidence_checks"][0]["status"], "missing")
+        submitted = self.client.post("/v1/fmea-studies/PFMEA-TRACE/submit-review", json={
+            "expected_storage_version": second_link.json()["storage_version"],
+            "actor": "quality.reviewer", "occurred_at": "2026-10-20T10:30:00+09:00",
+        })
+        self.assertEqual(submitted.status_code, 200)
+        blocked_approval = self.client.post("/v1/fmea-studies/PFMEA-TRACE/approve", json={
+            "expected_storage_version": submitted.json()["storage_version"],
+            "user_id": "quality.approver", "password": self.approval_password,
+            "meaning": "approval",
+        })
+        self.assertEqual(blocked_approval.status_code, 422)
+        self.assertEqual(
+            blocked_approval.json()["error"]["code"],
+            "unverified_analysis_evidence_blocks_approval",
+        )
 
     def test_fmea_action_is_completed_reassessed_and_study_approved(self) -> None:
         created = self.client.post(
@@ -996,17 +1023,52 @@ class LocalApiContractTests(unittest.TestCase):
             },
         )
         self.assertEqual(submitted.status_code, 200)
+        rejected = self.client.post(
+            "/v1/fmea-studies/PFMEA-ACTIONS/approve",
+            json={
+                "expected_storage_version": 5,
+                "user_id": "quality.approver",
+                "password": "incorrect password",
+                "meaning": "approval",
+            },
+        )
+        self.assertEqual(rejected.status_code, 401)
+        self.assertEqual(rejected.json()["error"]["code"], "approval_authentication_failed")
+        unconfigured = TestClient(create_app(self.repository)).post(
+            "/v1/fmea-studies/PFMEA-ACTIONS/approve",
+            json={
+                "expected_storage_version": 5,
+                "user_id": "quality.approver",
+                "password": self.approval_password,
+                "meaning": "approval",
+            },
+        )
+        self.assertEqual(unconfigured.status_code, 503)
+        self.assertEqual(
+            unconfigured.json()["error"]["code"], "approval_authentication_unavailable"
+        )
         approved = self.client.post(
             "/v1/fmea-studies/PFMEA-ACTIONS/approve",
             json={
                 "expected_storage_version": 5,
-                "actor": "quality.approver",
-                "occurred_at": "2026-10-21T11:00:00+09:00",
+                "user_id": "quality.approver",
+                "password": self.approval_password,
+                "meaning": "approval",
             },
         )
         self.assertEqual(approved.status_code, 200)
         self.assertEqual(approved.json()["storage_version"], 6)
         self.assertEqual(approved.json()["study"]["status"], "approved")
+        signature = approved.json()["study"]["audit_events"][-1]["details"]["electronic_signature"]
+        self.assertEqual(signature["signer_name"], "Quality Approver")
+        self.assertEqual(signature["signed_digest"], submitted.json()["study"]["digest"])
+        self.assertEqual(signature["meaning"], "approval")
+        report = self.client.get("/v1/fmea-studies/PFMEA-ACTIONS/report").json()
+        self.assertTrue(report["approval_record"]["authenticated"])
+        self.assertEqual(
+            report["approval_record"]["electronic_signature"]["signer_name"],
+            "Quality Approver",
+        )
         self.assertEqual(
             [event["event_type"] for event in approved.json()["study"]["audit_events"]],
             [
