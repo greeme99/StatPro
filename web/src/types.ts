@@ -80,6 +80,12 @@ export type ControlPlanItem = {
   control_method: string;
   reaction_plan: string;
   reaction_owner: string;
+  analysis_evidence?: Array<{
+    run_id: string;
+    analysis_type: string;
+    run_etag: string;
+    input_digest: string;
+  }>;
 };
 
 export type RecommendedAction = {

@@ -377,6 +377,40 @@ describe("StatPro UI", () => {
     expect(JSON.parse(String((stepCall?.[1] as RequestInit).body))).toMatchObject({ expected_storage_version: 1, step_id: "STEP-010", sequence: 10, name: "Connector insertion" });
   });
 
+  it("links a stored SPC Run to a Control Plan item and shows the reference", async () => {
+    const control = {
+      control_id: "CP-001", phase: "production", characteristic_id: "CHAR-001", failure_item_ids: [],
+      measurement_method: "Caliper", sample_size: 5, frequency: "Each lot", control_method: "I-MR",
+      reaction_plan: "Stop line", reaction_owner: "quality.engineer", analysis_evidence: [],
+    };
+    const study = {
+      study_id: "PFMEA-EVIDENCE", name: "Connector Assembly", study_type: "process", standard_version: "customer-standard-2026", status: "draft", revision: 3, parent_digest: null, digest: "b".repeat(64),
+      items: [], actions: [], audit_events: [], action_priority_policy_id: null, action_priority_policy_digest: null, action_priority_policy_key: null,
+      process_steps: [{ step_id: "STEP-001", sequence: 1, name: "Assembly", operation: "Seat connector" }],
+      characteristics: [{ characteristic_id: "CHAR-001", process_step_id: "STEP-001", name: "Depth", specification: "10 ± 1", characteristic_type: "process", special_classification: null }],
+      control_plan_items: [control],
+    };
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url.endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      if (url.includes("/fmea-action-priority-policies")) return new Response(JSON.stringify({ items: [], next_after: null }), { status: 200 });
+      if (url.endsWith("/control-plan-items/CP-001/analysis-evidence") && init?.method === "POST") {
+        return new Response(JSON.stringify({ study_id: study.study_id, storage_version: 4, etag: "c".repeat(64), study: { ...study, revision: 4, control_plan_items: [{ ...control, analysis_evidence: [{ run_id: "RUN-SPC-001", analysis_type: "spc.imr", run_etag: "d".repeat(64), input_digest: "e".repeat(64) }] }] } }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ study_id: study.study_id, storage_version: 3, etag: "a".repeat(64), study }), { status: 200 });
+    });
+
+    render(<MemoryRouter initialEntries={["/fmea/PFMEA-EVIDENCE"]}><App /></MemoryRouter>);
+    await userEvent.click(await screen.findByRole("button", { name: "SPC/MSA 결과 연결" }));
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Control Plan 항목" }), "CP-001");
+    await userEvent.type(screen.getByRole("textbox", { name: "저장된 SPC/MSA Run ID" }), "RUN-SPC-001");
+    await userEvent.click(screen.getByRole("button", { name: "실행 결과 연결" }));
+
+    expect(await screen.findByText(/실행 RUN-SPC-001/)).toBeInTheDocument();
+    const post = fetchMock.mock.calls.find(([url, init]) => String(url).endsWith("/control-plan-items/CP-001/analysis-evidence") && (init as RequestInit | undefined)?.method === "POST");
+    expect(JSON.parse(String((post?.[1] as RequestInit).body))).toMatchObject({ expected_storage_version: 3, run_id: "RUN-SPC-001", actor: "quality.engineer" });
+  });
+
   it("adds and completes an FMEA action with revised risk ratings", async () => {
     const item = {
       item_id: "FA-001", structure_element: "Connector", function: "Maintain contact", requirement: "Resistance", failure_mode: "Incomplete insertion", effect: "Open circuit", cause: "Fixture drift", prevention_control: "Checklist", detection_control: "Continuity test",

@@ -460,6 +460,18 @@ export function addFmeaControlPlanItem(studyId: string, payload: {
   });
 }
 
+export function linkFmeaControlPlanAnalysisEvidence(studyId: string, controlId: string, payload: {
+  expected_storage_version: number;
+  run_id: string;
+  actor: string;
+  occurred_at: string;
+}): Promise<StoredFmeaStudy> {
+  return request(`/v1/fmea-studies/${encodeURIComponent(studyId)}/control-plan-items/${encodeURIComponent(controlId)}/analysis-evidence`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function submitFmeaForReview(studyId: string, payload: {
   expected_storage_version: number;
   actor: string;

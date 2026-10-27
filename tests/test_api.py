@@ -809,6 +809,76 @@ class LocalApiContractTests(unittest.TestCase):
         self.assertIsNone(report["approval_record"])
         self.assertIn("self-reported", report["limitations"][0])
 
+        spc_run = self.client.post(
+            "/v1/analysis-runs/imr",
+            json={"run_id": "spc-evidence", "values": [10, 11, 9]},
+        )
+        self.assertEqual(spc_run.status_code, 201)
+        msa_run = self.client.post(
+            "/v1/analysis-runs/gage-rr-crossed",
+            json={
+                "run_id": "msa-evidence",
+                "records": [
+                    {"part": part, "operator": operator, "measurement": value}
+                    for part, operator, values in (
+                        ("P1", "A", (10, 12)), ("P1", "B", (11, 13)),
+                        ("P2", "A", (20, 22)), ("P2", "B", (19, 21)),
+                    )
+                    for value in values
+                ],
+            },
+        )
+        self.assertEqual(msa_run.status_code, 201)
+        evidence_path = "/v1/fmea-studies/PFMEA-TRACE/control-plan-items/CP-001/analysis-evidence"
+        first_link = self.client.post(evidence_path, json={
+            "expected_storage_version": control.json()["storage_version"],
+            "run_id": "spc-evidence", "actor": "quality.engineer",
+            "occurred_at": "2026-10-20T10:22:00+09:00",
+        })
+        self.assertEqual(first_link.status_code, 200)
+        evidence = first_link.json()["study"]["control_plan_items"][0]["analysis_evidence"][0]
+        self.assertEqual(evidence["run_etag"], spc_run.json()["etag"])
+        self.assertEqual(evidence["analysis_type"], "spc.imr")
+        self.assertEqual(evidence["input_digest"], spc_run.json()["result"]["input_digest"])
+        second_link = self.client.post(evidence_path, json={
+            "expected_storage_version": first_link.json()["storage_version"],
+            "run_id": "msa-evidence", "actor": "quality.engineer",
+            "occurred_at": "2026-10-20T10:23:00+09:00",
+        })
+        self.assertEqual(second_link.status_code, 200)
+        self.assertEqual(
+            [item["analysis_type"] for item in second_link.json()["study"]["control_plan_items"][0]["analysis_evidence"]],
+            ["spc.imr", "msa.gage_rr_crossed"],
+        )
+        linked_report = self.client.get("/v1/fmea-studies/PFMEA-TRACE/report").json()
+        self.assertEqual(linked_report["rows"][0]["control_plan_items"][0]["analysis_evidence"][1]["run_etag"], msa_run.json()["etag"])
+        duplicate = self.client.post(evidence_path, json={
+            "expected_storage_version": second_link.json()["storage_version"],
+            "run_id": "spc-evidence", "actor": "quality.engineer",
+            "occurred_at": "2026-10-20T10:24:00+09:00",
+        })
+        self.assertEqual(duplicate.status_code, 422)
+        self.assertEqual(duplicate.json()["error"]["code"], "duplicate_analysis_evidence")
+        missing_run = self.client.post(evidence_path, json={
+            "expected_storage_version": second_link.json()["storage_version"],
+            "run_id": "missing-run", "actor": "quality.engineer",
+            "occurred_at": "2026-10-20T10:24:00+09:00",
+        })
+        self.assertEqual(missing_run.status_code, 404)
+        doe_run = self.client.post("/v1/analysis-runs/doe-full-factorial", json={
+            "run_id": "doe-evidence",
+            "factors": [{"name": "A", "low": 0, "high": 1}, {"name": "B", "low": 0, "high": 1}],
+            "randomize": False,
+        })
+        self.assertEqual(doe_run.status_code, 201)
+        unsupported = self.client.post(evidence_path, json={
+            "expected_storage_version": second_link.json()["storage_version"],
+            "run_id": "doe-evidence", "actor": "quality.engineer",
+            "occurred_at": "2026-10-20T10:24:00+09:00",
+        })
+        self.assertEqual(unsupported.status_code, 422)
+        self.assertEqual(unsupported.json()["error"]["code"], "unsupported_analysis_evidence")
+
         stale = self.client.post(
             "/v1/fmea-studies/PFMEA-TRACE/control-plan-items",
             json={

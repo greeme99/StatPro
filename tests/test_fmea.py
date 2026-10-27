@@ -175,6 +175,11 @@ class FmeaWorkflowTests(unittest.TestCase):
         self.assertEqual(traced.control_plan_items[0].failure_item_ids, ("FA-001",))
         self.assertEqual(traced.audit_events[-1].event_type, "control_plan_item_added")
         self.assertEqual(type(traced).from_dict(traced.to_dict()), traced)
+        legacy_payload = traced.to_dict()
+        del legacy_payload["control_plan_items"][0]["analysis_evidence"]
+        restored_legacy = type(traced).from_dict(legacy_payload)
+        self.assertEqual(restored_legacy.control_plan_items[0].analysis_evidence, ())
+        self.assertEqual(restored_legacy.digest, traced.digest)
 
     def test_process_traceability_is_pfmea_only_and_rejects_mismatched_links(self) -> None:
         design_study = create_fmea_study(

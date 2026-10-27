@@ -21,7 +21,7 @@ The repository starts with a dependency-free Python statistical core so formulas
 - Packaged Draft 2020-12 `ResultBundle` JSON Schema
 - Immutable Design/Process FMEA study revisions with an evidence-derived AIAG/VDA seven-step progress view, action ownership, completion evidence, risk reassessment, review, approval, and audit history
 - Immutable external Action Priority policy import, version/digest validation, Study attachment, audit history, and automatic reuse without bundled proprietary decision tables
-- Process Flow → characteristic → PFMEA → Control Plan ID traceability with revision history, link validation, and reaction-plan ownership
+- Process Flow → characteristic → PFMEA → Control Plan ID traceability with revision history, link validation, reaction-plan ownership, and verified stored SPC/MSA Run references
 - Loopback-only FastAPI adapter with Analysis Run, revisioned Worksheet/FMEA storage, ETags, optimistic concurrency, and cursor paging
 - Atomic local JSON document adapter plus an in-memory contract-test adapter
 - React workbench with dashboard, CSV Worksheet import/editing, I-MR, Xbar-S, EWMA, CUSUM, and p/np/c/u setup/results, DOE analysis/fractional/Plackett–Burman/Box–Behnken/response-optimizer flows, FMEA seven-step/editor/review, external AP policy management, PFMEA/Control Plan traceability, provenance drawer, theme, and connection states

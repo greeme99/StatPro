@@ -71,6 +71,7 @@ from statpro.domain.schema import result_bundle_schema
 from statpro.fmea import (
     ActionPriorityEntry,
     ActionPriorityPolicy,
+    AnalysisEvidenceRef,
     CharacteristicType,
     ControlPlanPhase,
     FmeaInputError,
@@ -87,6 +88,7 @@ from statpro.fmea import (
     build_study_report,
     complete_action,
     create_fmea_study,
+    link_control_plan_analysis_evidence,
     submit_for_review,
 )
 from statpro.version import ENGINE_VERSION
@@ -392,6 +394,13 @@ class AddControlPlanItemRequest(ApiModel):
     control_method: str
     reaction_plan: str
     reaction_owner: str
+    actor: str
+    occurred_at: str
+
+
+class LinkControlPlanAnalysisEvidenceRequest(ApiModel):
+    expected_storage_version: int = Field(ge=1)
+    run_id: RunId
     actor: str
     occurred_at: str
 
@@ -1657,6 +1666,47 @@ def create_app(repository: DocumentRepository) -> FastAPI:
             control_method=request.control_method,
             reaction_plan=request.reaction_plan,
             reaction_owner=request.reaction_owner,
+            actor=request.actor,
+            occurred_at=request.occurred_at,
+        )
+        saved = _save_fmea_study(
+            repository,
+            revised,
+            expected_version=request.expected_storage_version,
+        )
+        response.headers["ETag"] = f'"{saved.etag}"'
+        return _fmea_response(saved)
+
+    @app.post(
+        "/v1/fmea-studies/{study_id}/control-plan-items/{control_id}/analysis-evidence",
+        response_model=StoredFmeaStudyResponse,
+    )
+    def link_fmea_control_plan_analysis_evidence(
+        study_id: RunId,
+        control_id: RunId,
+        request: LinkControlPlanAnalysisEvidenceRequest,
+        response: Response,
+    ) -> StoredFmeaStudyResponse:
+        _stored, study = _load_fmea_study(repository, study_id)
+        run = repository.load(ANALYSIS_RUNS, request.run_id)
+        result = run.document.get("result")
+        if (
+            run.document.get("kind") != "analysis_run"
+            or run.document.get("run_id") != request.run_id
+            or not isinstance(result, dict)
+            or not isinstance(result.get("analysis_type"), str)
+            or not isinstance(result.get("input_digest"), str)
+        ):
+            raise DocumentStoreError("Stored analysis Run has an invalid owned format.")
+        revised = link_control_plan_analysis_evidence(
+            study,
+            control_id=control_id,
+            reference=AnalysisEvidenceRef(
+                run_id=request.run_id,
+                analysis_type=result["analysis_type"],
+                run_etag=run.etag,
+                input_digest=result["input_digest"],
+            ),
             actor=request.actor,
             occurred_at=request.occurred_at,
         )

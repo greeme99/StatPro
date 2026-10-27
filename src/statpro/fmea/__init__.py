@@ -4,6 +4,7 @@ from statpro.fmea.models import (
     ActionPriorityEntry,
     ActionPriorityPolicy,
     ActionStatus,
+    AnalysisEvidenceRef,
     CharacteristicType,
     ControlPlanItem,
     ControlPlanPhase,
@@ -29,6 +30,7 @@ from statpro.fmea.workflow import (
     attach_action_priority_policy,
     complete_action,
     create_fmea_study,
+    link_control_plan_analysis_evidence,
     submit_for_review,
 )
 
@@ -36,6 +38,7 @@ __all__ = [
     "ActionPriorityEntry",
     "ActionPriorityPolicy",
     "ActionStatus",
+    "AnalysisEvidenceRef",
     "CharacteristicType",
     "ControlPlanItem",
     "ControlPlanPhase",
@@ -59,5 +62,6 @@ __all__ = [
     "build_study_report",
     "complete_action",
     "create_fmea_study",
+    "link_control_plan_analysis_evidence",
     "submit_for_review",
 ]

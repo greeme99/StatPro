@@ -10,6 +10,7 @@ from statpro.domain.identity import input_digest
 from statpro.fmea.models import (
     ActionPriorityPolicy,
     ActionStatus,
+    AnalysisEvidenceRef,
     AuditEvent,
     CharacteristicType,
     ControlPlanItem,
@@ -457,6 +458,64 @@ def add_control_plan_item(
         study,
         event=event,
         control_plan_items=study.control_plan_items + (control,),
+    )
+
+
+def link_control_plan_analysis_evidence(
+    study: FmeaStudySnapshot,
+    *,
+    control_id: str,
+    reference: AnalysisEvidenceRef,
+    actor: str,
+    occurred_at: str,
+) -> FmeaStudySnapshot:
+    """Link a verified immutable SPC/MSA Run to one Control Plan item."""
+
+    _require_draft(study)
+    _require_process_study(study)
+    control = next(
+        (item for item in study.control_plan_items if item.control_id == control_id),
+        None,
+    )
+    if control is None:
+        raise FmeaInputError(
+            "unknown_control_id", "Control Plan item does not exist.", "control_id"
+        )
+    if not reference.analysis_type.startswith(("spc.", "msa.")):
+        raise FmeaInputError(
+            "unsupported_analysis_evidence",
+            "Control Plan evidence must be an SPC or MSA analysis Run.",
+            "run_id",
+        )
+    if any(item.run_id == reference.run_id for item in control.analysis_evidence):
+        raise FmeaInputError(
+            "duplicate_analysis_evidence",
+            "This analysis Run is already linked to the Control Plan item.",
+            "run_id",
+        )
+    revised_control = replace(
+        control,
+        analysis_evidence=control.analysis_evidence + (reference,),
+    )
+    event = _event(
+        study,
+        "control_plan_analysis_evidence_linked",
+        actor,
+        occurred_at,
+        {
+            "control_id": control_id,
+            "run_id": reference.run_id,
+            "analysis_type": reference.analysis_type,
+            "run_etag": reference.run_etag,
+        },
+    )
+    return _revise(
+        study,
+        event=event,
+        control_plan_items=tuple(
+            revised_control if item.control_id == control_id else item
+            for item in study.control_plan_items
+        ),
     )
 
 

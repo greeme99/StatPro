@@ -294,6 +294,17 @@ class ProcessCharacteristic:
 
 
 @dataclass(frozen=True, slots=True)
+class AnalysisEvidenceRef:
+    run_id: str
+    analysis_type: str
+    run_etag: str
+    input_digest: str
+
+    def to_dict(self) -> dict[str, str]:
+        return asdict(self)
+
+
+@dataclass(frozen=True, slots=True)
 class ControlPlanItem:
     control_id: str
     phase: ControlPlanPhase
@@ -305,11 +316,13 @@ class ControlPlanItem:
     control_method: str
     reaction_plan: str
     reaction_owner: str
+    analysis_evidence: tuple[AnalysisEvidenceRef, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
         payload["phase"] = self.phase.value
         payload["failure_item_ids"] = list(self.failure_item_ids)
+        payload["analysis_evidence"] = [reference.to_dict() for reference in self.analysis_evidence]
         return payload
 
 
@@ -484,6 +497,10 @@ class FmeaStudySnapshot:
                     control_method=item["control_method"],
                     reaction_plan=item["reaction_plan"],
                     reaction_owner=item["reaction_owner"],
+                    analysis_evidence=tuple(
+                        AnalysisEvidenceRef(**reference)
+                        for reference in item.get("analysis_evidence", ())
+                    ),
                 )
                 for item in payload.get("control_plan_items", ())
             ),

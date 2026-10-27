@@ -1,7 +1,7 @@
 import { AlertTriangle, ArrowLeft, CheckCircle2, ClipboardCheck, FilePlus2, GitBranch, Link2, ShieldAlert, Upload, Wrench } from "lucide-react";
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { addFmeaAction, addFmeaControlPlanItem, addFmeaFailure, addFmeaProcessCharacteristic, addFmeaProcessStep, approveFmeaStudy, attachActionPriorityPolicy, completeFmeaAction, createActionPriorityPolicy, getFmeaStudy, getFmeaStudyReport, listActionPriorityPolicies, submitFmeaForReview } from "../api";
+import { addFmeaAction, addFmeaControlPlanItem, addFmeaFailure, addFmeaProcessCharacteristic, addFmeaProcessStep, approveFmeaStudy, attachActionPriorityPolicy, completeFmeaAction, createActionPriorityPolicy, getFmeaStudy, getFmeaStudyReport, linkFmeaControlPlanAnalysisEvidence, listActionPriorityPolicies, submitFmeaForReview } from "../api";
 import { Button } from "../components/Button";
 import type { FailureAnalysis, FmeaStudyReport, RecommendedAction, StoredActionPriorityPolicy, StoredFmeaStudy } from "../types";
 
@@ -25,7 +25,7 @@ export function FmeaStudyPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [showActionForm, setShowActionForm] = useState(false);
-  const [traceEditor, setTraceEditor] = useState<"step" | "characteristic" | "control" | null>(null);
+  const [traceEditor, setTraceEditor] = useState<"step" | "characteristic" | "control" | "evidence" | null>(null);
   const [completingActionId, setCompletingActionId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -174,6 +174,28 @@ export function FmeaStudyPage() {
       setTraceEditor(null);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Control Plan 항목을 추가하지 못했습니다.");
+    } finally { setBusy(false); }
+  }
+
+  async function handleLinkAnalysisEvidence(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!stored) return;
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
+    setBusy(true);
+    setError("");
+    try {
+      setStored(await linkFmeaControlPlanAnalysisEvidence(studyId, String(form.get("control_id")), {
+        expected_storage_version: stored.storage_version,
+        run_id: String(form.get("run_id") ?? "").trim(),
+        actor: String(form.get("actor") ?? "").trim(),
+        occurred_at: new Date().toISOString(),
+      }));
+      setReport(null);
+      formElement.reset();
+      setTraceEditor(null);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "SPC/MSA 실행 결과를 연결하지 못했습니다.");
     } finally { setBusy(false); }
   }
 
@@ -327,7 +349,7 @@ export function FmeaStudyPage() {
           <p>Revision {currentReport.revision} · 상태 {statusLabels[currentReport.status]} · 항목 {currentReport.rows.length}개 · 감사 이벤트 {currentReport.audit_events.length}건</p>
           <p>스냅샷 식별값: <code>{currentReport.snapshot_digest}</code></p>
           <p>{currentReport.approval_record ? `승인 기록: ${currentReport.approval_record.actor} · ${currentReport.approval_record.occurred_at}` : "승인 기록 없음"}</p>
-          {currentReport.rows.length === 0 ? <p>보고할 고장 분석 항목이 없습니다.</p> : <div className="table-scroll"><table><caption>현재 revision의 FMEA 위험 분석과 공정관리 연결</caption><thead><tr><th scope="col">항목</th><th scope="col">고장 모드 · 원인</th><th scope="col">현재 S/O/D</th><th scope="col">AP</th><th scope="col">공정 단계 · 특성</th><th scope="col">Control Plan</th><th scope="col">조치</th></tr></thead><tbody>{currentReport.rows.map((row) => <tr key={row.failure.item_id}><th scope="row">{row.failure.item_id}</th><td>{row.failure.failure_mode}<span className="table-subtitle">{row.failure.cause}</span></td><td>{row.failure.current_ratings.severity} / {row.failure.current_ratings.occurrence} / {row.failure.current_ratings.detection}</td><td>{row.failure.action_priority ?? "미산정"}</td><td>{row.process_step?.step_id ?? "—"} · {row.characteristics.map((item) => item.characteristic_id).join(", ") || "—"}</td><td>{row.control_plan_items.map((item) => item.control_id).join(", ") || "—"}</td><td>{row.actions.map((item) => `${item.action_id} (${item.status})`).join(", ") || "—"}</td></tr>)}</tbody></table></div>}
+          {currentReport.rows.length === 0 ? <p>보고할 고장 분석 항목이 없습니다.</p> : <div className="table-scroll"><table><caption>현재 revision의 FMEA 위험 분석과 공정관리 연결</caption><thead><tr><th scope="col">항목</th><th scope="col">고장 모드 · 원인</th><th scope="col">현재 S/O/D</th><th scope="col">AP</th><th scope="col">공정 단계 · 특성</th><th scope="col">Control Plan · 실행 증거</th><th scope="col">조치</th></tr></thead><tbody>{currentReport.rows.map((row) => <tr key={row.failure.item_id}><th scope="row">{row.failure.item_id}</th><td>{row.failure.failure_mode}<span className="table-subtitle">{row.failure.cause}</span></td><td>{row.failure.current_ratings.severity} / {row.failure.current_ratings.occurrence} / {row.failure.current_ratings.detection}</td><td>{row.failure.action_priority ?? "미산정"}</td><td>{row.process_step?.step_id ?? "—"} · {row.characteristics.map((item) => item.characteristic_id).join(", ") || "—"}</td><td>{row.control_plan_items.map((item) => `${item.control_id}${item.analysis_evidence?.length ? ` (${item.analysis_evidence.map((reference) => `${reference.analysis_type}: ${reference.run_id}`).join(", ")})` : ""}`).join(", ") || "—"}</td><td>{row.actions.map((item) => `${item.action_id} (${item.status})`).join(", ") || "—"}</td></tr>)}</tbody></table></div>}
           {currentReport.limitations.map((limitation) => <p key={limitation} className="policy-note">{limitation}</p>)}
         </>}
       </section>
@@ -345,6 +367,7 @@ export function FmeaStudyPage() {
           <Button type="button" onClick={() => setTraceEditor(traceEditor === "step" ? null : "step")}>공정 단계</Button>
           <Button type="button" onClick={() => setTraceEditor(traceEditor === "characteristic" ? null : "characteristic")} disabled={processSteps.length === 0}>공정 특성</Button>
           <Button type="button" onClick={() => setTraceEditor(traceEditor === "control" ? null : "control")} disabled={characteristics.length === 0 || study.items.length === 0}>Control Plan</Button>
+          <Button type="button" onClick={() => setTraceEditor(traceEditor === "evidence" ? null : "evidence")} disabled={controlPlanItems.length === 0}>SPC/MSA 결과 연결</Button>
         </div>}
         {traceEditor === "step" && <form className="traceability-form" onSubmit={handleAddProcessStep}>
           <label className="field">단계 ID<input name="step_id" required defaultValue={`STEP-${String((processSteps.length + 1) * 10).padStart(3, "0")}`} /></label>
@@ -378,11 +401,17 @@ export function FmeaStudyPage() {
           <label className="field">작성자<input name="actor" required defaultValue="quality.engineer" /></label>
           <div className="form-actions"><Button type="submit" loading={busy}>Control Plan 저장</Button></div>
         </form>}
+        {traceEditor === "evidence" && <form className="traceability-form" onSubmit={handleLinkAnalysisEvidence}>
+          <label className="field">Control Plan 항목<select name="control_id" required defaultValue=""><option value="" disabled>항목 선택</option>{controlPlanItems.map((item) => <option key={item.control_id} value={item.control_id}>{item.control_id}</option>)}</select></label>
+          <label className="field">저장된 SPC/MSA Run ID<input name="run_id" required /></label>
+          <label className="field">연결 담당자<input name="actor" required defaultValue="quality.engineer" /></label>
+          <div className="form-actions"><Button type="submit" loading={busy}>실행 결과 연결</Button></div>
+        </form>}
         {processSteps.length === 0 ? <div className="state-message"><GitBranch aria-hidden="true" /><h3>공정흐름이 없습니다</h3><p>공정 단계를 먼저 등록하면 PFMEA와 Control Plan을 ID로 연결할 수 있습니다.</p></div> : <div className="table-scroll"><table className="traceability-table"><thead><tr><th>공정 단계</th><th>제품/공정 특성</th><th>PFMEA 고장 분석</th><th>Control Plan</th><th>관리·반응</th></tr></thead><tbody>{characteristics.length === 0 ? processSteps.map((step) => <tr key={step.step_id}><td><strong>{step.step_id}</strong><span className="table-subtitle">{step.sequence} · {step.name}</span></td><td colSpan={4}><span className="status-text is-muted">연결된 공정 특성 없음</span></td></tr>) : characteristics.map((characteristic) => {
             const step = processSteps.find((candidate) => candidate.step_id === characteristic.process_step_id);
             const failures = study.items.filter((item) => (item.characteristic_ids ?? []).includes(characteristic.characteristic_id));
             const controls = controlPlanItems.filter((item) => item.characteristic_id === characteristic.characteristic_id);
-            return <tr key={characteristic.characteristic_id}><td><strong>{step?.step_id ?? characteristic.process_step_id}</strong><span className="table-subtitle">{step?.sequence} · {step?.name ?? "미확인 단계"}</span></td><td><strong>{characteristic.characteristic_id} · {characteristic.name}</strong><span className="table-subtitle">{characteristic.specification}{characteristic.special_classification ? ` · ${characteristic.special_classification}` : ""}</span></td><td>{failures.length > 0 ? failures.map((item) => item.item_id).join(", ") : <span className="status-text is-muted">미연결</span>}</td><td>{controls.length > 0 ? controls.map((item) => `${item.control_id} · ${item.phase}`).join(", ") : <span className="status-text is-muted">미연결</span>}</td><td>{controls.length > 0 ? controls.map((item) => `${item.control_method} / ${item.reaction_owner}`).join(", ") : "—"}</td></tr>;
+            return <tr key={characteristic.characteristic_id}><td><strong>{step?.step_id ?? characteristic.process_step_id}</strong><span className="table-subtitle">{step?.sequence} · {step?.name ?? "미확인 단계"}</span></td><td><strong>{characteristic.characteristic_id} · {characteristic.name}</strong><span className="table-subtitle">{characteristic.specification}{characteristic.special_classification ? ` · ${characteristic.special_classification}` : ""}</span></td><td>{failures.length > 0 ? failures.map((item) => item.item_id).join(", ") : <span className="status-text is-muted">미연결</span>}</td><td>{controls.length > 0 ? controls.map((item) => `${item.control_id} · ${item.phase}`).join(", ") : <span className="status-text is-muted">미연결</span>}</td><td>{controls.length > 0 ? controls.map((item) => `${item.control_method} / ${item.reaction_owner}${item.analysis_evidence?.length ? ` · 실행 ${item.analysis_evidence.map((reference) => reference.run_id).join(", ")}` : ""}`).join(", ") : "—"}</td></tr>;
           })}</tbody></table></div>}
       </section>}
 

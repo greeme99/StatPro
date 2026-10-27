@@ -69,6 +69,6 @@ def build_study_report(study: FmeaStudySnapshot) -> dict[str, Any]:
         ],
         "limitations": [
             "Actor names are self-reported workflow fields, not authenticated electronic signatures.",
-            "This report projects one stored revision; linked SPC/MSA results are not verified here.",
+            "Stored SPC/MSA Runs were verified when linked; this report does not recheck their availability or content.",
         ],
     }
