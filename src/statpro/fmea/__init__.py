@@ -18,6 +18,7 @@ from statpro.fmea.models import (
     StudyStatus,
     StudyType,
 )
+from statpro.fmea.report import build_study_report
 from statpro.fmea.workflow import (
     add_control_plan_item,
     add_failure_analysis,
@@ -55,6 +56,7 @@ __all__ = [
     "add_recommended_action",
     "approve_study",
     "attach_action_priority_policy",
+    "build_study_report",
     "complete_action",
     "create_fmea_study",
     "submit_for_review",

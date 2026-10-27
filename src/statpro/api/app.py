@@ -84,6 +84,7 @@ from statpro.fmea import (
     add_recommended_action,
     approve_study,
     attach_action_priority_policy,
+    build_study_report,
     complete_action,
     create_fmea_study,
     submit_for_review,
@@ -1507,6 +1508,12 @@ def create_app(repository: DocumentRepository) -> FastAPI:
         stored, _study = _load_fmea_study(repository, study_id)
         response.headers["ETag"] = f'"{stored.etag}"'
         return _fmea_response(stored)
+
+    @app.get("/v1/fmea-studies/{study_id}/report")
+    def get_fmea_study_report(study_id: RunId, response: Response) -> dict[str, Any]:
+        stored, study = _load_fmea_study(repository, study_id)
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return build_study_report(study)
 
     @app.post(
         "/v1/fmea-studies/{study_id}/action-priority-policy",

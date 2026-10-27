@@ -1,4 +1,4 @@
-import type { ActionPriorityPolicyPage, ApiError, CellValue, FmeaStudyPage, StoredActionPriorityPolicy, StoredFmeaStudy, RunPage, StoredRun, StoredWorksheet, WorksheetPage } from "./types";
+import type { ActionPriorityPolicyPage, ApiError, CellValue, FmeaStudyPage, FmeaStudyReport, StoredActionPriorityPolicy, StoredFmeaStudy, RunPage, StoredRun, StoredWorksheet, WorksheetPage } from "./types";
 
 const API_BASE = import.meta.env.VITE_STATPRO_API_URL ?? "/api";
 
@@ -340,6 +340,10 @@ export function listFmeaStudies(limit = 50): Promise<FmeaStudyPage> {
 
 export function getFmeaStudy(studyId: string): Promise<StoredFmeaStudy> {
   return request(`/v1/fmea-studies/${encodeURIComponent(studyId)}`);
+}
+
+export function getFmeaStudyReport(studyId: string): Promise<FmeaStudyReport> {
+  return request(`/v1/fmea-studies/${encodeURIComponent(studyId)}/report`);
 }
 
 export function createFmeaStudy(payload: {

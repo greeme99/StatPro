@@ -23,6 +23,7 @@ from statpro.fmea import (
     add_recommended_action,
     approve_study,
     attach_action_priority_policy,
+    build_study_report,
     complete_action,
     create_fmea_study,
     submit_for_review,
@@ -461,3 +462,12 @@ class FmeaWorkflowTests(unittest.TestCase):
         self.assertEqual(approved.seven_step_progress[5].status, StepStatus.COMPLETE)
         self.assertEqual(approved.seven_step_progress[6].status, StepStatus.COMPLETE)
         self.assertEqual(approved.to_dict()["seven_step_progress"][6]["status"], "complete")
+        report = build_study_report(approved)
+        self.assertEqual(report["snapshot_digest"], approved.digest)
+        self.assertEqual(report["approval_record"], {
+            "actor": "approver", "occurred_at": NOW, "audit_sequence": 6,
+        })
+        self.assertEqual(report["rows"][0]["actions"][0]["status"], "complete")
+        self.assertEqual(report["rows"][0]["failure"]["current_ratings"]["rpn"], 32)
+        self.assertEqual(report["seven_step_progress"][6]["status"], "complete")
+        self.assertEqual(approved.revision, 6)

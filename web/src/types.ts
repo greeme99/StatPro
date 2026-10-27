@@ -163,6 +163,29 @@ export type StoredFmeaStudy = {
   study: FmeaStudy;
 };
 
+export type FmeaStudyReport = {
+  report_type: string;
+  study_id: string;
+  study_name: string;
+  study_type: "design" | "process";
+  standard_version: string;
+  revision: number;
+  snapshot_digest: string;
+  status: FmeaStudy["status"];
+  action_priority_policy: { policy_id: string | null; policy_digest: string | null };
+  seven_step_progress: SevenStepProgress[];
+  rows: Array<{
+    failure: FailureAnalysis;
+    process_step: ProcessStep | null;
+    characteristics: ProcessCharacteristic[];
+    control_plan_items: ControlPlanItem[];
+    actions: RecommendedAction[];
+  }>;
+  approval_record: { actor: string; occurred_at: string; audit_sequence: number } | null;
+  audit_events: FmeaStudy["audit_events"];
+  limitations: string[];
+};
+
 export type FmeaStudyPage = {
   items: StoredFmeaStudy[];
   next_after: string | null;

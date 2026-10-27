@@ -430,6 +430,23 @@ describe("StatPro UI", () => {
     expect(JSON.parse(String((approveCall?.[1] as RequestInit).body)).expected_storage_version).toBe(5);
   });
 
+  it("shows the report for the current FMEA revision", async () => {
+    const digest = "b".repeat(64);
+    const study = { study_id: "PFMEA-REPORT", name: "Report Study", study_type: "process", standard_version: "customer-standard-2026", status: "draft", revision: 1, parent_digest: null, digest, items: [], actions: [], audit_events: [], action_priority_policy_id: null, action_priority_policy_digest: null, process_steps: [], characteristics: [], control_plan_items: [] };
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      if (url.endsWith("/report")) return new Response(JSON.stringify({ report_type: "statpro.fmea.study_review.v1", study_id: study.study_id, study_name: study.name, study_type: "process", standard_version: study.standard_version, revision: 1, snapshot_digest: digest, status: "draft", action_priority_policy: { policy_id: null, policy_digest: null }, seven_step_progress: [], rows: [], approval_record: null, audit_events: [], limitations: ["Actor names are self-reported workflow fields."] }), { status: 200 });
+      if (url.includes("/fmea-action-priority-policies")) return new Response(JSON.stringify({ items: [], next_after: null }), { status: 200 });
+      return new Response(JSON.stringify({ study_id: study.study_id, storage_version: 1, etag: "a".repeat(64), study }), { status: 200 });
+    });
+    render(<MemoryRouter initialEntries={["/fmea/PFMEA-REPORT"]}><App /></MemoryRouter>);
+    await userEvent.click(await screen.findByRole("button", { name: "현재 revision 보기" }));
+    expect(await screen.findByText("보고할 고장 분석 항목이 없습니다.")).toBeInTheDocument();
+    expect(screen.getByText("승인 기록 없음")).toBeInTheDocument();
+    expect(screen.getByText("Actor names are self-reported workflow fields.")).toBeInTheDocument();
+  });
+
   it("validates the DOE response count before creating an analysis run", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 }));
     render(<MemoryRouter initialEntries={["/analyses/doe/full-factorial"]}><App /></MemoryRouter>);

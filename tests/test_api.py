@@ -799,6 +799,16 @@ class LocalApiContractTests(unittest.TestCase):
         )
         self.assertEqual(study["audit_events"][-1]["event_type"], "control_plan_item_added")
 
+        report_response = self.client.get("/v1/fmea-studies/PFMEA-TRACE/report")
+        self.assertEqual(report_response.status_code, 200)
+        report = report_response.json()
+        self.assertEqual(report["snapshot_digest"], study["digest"])
+        self.assertEqual(report["rows"][0]["process_step"]["step_id"], "STEP-010")
+        self.assertEqual(report["rows"][0]["characteristics"][0]["characteristic_id"], "CHAR-001")
+        self.assertEqual(report["rows"][0]["control_plan_items"][0]["control_id"], "CP-001")
+        self.assertIsNone(report["approval_record"])
+        self.assertIn("self-reported", report["limitations"][0])
+
         stale = self.client.post(
             "/v1/fmea-studies/PFMEA-TRACE/control-plan-items",
             json={

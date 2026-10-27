@@ -1,9 +1,9 @@
 import { AlertTriangle, ArrowLeft, CheckCircle2, ClipboardCheck, FilePlus2, GitBranch, Link2, ShieldAlert, Upload, Wrench } from "lucide-react";
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { addFmeaAction, addFmeaControlPlanItem, addFmeaFailure, addFmeaProcessCharacteristic, addFmeaProcessStep, approveFmeaStudy, attachActionPriorityPolicy, completeFmeaAction, createActionPriorityPolicy, getFmeaStudy, listActionPriorityPolicies, submitFmeaForReview } from "../api";
+import { addFmeaAction, addFmeaControlPlanItem, addFmeaFailure, addFmeaProcessCharacteristic, addFmeaProcessStep, approveFmeaStudy, attachActionPriorityPolicy, completeFmeaAction, createActionPriorityPolicy, getFmeaStudy, getFmeaStudyReport, listActionPriorityPolicies, submitFmeaForReview } from "../api";
 import { Button } from "../components/Button";
-import type { FailureAnalysis, RecommendedAction, StoredActionPriorityPolicy, StoredFmeaStudy } from "../types";
+import type { FailureAnalysis, FmeaStudyReport, RecommendedAction, StoredActionPriorityPolicy, StoredFmeaStudy } from "../types";
 
 const statusLabels = { draft: "작성 중", in_review: "검토 중", approved: "승인됨", archived: "보관됨" };
 const stepStatusLabels = { not_started: "미착수", in_progress: "진행 중", complete: "완료" };
@@ -29,7 +29,20 @@ export function FmeaStudyPage() {
   const [completingActionId, setCompletingActionId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [report, setReport] = useState<FmeaStudyReport | null>(null);
+  const [reportBusy, setReportBusy] = useState(false);
+  const [reportError, setReportError] = useState("");
   const selected = useMemo(() => stored?.study.items.find((item) => item.item_id === selectedId) ?? null, [stored, selectedId]);
+
+  async function handleLoadReport() {
+    setReportBusy(true);
+    setReportError("");
+    try {
+      setReport(await getFmeaStudyReport(studyId));
+    } catch (requestError) {
+      setReportError(requestError instanceof Error ? requestError.message : "보고서를 불러오지 못했습니다.");
+    } finally { setReportBusy(false); }
+  }
 
   useEffect(() => {
     let active = true;
@@ -294,6 +307,7 @@ export function FmeaStudyPage() {
   const controlPlanItems = study.control_plan_items ?? [];
   const attachedPolicy = policies.find((item) => item.policy_key === study.action_priority_policy_key);
   const compatiblePolicies = policies.filter((item) => item.policy.standard_version === study.standard_version);
+  const currentReport = report?.snapshot_digest === study.digest ? report : null;
 
   return (
     <div className="page fmea-page" data-density="compact">
@@ -303,6 +317,20 @@ export function FmeaStudyPage() {
         <div className="result-actions"><span className={`status-badge status-${study.status}`}>{statusLabels[study.status]}</span>{study.status === "draft" && <><Button onClick={() => setShowForm((value) => !value)} icon={<FilePlus2 />}>{showForm ? "입력 닫기" : "고장 모드 추가"}</Button><Button onClick={() => setShowActionForm((value) => !value)} disabled={study.items.length === 0} icon={<Wrench />}>{showActionForm ? "조치 입력 닫기" : "권고조치 추가"}</Button><Button variant="primary" disabled={study.items.length === 0} loading={busy} onClick={handleSubmitReview} icon={<ClipboardCheck />}>검토 요청</Button></>}{study.status === "in_review" && <Button variant="primary" loading={busy} onClick={handleApprove} icon={<CheckCircle2 />}>승인</Button>}</div>
       </section>
       {error && <div className="error-banner" role="alert"><AlertTriangle aria-hidden="true" /><p>{error}</p></div>}
+
+      <section className="panel" aria-labelledby="fmea-report-title">
+        <header className="panel-heading"><div><span className="eyebrow">STUDY REPORT</span><h2 id="fmea-report-title">FMEA 검토 보고서</h2></div><Button type="button" loading={reportBusy} onClick={handleLoadReport}>현재 revision 보기</Button></header>
+        {reportError && <div className="error-banner" role="alert"><AlertTriangle aria-hidden="true" /><p>{reportError}</p></div>}
+        {reportBusy && <p role="status">보고서를 불러오는 중입니다.</p>}
+        {!reportBusy && !currentReport && !reportError && <p>현재 Study revision의 위험 분석, 조치, Control Plan 연결과 감사 기록을 확인할 수 있습니다.</p>}
+        {currentReport && <>
+          <p>Revision {currentReport.revision} · 상태 {statusLabels[currentReport.status]} · 항목 {currentReport.rows.length}개 · 감사 이벤트 {currentReport.audit_events.length}건</p>
+          <p>스냅샷 식별값: <code>{currentReport.snapshot_digest}</code></p>
+          <p>{currentReport.approval_record ? `승인 기록: ${currentReport.approval_record.actor} · ${currentReport.approval_record.occurred_at}` : "승인 기록 없음"}</p>
+          {currentReport.rows.length === 0 ? <p>보고할 고장 분석 항목이 없습니다.</p> : <div className="table-scroll"><table><caption>현재 revision의 FMEA 위험 분석과 공정관리 연결</caption><thead><tr><th scope="col">항목</th><th scope="col">고장 모드 · 원인</th><th scope="col">현재 S/O/D</th><th scope="col">AP</th><th scope="col">공정 단계 · 특성</th><th scope="col">Control Plan</th><th scope="col">조치</th></tr></thead><tbody>{currentReport.rows.map((row) => <tr key={row.failure.item_id}><th scope="row">{row.failure.item_id}</th><td>{row.failure.failure_mode}<span className="table-subtitle">{row.failure.cause}</span></td><td>{row.failure.current_ratings.severity} / {row.failure.current_ratings.occurrence} / {row.failure.current_ratings.detection}</td><td>{row.failure.action_priority ?? "미산정"}</td><td>{row.process_step?.step_id ?? "—"} · {row.characteristics.map((item) => item.characteristic_id).join(", ") || "—"}</td><td>{row.control_plan_items.map((item) => item.control_id).join(", ") || "—"}</td><td>{row.actions.map((item) => `${item.action_id} (${item.status})`).join(", ") || "—"}</td></tr>)}</tbody></table></div>}
+          {currentReport.limitations.map((limitation) => <p key={limitation} className="policy-note">{limitation}</p>)}
+        </>}
+      </section>
 
       {study.seven_step_progress && <section className="panel seven-step-panel" aria-labelledby="seven-step-title">
         <header className="panel-heading"><div><span className="eyebrow">AIAG/VDA WORKFLOW</span><h2 id="seven-step-title">FMEA 7단계 진행</h2></div><span>실제 Study 증거에서 자동 산정</span></header>
