@@ -14,7 +14,7 @@ The repository starts with a dependency-free Python statistical core so formulas
 - Standardized two-sided tabular CUSUM for individual observations with historical or explicitly estimated target/sigma and configurable k/h
 - Binomial p/np and Poisson c/u attribute control charts with pooled Phase I centers, opportunity-specific limits for p/u, constant-opportunity enforcement for np/c, and accessible chart/table results
 - Laney P′/U′ charts with moving-range Sigma Z adjustment for overdispersion and underdispersion
-- Normal capability for individual observations with within/overall variation kept distinct
+- Normal capability for individual observations with within/overall variation kept distinct, plus empirical non-normal Cnp/Cnpk/Cnpm capability with explicit tail-quantile limitations
 - Reproducible two-level full factorial DOE analysis with deterministic automatic blocking and factor-constrained multi-response desirability optimization, regular fractional-factorial generation/main-effect analysis with bounded automatic minimum-run/minimum-aberration generator selection, explicit regular block generators, blocked full resolution-III foldover and single-factor foldover, 3–5 factor Box–Behnken and central-composite response-surface designs with complete-quadratic modelling, stationary-point/canonical analysis, bounded two-factor surface grids, accessible iso-response contours and projected 3D wireframes, plus Plackett–Burman screening design/response analysis from 12 to 48 runs
 - Versioned DOE report projection with immutable Run identity, semantic HTML, JSON, and UTF-8 CSV tables in a deterministic ZIP export
 - Balanced crossed Gage R&R using two-way random-effects ANOVA variance components
@@ -48,6 +48,7 @@ py -3.12 -m statpro.cli xbar-s --input samples\xbar-s.json
 py -3.12 -m statpro.cli ewma --input samples\ewma.json
 py -3.12 -m statpro.cli cusum --input samples\cusum.json
 py -3.12 -m statpro.cli capability-normal --input samples\capability-normal.json
+py -3.12 -m statpro.cli capability-nonnormal --input samples\capability-nonnormal.json
 py -3.12 -m statpro.cli doe-full-factorial --input samples\doe-full-factorial.json
 py -3.12 -m statpro.cli doe-full-factorial --input samples\doe-full-factorial-blocked.json
 py -3.12 -m statpro.cli doe-fractional-factorial --input samples\doe-fractional-factorial.json

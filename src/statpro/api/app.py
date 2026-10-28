@@ -15,7 +15,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, StrictInt
 
-from statpro.analyses.capability import normal_process_capability
+from statpro.analyses.capability import nonnormal_process_capability, normal_process_capability
 from statpro.analyses.doe import (
     FactorDefinition,
     GeneratorDefinition,
@@ -1059,6 +1059,24 @@ def create_app(
             repository,
             request.run_id,
             normal_process_capability(
+                request.values, lsl=request.lsl, usl=request.usl, target=request.target
+            ),
+        )
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _response(stored)
+
+    @app.post(
+        "/v1/analysis-runs/capability-nonnormal",
+        status_code=201,
+        response_model=StoredRunResponse,
+    )
+    def run_nonnormal_capability(
+        request: CapabilityRunRequest, response: Response
+    ) -> StoredRunResponse:
+        stored = _save_run(
+            repository,
+            request.run_id,
+            nonnormal_process_capability(
                 request.values, lsl=request.lsl, usl=request.usl, target=request.target
             ),
         )

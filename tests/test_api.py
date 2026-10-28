@@ -339,6 +339,11 @@ class LocalApiContractTests(unittest.TestCase):
                 "capability.normal_individuals",
             ),
             (
+                "/v1/analysis-runs/capability-nonnormal",
+                {"run_id": "cap-nonnormal", "values": [1, 1, 2, 2, 3, 5, 8, 13], "lsl": 0, "usl": 15},
+                "capability.nonnormal_empirical",
+            ),
+            (
                 "/v1/analysis-runs/doe-full-factorial",
                 {
                     "run_id": "doe",

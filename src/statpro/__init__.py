@@ -1,6 +1,6 @@
 """StatPro statistical analysis core."""
 
-from statpro.analyses.capability import normal_process_capability
+from statpro.analyses.capability import nonnormal_process_capability, normal_process_capability
 from statpro.analyses.doe import (
     FactorDefinition,
     GeneratorDefinition,
@@ -49,6 +49,7 @@ __all__ = [
     "full_factorial_2level",
     "gage_rr_crossed",
     "individuals_moving_range",
+    "nonnormal_process_capability",
     "normal_process_capability",
     "np_chart",
     "p_chart",

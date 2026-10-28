@@ -7,7 +7,7 @@ import json
 from collections.abc import Sequence
 from pathlib import Path
 
-from statpro.analyses.capability import normal_process_capability
+from statpro.analyses.capability import nonnormal_process_capability, normal_process_capability
 from statpro.analyses.doe import (
     FactorDefinition,
     GeneratorDefinition,
@@ -62,6 +62,7 @@ def _parser() -> argparse.ArgumentParser:
         "xbar-r",
         "xbar-s",
         "capability-normal",
+        "capability-nonnormal",
         "doe-full-factorial",
         "doe-central-composite",
         "doe-box-behnken",
@@ -143,6 +144,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         elif args.command == "capability-normal":
             result = normal_process_capability(
+                payload["values"],
+                lsl=payload.get("lsl"),
+                usl=payload.get("usl"),
+                target=payload.get("target"),
+            )
+        elif args.command == "capability-nonnormal":
+            result = nonnormal_process_capability(
                 payload["values"],
                 lsl=payload.get("lsl"),
                 usl=payload.get("usl"),
