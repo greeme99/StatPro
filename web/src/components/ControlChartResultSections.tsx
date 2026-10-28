@@ -23,19 +23,25 @@ export function ControlChartStatistics({
   lcl,
   totalPoints,
   signalCount,
+  centerLabel = "중심선(CL)",
+  upperLabel = "관리상한(UCL)",
+  lowerLabel = "관리하한(LCL)",
 }: {
   center: number | string;
   ucl: number | string;
   lcl: number | string;
   totalPoints: number;
   signalCount: number;
+  centerLabel?: string;
+  upperLabel?: string;
+  lowerLabel?: string;
 }) {
   const inControlRate = totalPoints === 0 ? 0 : (totalPoints - signalCount) / totalPoints * 100;
   return (
     <section className="metric-grid result-metrics" aria-label="관리도 통계">
-      <article className="metric-card"><ChartNoAxesColumnIncreasing aria-hidden="true" /><span>중심선(CL)</span><strong>{displayValue(center)}</strong><small>기준선</small></article>
-      <article className="metric-card"><AlertTriangle aria-hidden="true" /><span>관리상한(UCL)</span><strong>{displayValue(ucl)}</strong><small>조사 상한</small></article>
-      <article className="metric-card"><AlertTriangle aria-hidden="true" /><span>관리하한(LCL)</span><strong>{displayValue(lcl)}</strong><small>조사 하한</small></article>
+      <article className="metric-card"><ChartNoAxesColumnIncreasing aria-hidden="true" /><span>{centerLabel}</span><strong>{displayValue(center)}</strong><small>기준선</small></article>
+      <article className="metric-card"><AlertTriangle aria-hidden="true" /><span>{upperLabel}</span><strong>{displayValue(ucl)}</strong><small>조사 상한</small></article>
+      <article className="metric-card"><AlertTriangle aria-hidden="true" /><span>{lowerLabel}</span><strong>{displayValue(lcl)}</strong><small>조사 하한</small></article>
       <article className="metric-card"><CheckCircle2 aria-hidden="true" /><span>관리 한계 내 점</span><strong>{inControlRate.toFixed(1)}%</strong><small>{signalCount ? `${signalCount}개 신호` : "신호 없음"}</small></article>
     </section>
   );

@@ -11,6 +11,7 @@ from statpro.analyses.spc import (
     c_chart,
     cusum_chart,
     ewma_chart,
+    g_chart,
     individuals_moving_range,
     laney_p_prime,
     laney_u_prime,
@@ -18,11 +19,54 @@ from statpro.analyses.spc import (
     np_chart,
     p_chart,
     u_chart,
+    t_chart,
     western_electric_signals,
     xbar_r,
     xbar_s,
 )
 from statpro.domain.errors import AnalysisInputError
+
+
+class RareEventChartTests(unittest.TestCase):
+    def test_g_chart_uses_geometric_probability_limits(self) -> None:
+        result = g_chart([9, 12, 15, 8, 11, 14, 10, 13])
+
+        self.assertEqual(result.analysis_type, "spc.g_chart")
+        self.assertEqual(result.parameters["distribution"], "geometric")
+        self.assertEqual(
+            result.parameters["limit_method"], "probability_limits"
+        )
+        self.assertEqual(result.tables["chart_points"][0]["lcl"], 0.0)
+        self.assertIsInstance(result.tables["chart_points"][0]["ucl"], float)
+        self.assertEqual(result.tables["summary"]["event_probability"], 0.08)
+
+    def test_g_chart_marks_an_unusually_long_interval(self) -> None:
+        result = g_chart([10] * 10 + [100])
+
+        self.assertEqual(result.diagnostics["signal_indices"], [10])
+        self.assertTrue(result.tables["chart_points"][10]["signal"])
+
+    def test_g_chart_rejects_negative_or_fractional_intervals(self) -> None:
+        for values in ([1, -1], [1, 1.5]):
+            with self.subTest(values=values):
+                with self.assertRaises(AnalysisInputError):
+                    g_chart(values)
+
+    def test_t_chart_uses_exponential_probability_limits(self) -> None:
+        result = t_chart([8.0, 10.0, 12.0, 10.0])
+        points = result.tables["chart_points"]
+
+        self.assertEqual(result.analysis_type, "spc.t_chart")
+        self.assertEqual(result.parameters["distribution"], "exponential")
+        self.assertAlmostEqual(points[0]["lcl"], -10.0 * math.log(0.995))
+        self.assertAlmostEqual(points[0]["center"], 10.0 * math.log(2.0))
+        self.assertAlmostEqual(points[0]["ucl"], -10.0 * math.log(0.005))
+
+    def test_t_chart_rejects_nonpositive_intervals_and_invalid_alpha(self) -> None:
+        with self.assertRaises(AnalysisInputError):
+            t_chart([1.0, 0.0])
+        with self.assertRaises(AnalysisInputError):
+            t_chart([1.0, 2.0], alpha=0.5)
 
 
 class IndividualsMovingRangeTests(unittest.TestCase):

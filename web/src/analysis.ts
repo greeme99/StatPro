@@ -246,6 +246,59 @@ export type AttributeChartPoint = {
   signal: boolean;
 };
 
+export type RareEventChartPoint = {
+  index: number;
+  interval: number;
+  center: number;
+  ucl: number;
+  lcl: number;
+  signal: boolean;
+};
+
+export type RareEventChartView = {
+  chart: "g" | "t";
+  distribution: "geometric" | "exponential";
+  points: RareEventChartPoint[];
+  meanInterval: number;
+  signalCount: number;
+};
+
+export function toRareEventChartView(
+  result: ResultBundle | undefined,
+): RareEventChartView | null {
+  if (!result || !["spc.g_chart", "spc.t_chart"].includes(result.analysis_type)) return null;
+  const rows = result.tables.chart_points;
+  const summary = result.tables.summary;
+  const distribution = result.parameters.distribution;
+  if (!Array.isArray(rows) || !summary || (distribution !== "geometric" && distribution !== "exponential")) return null;
+  const points: RareEventChartPoint[] = [];
+  for (const row of rows) {
+    if (
+      typeof row !== "object" || row === null
+      || !["index", "interval", "center", "ucl", "lcl"].every(
+        (key) => typeof row[key] === "number" && Number.isFinite(row[key]),
+      )
+      || typeof row.signal !== "boolean"
+    ) return null;
+    points.push({
+      index: row.index + 1,
+      interval: row.interval,
+      center: row.center,
+      ucl: row.ucl,
+      lcl: row.lcl,
+      signal: row.signal,
+    });
+  }
+  if (typeof summary.mean_interval !== "number" || !Number.isFinite(summary.mean_interval)) return null;
+  return {
+    chart: result.analysis_type === "spc.g_chart" ? "g" : "t",
+    distribution,
+    points,
+    meanInterval: summary.mean_interval,
+    signalCount: points.filter((point) => point.signal).length,
+  };
+}
+
 export type AttributeChartView = {
   chart: "p" | "np" | "c" | "u" | "p_prime" | "u_prime";
   points: AttributeChartPoint[];

@@ -50,6 +50,39 @@ describe("StatPro UI", () => {
     expect(JSON.parse(String((post?.[1] as RequestInit).body))).toMatchObject({ target: 50, sigma: 1, reference_value: 0.5, decision_interval: 4 });
   });
 
+  it("submits a geometric rare-event G chart with its distinct interval contract", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      return new Response(JSON.stringify({}), { status: init?.method === "POST" ? 201 : 200, headers: { "Content-Type": "application/json" } });
+    });
+    render(<MemoryRouter initialEntries={["/analyses/spc/rare-events"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "희귀사건 G/T 관리도 설정" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "관리도 실행" }));
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith("/g-chart") && (init as RequestInit | undefined)?.method === "POST")).toBe(true));
+    const post = fetchMock.mock.calls.find(([url, init]) => String(url).endsWith("/g-chart") && (init as RequestInit | undefined)?.method === "POST");
+    expect(JSON.parse(String((post?.[1] as RequestInit).body))).toMatchObject({ opportunities_between_events: [8, 10, 12, 9, 11, 14, 10, 13], alpha: 0.005 });
+  });
+
+  it("renders rare-event probability limits with an accessible interval table", async () => {
+    const points = [
+      { index: 0, interval: 8, statistic: 8, center: 8, lcl: 0, ucl: 60, signal: false },
+      { index: 1, interval: 100, statistic: 100, center: 8, lcl: 0, ucl: 60, signal: true },
+    ];
+    const result = {
+      analysis_type: "spc.g_chart", engine_version: "0.6.0", input_digest: "g".repeat(64), warnings: [], assumptions: [], provenance: [],
+      parameters: { chart: "g", distribution: "geometric", lower_tail_alpha: 0.005, upper_tail_alpha: 0.005 }, diagnostics: { signal_indices: [1] }, tables: { chart_points: points, summary: { mean_interval: 54, event_probability: 0.018 } }, plots: { rare_event_chart: { points, signal_indices: [1] } },
+    };
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      return new Response(JSON.stringify({ run_id: "g-001", storage_version: 1, etag: "a".repeat(64), result }), { status: 200 });
+    });
+    render(<MemoryRouter initialEntries={["/runs/g-001"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "G 관리도 · 사건 간 기회 수" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "사건 간 간격과 확률 한계" })).toBeInTheDocument();
+    expect(screen.getByText("확률 한계 이탈")).toBeInTheDocument();
+    expect(screen.getByText("확률 상한(UPL)")).toBeInTheDocument();
+  });
+
   it("renders two-sided CUSUM signals with an accessible table", async () => {
     const points = [
       { index: 0, observation: 1, standardized_observation: 1, upper_cusum: 0.5, lower_cusum: 0, center: 0, lcl: -4, ucl: 4, signal: false, signal_direction: null },

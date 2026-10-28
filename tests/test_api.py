@@ -47,6 +47,25 @@ class LocalApiContractTests(unittest.TestCase):
         self.assertIn("/v1/analysis-runs/np-chart", openapi.json()["paths"])
         self.assertIn("/v1/analysis-runs/c-chart", openapi.json()["paths"])
         self.assertIn("/v1/analysis-runs/u-chart", openapi.json()["paths"])
+        self.assertIn("/v1/analysis-runs/g-chart", openapi.json()["paths"])
+        self.assertIn("/v1/analysis-runs/t-chart", openapi.json()["paths"])
+
+    def test_rare_event_runs_preserve_distinct_input_contracts(self) -> None:
+        g_created = self.client.post(
+            "/v1/analysis-runs/g-chart",
+            json={"run_id": "g-rare-event", "opportunities_between_events": [8, 9, 10]},
+        )
+        t_created = self.client.post(
+            "/v1/analysis-runs/t-chart",
+            json={"run_id": "t-rare-event", "time_between_events": [8.0, 9.5, 10.0]},
+        )
+
+        self.assertEqual(g_created.status_code, 201)
+        self.assertEqual(t_created.status_code, 201)
+        self.assertEqual(g_created.json()["result"]["analysis_type"], "spc.g_chart")
+        self.assertEqual(t_created.json()["result"]["analysis_type"], "spc.t_chart")
+        self.assertEqual(g_created.json()["result"]["parameters"]["distribution"], "geometric")
+        self.assertEqual(t_created.json()["result"]["parameters"]["distribution"], "exponential")
 
     def test_imr_run_is_created_then_retrieved_with_same_etag(self) -> None:
         created = self.client.post(

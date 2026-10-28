@@ -16,11 +16,17 @@ export function ProcessRail({
   center,
   ucl,
   lcl,
+  centerLabel = "CL",
+  upperLabel = "UCL",
+  lowerLabel = "LCL",
 }: {
   points: ProcessPoint[];
   center: number;
   ucl: number;
   lcl: number;
+  centerLabel?: string;
+  upperLabel?: string;
+  lowerLabel?: string;
 }) {
   const [viewportSupported, setViewportSupported] = useState(supportsChartViewport);
   useEffect(() => {
@@ -33,7 +39,7 @@ export function ProcessRail({
 
   if (!viewportSupported) return null;
   const signalCount = points.filter((point) => point.signal).length;
-  const summary = `관측값 ${points.length}개, 규칙 신호 관측값 ${signalCount}개. 중심선 ${center.toFixed(3)}, 관리상한 ${ucl.toFixed(3)}, 관리하한 ${lcl.toFixed(3)}.`;
+  const summary = `관측값 ${points.length}개, 규칙 신호 관측값 ${signalCount}개. ${centerLabel} ${center.toFixed(3)}, ${upperLabel} ${ucl.toFixed(3)}, ${lowerLabel} ${lcl.toFixed(3)}.`;
   return (
     <div className="process-rail-wrap">
       <div className="process-rail" role="img" aria-label={summary}>
@@ -52,9 +58,9 @@ export function ProcessRail({
               width={64}
             />
             <Tooltip contentStyle={{ background: "var(--color-bg-raised)", border: "var(--border-width) solid var(--color-border)", borderRadius: "var(--radius-md)" }} />
-            <ReferenceLine y={ucl} stroke="var(--color-status-danger)" strokeDasharray="4 4" label={{ value: "UCL", position: "insideTopLeft", fill: "var(--color-status-danger)" }} />
-            <ReferenceLine y={center} stroke="var(--color-text-secondary)" label={{ value: "CL", position: "insideTopLeft", fill: "var(--color-text-secondary)" }} />
-            <ReferenceLine y={lcl} stroke="var(--color-status-danger)" strokeDasharray="4 4" label={{ value: "LCL", position: "insideBottomLeft", fill: "var(--color-status-danger)" }} />
+            <ReferenceLine y={ucl} stroke="var(--color-status-danger)" strokeDasharray="4 4" label={{ value: upperLabel, position: "insideTopLeft", fill: "var(--color-status-danger)" }} />
+            <ReferenceLine y={center} stroke="var(--color-text-secondary)" label={{ value: centerLabel, position: "insideTopLeft", fill: "var(--color-text-secondary)" }} />
+            <ReferenceLine y={lcl} stroke="var(--color-status-danger)" strokeDasharray="4 4" label={{ value: lowerLabel, position: "insideBottomLeft", fill: "var(--color-status-danger)" }} />
             <Line type="linear" dataKey="value" stroke="var(--chart-1)" strokeWidth={2} dot={<SignalDot />} activeDot={{ r: 5 }} />
           </LineChart>
         </ResponsiveContainer>

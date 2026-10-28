@@ -33,12 +33,14 @@ from statpro.analyses.spc import (
     c_chart,
     cusum_chart,
     ewma_chart,
+    g_chart,
     individuals_moving_range,
     laney_p_prime,
     laney_u_prime,
     np_chart,
     p_chart,
     u_chart,
+    t_chart,
     xbar_r,
     xbar_s,
 )
@@ -53,11 +55,13 @@ def _parser() -> argparse.ArgumentParser:
         "c-chart",
         "cusum",
         "ewma",
+        "g-chart",
         "imr",
         "laney-p-prime",
         "laney-u-prime",
         "np-chart",
         "p-chart",
+        "t-chart",
         "u-chart",
         "xbar-r",
         "xbar-s",
@@ -110,6 +114,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             result = c_chart(payload["defects"], payload.get("inspection_units"))
         elif args.command == "u-chart":
             result = u_chart(payload["defects"], payload["inspection_units"])
+        elif args.command == "g-chart":
+            result = g_chart(
+                payload["opportunities_between_events"], alpha=payload.get("alpha", 0.005)
+            )
+        elif args.command == "t-chart":
+            result = t_chart(
+                payload["time_between_events"], alpha=payload.get("alpha", 0.005)
+            )
         elif args.command == "ewma":
             result = ewma_chart(
                 payload["values"],

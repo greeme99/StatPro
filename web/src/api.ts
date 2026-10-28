@@ -100,6 +100,22 @@ export function createAttributeChartRun(payload: {
   });
 }
 
+export function createRareEventChartRun(payload: {
+  run_id: string;
+  chart: "g" | "t";
+  intervals: number[];
+  alpha: number;
+}): Promise<StoredRun> {
+  const { chart, run_id, intervals, alpha } = payload;
+  const body = chart === "g"
+    ? { run_id, opportunities_between_events: intervals, alpha }
+    : { run_id, time_between_events: intervals, alpha };
+  return request(`/v1/analysis-runs/${chart}-chart`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
 export function createDoeAnalysisRun(payload: {
   run_id: string;
   factors: Array<{ name: string; low: number; high: number }>;

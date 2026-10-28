@@ -19,6 +19,7 @@ import { EwmaSetupPage } from "./pages/EwmaSetupPage";
 import { CusumSetupPage } from "./pages/CusumSetupPage";
 import { FeatureCatalogPage } from "./pages/FeatureCatalogPage";
 import { DoeWorkspacePage } from "./pages/DoeWorkspacePage";
+import { RareEventChartSetupPage } from "./pages/RareEventChartSetupPage";
 
 export default function App() {
   return (
@@ -30,6 +31,7 @@ export default function App() {
         <Route path="/analyses/spc/xbar-s" element={<XbarSSetupPage />} />
         <Route path="/analyses/spc/ewma" element={<EwmaSetupPage />} />
         <Route path="/analyses/spc/cusum" element={<CusumSetupPage />} />
+        <Route path="/analyses/spc/rare-events" element={<RareEventChartSetupPage />} />
         <Route path="/analyses/doe/full-factorial" element={<DoeSetupPage />} />
         <Route path="/analyses/doe/fractional-factorial" element={<DoeFractionalSetupPage />} />
         <Route path="/analyses/doe/plackett-burman" element={<DoePlackettBurmanSetupPage />} />

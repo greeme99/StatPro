@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from itertools import pairwise
-from math import exp, lgamma, sqrt
+from math import ceil, exp, lgamma, log, sqrt
 from statistics import fmean, stdev
 from typing import Literal
 
@@ -80,6 +80,10 @@ NIST_ATTRIBUTE_SOURCE = ProvenanceSource(
 NIST_POISSON_SOURCE = ProvenanceSource(
     title="NIST/SEMATECH 6.3.3.1 Counts Control Charts",
     url="https://www.itl.nist.gov/div898/handbook/pmc/section3/pmc331.htm",
+)
+SAS_RARE_EVENTS_SOURCE = ProvenanceSource(
+    title="SAS/QC RAREEVENTS Procedure: probability limits for exponential and geometric distributions",
+    url="https://support.sas.com/documentation/onlinedoc/qc/142/rareevents.pdf",
 )
 MINITAB_SPECIAL_CAUSE_SOURCE = ProvenanceSource(
     title="Minitab public documentation: Tests for special causes in control charts",
@@ -427,6 +431,174 @@ def u_chart(
     """Calculate a u chart for defects per inspection unit."""
 
     return _poisson_attribute_chart(defects, inspection_units, chart="u")
+
+
+def _rare_event_alpha(alpha: object) -> float:
+    normalized = finite_values([alpha], "alpha")[0]
+    if not 0.0 < normalized < 0.5:
+        raise AnalysisInputError(
+            "invalid_alpha",
+            "Each probability-limit tail alpha must be greater than zero and less than 0.5.",
+            "alpha",
+        )
+    return normalized
+
+
+def _rare_event_result(
+    *,
+    chart: Literal["g", "t"],
+    intervals: list[float],
+    alpha: float,
+    center: float,
+    lcl: float,
+    ucl: float,
+    distribution: Literal["geometric", "exponential"],
+    summary: dict[str, float],
+    diagnostics: dict[str, float],
+    warnings: tuple[str, ...] = (),
+) -> ResultBundle:
+    signal_indices = [
+        index
+        for index, value in enumerate(intervals)
+        if value < lcl or value > ucl
+    ]
+    points = [
+        {
+            "index": index,
+            "interval": value,
+            "statistic": value,
+            "center": center,
+            "lcl": lcl,
+            "ucl": ucl,
+            "signal": index in signal_indices,
+        }
+        for index, value in enumerate(intervals)
+    ]
+    payload = {"chart": chart, "intervals": intervals, "alpha": alpha}
+    return ResultBundle(
+        analysis_type=f"spc.{chart}_chart",
+        engine_version=ENGINE_VERSION,
+        input_digest=input_digest(payload),
+        parameters={
+            "chart": chart,
+            "distribution": distribution,
+            "limit_method": "probability_limits",
+            "lower_tail_alpha": alpha,
+            "upper_tail_alpha": alpha,
+            "parameter_source": "phase_1_estimated",
+        },
+        tables={"chart_points": points, "summary": summary},
+        plots={"rare_event_chart": {"points": points, "signal_indices": signal_indices}},
+        diagnostics={
+            "interval_count": len(points),
+            "signal_indices": signal_indices,
+            "signal_count": len(signal_indices),
+            **diagnostics,
+        },
+        assumptions=(
+            "Intervals are ordered in process time and arise from comparable process conditions.",
+            "Events occur independently with a stable underlying occurrence rate during the Phase I baseline.",
+            "Probability limits identify investigation candidates and do not by themselves prove a special cause.",
+        ),
+        warnings=warnings
+        + (
+            "Probability limits are estimated from the supplied Phase I baseline; use a separately validated historical-parameter workflow for ongoing Phase II monitoring.",
+        ),
+        provenance=(SAS_RARE_EVENTS_SOURCE,),
+    )
+
+
+def g_chart(opportunities_between_events: Sequence[object], *, alpha: float = 0.005) -> ResultBundle:
+    """Calculate a geometric G chart for nonnegative opportunities between events.
+
+    The interval convention excludes the event itself, so zero represents an event
+    on the immediately following opportunity.
+    """
+
+    intervals = _nonnegative_integers(
+        opportunities_between_events, "opportunities_between_events"
+    )
+    if len(intervals) < 2:
+        raise AnalysisInputError(
+            "insufficient_intervals",
+            "A rare-event G chart requires at least two ordered event intervals.",
+            "opportunities_between_events",
+        )
+    tail_alpha = _rare_event_alpha(alpha)
+    mean_interval = fmean(intervals)
+    if mean_interval == 0.0:
+        return _rare_event_result(
+            chart="g",
+            intervals=[float(value) for value in intervals],
+            alpha=tail_alpha,
+            center=0.0,
+            lcl=0.0,
+            ucl=0.0,
+            distribution="geometric",
+            summary={"mean_interval": 0.0, "event_probability": 1.0},
+            diagnostics={"actual_lower_tail_probability": 0.0, "actual_upper_tail_probability": 0.0},
+            warnings=(
+                "Every supplied interval is zero, so the estimated event probability is one and the probability limits collapse.",
+            ),
+        )
+
+    event_probability = 1.0 / (mean_interval + 1.0)
+    non_event_probability = 1.0 - event_probability
+    lcl = float(max(0, ceil(log(1.0 - tail_alpha) / log(non_event_probability)) - 1))
+    center = float(max(0, ceil(log(0.5) / log(non_event_probability)) - 1))
+    ucl = float(max(0, ceil(log(tail_alpha) / log(non_event_probability)) - 1))
+    return _rare_event_result(
+        chart="g",
+        intervals=[float(value) for value in intervals],
+        alpha=tail_alpha,
+        center=center,
+        lcl=lcl,
+        ucl=ucl,
+        distribution="geometric",
+        summary={"mean_interval": mean_interval, "event_probability": event_probability},
+        diagnostics={
+            "actual_lower_tail_probability": 0.0 if lcl == 0.0 else 1.0 - non_event_probability**lcl,
+            "actual_upper_tail_probability": non_event_probability ** (ucl + 1.0),
+        },
+    )
+
+
+def t_chart(time_between_events: Sequence[object], *, alpha: float = 0.005) -> ResultBundle:
+    """Calculate an exponential T chart for positive time between events."""
+
+    intervals = finite_values(time_between_events, "time_between_events")
+    if len(intervals) < 2:
+        raise AnalysisInputError(
+            "insufficient_intervals",
+            "A rare-event T chart requires at least two ordered event intervals.",
+            "time_between_events",
+        )
+    for index, interval in enumerate(intervals):
+        if interval <= 0.0:
+            raise AnalysisInputError(
+                "invalid_interval",
+                f"Time interval at index {index} must be positive.",
+                "time_between_events",
+            )
+    tail_alpha = _rare_event_alpha(alpha)
+    scale = fmean(intervals)
+    lcl = -scale * log(1.0 - tail_alpha)
+    center = scale * log(2.0)
+    ucl = -scale * log(tail_alpha)
+    return _rare_event_result(
+        chart="t",
+        intervals=intervals,
+        alpha=tail_alpha,
+        center=center,
+        lcl=lcl,
+        ucl=ucl,
+        distribution="exponential",
+        summary={"mean_interval": scale, "median_interval": center},
+        diagnostics={
+            "actual_lower_tail_probability": tail_alpha,
+            "actual_upper_tail_probability": tail_alpha,
+        },
+    )
 
 
 def _laney_attribute_chart(

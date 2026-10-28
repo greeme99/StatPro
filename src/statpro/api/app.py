@@ -41,12 +41,14 @@ from statpro.analyses.spc import (
     c_chart,
     cusum_chart,
     ewma_chart,
+    g_chart,
     individuals_moving_range,
     laney_p_prime,
     laney_u_prime,
     np_chart,
     p_chart,
     u_chart,
+    t_chart,
     xbar_r,
     xbar_s,
 )
@@ -171,6 +173,18 @@ class UChartRunRequest(ApiModel):
     run_id: RunId
     defects: list[StrictInt]
     inspection_units: list[float]
+
+
+class GChartRunRequest(ApiModel):
+    run_id: RunId
+    opportunities_between_events: list[StrictInt]
+    alpha: float = Field(default=0.005, gt=0.0, lt=0.5)
+
+
+class TChartRunRequest(ApiModel):
+    run_id: RunId
+    time_between_events: list[float]
+    alpha: float = Field(default=0.005, gt=0.0, lt=0.5)
 
 
 class CapabilityRunRequest(ApiModel):
@@ -1043,6 +1057,26 @@ def create_app(
             repository,
             request.run_id,
             u_chart(request.defects, request.inspection_units),
+        )
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _response(stored)
+
+    @app.post("/v1/analysis-runs/g-chart", status_code=201, response_model=StoredRunResponse)
+    def run_g_chart(request: GChartRunRequest, response: Response) -> StoredRunResponse:
+        stored = _save_run(
+            repository,
+            request.run_id,
+            g_chart(request.opportunities_between_events, alpha=request.alpha),
+        )
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _response(stored)
+
+    @app.post("/v1/analysis-runs/t-chart", status_code=201, response_model=StoredRunResponse)
+    def run_t_chart(request: TChartRunRequest, response: Response) -> StoredRunResponse:
+        stored = _save_run(
+            repository,
+            request.run_id,
+            t_chart(request.time_between_events, alpha=request.alpha),
         )
         response.headers["ETag"] = f'"{stored.etag}"'
         return _response(stored)
