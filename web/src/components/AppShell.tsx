@@ -6,7 +6,7 @@ import { getHealth } from "../api";
 const navigation = [
   { to: "/", label: "홈", icon: Home },
   { to: "/data", label: "작업표 및 데이터", icon: Database },
-  { to: "/analyses/doe/full-factorial", label: "실험계획법(DOE)", icon: FlaskConical },
+  { to: "/doe", label: "실험계획법(DOE)", icon: FlaskConical },
   { to: "/analyses/spc/attribute", label: "통계적 공정관리(SPC)", icon: BarChart3 },
   { to: "/fmea", label: "고장 형태 및 영향 분석(FMEA)", icon: FileWarning },
   { to: "/catalog/reports", label: "결과 및 보고서", icon: FileText },

@@ -18,6 +18,7 @@ import { XbarSSetupPage } from "./pages/XbarSSetupPage";
 import { EwmaSetupPage } from "./pages/EwmaSetupPage";
 import { CusumSetupPage } from "./pages/CusumSetupPage";
 import { FeatureCatalogPage } from "./pages/FeatureCatalogPage";
+import { DoeWorkspacePage } from "./pages/DoeWorkspacePage";
 
 export default function App() {
   return (
@@ -35,6 +36,7 @@ export default function App() {
         <Route path="/analyses/doe/central-composite" element={<DoeCentralCompositeSetupPage />} />
         <Route path="/analyses/doe/box-behnken" element={<DoeBoxBehnkenSetupPage />} />
         <Route path="/analyses/doe/response-optimizer" element={<DoeOptimizerPage />} />
+        <Route path="/doe" element={<DoeWorkspacePage />} />
         <Route path="/runs/:runId" element={<ResultPage />} />
         <Route path="/data" element={<DataPage />} />
         <Route path="/data/:worksheetId" element={<WorksheetPage />} />

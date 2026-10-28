@@ -11,6 +11,19 @@ afterEach(() => {
 });
 
 describe("StatPro UI", () => {
+  it("renders the DOE workspace and routes supported designs to their existing setup screens", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      return new Response(JSON.stringify({}), { status: 200 });
+    });
+    render(<MemoryRouter initialEntries={["/doe"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "실험계획법(DOE) 작업공간" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "설계 및 계획", selected: true })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "2수준 완전요인 설계 시작" })).toHaveAttribute("href", "/analyses/doe/full-factorial");
+    await userEvent.click(screen.getByRole("tab", { name: "근거" }));
+    expect(screen.getByText("그래프 이미지·PDF·고객 양식 개발 예정")).toBeInTheDocument();
+  });
+
   it("renders the Korean reports catalog with truthful delivery status", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
