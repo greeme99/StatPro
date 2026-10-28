@@ -351,6 +351,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     randomize=payload.get("randomize", True),
                     seed=payload.get("seed", 0),
                     interaction_order=payload.get("interaction_order", 2),
+                    factor_constraints=payload.get("factor_constraints", {}),
                 )
             elif args.command == "doe-analyze-full-factorial":
                 result = analyze_full_factorial_2level(

@@ -267,6 +267,9 @@ class CliBoundaryTests(unittest.TestCase):
                         ],
                         "randomize": False,
                         "interaction_order": 1,
+                        "factor_constraints": {
+                            "A": {"lower": 0.2, "upper": 0.6}
+                        },
                         "objectives": [
                             {
                                 "name": "Yield",
@@ -295,8 +298,8 @@ class CliBoundaryTests(unittest.TestCase):
         response = json.loads(output.getvalue())
         solution = response["result"]["tables"]["solution"][0]
         self.assertEqual(exit_code, 0)
-        self.assertEqual(solution["actual"], {"A": 1.0, "B": 0.0})
-        self.assertAlmostEqual(solution["composite_desirability"], 1.0)
+        self.assertEqual(solution["actual"], {"A": 0.6, "B": 0.0})
+        self.assertAlmostEqual(solution["composite_desirability"], 0.6**0.5)
 
     def test_fractional_factorial_returns_alias_structure(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

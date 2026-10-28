@@ -364,6 +364,7 @@ export type DoeResponseDesirability = {
 export type DoeDesirabilityView = {
   solution: DoeDesirabilitySolution;
   responses: DoeResponseDesirability[];
+  factorConstraints: Record<string, { lower: number; upper: number }>;
   globalOptimumProven: boolean;
 };
 
@@ -611,6 +612,9 @@ export function toDoeDesirabilityView(result: ResultBundle | undefined): DoeDesi
   return {
     solution: solutions[0] as DoeDesirabilitySolution,
     responses: responses as DoeResponseDesirability[],
+    factorConstraints: result.parameters.factor_constraints && typeof result.parameters.factor_constraints === "object"
+      ? result.parameters.factor_constraints as Record<string, { lower: number; upper: number }>
+      : {},
     globalOptimumProven: result.diagnostics.global_optimum_proven === true,
   };
 }

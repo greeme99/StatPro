@@ -316,9 +316,15 @@ class ResponseObjectiveRequest(ApiModel):
     importance: float = 1.0
 
 
+class FactorConstraintRequest(ApiModel):
+    lower: float
+    upper: float
+
+
 class FullFactorialOptimizerRunRequest(FullFactorialRunRequest):
     objectives: list[ResponseObjectiveRequest] = Field(min_length=1, max_length=10)
     interaction_order: int = Field(default=2, ge=1)
+    factor_constraints: dict[str, FactorConstraintRequest] = Field(default_factory=dict)
 
 
 class MeasurementRequest(ApiModel):
@@ -1426,6 +1432,10 @@ def create_app(
                 randomize=request.randomize,
                 seed=request.seed,
                 interaction_order=request.interaction_order,
+                factor_constraints={
+                    name: constraint.model_dump()
+                    for name, constraint in request.factor_constraints.items()
+                },
             ),
         )
         response.headers["ETag"] = f'"{stored.etag}"'

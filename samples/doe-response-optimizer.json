@@ -8,6 +8,10 @@
   "randomize": false,
   "seed": 0,
   "interaction_order": 1,
+  "factor_constraints": {
+    "Temperature": {"lower": 165, "upper": 190},
+    "Pressure": {"lower": 25, "upper": 35}
+  },
   "objectives": [
     {
       "name": "Yield",

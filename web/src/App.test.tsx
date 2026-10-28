@@ -979,18 +979,20 @@ describe("StatPro UI", () => {
     await userEvent.selectOptions(goals[0], "target");
     const uppers = screen.getAllByRole("spinbutton", { name: "Upper" });
     await userEvent.type(uppers[0], "20");
+    await userEvent.type(screen.getByRole("textbox", { name: "요인 탐색 제약 (선택)" }), "A 0.2 0.6\nB 0.4 0.4");
     await userEvent.click(screen.getByRole("button", { name: "응답 최적화 실행" }));
     await waitFor(() => expect(fetchMock.mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === "POST")).toBe(true));
     const post = fetchMock.mock.calls.find(([url, init]) => String(url).endsWith("/doe-response-optimizer") && (init as RequestInit | undefined)?.method === "POST");
     const body = JSON.parse(String((post?.[1] as RequestInit).body));
     expect(body.objectives).toHaveLength(2);
     expect(body.objectives[0]).toMatchObject({ name: "Yield", goal: "target", lower: 0, target: 10 });
+    expect(body.factor_constraints).toEqual({ A: { lower: 0.2, upper: 0.6 }, B: { lower: 0.4, upper: 0.4 } });
     expect(body.randomize).toBe(false);
   });
 
   it("renders DOE composite and individual desirability results", async () => {
     const result = {
-      analysis_type: "doe.full_factorial_2level_desirability", engine_version: "0.6.0", input_digest: "c".repeat(64), warnings: [], assumptions: [], provenance: [], parameters: {},
+      analysis_type: "doe.full_factorial_2level_desirability", engine_version: "0.6.0", input_digest: "c".repeat(64), warnings: [], assumptions: [], provenance: [], parameters: { factor_constraints: { A: { lower: 0.2, upper: 0.6 } } },
       diagnostics: { global_optimum_proven: false },
       tables: {
         solution: [{ solution: 1, actual: { A: 1, B: 0 }, coded: { A: 1, B: -1 }, composite_desirability: 1, candidate_evaluations: 80, search_method: "deterministic_multistart_pattern" }],
@@ -1009,6 +1011,7 @@ describe("StatPro UI", () => {
 
     render(<MemoryRouter initialEntries={["/runs/doe-opt-001"]}><App /></MemoryRouter>);
     expect(await screen.findByRole("heading", { name: "권장 요인 설정" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "적용된 요인 탐색 제약" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "응답별 예측과 만족도" })).toBeInTheDocument();
     expect(screen.getAllByText("복합 desirability")).toHaveLength(2);
     expect(screen.getByText("Yield")).toBeInTheDocument();

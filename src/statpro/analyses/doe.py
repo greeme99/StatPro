@@ -5,7 +5,7 @@ from __future__ import annotations
 import random
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import asdict, dataclass, replace
-from itertools import combinations
+from itertools import combinations, product
 from math import atan2, cos, exp, isfinite, lgamma, log, log1p, sin, sqrt
 from statistics import NormalDist, median
 
@@ -144,9 +144,19 @@ NIST_DESIRABILITY_SOURCE = ProvenanceSource(
     url="https://www.itl.nist.gov/div898/handbook/pri/section5/pri5322.htm",
 )
 
+NIST_CONSTRAINED_OPTIMIZATION_SOURCE = ProvenanceSource(
+    title="NIST/SEMATECH 5.5.3.1.6 Constrained optimization",
+    url="https://www.itl.nist.gov/div898/handbook/pri/section5/pri5316.htm",
+)
+
 MINITAB_RESPONSE_OPTIMIZER_SOURCE = ProvenanceSource(
     title="Minitab public documentation: Individual and composite desirability",
     url="https://support.minitab.com/en-us/minitab/help-and-how-to/statistical-modeling/using-fitted-models/supporting-topics/response-optimization/what-are-individual-desirability-and-composite-desirability/",
+)
+
+MINITAB_RESPONSE_OPTIMIZER_CONSTRAINT_SOURCE = ProvenanceSource(
+    title="Minitab public documentation: Specify options for Response Optimizer",
+    url="https://support.minitab.com/en-us/minitab/help-and-how-to/statistical-modeling/using-fitted-models/how-to/response-optimizer/perform-the-analysis/specify-the-analysis-options/",
 )
 
 
@@ -4135,6 +4145,7 @@ def optimize_full_factorial_desirability(
     randomize: bool = True,
     seed: int = 0,
     interaction_order: int = 2,
+    factor_constraints: Mapping[str, Mapping[str, float]] | None = None,
 ) -> ResultBundle:
     """Fit shared-design response models and maximize composite desirability."""
 
@@ -4149,6 +4160,9 @@ def optimize_full_factorial_desirability(
     rows = design.tables["design"]
     factor_parameters = design.parameters["factors"]
     factor_names = [str(factor["name"]) for factor in factor_parameters]
+    normalized_constraints, coded_bounds = _normalize_factor_constraints(
+        factor_constraints or {}, factor_parameters
+    )
     requested_terms = _model_terms(factor_names, interaction_order)
     block_words = {
         frozenset(str(alias["generator_terms"]).split("*"))
@@ -4230,9 +4244,17 @@ def optimize_full_factorial_desirability(
             "responses": response_rows,
         }
 
-    vertices = _factorial_vertex_candidates(factor_parameters)
-    vertex_scores = [score(candidate["coded"]) for candidate in vertices]
-    center_score = score({name: 0.0 for name in factor_names})
+    constrained_corners = [
+        dict(zip(factor_names, values, strict=True))
+        for values in product(
+            *(tuple(dict.fromkeys(coded_bounds[name])) for name in factor_names)
+        )
+    ]
+    vertex_scores = [score(candidate) for candidate in constrained_corners]
+    center_score = score({
+        name: (coded_bounds[name][0] + coded_bounds[name][1]) / 2.0
+        for name in factor_names
+    })
     ranked_vertices = sorted(
         vertex_scores,
         key=lambda row: (
@@ -4242,7 +4264,7 @@ def optimize_full_factorial_desirability(
     )
     start_scores = [center_score, *ranked_vertices[:16]]
     local_solutions = [
-        _pattern_search_desirability(start, factor_names, score)
+        _pattern_search_desirability(start, factor_names, score, coded_bounds)
         for start in start_scores
     ]
     best = max(
@@ -4281,6 +4303,7 @@ def optimize_full_factorial_desirability(
         **design.parameters,
         "interaction_order": interaction_order,
         "objectives": normalized_objectives,
+        "factor_constraints": normalized_constraints,
     }
     return ResultBundle(
         analysis_type="doe.full_factorial_2level_desirability",
@@ -4304,7 +4327,8 @@ def optimize_full_factorial_desirability(
             "response_count": len(normalized_objectives),
             "coefficient_count_per_response": len(terms) + 1,
             "confounded_term_count": len(confounded_terms),
-            "vertex_count": len(vertices),
+            "vertex_count": len(constrained_corners),
+            "constrained_factor_count": len(normalized_constraints),
             "search_start_count": len(start_scores),
             "candidate_evaluations": evaluation_count,
             "search_tolerance": 1e-6,
@@ -4317,6 +4341,7 @@ def optimize_full_factorial_desirability(
             "Individual desirabilities use one shared shape weight on both sides of a target objective.",
             "Composite desirability is the importance-weighted geometric mean of individual desirabilities.",
             "Search is restricted to the fitted experimental region.",
+            "Factor constraints restrict the search region in actual engineering units.",
         ),
         warnings=tuple(warnings),
         provenance=(
@@ -4325,8 +4350,66 @@ def optimize_full_factorial_desirability(
             NIST_DOE_MODEL_SOURCE,
             NIST_DESIRABILITY_SOURCE,
             MINITAB_RESPONSE_OPTIMIZER_SOURCE,
+            *(
+                (NIST_CONSTRAINED_OPTIMIZATION_SOURCE, MINITAB_RESPONSE_OPTIMIZER_CONSTRAINT_SOURCE)
+                if normalized_constraints
+                else ()
+            ),
         ),
     )
+
+
+def _normalize_factor_constraints(
+    constraints: Mapping[str, Mapping[str, float]],
+    factors: Sequence[Mapping[str, object]],
+) -> tuple[dict[str, dict[str, float]], dict[str, tuple[float, float]]]:
+    if not isinstance(constraints, Mapping):
+        raise AnalysisInputError(
+            "invalid_factor_constraints",
+            "Factor constraints must be an object keyed by factor name.",
+            "factor_constraints",
+        )
+    factor_by_name = {str(factor["name"]): factor for factor in factors}
+    unknown = sorted(set(constraints) - set(factor_by_name))
+    if unknown:
+        raise AnalysisInputError(
+            "unknown_factor_constraint",
+            f"Unknown constrained factor(s): {', '.join(unknown)}.",
+            "factor_constraints",
+        )
+    normalized: dict[str, dict[str, float]] = {}
+    coded_bounds: dict[str, tuple[float, float]] = {}
+    for name, factor in factor_by_name.items():
+        design_low = float(factor["low"])
+        design_high = float(factor["high"])
+        constraint = constraints.get(name)
+        if constraint is None:
+            actual_low, actual_high = design_low, design_high
+        else:
+            if not isinstance(constraint, Mapping) or set(constraint) != {"lower", "upper"}:
+                raise AnalysisInputError(
+                    "invalid_factor_constraint",
+                    f"Factor '{name}' constraint requires exactly lower and upper.",
+                    f"factor_constraints.{name}",
+                )
+            actual_low, actual_high = finite_values(
+                [constraint["lower"], constraint["upper"]],
+                f"factor_constraints.{name}",
+            )
+            if not design_low <= actual_low <= actual_high <= design_high:
+                raise AnalysisInputError(
+                    "factor_constraint_outside_design_region",
+                    f"Factor '{name}' constraint must satisfy {design_low} <= lower <= upper <= {design_high}.",
+                    f"factor_constraints.{name}",
+                )
+            normalized[name] = {"lower": actual_low, "upper": actual_high}
+        midpoint = (design_low + design_high) / 2.0
+        half_range = (design_high - design_low) / 2.0
+        coded_bounds[name] = (
+            (actual_low - midpoint) / half_range,
+            (actual_high - midpoint) / half_range,
+        )
+    return normalized, coded_bounds
 
 
 def _normalize_response_objectives(
@@ -4401,6 +4484,7 @@ def _pattern_search_desirability(
     start: Mapping[str, object],
     factor_names: Sequence[str],
     score: Callable[[Mapping[str, float]], dict[str, object]],
+    coded_bounds: Mapping[str, tuple[float, float]],
 ) -> dict[str, object]:
     current = dict(start)
     step = 0.5
@@ -4411,7 +4495,8 @@ def _pattern_search_desirability(
         for name in factor_names:
             for direction in (-1.0, 1.0):
                 coded = dict(current["coded"])
-                candidate = max(-1.0, min(1.0, float(coded[name]) + direction * step))
+                lower, upper = coded_bounds[name]
+                candidate = max(lower, min(upper, float(coded[name]) + direction * step))
                 if candidate == coded[name]:
                     continue
                 coded[name] = candidate

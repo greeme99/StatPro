@@ -510,6 +510,9 @@ class LocalApiContractTests(unittest.TestCase):
                     ],
                     "randomize": False,
                     "interaction_order": 1,
+                    "factor_constraints": {
+                        "A": {"lower": 0.2, "upper": 0.6}
+                    },
                     "objectives": [
                         {
                             "name": "Yield",
@@ -618,8 +621,8 @@ class LocalApiContractTests(unittest.TestCase):
                     )
                 if analysis_type == "doe.full_factorial_2level_desirability":
                     solution = response.json()["result"]["tables"]["solution"][0]
-                    self.assertEqual(solution["actual"], {"A": 1.0, "B": 0.0})
-                    self.assertAlmostEqual(solution["composite_desirability"], 1.0)
+                    self.assertEqual(solution["actual"], {"A": 0.6, "B": 0.0})
+                    self.assertAlmostEqual(solution["composite_desirability"], 0.6**0.5)
 
     def test_analysis_run_listing_is_bounded_and_cursor_paged(self) -> None:
         for run_id in ("run-001", "run-002", "run-003"):

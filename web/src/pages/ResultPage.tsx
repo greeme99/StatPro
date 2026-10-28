@@ -211,6 +211,7 @@ function DoeResult({ doe }: { doe: DoeView }) {
 
 function DoeDesirabilityResult({ optimizer }: { optimizer: DoeDesirabilityView }) {
   const factorNames = Object.keys(optimizer.solution.actual);
+  const constraints = Object.entries(optimizer.factorConstraints);
   const goalLabel = { maximize: "최대화", minimize: "최소화", target: "목표값" };
   return <>
     <section className="metric-grid result-metrics" aria-label="DOE 다중 응답 최적화 요약">
@@ -220,6 +221,7 @@ function DoeDesirabilityResult({ optimizer }: { optimizer: DoeDesirabilityView }
       <article className="metric-card"><span>전역 최적 증명</span><strong className="metric-text">{optimizer.globalOptimumProven ? "예" : "아니오"}</strong><small>확인 실험 필요</small></article>
     </section>
     <section className="panel table-panel"><header className="panel-heading"><div><span className="eyebrow">OPTIMAL SETTINGS</span><h2>권장 요인 설정</h2></div></header><div className="table-scroll"><table><thead><tr>{factorNames.map((name) => <th scope="col" key={name}>{name}</th>)}<th scope="col">복합 desirability</th></tr></thead><tbody><tr>{factorNames.map((name) => <td key={name}>{statistic(optimizer.solution.actual[name])}</td>)}<td>{statistic(optimizer.solution.composite_desirability)}</td></tr></tbody></table></div></section>
+    {constraints.length > 0 && <section className="panel table-panel"><header className="panel-heading"><div><span className="eyebrow">SEARCH CONSTRAINTS</span><h2>적용된 요인 탐색 제약</h2></div><span>{constraints.length}개 요인</span></header><div className="table-scroll"><table><thead><tr><th scope="col">요인</th><th scope="col">Lower</th><th scope="col">Upper</th><th scope="col">방식</th></tr></thead><tbody>{constraints.map(([name, bounds]) => <tr key={name}><td>{name}</td><td>{statistic(bounds.lower)}</td><td>{statistic(bounds.upper)}</td><td>{bounds.lower === bounds.upper ? "고정" : "범위"}</td></tr>)}</tbody></table></div></section>}
     <section className="panel table-panel"><header className="panel-heading"><div><span className="eyebrow">INDIVIDUAL DESIRABILITY</span><h2>응답별 예측과 만족도</h2></div></header><div className="table-scroll"><table><thead><tr><th scope="col">응답</th><th scope="col">목표</th><th scope="col">예측</th><th scope="col">개별 desirability</th><th scope="col">Lower</th><th scope="col">Target</th><th scope="col">Upper</th><th scope="col">가중치</th><th scope="col">중요도</th></tr></thead><tbody>{optimizer.responses.map((row) => <tr key={row.response}><td>{row.response}</td><td>{goalLabel[row.goal]}</td><td>{statistic(row.prediction)}</td><td>{statistic(row.desirability)}</td><td>{statistic(row.lower)}</td><td>{statistic(row.target)}</td><td>{statistic(row.upper)}</td><td>{statistic(row.weight, 2)}</td><td>{statistic(row.importance, 2)}</td></tr>)}</tbody></table></div></section>
   </>;
 }

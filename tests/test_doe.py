@@ -1364,6 +1364,60 @@ class FullFactorialDesirabilityTests(unittest.TestCase):
         self.assertAlmostEqual(solution["actual"]["A"], 0.5, places=6)
         self.assertAlmostEqual(solution["composite_desirability"], 1.0)
 
+    def test_factor_constraints_bound_and_hold_optimizer_settings(self) -> None:
+        result = optimize_full_factorial_desirability(
+            [FactorDefinition("A", 0, 1), FactorDefinition("B", 0, 1)],
+            [
+                ResponseObjective(
+                    name="Yield",
+                    responses=[0, 10, 0, 10],
+                    goal="maximize",
+                    lower=0,
+                    target=10,
+                )
+            ],
+            randomize=False,
+            interaction_order=1,
+            factor_constraints={
+                "A": {"lower": 0.2, "upper": 0.6},
+                "B": {"lower": 0.4, "upper": 0.4},
+            },
+        )
+
+        solution = result.tables["solution"][0]
+        self.assertAlmostEqual(solution["actual"]["A"], 0.6)
+        self.assertAlmostEqual(solution["actual"]["B"], 0.4)
+        self.assertAlmostEqual(solution["composite_desirability"], 0.6)
+        self.assertEqual(result.diagnostics["constrained_factor_count"], 2)
+        self.assertEqual(result.diagnostics["vertex_count"], 2)
+
+    def test_factor_constraints_reject_unknown_and_out_of_region_bounds(self) -> None:
+        factors = [FactorDefinition("A", 0, 1), FactorDefinition("B", 0, 1)]
+        objectives = [
+            ResponseObjective(
+                name="Yield",
+                responses=[0, 10, 0, 10],
+                goal="maximize",
+                lower=0,
+                target=10,
+            )
+        ]
+        cases = (
+            ({"Z": {"lower": 0, "upper": 1}}, "unknown_factor_constraint"),
+            ({"A": {"lower": -0.1, "upper": 0.5}}, "factor_constraint_outside_design_region"),
+            ({"A": {"lower": 0.8, "upper": 0.2}}, "factor_constraint_outside_design_region"),
+        )
+        for constraints, expected_code in cases:
+            with self.subTest(expected_code=expected_code):
+                with self.assertRaises(AnalysisInputError) as context:
+                    optimize_full_factorial_desirability(
+                        factors,
+                        objectives,
+                        randomize=False,
+                        factor_constraints=constraints,
+                    )
+                self.assertEqual(context.exception.detail.code, expected_code)
+
     def test_rejects_invalid_objective_boundaries_and_response_identity(self) -> None:
         factors = [FactorDefinition("A", 0, 1), FactorDefinition("B", 0, 1)]
         with self.assertRaises(AnalysisInputError) as count_context:

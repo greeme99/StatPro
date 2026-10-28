@@ -331,6 +331,7 @@ export function createDoeResponseOptimizerRun(payload: {
   randomize: boolean;
   seed: number;
   interaction_order: number;
+  factor_constraints: Record<string, { lower: number; upper: number }>;
 }): Promise<StoredRun> {
   return request("/v1/analysis-runs/doe-response-optimizer", {
     method: "POST",
