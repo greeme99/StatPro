@@ -27,6 +27,11 @@ export function getRun(runId: string): Promise<StoredRun> {
   return request(`/v1/analysis-runs/${encodeURIComponent(runId)}`);
 }
 
+export function doeRunArtifactUrl(runId: string, artifact: "html" | "zip"): string {
+  const suffix = artifact === "html" ? "report.html" : "export";
+  return `${API_BASE}/v1/analysis-runs/${encodeURIComponent(runId)}/${suffix}`;
+}
+
 export function createImrRun(payload: {
   run_id: string;
   values: number[];

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import base64
+import io
 import sys
 import unittest
+import zipfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
@@ -69,6 +71,46 @@ class LocalApiContractTests(unittest.TestCase):
         )
         self.assertEqual(created.headers["etag"], retrieved.headers["etag"])
         self.assertEqual(created.json(), retrieved.json())
+
+    def test_doe_report_and_export_preserve_the_stored_run_identity(self) -> None:
+        created = self.client.post(
+            "/v1/analysis-runs/doe-full-factorial",
+            json={
+                "run_id": "doe-report-001",
+                "factors": [
+                    {"name": "A", "low": 0, "high": 1},
+                    {"name": "B", "low": 10, "high": 20},
+                ],
+                "randomize": False,
+            },
+        )
+
+        report = self.client.get("/v1/analysis-runs/doe-report-001/report")
+        html = self.client.get("/v1/analysis-runs/doe-report-001/report.html")
+        exported = self.client.get("/v1/analysis-runs/doe-report-001/export")
+
+        self.assertEqual(report.status_code, 200)
+        self.assertEqual(report.json()["report_type"], "statpro.doe.analysis_report.v1")
+        self.assertEqual(report.json()["run"]["etag"], created.json()["etag"])
+        self.assertEqual(report.headers["etag"], html.headers["etag"])
+        self.assertEqual(report.headers["etag"], exported.headers["etag"])
+        self.assertEqual(html.headers["content-type"], "text/html; charset=utf-8")
+        self.assertIn("doe-report-001-doe-report.html", html.headers["content-disposition"])
+        self.assertEqual(exported.headers["content-type"], "application/zip")
+        with zipfile.ZipFile(io.BytesIO(exported.content)) as archive:
+            self.assertEqual(archive.namelist()[0:2], ["report.html", "report.json"])
+            self.assertIn("tables/01-design.csv", archive.namelist())
+
+    def test_doe_report_rejects_a_non_doe_run(self) -> None:
+        self.client.post(
+            "/v1/analysis-runs/imr",
+            json={"run_id": "not-doe", "values": [1, 2, 3]},
+        )
+
+        response = self.client.get("/v1/analysis-runs/not-doe/report")
+
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.json()["error"]["code"], "unsupported_report_type")
 
     def test_analysis_run_ids_are_immutable(self) -> None:
         payload = {"run_id": "run-001", "values": [1, 2, 3]}

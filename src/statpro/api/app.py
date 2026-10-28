@@ -65,6 +65,11 @@ from statpro.application.documents import (
     InvalidDocumentKeyError,
     StoredDocument,
 )
+from statpro.application.reports import (
+    build_doe_report,
+    export_doe_report_zip,
+    render_doe_report_html,
+)
 from statpro.domain.data import (
     DatasetSnapshot,
     DataType,
@@ -344,6 +349,41 @@ class StoredRunResponse(ApiModel):
     storage_version: int
     etag: str
     result: dict[str, Any]
+
+
+class DoeReportRunResponse(ApiModel):
+    run_id: str
+    storage_version: int
+    etag: str
+
+
+class DoeReportAnalysisResponse(ApiModel):
+    analysis_type: str
+    engine_version: str
+    input_digest: str
+    result_digest: str
+
+
+class DoeReportTableResponse(ApiModel):
+    name: str
+    columns: list[str]
+    row_count: int
+    rows: list[dict[str, Any]]
+
+
+class DoeAnalysisReportResponse(ApiModel):
+    report_type: str
+    run: DoeReportRunResponse
+    analysis: DoeReportAnalysisResponse
+    parameters: dict[str, Any]
+    diagnostics: dict[str, Any]
+    tables: list[DoeReportTableResponse]
+    plots: dict[str, Any]
+    assumptions: list[str]
+    warnings: list[str]
+    provenance: list[dict[str, Any]]
+    limitations: list[str]
+    report_digest: str
 
 
 class RiskRatingsRequest(ApiModel):
@@ -1463,6 +1503,39 @@ def create_app(
         stored = repository.load(ANALYSIS_RUNS, run_id)
         response.headers["ETag"] = f'"{stored.etag}"'
         return _response(stored)
+
+    @app.get(
+        "/v1/analysis-runs/{run_id}/report",
+        response_model=DoeAnalysisReportResponse,
+    )
+    def get_doe_report(run_id: RunId, response: Response) -> dict[str, Any]:
+        report = build_doe_report(repository.load(ANALYSIS_RUNS, run_id))
+        response.headers["ETag"] = f'"{report["report_digest"]}"'
+        return report
+
+    @app.get("/v1/analysis-runs/{run_id}/report.html")
+    def get_doe_report_html(run_id: RunId) -> Response:
+        report = build_doe_report(repository.load(ANALYSIS_RUNS, run_id))
+        return Response(
+            content=render_doe_report_html(report),
+            media_type="text/html",
+            headers={
+                "Content-Disposition": f'attachment; filename="{run_id}-doe-report.html"',
+                "ETag": f'"{report["report_digest"]}"',
+            },
+        )
+
+    @app.get("/v1/analysis-runs/{run_id}/export")
+    def export_doe_report(run_id: RunId) -> Response:
+        report = build_doe_report(repository.load(ANALYSIS_RUNS, run_id))
+        return Response(
+            content=export_doe_report_zip(report),
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": f'attachment; filename="{run_id}-doe-export.zip"',
+                "ETag": f'"{report["report_digest"]}"',
+            },
+        )
 
     @app.get("/v1/analysis-runs")
     def list_runs(

@@ -16,6 +16,7 @@ The repository starts with a dependency-free Python statistical core so formulas
 - Laney P′/U′ charts with moving-range Sigma Z adjustment for overdispersion and underdispersion
 - Normal capability for individual observations with within/overall variation kept distinct
 - Reproducible two-level full factorial DOE analysis with deterministic automatic blocking and factor-constrained multi-response desirability optimization, regular fractional-factorial generation/main-effect analysis with bounded automatic minimum-run/minimum-aberration generator selection, explicit regular block generators, blocked full resolution-III foldover and single-factor foldover, 3–5 factor Box–Behnken and central-composite response-surface designs with complete-quadratic modelling, stationary-point/canonical analysis, bounded two-factor surface grids, accessible iso-response contours and projected 3D wireframes, plus Plackett–Burman screening design/response analysis from 12 to 48 runs
+- Versioned DOE report projection with immutable Run identity, semantic HTML, JSON, and UTF-8 CSV tables in a deterministic ZIP export
 - Balanced crossed Gage R&R using two-way random-effects ANOVA variance components
 - Immutable CSV Dataset snapshots and revisioned Worksheet cell edits
 - Packaged Draft 2020-12 `ResultBundle` JSON Schema
@@ -75,6 +76,13 @@ statpro-api --storage "D:\StatProData" --host 127.0.0.1 --port 8765
 ```
 
 The identity command prompts twice for a password and stores only a salted scrypt verifier. Restart the API after changing the identity file. Open `http://127.0.0.1:8765/docs` for the generated OpenAPI interface. The launcher rejects non-loopback hosts. Analysis Run IDs are immutable; use a new ID for recalculation.
+
+For an existing DOE Run, download its human-readable report or portable export bundle:
+
+```powershell
+Invoke-WebRequest http://127.0.0.1:8765/v1/analysis-runs/doe-001/report.html -OutFile doe-001-report.html
+Invoke-WebRequest http://127.0.0.1:8765/v1/analysis-runs/doe-001/export -OutFile doe-001-export.zip
+```
 
 ## Local Web UI
 

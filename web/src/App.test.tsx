@@ -546,6 +546,8 @@ describe("StatPro UI", () => {
 
     render(<MemoryRouter initialEntries={["/runs/doe-001"]}><App /></MemoryRouter>);
     expect(await screen.findByRole("heading", { name: "효과 크기" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "HTML 보고서" })).toHaveAttribute("href", "/api/v1/analysis-runs/doe-001/report.html");
+    expect(screen.getByRole("link", { name: "CSV·JSON 묶음" })).toHaveAttribute("href", "/api/v1/analysis-runs/doe-001/export");
     expect(screen.getByRole("img", { name: /가장 큰 절대 효과는 A/ })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "ANOVA" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "적합값과 잔차" })).toBeInTheDocument();

@@ -1,7 +1,7 @@
-import { AlertTriangle, ArrowLeft, BookOpen, CheckCircle2, X } from "lucide-react";
+import { AlertTriangle, ArrowLeft, BookOpen, CheckCircle2, Download, FileText, X } from "lucide-react";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { getRun } from "../api";
+import { doeRunArtifactUrl, getRun } from "../api";
 import { toAttributeChartView, toCusumView, toDoeBoxBehnkenAnalysisView, toDoeBoxBehnkenView, toDoeCentralCompositeAnalysisView, toDoeCentralCompositeSurfaceView, toDoeCentralCompositeView, toDoeDesirabilityView, toDoeFractionalAnalysisView, toDoeFractionalView, toDoePlackettBurmanAnalysisView, toDoePlackettBurmanView, toDoeView, toEwmaView, toImrView, toXbarSView, type AttributeChartView, type CusumView, type DoeBoxBehnkenView, type DoeCentralCompositeSurfaceView, type DoeCentralCompositeView, type DoeDesirabilityView, type DoeFractionalAnalysisView, type DoeFractionalView, type DoePlackettBurmanAnalysisView, type DoePlackettBurmanView, type DoeQuadraticAnalysisView, type DoeView, type EwmaView, type XbarSView } from "../analysis";
 import { Button } from "../components/Button";
 import type { StoredRun } from "../types";
@@ -48,6 +48,7 @@ export function ResultPage() {
   }, [drawerOpen, setSearch]);
 
   const result = run?.result;
+  const isDoe = result?.analysis_type.startsWith("doe.") ?? false;
   const imr = toImrView(result);
   const attributeChart = toAttributeChartView(result);
   const xbarS = toXbarSView(result);
@@ -75,7 +76,7 @@ export function ResultPage() {
       <Link className="back-link" to="/"><ArrowLeft aria-hidden="true" /> 분석 홈</Link>
       <section className="result-header">
         <div><span className="eyebrow">ANALYSIS RUN / {result.analysis_type}</span><h1>{run.run_id}</h1><p className="digest">SHA-256 · {result.input_digest}</p></div>
-        <div className="result-actions"><span className="status-badge is-success"><CheckCircle2 aria-hidden="true" /> 완료</span><Button ref={drawerTrigger} icon={<BookOpen />} onClick={() => setSearch({ detail: "provenance" })}>계산 근거</Button></div>
+        <div className="result-actions"><span className="status-badge is-success"><CheckCircle2 aria-hidden="true" /> 완료</span>{isDoe && <><a className="button button-secondary" href={doeRunArtifactUrl(run.run_id, "html")} download><FileText aria-hidden="true" /><span>HTML 보고서</span></a><a className="button button-secondary" href={doeRunArtifactUrl(run.run_id, "zip")} download><Download aria-hidden="true" /><span>CSV·JSON 묶음</span></a></>}<Button ref={drawerTrigger} icon={<BookOpen />} onClick={() => setSearch({ detail: "provenance" })}>계산 근거</Button></div>
       </section>
       {imr ? <>
       <section className="metric-grid result-metrics" aria-label="I-MR 결과 요약">
