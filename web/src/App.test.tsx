@@ -86,6 +86,10 @@ describe("StatPro UI", () => {
     expect(screen.getByLabelText("관리도 통계")).toBeInTheDocument();
     expect(screen.getByText("공정이 통계적 관리 상태입니다")).toBeInTheDocument();
     expect(screen.getByText("CL 10.0000")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "결과 출력" }));
+    expect(screen.getByRole("menu", { name: "결과 출력 형식" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /JSON으로 저장/ })).toBeEnabled();
+    expect(screen.getByText("PDF 보고서").closest("span")).toHaveAttribute("aria-disabled", "true");
   });
 
   it("submits EWMA observations with historical parameters", async () => {

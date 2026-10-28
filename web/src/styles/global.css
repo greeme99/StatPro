@@ -147,6 +147,13 @@ svg { width: var(--icon-size); height: var(--icon-size); stroke-width: 1.8; }
 .signal-summary.is-normal { background: var(--color-status-success-bg); color: var(--color-status-success); }
 .signal-summary.is-alert { background: var(--color-status-danger-bg); color: var(--color-status-danger); }
 .signal-summary.is-normal p, .signal-summary.is-alert p { color: var(--color-text-primary); }
+.result-export-menu { position: relative; }
+.export-popover { background: var(--color-bg-surface); border: var(--border-width) solid var(--color-border-strong); border-radius: var(--radius-md); box-shadow: var(--shadow-overlay); display: grid; gap: var(--space-1); min-inline-size: 18rem; padding: var(--space-2); position: absolute; right: 0; top: calc(100% + var(--space-2)); z-index: var(--z-sticky); }
+.export-popover button, .export-popover span { align-items: center; background: transparent; border: 0; color: var(--color-text-primary); display: flex; font: inherit; gap: var(--space-2); min-block-size: 44px; padding: var(--space-2); text-align: left; }
+.export-popover button { cursor: pointer; }
+.export-popover button:hover, .export-popover button:focus-visible { background: var(--color-bg-hover); border-radius: var(--radius-sm); outline: none; }
+.export-popover span[aria-disabled="true"] { color: var(--color-text-secondary); cursor: not-allowed; }
+.export-popover small { color: var(--color-text-secondary); margin-inline-start: auto; }
 .result-chart-panel, .table-panel, .warning-panel { margin-bottom: var(--space-5); }
 .table-scroll { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
