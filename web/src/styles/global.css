@@ -58,6 +58,17 @@ svg { width: var(--icon-size); height: var(--icon-size); stroke-width: 1.8; }
 .metric-card .status-metric.is-error { color: var(--color-status-danger); }
 .metric-card small { grid-column: 1 / -1; color: var(--color-text-secondary); }
 .dashboard-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr); gap: var(--grid-gap); }
+.feature-catalog { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--grid-gap); }
+.feature-item { display: flex; flex-direction: column; min-height: calc(var(--space-16) * 3); padding: var(--card-pad); background: var(--color-bg-surface); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); }
+.feature-item header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); color: var(--color-action); }
+.feature-item h2 { margin: var(--space-5) var(--space-0) var(--space-2); }
+.feature-item p { color: var(--color-text-secondary); }
+.feature-item .text-link { margin-top: auto; padding-top: var(--space-5); }
+.delivery-status { display: inline-flex; align-items: center; min-height: var(--control-height); padding: var(--space-1) var(--space-3); border-radius: var(--radius-pill); font-weight: 600; }
+.delivery-status.status-구현됨 { color: var(--color-status-success); background: var(--color-status-success-bg); }
+.delivery-status.status-부분-구현 { color: var(--color-status-warning); background: var(--color-status-warning-bg); }
+.delivery-status.status-개발-예정, .delivery-status.status-외부-정책-필요 { color: var(--color-text-secondary); background: var(--color-bg-subtle); }
+.catalog-note { margin-top: auto; padding-top: var(--space-5); }
 .panel { min-width: var(--space-0); overflow: hidden; }
 .panel-heading { min-height: var(--row-h); display: flex; justify-content: space-between; align-items: center; gap: var(--space-4); padding: var(--card-pad); border-bottom: var(--border-width) solid var(--color-border); }
 .text-link, .back-link { min-height: var(--touch-target); color: var(--color-action); font-weight: 600; }
@@ -231,6 +242,7 @@ dd { margin: var(--space-0); }
 @media (max-width: 1439px) {
   .page { padding: var(--space-6); }
   .dashboard-grid { grid-template-columns: 1fr; }
+  .feature-catalog { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .fmea-list-layout, .data-list-layout { grid-template-columns: minmax(0, 3fr) minmax(300px, 2fr); }
 }
 @media (max-width: 1023px) {

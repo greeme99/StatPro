@@ -11,6 +11,19 @@ afterEach(() => {
 });
 
 describe("StatPro UI", () => {
+  it("renders the Korean reports catalog with truthful delivery status", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      return new Response(JSON.stringify({ items: [] }), { status: 200 });
+    });
+    render(<MemoryRouter initialEntries={["/catalog/reports"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "결과 및 보고서" })).toBeInTheDocument();
+    expect(screen.getAllByText("구현됨")).toHaveLength(2);
+    expect(screen.getByText("부분 구현")).toBeInTheDocument();
+    expect(screen.getByText("개발 예정")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "실험계획법(DOE)" })).toBeInTheDocument();
+  });
+
   it("submits a standardized two-sided CUSUM plan", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });

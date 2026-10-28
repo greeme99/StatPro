@@ -1,13 +1,17 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Activity, BarChart3, Database, FileWarning, Home, Moon, Sun } from "lucide-react";
+import { Activity, BarChart3, Calculator, Database, FileText, FileWarning, FlaskConical, HelpCircle, Home, Moon, Sun } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { getHealth } from "../api";
 
 const navigation = [
   { to: "/", label: "홈", icon: Home },
-  { to: "/analyses/spc/attribute", label: "SPC", icon: BarChart3 },
-  { to: "/data", label: "데이터", icon: Database },
-  { to: "/fmea", label: "FMEA", icon: FileWarning },
+  { to: "/data", label: "작업표 및 데이터", icon: Database },
+  { to: "/analyses/doe/full-factorial", label: "실험계획법(DOE)", icon: FlaskConical },
+  { to: "/analyses/spc/attribute", label: "통계적 공정관리(SPC)", icon: BarChart3 },
+  { to: "/fmea", label: "고장 형태 및 영향 분석(FMEA)", icon: FileWarning },
+  { to: "/catalog/reports", label: "결과 및 보고서", icon: FileText },
+  { to: "/catalog/tools", label: "계산 및 도우미", icon: Calculator },
+  { to: "/catalog/help", label: "도움말", icon: HelpCircle },
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {

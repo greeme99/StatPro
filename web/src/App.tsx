@@ -17,6 +17,7 @@ import { AttributeChartSetupPage } from "./pages/AttributeChartSetupPage";
 import { XbarSSetupPage } from "./pages/XbarSSetupPage";
 import { EwmaSetupPage } from "./pages/EwmaSetupPage";
 import { CusumSetupPage } from "./pages/CusumSetupPage";
+import { FeatureCatalogPage } from "./pages/FeatureCatalogPage";
 
 export default function App() {
   return (
@@ -39,6 +40,7 @@ export default function App() {
         <Route path="/data/:worksheetId" element={<WorksheetPage />} />
         <Route path="/fmea" element={<FmeaListPage />} />
         <Route path="/fmea/:studyId" element={<FmeaStudyPage />} />
+        <Route path="/catalog/:section" element={<FeatureCatalogPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </AppShell>
