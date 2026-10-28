@@ -70,6 +70,24 @@ describe("StatPro UI", () => {
     expect(screen.getByText("상측 이탈")).toBeInTheDocument();
   });
 
+  it("renders the shared Korean control-chart statistics and signal summary for I-MR", async () => {
+    const result = {
+      analysis_type: "spc.imr", engine_version: "0.6.0", input_digest: "i".repeat(64), warnings: [], assumptions: [], provenance: [],
+      parameters: {}, diagnostics: { individual_signal_indices: [] },
+      tables: { limits: { individuals: { center: 10, ucl: 12, lcl: 8 } } },
+      plots: { individuals: { values: [9.8, 10.2], signals: [], rule_signals: [] } },
+    };
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      return new Response(JSON.stringify({ run_id: "imr-result", storage_version: 1, etag: "a".repeat(64), result }), { status: 200 });
+    });
+    render(<MemoryRouter initialEntries={["/runs/imr-result"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "개별값(I) 관리도" })).toBeInTheDocument();
+    expect(screen.getByLabelText("관리도 통계")).toBeInTheDocument();
+    expect(screen.getByText("공정이 통계적 관리 상태입니다")).toBeInTheDocument();
+    expect(screen.getByText("CL 10.0000")).toBeInTheDocument();
+  });
+
   it("submits EWMA observations with historical parameters", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
@@ -137,8 +155,8 @@ describe("StatPro UI", () => {
       return new Response(JSON.stringify({ run_id: "xbar-s-001", storage_version: 1, etag: "a".repeat(64), result }), { status: 200 });
     });
     render(<MemoryRouter initialEntries={["/runs/xbar-s-001"]}><App /></MemoryRouter>);
-    expect(await screen.findByRole("heading", { name: "부분군 평균 관리도" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "부분군 표준편차 관리도" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "부분군 평균(Xbar) 관리도" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "부분군 표준편차(S) 관리도" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Xbar-S 부분군 표" })).toBeInTheDocument();
     expect(screen.getByText("검토 필요")).toBeInTheDocument();
   });
@@ -267,7 +285,7 @@ describe("StatPro UI", () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ run_id: "run-trend", storage_version: 1, etag: "a".repeat(64), result }), { status: 200, headers: { "Content-Type": "application/json" } }));
 
     render(<MemoryRouter initialEntries={["/runs/run-trend"]}><App /></MemoryRouter>);
-    expect(await screen.findByText("신호 관측값")).toBeInTheDocument();
+    expect(await screen.findByText("관리 한계 내 점")).toBeInTheDocument();
     expect(screen.getAllByText("TREND-6").length).toBeGreaterThan(0);
   });
 

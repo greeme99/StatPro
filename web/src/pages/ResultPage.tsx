@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { doeRunArtifactUrl, getRun } from "../api";
 import { toAttributeChartView, toCusumView, toDoeBoxBehnkenAnalysisView, toDoeBoxBehnkenView, toDoeCentralCompositeAnalysisView, toDoeCentralCompositeSurfaceView, toDoeCentralCompositeView, toDoeDesirabilityView, toDoeFractionalAnalysisView, toDoeFractionalView, toDoePlackettBurmanAnalysisView, toDoePlackettBurmanView, toDoeView, toEwmaView, toImrView, toXbarSView, type AttributeChartView, type CusumView, type DoeBoxBehnkenView, type DoeCentralCompositeSurfaceView, type DoeCentralCompositeView, type DoeDesirabilityView, type DoeFractionalAnalysisView, type DoeFractionalView, type DoePlackettBurmanAnalysisView, type DoePlackettBurmanView, type DoeQuadraticAnalysisView, type DoeView, type EwmaView, type XbarSView } from "../analysis";
 import { Button } from "../components/Button";
+import { ControlChartStatistics, ControlLimitBadges, ControlSignalSummary } from "../components/ControlChartResultSections";
 import type { StoredRun } from "../types";
 
 const ProcessRail = lazy(() => import("../components/ProcessRail").then((module) => ({ default: module.ProcessRail })));
@@ -65,7 +66,7 @@ export function ResultPage() {
   const centralCompositeSurface = toDoeCentralCompositeSurfaceView(result);
   const plackettBurman = toDoePlackettBurmanView(result);
   const plackettBurmanAnalysis = toDoePlackettBurmanAnalysisView(result);
-  const signalCount = useMemo(() => imr?.points.filter((point) => point.signal).length ?? 0, [imr]);
+  const signalCount = useMemo(() => imr ? imr.points.filter((point) => point.signal).length + (imr.movingRangePoints?.filter((point) => point.signal).length ?? 0) : 0, [imr]);
   const closeDrawer = () => { setSearch({}); drawerTrigger.current?.focus(); };
 
   if (state === "loading") return <div className="page"><div className="skeleton page-skeleton" aria-label="결과 불러오는 중" /></div>;
@@ -79,20 +80,20 @@ export function ResultPage() {
         <div className="result-actions"><span className="status-badge is-success"><CheckCircle2 aria-hidden="true" /> 완료</span>{isDoe && <><a className="button button-secondary" href={doeRunArtifactUrl(run.run_id, "html")} download><FileText aria-hidden="true" /><span>HTML 보고서</span></a><a className="button button-secondary" href={doeRunArtifactUrl(run.run_id, "zip")} download><Download aria-hidden="true" /><span>CSV·JSON 묶음</span></a></>}<Button ref={drawerTrigger} icon={<BookOpen />} onClick={() => setSearch({ detail: "provenance" })}>계산 근거</Button></div>
       </section>
       {imr ? <>
-      <section className="metric-grid result-metrics" aria-label="I-MR 결과 요약">
-        <article className="metric-card"><span>평균</span><strong>{imr.center.toFixed(3)}</strong><small>개별값 중심선</small></article>
-        <article className="metric-card"><span>관리상한 UCL</span><strong>{imr.ucl.toFixed(3)}</strong><small>3-sigma</small></article>
-        <article className="metric-card"><span>관리하한 LCL</span><strong>{imr.lcl.toFixed(3)}</strong><small>3-sigma</small></article>
-        <article className="metric-card"><span>신호 관측값</span><strong>{signalCount}</strong><small>{signalCount ? "검토 필요" : "신호 없음"}</small></article>
-      </section>
+      <ControlChartStatistics center={imr.center} ucl={imr.ucl} lcl={imr.lcl} totalPoints={imr.points.length} signalCount={signalCount} />
       <section className="panel result-chart-panel">
-        <header className="panel-heading"><div><span className="eyebrow">INDIVIDUALS CHART</span><h2>개별값 관리도</h2></div><span className="run-version">ENGINE {result.engine_version}</span></header>
+        <header className="panel-heading"><div><span className="eyebrow">INDIVIDUALS CHART</span><h2>개별값(I) 관리도</h2><ControlLimitBadges limits={[{ label: "CL", value: imr.center }, { label: "UCL", value: imr.ucl }, { label: "LCL", value: imr.lcl }]} /></div><span className="run-version">ENGINE {result.engine_version}</span></header>
         <Suspense fallback={<div className="skeleton chart-skeleton" aria-label="관리도 불러오는 중" />}><ProcessRail points={imr.points} center={imr.center} ucl={imr.ucl} lcl={imr.lcl} /></Suspense>
       </section>
+      {imr.movingRangePoints && imr.movingRange && <section className="panel result-chart-panel">
+        <header className="panel-heading"><div><span className="eyebrow">MOVING RANGE CHART</span><h2>이동 범위(MR) 관리도</h2><ControlLimitBadges limits={[{ label: "CL", value: imr.movingRange.center }, { label: "UCL", value: imr.movingRange.ucl }, { label: "LCL", value: imr.movingRange.lcl }]} /></div></header>
+        <Suspense fallback={<div className="skeleton chart-skeleton" aria-label="이동 범위 관리도 불러오는 중" />}><ProcessRail points={imr.movingRangePoints} center={imr.movingRange.center} ucl={imr.movingRange.ucl} lcl={imr.movingRange.lcl} /></Suspense>
+      </section>}
       <section className="panel table-panel">
         <header className="panel-heading"><div><span className="eyebrow">ACCESSIBLE DATA</span><h2>관리도 원본 표</h2></div></header>
         <div className="table-scroll"><table><thead><tr><th scope="col">순서</th><th scope="col">관측값</th><th scope="col">상태</th></tr></thead><tbody>{imr.points.map((point) => <tr key={point.index}><td>{point.index}</td><td>{point.value.toFixed(4)}</td><td>{point.signal ? <span className="status-text is-danger"><AlertTriangle aria-hidden="true" /> {point.rules.length ? point.rules.join(", ") : "3σ 한계 이탈"}</span> : <span className="status-text is-success"><CheckCircle2 aria-hidden="true" /> 정상</span>}</td></tr>)}</tbody></table></div>
       </section>
+      <ControlSignalSummary signalCount={signalCount} />
       </> : cusum ? <CusumResult view={cusum} /> : ewma ? <EwmaResult view={ewma} /> : xbarS ? <XbarSResult view={xbarS} /> : attributeChart ? <AttributeChartResult view={attributeChart} /> : doe ? <DoeResult doe={doe} /> : optimizer ? <DoeDesirabilityResult optimizer={optimizer} /> : fractional ? <DoeFractionalResult design={fractional} /> : fractionalAnalysis ? <DoeFractionalAnalysisResult analysis={fractionalAnalysis} /> : boxBehnken ? <DoeBoxBehnkenResult design={boxBehnken} /> : boxBehnkenAnalysis ? <DoeQuadraticAnalysisResult analysis={boxBehnkenAnalysis} designLabel="Box–Behnken" methodLabel="Edge-midpoint design" /> : centralComposite ? <DoeCentralCompositeResult design={centralComposite} /> : centralCompositeAnalysis ? <DoeQuadraticAnalysisResult analysis={centralCompositeAnalysis} designLabel="중앙합성" methodLabel={centralCompositeAnalysis.rotatable ? "Rotatable" : "Face-centered"} /> : centralCompositeSurface ? <DoeCentralCompositeSurfaceResult surface={centralCompositeSurface} /> : plackettBurman ? <DoePlackettBurmanResult design={plackettBurman} /> : plackettBurmanAnalysis ? <DoePlackettBurmanAnalysisResult analysis={plackettBurmanAnalysis} /> : <section className="panel generic-result-panel"><header className="panel-heading"><div><span className="eyebrow">RESULT BUNDLE</span><h2>분석 결과 요약</h2></div></header><dl><div><dt>분석 유형</dt><dd>{result.analysis_type}</dd></div><div><dt>진단 항목</dt><dd>{Object.keys(result.diagnostics).length}개</dd></div><div><dt>결과 표</dt><dd>{Object.keys(result.tables).join(", ") || "없음"}</dd></div></dl><p>이 분석의 전용 시각화는 다음 개발 증분에서 제공됩니다. 계산 근거와 원본 ResultBundle은 보존되어 있습니다.</p></section>}
       {result.warnings.length > 0 && <section className="warning-panel"><AlertTriangle aria-hidden="true" /><div><h2>해석 전 확인</h2><ul>{result.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></div></section>}
       {drawerOpen && <><button className="drawer-scrim" aria-label="계산 근거 닫기" onClick={closeDrawer} /><aside ref={drawer} className="detail-drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title"><header><div><span className="eyebrow">EVIDENCE</span><h2 id="drawer-title">계산 근거</h2></div><button ref={closeButton} className="icon-button" aria-label="닫기" onClick={closeDrawer}><X /></button></header><section><h3>분석 가정</h3><ul>{result.assumptions.map((item) => <li key={item}>{item}</li>)}</ul></section><section><h3>공개 출처</h3>{result.provenance.map((source) => <a className="source-link" href={source.url} target="_blank" rel="noreferrer" key={source.url}><strong>{source.title}</strong><span>{source.authority}</span></a>)}</section><section><h3>재현 정보</h3><dl><div><dt>엔진</dt><dd>{result.engine_version}</dd></div><div><dt>Storage version</dt><dd>{run.storage_version}</dd></div><div><dt>ETag</dt><dd className="digest">{run.etag}</dd></div></dl></section></aside></>}
@@ -108,55 +109,45 @@ function statistic(value: number | null, digits = 4) {
 
 function EwmaResult({ view }: { view: EwmaView }) {
   const signalCount = view.points.filter((point) => point.signal).length;
+  const firstPoint = view.points[0];
   return <>
-    <section className="metric-grid result-metrics" aria-label="EWMA 관리도 요약">
-      <article className="metric-card"><span>가중치 λ</span><strong>{statistic(view.weight, 3)}</strong><small>최근 관측 가중치</small></article>
-      <article className="metric-card"><span>한계 폭 L</span><strong>{statistic(view.limitWidth, 2)}</strong><small>시작 시점 보정</small></article>
-      <article className="metric-card"><span>공정 σ</span><strong>{statistic(view.processSigma)}</strong><small>{view.sigmaSource === "historical" ? "과거 기준" : "MRbar / 1.128 추정"}</small></article>
-      <article className="metric-card"><span>신호</span><strong>{signalCount}</strong><small>{signalCount ? "조사 필요" : "신호 없음"}</small></article>
-    </section>
+    <ControlChartStatistics center={firstPoint?.center ?? 0} ucl="시점별 계산" lcl="시점별 계산" totalPoints={view.points.length} signalCount={signalCount} />
     <section className="panel result-chart-panel">
-      <header className="panel-heading"><div><span className="eyebrow">TIME-WEIGHTED CONTROL CHART</span><h2>EWMA 관리도</h2></div><span>평균 {view.meanSource === "historical" ? "과거 기준" : "현재 자료 추정"}</span></header>
+      <header className="panel-heading"><div><span className="eyebrow">TIME-WEIGHTED CONTROL CHART</span><h2>EWMA 관리도</h2><ControlLimitBadges limits={[{ label: "CL", value: firstPoint?.center ?? 0 }, { label: "관리 한계", value: "시점별 계산" }]} /></div><span>평균 {view.meanSource === "historical" ? "과거 기준" : "현재 자료 추정"}</span></header>
       <Suspense fallback={<div className="skeleton chart-skeleton" aria-label="EWMA 관리도 불러오는 중" />}><EwmaControlChart points={view.points} /></Suspense>
     </section>
     <section className="panel table-panel">
       <header className="panel-heading"><div><span className="eyebrow">ACCESSIBLE DATA</span><h2>EWMA 관측값과 관리한계</h2></div></header>
       <div className="table-scroll"><table><thead><tr><th scope="col">순서</th><th scope="col">관측값</th><th scope="col">EWMA</th><th scope="col">LCL</th><th scope="col">CL</th><th scope="col">UCL</th><th scope="col">상태</th></tr></thead><tbody>{view.points.map((point) => <tr key={point.index}><td>{point.index}</td><td>{statistic(point.observation)}</td><td>{statistic(point.ewma)}</td><td>{statistic(point.lcl)}</td><td>{statistic(point.center)}</td><td>{statistic(point.ucl)}</td><td>{point.signal ? <span className="status-text is-danger"><AlertTriangle aria-hidden="true" /> 관리한계 이탈</span> : <span className="status-text is-success"><CheckCircle2 aria-hidden="true" /> 정상</span>}</td></tr>)}</tbody></table></div>
     </section>
+    <ControlSignalSummary signalCount={signalCount} />
   </>;
 }
 
 function CusumResult({ view }: { view: CusumView }) {
   const signalCount = view.points.filter((point) => point.signal).length;
   return <>
-    <section className="metric-grid result-metrics" aria-label="CUSUM 관리도 요약">
-      <article className="metric-card"><span>참조값 k</span><strong>{statistic(view.referenceValue, 2)}</strong><small>공정 σ 단위</small></article>
-      <article className="metric-card"><span>판정구간 h</span><strong>{statistic(view.decisionInterval, 2)}</strong><small>양측 ±h</small></article>
-      <article className="metric-card"><span>공정 σ</span><strong>{statistic(view.processSigma)}</strong><small>{view.sigmaSource === "historical" ? "과거 기준" : "MRbar / 1.128 추정"}</small></article>
-      <article className="metric-card"><span>신호</span><strong>{signalCount}</strong><small>{signalCount ? "조사 필요" : "신호 없음"}</small></article>
-    </section>
+    <ControlChartStatistics center={0} ucl={view.decisionInterval} lcl={-view.decisionInterval} totalPoints={view.points.length} signalCount={signalCount} />
     <section className="panel result-chart-panel">
-      <header className="panel-heading"><div><span className="eyebrow">TWO-SIDED TABULAR CUSUM</span><h2>CUSUM 관리도</h2></div><span>평균 {view.meanSource === "historical" ? "과거 기준" : "현재 자료 추정"}</span></header>
+      <header className="panel-heading"><div><span className="eyebrow">TWO-SIDED TABULAR CUSUM</span><h2>CUSUM 관리도</h2><ControlLimitBadges limits={[{ label: "CL", value: 0 }, { label: "UCL", value: view.decisionInterval }, { label: "LCL", value: -view.decisionInterval }]} /></div><span>평균 {view.meanSource === "historical" ? "과거 기준" : "현재 자료 추정"}</span></header>
       <Suspense fallback={<div className="skeleton chart-skeleton" aria-label="CUSUM 관리도 불러오는 중" />}><CusumControlChart points={view.points} /></Suspense>
     </section>
     <section className="panel table-panel">
       <header className="panel-heading"><div><span className="eyebrow">ACCESSIBLE DATA</span><h2>CUSUM 관측값과 판정구간</h2></div></header>
       <div className="table-scroll"><table><thead><tr><th scope="col">순서</th><th scope="col">관측값</th><th scope="col">상측 CUSUM</th><th scope="col">하측 CUSUM</th><th scope="col">LCL</th><th scope="col">UCL</th><th scope="col">상태</th></tr></thead><tbody>{view.points.map((point) => <tr key={point.index}><td>{point.index}</td><td>{statistic(point.observation)}</td><td>{statistic(point.upperCusum)}</td><td>{statistic(point.lowerCusum)}</td><td>{statistic(point.lcl)}</td><td>{statistic(point.ucl)}</td><td>{point.signal ? <span className="status-text is-danger"><AlertTriangle aria-hidden="true" /> {point.signalDirection === "upper" ? "상측 이탈" : point.signalDirection === "lower" ? "하측 이탈" : "양측 이탈"}</span> : <span className="status-text is-success"><CheckCircle2 aria-hidden="true" /> 정상</span>}</td></tr>)}</tbody></table></div>
     </section>
+    <ControlSignalSummary signalCount={signalCount} />
   </>;
 }
 
 function XbarSResult({ view }: { view: XbarSView }) {
+  const signalCount = view.xbarPoints.filter((point) => point.signal).length + view.sPoints.filter((point) => point.signal).length;
   return <>
-    <section className="metric-grid result-metrics" aria-label="Xbar-S 관리도 요약">
-      <article className="metric-card"><span>부분군 크기</span><strong>{view.subgroupSize}</strong><small>부분군당 측정값</small></article>
-      <article className="metric-card"><span>추정 σ</span><strong>{statistic(view.estimatedSigma)}</strong><small>Sbar / c4</small></article>
-      <article className="metric-card"><span>Xbar 신호</span><strong>{view.xbarPoints.filter((point) => point.signal).length}</strong><small>조사 후보</small></article>
-      <article className="metric-card"><span>S 신호</span><strong>{view.sPoints.filter((point) => point.signal).length}</strong><small>변동을 먼저 확인</small></article>
-    </section>
-    <section className="panel result-chart-panel"><header className="panel-heading"><div><span className="eyebrow">XBAR CHART</span><h2>부분군 평균 관리도</h2></div></header><Suspense fallback={<div className="skeleton chart-skeleton" aria-label="Xbar 관리도 불러오는 중" />}><ProcessRail points={view.xbarPoints} center={view.xbarLimits.center} ucl={view.xbarLimits.ucl} lcl={view.xbarLimits.lcl} /></Suspense></section>
-    <section className="panel result-chart-panel"><header className="panel-heading"><div><span className="eyebrow">S CHART</span><h2>부분군 표준편차 관리도</h2></div></header><Suspense fallback={<div className="skeleton chart-skeleton" aria-label="S 관리도 불러오는 중" />}><ProcessRail points={view.sPoints} center={view.sLimits.center} ucl={view.sLimits.ucl} lcl={view.sLimits.lcl} /></Suspense></section>
+    <ControlChartStatistics center={view.xbarLimits.center} ucl={view.xbarLimits.ucl} lcl={view.xbarLimits.lcl} totalPoints={view.xbarPoints.length + view.sPoints.length} signalCount={signalCount} />
+    <section className="panel result-chart-panel"><header className="panel-heading"><div><span className="eyebrow">XBAR CHART</span><h2>부분군 평균(Xbar) 관리도</h2><ControlLimitBadges limits={[{ label: "CL", value: view.xbarLimits.center }, { label: "UCL", value: view.xbarLimits.ucl }, { label: "LCL", value: view.xbarLimits.lcl }]} /></div></header><Suspense fallback={<div className="skeleton chart-skeleton" aria-label="Xbar 관리도 불러오는 중" />}><ProcessRail points={view.xbarPoints} center={view.xbarLimits.center} ucl={view.xbarLimits.ucl} lcl={view.xbarLimits.lcl} /></Suspense></section>
+    <section className="panel result-chart-panel"><header className="panel-heading"><div><span className="eyebrow">S CHART</span><h2>부분군 표준편차(S) 관리도</h2><ControlLimitBadges limits={[{ label: "CL", value: view.sLimits.center }, { label: "UCL", value: view.sLimits.ucl }, { label: "LCL", value: view.sLimits.lcl }]} /></div></header><Suspense fallback={<div className="skeleton chart-skeleton" aria-label="S 관리도 불러오는 중" />}><ProcessRail points={view.sPoints} center={view.sLimits.center} ucl={view.sLimits.ucl} lcl={view.sLimits.lcl} /></Suspense></section>
     <section className="panel table-panel"><header className="panel-heading"><div><span className="eyebrow">ACCESSIBLE DATA</span><h2>Xbar-S 부분군 표</h2></div></header><div className="table-scroll"><table><thead><tr><th scope="col">부분군</th><th scope="col">평균</th><th scope="col">표준편차</th><th scope="col">상태</th></tr></thead><tbody>{view.xbarPoints.map((point, index) => <tr key={point.index}><td>{point.index}</td><td>{statistic(point.value)}</td><td>{statistic(view.sPoints[index]?.value ?? null)}</td><td>{point.signal || view.sPoints[index]?.signal ? "검토 필요" : "관리상태"}</td></tr>)}</tbody></table></div></section>
+    <ControlSignalSummary signalCount={signalCount} />
   </>;
 }
 
@@ -165,21 +156,18 @@ function AttributeChartResult({ view }: { view: AttributeChartView }) {
   const statisticLabel = { p: "부적합률", np: "부적합품 수", c: "결점 수", u: "단위당 결점 수", p_prime: "부적합률", u_prime: "단위당 결점 수" }[view.chart];
   const eventLabel = view.chart === "p" || view.chart === "np" || view.chart === "p_prime" ? "부적합품" : "결점";
   const opportunityLabel = view.chart === "p" || view.chart === "np" || view.chart === "p_prime" ? "표본 크기" : "검사 단위";
+  const hasUniformLimits = view.points.length > 0 && view.points.every((point) => point.center === view.points[0]?.center && point.ucl === view.points[0]?.ucl && point.lcl === view.points[0]?.lcl);
   return <>
-    <section className="metric-grid result-metrics" aria-label={`${chartLabel} 결과 요약`}>
-      <article className="metric-card"><span>부분군</span><strong>{view.points.length}</strong><small>시간 순서</small></article>
-      <article className="metric-card"><span>전체 검사 기회</span><strong>{view.totalOpportunity}</strong><small>{eventLabel} {view.totalEvents}</small></article>
-      <article className="metric-card"><span>통합 발생률</span><strong>{view.pooledRate.toFixed(4)}</strong><small>Phase I 중심 추정</small></article>
-      <article className="metric-card"><span>한계 이탈</span><strong>{view.signalCount}</strong><small>{view.signalCount ? "조사 필요" : "신호 없음"}</small></article>
-    </section>
+    <ControlChartStatistics center={view.points[0]?.center ?? 0} ucl={hasUniformLimits ? view.points[0]?.ucl ?? 0 : "부분군별 계산"} lcl={hasUniformLimits ? view.points[0]?.lcl ?? 0 : "부분군별 계산"} totalPoints={view.points.length} signalCount={view.signalCount} />
     <section className="panel result-chart-panel">
-      <header className="panel-heading"><div><span className="eyebrow">BINOMIAL ATTRIBUTE CHART</span><h2>{chartLabel} 관리도</h2></div><span>{view.points.length}개 부분군</span></header>
+      <header className="panel-heading"><div><span className="eyebrow">ATTRIBUTE CHART</span><h2>{chartLabel} 관리도</h2><ControlLimitBadges limits={hasUniformLimits ? [{ label: "CL", value: view.points[0].center }, { label: "UCL", value: view.points[0].ucl }, { label: "LCL", value: view.points[0].lcl }] : [{ label: "관리 한계", value: "부분군별 계산" }]} /></div><span>{view.points.length}개 부분군</span></header>
       <Suspense fallback={<div className="skeleton chart-skeleton" aria-label="속성 관리도 불러오는 중" />}><AttributeControlChart points={view.points} chart={view.chart} /></Suspense>
     </section>
     <section className="panel table-panel">
       <header className="panel-heading"><div><span className="eyebrow">ACCESSIBLE DATA</span><h2>부분군별 관리한계</h2></div></header>
       <div className="table-scroll"><table><thead><tr><th scope="col">부분군</th><th scope="col">{eventLabel}</th><th scope="col">{opportunityLabel}</th><th scope="col">{statisticLabel}</th><th scope="col">LCL</th><th scope="col">CL</th><th scope="col">UCL</th><th scope="col">상태</th></tr></thead><tbody>{view.points.map((point) => <tr key={point.index}><td>{point.index}</td><td>{point.eventCount}</td><td>{point.opportunity}</td><td>{statistic(point.statistic)}</td><td>{statistic(point.lcl)}</td><td>{statistic(point.center)}</td><td>{statistic(point.ucl)}</td><td>{point.signal ? <span className="status-text is-danger"><AlertTriangle aria-hidden="true" /> 3σ 한계 이탈</span> : <span className="status-text is-success"><CheckCircle2 aria-hidden="true" /> 정상</span>}</td></tr>)}</tbody></table></div>
     </section>
+    <ControlSignalSummary signalCount={view.signalCount} />
   </>;
 }
 

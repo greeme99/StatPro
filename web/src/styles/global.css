@@ -138,6 +138,15 @@ svg { width: var(--icon-size); height: var(--icon-size); stroke-width: 1.8; }
 .status-badge { min-height: var(--control-height); padding: var(--space-1) var(--space-3); border-radius: var(--radius-pill); font-weight: 600; }
 .status-badge.is-success { color: var(--color-status-success); background: var(--color-status-success-bg); }
 .result-metrics { margin-top: var(--space-0); }
+.control-limit-badges { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
+.control-limit-badge { border: var(--border-width) solid var(--color-status-danger); border-radius: var(--radius-pill); color: var(--color-status-danger); font-size: var(--body-size); font-variant-numeric: tabular-nums; padding: var(--space-1) var(--space-2); }
+.control-limit-badge.is-center { border-color: var(--color-action); color: var(--color-action); }
+.signal-summary { align-items: flex-start; border: var(--border-width) solid var(--color-border); border-radius: var(--radius-lg); display: flex; gap: var(--space-3); margin-top: var(--space-4); padding: var(--card-pad); }
+.signal-summary h2 { font-size: var(--font-size-lg); margin: 0; }
+.signal-summary p { color: var(--color-text-secondary); margin: var(--space-1) 0 0; }
+.signal-summary.is-normal { background: var(--color-status-success-bg); color: var(--color-status-success); }
+.signal-summary.is-alert { background: var(--color-status-danger-bg); color: var(--color-status-danger); }
+.signal-summary.is-normal p, .signal-summary.is-alert p { color: var(--color-text-primary); }
 .result-chart-panel, .table-panel, .warning-panel { margin-bottom: var(--space-5); }
 .table-scroll { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }

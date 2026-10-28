@@ -12,6 +12,8 @@ export type ImrView = {
   center: number;
   ucl: number;
   lcl: number;
+  movingRangePoints?: ProcessPoint[];
+  movingRange?: { center: number; ucl: number; lcl: number };
 };
 
 export function toImrView(result: ResultBundle | undefined): ImrView | null {
@@ -21,6 +23,9 @@ export function toImrView(result: ResultBundle | undefined): ImrView | null {
   const signals = result.plots.individuals?.signals;
   const ruleSignals = result.plots.individuals?.rule_signals;
   const limits = result.tables.limits?.individuals;
+  const movingRangeValues = result.plots.moving_range?.values;
+  const movingRangeSignals = result.plots.moving_range?.signals;
+  const movingRangeLimits = result.tables.limits?.moving_range;
   if (!Array.isArray(values) || !Array.isArray(signals) || !limits) return null;
   if (![limits.center, limits.ucl, limits.lcl].every(Number.isFinite)) return null;
 
@@ -45,8 +50,28 @@ export function toImrView(result: ResultBundle | undefined): ImrView | null {
       signal: signalIndices.has(zeroBasedIndex),
       rules: [...(rulesByIndex.get(zeroBasedIndex) ?? [])].sort(),
     }));
+  const hasMovingRange = Array.isArray(movingRangeValues) && Array.isArray(movingRangeSignals) && movingRangeLimits
+    && [movingRangeLimits.center, movingRangeLimits.ucl, movingRangeLimits.lcl].every(Number.isFinite);
+  if (hasMovingRange && (
+    movingRangeValues.some((value) => typeof value !== "number" || !Number.isFinite(value))
+    || movingRangeSignals.some((value) => typeof value !== "number" || !Number.isInteger(value) || value < 1 || value > movingRangeValues.length)
+  )) return null;
+  const movingRangeSignalSet = new Set(hasMovingRange ? movingRangeSignals as number[] : []);
+  const movingRangePoints = hasMovingRange ? (movingRangeValues as number[]).map((value, zeroBasedIndex) => ({
+    index: zeroBasedIndex + 1,
+    value,
+    signal: movingRangeSignalSet.has(zeroBasedIndex + 1),
+    rules: [],
+  })) : undefined;
 
-  return { points, center: limits.center, ucl: limits.ucl, lcl: limits.lcl };
+  return {
+    points,
+    center: limits.center,
+    ucl: limits.ucl,
+    lcl: limits.lcl,
+    movingRangePoints,
+    movingRange: hasMovingRange ? movingRangeLimits : undefined,
+  };
 }
 
 export type XbarSView = {
