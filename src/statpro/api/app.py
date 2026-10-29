@@ -72,6 +72,7 @@ from statpro.application.reports import (
     export_doe_report_zip,
     render_doe_report_html,
 )
+from statpro.dmaic import DmaicCharter, DmaicInputError, DmaicProject, create_project, save_charter
 from statpro.domain.data import (
     DatasetSnapshot,
     DataType,
@@ -115,6 +116,8 @@ DATASETS = "datasets"
 WORKSHEETS = "worksheets"
 FMEA_STUDIES = "fmea-studies"
 FMEA_AP_POLICIES = "fmea-action-priority-policies"
+DMAIC_PROJECTS = "dmaic-projects"
+DMAIC_CHARTERS = "dmaic-charters"
 RunId = Annotated[str, Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")]
 
 
@@ -537,6 +540,47 @@ class StoredFmeaStudyResponse(ApiModel):
     study: dict[str, Any]
 
 
+class CreateDmaicProjectRequest(ApiModel):
+    project_id: RunId
+    title: str
+    owner_ref: str
+    sponsor_ref: str | None = None
+    champion_ref: str | None = None
+    department: str | None = None
+    start_date: str | None = None
+    target_end_date: str | None = None
+
+
+class SaveDmaicCharterRequest(ApiModel):
+    expected_storage_version: int = Field(ge=1)
+    business_case: str
+    problem_statement: str
+    scope_in: list[str] = Field(min_length=1)
+    scope_out: list[str] = Field(min_length=1)
+    success_metrics: list[str] = Field(min_length=1)
+    team_refs: list[str] = Field(min_length=1)
+    budget: str | None = None
+    milestones: list[str] = Field(min_length=1)
+    risk_refs: list[str] = Field(min_length=1)
+    assumptions_constraints: list[str] = Field(min_length=1)
+    actor: str
+    occurred_at: str
+
+
+class StoredDmaicProjectResponse(ApiModel):
+    project_id: str
+    storage_version: int
+    etag: str
+    project: dict[str, Any]
+
+
+class StoredDmaicCharterResponse(ApiModel):
+    document_id: str
+    storage_version: int
+    etag: str
+    charter: dict[str, Any]
+
+
 class StoredActionPriorityPolicyResponse(ApiModel):
     policy_key: str
     storage_version: int
@@ -674,6 +718,73 @@ def _save_fmea_study(
         study.study_id,
         {"kind": "fmea_study", "study_id": study.study_id, "study": study.to_dict()},
         expected_version=expected_version,
+    )
+
+
+def _deserialize_dmaic_project(stored: StoredDocument) -> DmaicProject:
+    try:
+        return DmaicProject.from_dict(stored.document["project"])
+    except (KeyError, TypeError, ValueError, DmaicInputError) as error:
+        raise DocumentStoreError(
+            f"Stored DMAIC project {stored.key} does not match its owned format."
+        ) from error
+
+
+def _deserialize_dmaic_charter(stored: StoredDocument) -> DmaicCharter:
+    try:
+        return DmaicCharter.from_dict(stored.document["charter"])
+    except (KeyError, TypeError, ValueError, DmaicInputError) as error:
+        raise DocumentStoreError(
+            f"Stored DMAIC charter {stored.key} does not match its owned format."
+        ) from error
+
+
+def _dmaic_project_response(stored: StoredDocument) -> StoredDmaicProjectResponse:
+    project = _deserialize_dmaic_project(stored)
+    return StoredDmaicProjectResponse(
+        project_id=stored.key,
+        storage_version=stored.storage_version,
+        etag=stored.etag,
+        project=project.to_dict(),
+    )
+
+
+def _dmaic_charter_response(stored: StoredDocument) -> StoredDmaicCharterResponse:
+    charter = _deserialize_dmaic_charter(stored)
+    return StoredDmaicCharterResponse(
+        document_id=stored.key,
+        storage_version=stored.storage_version,
+        etag=stored.etag,
+        charter=charter.to_dict(),
+    )
+
+
+def _load_dmaic_project(
+    repository: DocumentRepository, project_id: str
+) -> tuple[StoredDocument, DmaicProject]:
+    stored = repository.load(DMAIC_PROJECTS, project_id)
+    return stored, _deserialize_dmaic_project(stored)
+
+
+def _save_dmaic_project(
+    repository: DocumentRepository, project: DmaicProject, *, expected_version: int
+) -> StoredDocument:
+    return repository.save(
+        DMAIC_PROJECTS,
+        project.project_id,
+        {"kind": "dmaic_project", "project_id": project.project_id, "project": project.to_dict()},
+        expected_version=expected_version,
+    )
+
+
+def _save_dmaic_charter(
+    repository: DocumentRepository, charter: DmaicCharter
+) -> StoredDocument:
+    return repository.save(
+        DMAIC_CHARTERS,
+        charter.document_id,
+        {"kind": "dmaic_project_charter", "document_id": charter.document_id, "charter": charter.to_dict()},
+        expected_version=0,
     )
 
 
@@ -1748,6 +1859,84 @@ def create_app(
         stored, _policy = _load_action_priority_policy(repository, policy_key)
         response.headers["ETag"] = f'"{stored.etag}"'
         return _action_priority_policy_response(stored)
+
+    @app.post("/v1/dmaic-projects", status_code=201, response_model=StoredDmaicProjectResponse)
+    def create_dmaic_project(
+        request: CreateDmaicProjectRequest, response: Response
+    ) -> StoredDmaicProjectResponse:
+        project = create_project(**request.model_dump())
+        stored = _save_dmaic_project(repository, project, expected_version=0)
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _dmaic_project_response(stored)
+
+    @app.get("/v1/dmaic-projects")
+    def list_dmaic_projects(
+        limit: Annotated[int, Query(ge=1, le=100)] = 50,
+        after: Annotated[str | None, Query(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")] = None,
+    ) -> dict[str, Any]:
+        stored = repository.list_documents(DMAIC_PROJECTS, after=after, limit=limit + 1)
+        has_more = len(stored) > limit
+        page = stored[:limit]
+        return {
+            "items": [_dmaic_project_response(item).model_dump() for item in page],
+            "next_after": page[-1].key if has_more and page else None,
+        }
+
+    @app.get("/v1/dmaic-projects/{project_id}", response_model=StoredDmaicProjectResponse)
+    def get_dmaic_project(project_id: RunId, response: Response) -> StoredDmaicProjectResponse:
+        stored, _project = _load_dmaic_project(repository, project_id)
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _dmaic_project_response(stored)
+
+    @app.post(
+        "/v1/dmaic-projects/{project_id}/charters",
+        status_code=201,
+        response_model=StoredDmaicProjectResponse,
+    )
+    def create_dmaic_charter(
+        project_id: RunId, request: SaveDmaicCharterRequest, response: Response
+    ) -> StoredDmaicProjectResponse:
+        stored, project = _load_dmaic_project(repository, project_id)
+        if stored.storage_version != request.expected_storage_version:
+            raise DocumentConflictError(
+                f"Expected storage version {request.expected_storage_version}; found {stored.storage_version}."
+            )
+        revised, charter = save_charter(
+            project,
+            business_case=request.business_case,
+            problem_statement=request.problem_statement,
+            scope_in=tuple(request.scope_in),
+            scope_out=tuple(request.scope_out),
+            success_metrics=tuple(request.success_metrics),
+            team_refs=tuple(request.team_refs),
+            budget=request.budget,
+            milestones=tuple(request.milestones),
+            risk_refs=tuple(request.risk_refs),
+            assumptions_constraints=tuple(request.assumptions_constraints),
+            actor=request.actor,
+            occurred_at=request.occurred_at,
+        )
+        _save_dmaic_charter(repository, charter)
+        saved = _save_dmaic_project(
+            repository, revised, expected_version=request.expected_storage_version
+        )
+        response.headers["ETag"] = f'"{saved.etag}"'
+        return _dmaic_project_response(saved)
+
+    @app.get(
+        "/v1/dmaic-projects/{project_id}/charters/{document_id}",
+        response_model=StoredDmaicCharterResponse,
+    )
+    def get_dmaic_charter(
+        project_id: RunId, document_id: RunId, response: Response
+    ) -> StoredDmaicCharterResponse:
+        _stored_project, project = _load_dmaic_project(repository, project_id)
+        stored = repository.load(DMAIC_CHARTERS, document_id)
+        charter = _deserialize_dmaic_charter(stored)
+        if charter.project_id != project.project_id:
+            raise DocumentNotFoundError(f"Document {DMAIC_CHARTERS}/{document_id} does not exist.")
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _dmaic_charter_response(stored)
 
     @app.post("/v1/fmea-studies", status_code=201, response_model=StoredFmeaStudyResponse)
     def create_study(

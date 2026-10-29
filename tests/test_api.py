@@ -715,6 +715,50 @@ class LocalApiContractTests(unittest.TestCase):
         self.assertEqual([item["run_id"] for item in second["items"]], ["run-003"])
         self.assertIsNone(second["next_after"])
 
+    def test_dmaic_project_charter_is_versioned_and_retrievable(self) -> None:
+        created = self.client.post(
+            "/v1/dmaic-projects",
+            json={
+                "project_id": "DMAIC-001",
+                "title": "Connector yield",
+                "owner_ref": "quality.engineer",
+                "department": "Quality",
+            },
+        )
+        self.assertEqual(created.status_code, 201)
+        self.assertEqual(created.json()["project"]["revision"], 1)
+
+        charter_request = {
+            "expected_storage_version": 1,
+            "business_case": "Reduce scrap cost",
+            "problem_statement": "Connector insertion failures exceed target.",
+            "scope_in": ["Assembly"],
+            "scope_out": ["Supplier process"],
+            "success_metrics": ["First pass yield"],
+            "team_refs": ["quality.engineer"],
+            "budget": "5000000 KRW",
+            "milestones": ["Measure by 2026-11-01"],
+            "risk_refs": ["RISK-001"],
+            "assumptions_constraints": ["Line availability"],
+            "actor": "quality.engineer",
+            "occurred_at": "2026-10-30T09:00:00+09:00",
+        }
+        revised = self.client.post("/v1/dmaic-projects/DMAIC-001/charters", json=charter_request)
+        self.assertEqual(revised.status_code, 201)
+        self.assertEqual(revised.json()["storage_version"], 2)
+        charter_ref = revised.json()["project"]["charter"]
+        self.assertEqual(charter_ref["revision"], 1)
+        self.assertNotIn("business_case", revised.json()["project"])
+
+        charter = self.client.get(
+            f"/v1/dmaic-projects/DMAIC-001/charters/{charter_ref['document_id']}"
+        )
+        self.assertEqual(charter.status_code, 200)
+        self.assertEqual(charter.json()["charter"]["business_case"], "Reduce scrap cost")
+
+        conflict = self.client.post("/v1/dmaic-projects/DMAIC-001/charters", json=charter_request)
+        self.assertEqual(conflict.status_code, 409)
+
     def test_fmea_study_is_created_revised_listed_and_submitted(self) -> None:
         created = self.client.post(
             "/v1/fmea-studies",
