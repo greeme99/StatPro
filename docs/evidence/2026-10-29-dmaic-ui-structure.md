@@ -7,6 +7,10 @@
 - 각 단계는 도구를 카드로 나열하고, 단계 목적과 다음 행동을 함께 보인다.
 - Measure에는 MSA/Gage R&R, 기준 성능, SPC가, Improve에는 DOE가, Control에는
   관리계획서·공정능력·SPC가 배치되어 있다.
+- Define 입력 화면은 프로젝트 헌장(정보·사업 타당성·범위·성공 지표·팀·예산·이정표·
+  이해관계자·위험·가정), VOC, SIPOC, 문제 정의, 이해관계자 분석의 개별 폼을 보인다.
+- 프로젝트 헌장은 첫 패널만 펼치고 나머지는 접힌 섹션으로 표시한다. VOC는 수집과
+  요구사항·불편·기회·조치·권고를, SIPOC는 공정 경계와 다섯 요소의 목록을 입력한다.
 
 ## StatPro 적용 결정
 
@@ -17,6 +21,10 @@
 - 현재 구현 연결은 Measure의 MSA/Gage R&R·공정능력·SPC, Improve의 DOE, Control의
   FMEA 관리계획서와 SPC다. Define/Analyze의 업무 산출물과 Improve의 파일럿·비용편익,
   Control의 품질 대시보드는 개발 예정으로 남긴다.
+- Define은 `DmaicProject`와 immutable 연결 문서의 첫 수직 증분으로 계획한다. 프로젝트
+  헌장과 VOC/SIPOC/문제 정의/이해관계자 분석은 독립 revision과 digest를 갖고, 프로젝트는
+  그 ID·digest만 참조한다. 따라서 다른 단계의 Analysis Run 또는 FMEA Study를 복제하거나
+  변경하지 않는다.
 
 ## 제한
 
