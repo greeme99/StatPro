@@ -491,6 +491,12 @@ class FmeaWorkflowTests(unittest.TestCase):
             "actor": "quality.approver", "occurred_at": NOW, "audit_sequence": 6,
             "authenticated": True,
             "electronic_signature": approval_signature(study).to_dict(),
+            "authorization_context": {
+                "policy": {"require_independent_approver": False},
+                "prior_actor_match_count": None,
+                "prior_actor_identity_match": None,
+                "actor_identity_limit": "No approval authorization context was recorded.",
+            },
         })
         self.assertEqual(report["rows"][0]["actions"][0]["status"], "complete")
         self.assertEqual(report["rows"][0]["failure"]["current_ratings"]["rpn"], 32)

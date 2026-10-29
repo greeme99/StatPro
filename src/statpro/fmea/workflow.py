@@ -659,7 +659,10 @@ def submit_for_review(
 
 
 def approve_study(
-    study: FmeaStudySnapshot, *, signature: ApprovalSignature
+    study: FmeaStudySnapshot,
+    *,
+    signature: ApprovalSignature,
+    authorization_context: dict[str, Any] | None = None,
 ) -> FmeaStudySnapshot:
     if study.status != StudyStatus.IN_REVIEW:
         raise FmeaInputError(
@@ -691,6 +694,14 @@ def approve_study(
         "study_approved",
         signature.signer_id,
         signature.executed_at,
-        {"electronic_signature": signature.to_dict()},
+        {
+            "electronic_signature": signature.to_dict(),
+            "authorization_context": authorization_context or {
+                "policy": {"require_independent_approver": False},
+                "prior_actor_match_count": None,
+                "prior_actor_identity_match": None,
+                "actor_identity_limit": "No approval authorization context was recorded.",
+            },
+        },
     )
     return _revise(study, event=event, status=StudyStatus.APPROVED)

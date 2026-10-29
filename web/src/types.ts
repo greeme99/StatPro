@@ -192,6 +192,12 @@ export type FmeaStudyReport = {
     occurred_at: string;
     audit_sequence: number;
     authenticated: boolean;
+    authorization_context: {
+      policy: { require_independent_approver: boolean };
+      prior_actor_match_count: number | null;
+      prior_actor_identity_match: boolean | null;
+      actor_identity_limit: string;
+    } | null;
     electronic_signature: {
       signer_id: string;
       signer_name: string;

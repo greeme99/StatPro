@@ -46,6 +46,40 @@ class ApprovalIdentityTests(unittest.TestCase):
                 "quality.reviewer", "correct horse battery staple"
             )
 
+    def test_inactive_identity_is_denied_after_reauthentication(self) -> None:
+        identity = create_approval_identity(
+            user_id="quality.former-approver",
+            display_name="Former Approver",
+            password="correct horse battery staple",
+            active=False,
+        )
+        with self.assertRaisesRegex(ApprovalAuthorizationError, "inactive"):
+            LocalApprovalAuthenticator((identity,)).authenticate(
+                "quality.former-approver", "correct horse battery staple"
+            )
+
+    def test_configured_independent_approver_rejects_prior_actor(self) -> None:
+        password = "correct horse battery staple"
+        identity = create_approval_identity(
+            user_id="quality.approver",
+            display_name="Quality Approver",
+            password=password,
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "approval-identities.json"
+            path.write_text(json.dumps({
+                "format": "statpro.approval-identities.v1",
+                "identities": [identity],
+                "approval_policy": {"require_independent_approver": True},
+            }), encoding="utf-8")
+            authenticator = LocalApprovalAuthenticator.from_file(path)
+            principal = authenticator.authenticate("quality.approver", password)
+            with self.assertRaisesRegex(ApprovalAuthorizationError, "Independent approval"):
+                authenticator.authorization_context(
+                    signer_id=principal.user_id,
+                    prior_actors=("quality.engineer", "quality.approver"),
+                )
+
     def test_identity_file_is_atomic_readable_and_contains_no_password(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "approval-identities.json"

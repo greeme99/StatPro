@@ -13,6 +13,7 @@ from fastapi.testclient import TestClient
 
 from statpro.api import create_app
 from statpro.application.approval import (
+    ApprovalPolicy,
     LocalApprovalAuthenticator,
     create_approval_identity,
 )
@@ -1216,6 +1217,38 @@ class LocalApiContractTests(unittest.TestCase):
                 "study_approved",
             ],
         )
+
+    def test_independent_approval_policy_blocks_a_prior_study_actor(self) -> None:
+        created = self.client.post("/v1/fmea-studies", json={
+            "study_id": "PFMEA-SOD", "name": "SoD boundary", "study_type": "process",
+            "standard_version": "customer-standard-2026", "actor": "quality.approver",
+            "occurred_at": "2026-10-29T09:00:00+09:00",
+        })
+        self.assertEqual(created.status_code, 201)
+        failure = self.client.post("/v1/fmea-studies/PFMEA-SOD/failure-analyses", json={
+            "expected_storage_version": 1, "item_id": "FA-001", "structure_element": "Assembly",
+            "function": "Connect", "requirement": "Stable connection", "failure_mode": "Open",
+            "effect": "No output", "cause": "Loose terminal", "prevention_control": "Torque",
+            "detection_control": "Continuity", "ratings": {"severity": 8, "occurrence": 2, "detection": 3},
+            "actor": "quality.engineer", "occurred_at": "2026-10-29T09:05:00+09:00",
+        })
+        self.assertEqual(failure.status_code, 200)
+        submitted = self.client.post("/v1/fmea-studies/PFMEA-SOD/submit-review", json={
+            "expected_storage_version": 2, "actor": "quality.reviewer", "occurred_at": "2026-10-29T09:10:00+09:00",
+        })
+        self.assertEqual(submitted.status_code, 200)
+        independent = LocalApprovalAuthenticator((
+            create_approval_identity(
+                user_id="quality.approver", display_name="Quality Approver",
+                password=self.approval_password,
+            ),
+        ), policy=ApprovalPolicy(require_independent_approver=True))
+        denied = TestClient(create_app(self.repository, independent)).post(
+            "/v1/fmea-studies/PFMEA-SOD/approve",
+            json={"expected_storage_version": 3, "user_id": "quality.approver", "password": self.approval_password, "meaning": "approval"},
+        )
+        self.assertEqual(denied.status_code, 403)
+        self.assertEqual(denied.json()["error"]["code"], "approval_not_authorized")
 
     def test_csv_worksheet_is_imported_revised_and_cursor_listed(self) -> None:
         content = base64.b64encode(

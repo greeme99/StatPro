@@ -2058,6 +2058,10 @@ def create_app(
         principal = approval_authenticator.authenticate(
             request.user_id, request.password.get_secret_value()
         )
+        authorization_context = approval_authenticator.authorization_context(
+            signer_id=principal.user_id,
+            prior_actors=tuple(event.actor for event in study.audit_events),
+        )
         evidence_checks = _check_fmea_analysis_evidence(repository, study)
         failed_checks = [check for check in evidence_checks if check["status"] != "verified"]
         if failed_checks:
@@ -2079,6 +2083,7 @@ def create_app(
                 signed_digest=study.digest,
                 executed_at=executed_at,
             ),
+            authorization_context=authorization_context,
         )
         saved = _save_fmea_study(
             repository,

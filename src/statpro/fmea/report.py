@@ -68,6 +68,7 @@ def build_study_report(
                 "audit_sequence": approval.sequence,
                 "authenticated": isinstance(electronic_signature, dict),
                 "electronic_signature": electronic_signature,
+                "authorization_context": approval.details.get("authorization_context"),
             }
             if approval else None
         ),
