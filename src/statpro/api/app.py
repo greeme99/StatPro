@@ -47,8 +47,8 @@ from statpro.analyses.spc import (
     laney_u_prime,
     np_chart,
     p_chart,
-    u_chart,
     t_chart,
+    u_chart,
     xbar_r,
     xbar_s,
 )
@@ -393,6 +393,8 @@ class DoeAnalysisReportResponse(ApiModel):
     diagnostics: dict[str, Any]
     tables: list[DoeReportTableResponse]
     plots: dict[str, Any]
+    figures: list[dict[str, str]]
+    template: dict[str, Any]
     assumptions: list[str]
     warnings: list[str]
     provenance: list[dict[str, Any]]
@@ -1560,14 +1562,21 @@ def create_app(
         "/v1/analysis-runs/{run_id}/report",
         response_model=DoeAnalysisReportResponse,
     )
-    def get_doe_report(run_id: RunId, response: Response) -> dict[str, Any]:
-        report = build_doe_report(repository.load(ANALYSIS_RUNS, run_id))
+    def get_doe_report(
+        run_id: RunId,
+        response: Response,
+        template_id: Annotated[str, Query(pattern=r"^(standard|customer_review|regulatory_review)$")] = "standard",
+    ) -> dict[str, Any]:
+        report = build_doe_report(repository.load(ANALYSIS_RUNS, run_id), template_id=template_id)
         response.headers["ETag"] = f'"{report["report_digest"]}"'
         return report
 
     @app.get("/v1/analysis-runs/{run_id}/report.html")
-    def get_doe_report_html(run_id: RunId) -> Response:
-        report = build_doe_report(repository.load(ANALYSIS_RUNS, run_id))
+    def get_doe_report_html(
+        run_id: RunId,
+        template_id: Annotated[str, Query(pattern=r"^(standard|customer_review|regulatory_review)$")] = "standard",
+    ) -> Response:
+        report = build_doe_report(repository.load(ANALYSIS_RUNS, run_id), template_id=template_id)
         return Response(
             content=render_doe_report_html(report),
             media_type="text/html",
@@ -1578,8 +1587,11 @@ def create_app(
         )
 
     @app.get("/v1/analysis-runs/{run_id}/export")
-    def export_doe_report(run_id: RunId) -> Response:
-        report = build_doe_report(repository.load(ANALYSIS_RUNS, run_id))
+    def export_doe_report(
+        run_id: RunId,
+        template_id: Annotated[str, Query(pattern=r"^(standard|customer_review|regulatory_review)$")] = "standard",
+    ) -> Response:
+        report = build_doe_report(repository.load(ANALYSIS_RUNS, run_id), template_id=template_id)
         return Response(
             content=export_doe_report_zip(report),
             media_type="application/zip",

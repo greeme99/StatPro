@@ -27,9 +27,12 @@ export function getRun(runId: string): Promise<StoredRun> {
   return request(`/v1/analysis-runs/${encodeURIComponent(runId)}`);
 }
 
-export function doeRunArtifactUrl(runId: string, artifact: "html" | "zip"): string {
+export type DoeReportTemplate = "standard" | "customer_review" | "regulatory_review";
+
+export function doeRunArtifactUrl(runId: string, artifact: "html" | "zip", template: DoeReportTemplate = "standard"): string {
   const suffix = artifact === "html" ? "report.html" : "export";
-  return `${API_BASE}/v1/analysis-runs/${encodeURIComponent(runId)}/${suffix}`;
+  const templateQuery = template === "standard" ? "" : `?template_id=${encodeURIComponent(template)}`;
+  return `${API_BASE}/v1/analysis-runs/${encodeURIComponent(runId)}/${suffix}${templateQuery}`;
 }
 
 export function createImrRun(payload: {

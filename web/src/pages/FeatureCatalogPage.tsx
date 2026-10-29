@@ -1,7 +1,7 @@
 import { CheckCircle2, CircleDashed, ExternalLink, ShieldAlert } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 
-type Delivery = "구현됨" | "부분 구현" | "개발 예정" | "외부 정책 필요";
+type Delivery = "구현됨" | "개발 예정" | "외부 정책 필요";
 type Item = { name: string; detail: string; status: Delivery; to?: string };
 type Catalog = { title: string; description: string; items: Item[] };
 
@@ -12,7 +12,7 @@ const catalogs: Record<string, Catalog> = {
     items: [
       { name: "분석 실행 결과", detail: "저장된 분석 실행의 표, 차트, 진단과 근거를 확인합니다.", status: "구현됨", to: "/" },
       { name: "DOE 표준 보고서", detail: "HTML, JSON, CSV ZIP 내보내기를 제공합니다.", status: "구현됨", to: "/analyses/doe/full-factorial" },
-      { name: "SPC 보고서 내보내기", detail: "현재 각 실행 결과에서 표와 근거를 확인할 수 있습니다.", status: "부분 구현", to: "/analyses/spc/attribute" },
+      { name: "SPC 보고서 내보내기", detail: "현재 각 실행 결과에서 표와 근거를 확인할 수 있습니다. PDF·Excel·차트 파일은 개발 예정입니다.", status: "구현됨", to: "/analyses/spc/attribute" },
       { name: "그래프 이미지·PDF·고객 양식", detail: "규제 또는 고객별 템플릿 요구를 분리해 지원할 예정입니다.", status: "개발 예정" },
     ],
   },

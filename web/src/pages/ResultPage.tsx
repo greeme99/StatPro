@@ -1,7 +1,7 @@
 import { AlertTriangle, ArrowLeft, BookOpen, CheckCircle2, Download, FileText, X } from "lucide-react";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { doeRunArtifactUrl, getRun } from "../api";
+import { doeRunArtifactUrl, getRun, type DoeReportTemplate } from "../api";
 import { toAttributeChartView, toCusumView, toDoeBoxBehnkenAnalysisView, toDoeBoxBehnkenView, toDoeCentralCompositeAnalysisView, toDoeCentralCompositeSurfaceView, toDoeCentralCompositeView, toDoeDesirabilityView, toDoeFractionalAnalysisView, toDoeFractionalView, toDoePlackettBurmanAnalysisView, toDoePlackettBurmanView, toDoeView, toEwmaView, toImrView, toRareEventChartView, toXbarSView, type AttributeChartView, type CusumView, type DoeBoxBehnkenView, type DoeCentralCompositeSurfaceView, type DoeCentralCompositeView, type DoeDesirabilityView, type DoeFractionalAnalysisView, type DoeFractionalView, type DoePlackettBurmanAnalysisView, type DoePlackettBurmanView, type DoeQuadraticAnalysisView, type DoeView, type EwmaView, type RareEventChartView, type XbarSView } from "../analysis";
 import { Button } from "../components/Button";
 import { ControlChartStatistics, ControlLimitBadges, ControlSignalSummary } from "../components/ControlChartResultSections";
@@ -18,6 +18,7 @@ export function ResultPage() {
   const [run, setRun] = useState<StoredRun | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [search, setSearch] = useSearchParams();
+  const [doeTemplate, setDoeTemplate] = useState<DoeReportTemplate>("standard");
   const closeButton = useRef<HTMLButtonElement>(null);
   const drawer = useRef<HTMLElement>(null);
   const drawerTrigger = useRef<HTMLButtonElement>(null);
@@ -79,7 +80,7 @@ export function ResultPage() {
       <Link className="back-link" to="/"><ArrowLeft aria-hidden="true" /> 분석 홈</Link>
       <section className="result-header">
         <div><span className="eyebrow">ANALYSIS RUN / {result.analysis_type}</span><h1>{run.run_id}</h1><p className="digest">SHA-256 · {result.input_digest}</p></div>
-        <div className="result-actions"><span className="status-badge is-success"><CheckCircle2 aria-hidden="true" /> 완료</span>{isDoe && <><a className="button button-secondary" href={doeRunArtifactUrl(run.run_id, "html")} download><FileText aria-hidden="true" /><span>HTML 보고서</span></a><a className="button button-secondary" href={doeRunArtifactUrl(run.run_id, "zip")} download><Download aria-hidden="true" /><span>CSV·JSON 묶음</span></a></>}<ResultExportMenu runId={run.run_id} result={result} /><Button ref={drawerTrigger} icon={<BookOpen />} onClick={() => setSearch({ detail: "provenance" })}>계산 근거</Button></div>
+        <div className="result-actions"><span className="status-badge is-success"><CheckCircle2 aria-hidden="true" /> 완료</span>{isDoe && <><label className="report-template-control">보고서 양식<select aria-label="DOE 보고서 양식" value={doeTemplate} onChange={(event) => setDoeTemplate(event.target.value as DoeReportTemplate)}><option value="standard">표준 분석 보고서</option><option value="customer_review">고객 검토용 보고서</option><option value="regulatory_review">규제 검토용 보고서</option></select></label><a className="button button-secondary" href={doeRunArtifactUrl(run.run_id, "html", doeTemplate)} download><FileText aria-hidden="true" /><span>HTML 보고서</span></a><a className="button button-secondary" href={doeRunArtifactUrl(run.run_id, "zip", doeTemplate)} download><Download aria-hidden="true" /><span>그래프·CSV·JSON 묶음</span></a></>}<ResultExportMenu runId={run.run_id} result={result} /><Button ref={drawerTrigger} icon={<BookOpen />} onClick={() => setSearch({ detail: "provenance" })}>계산 근거</Button></div>
       </section>
       {imr ? <>
       <ControlChartStatistics center={imr.center} ucl={imr.ucl} lcl={imr.lcl} totalPoints={imr.points.length} signalCount={signalCount} />

@@ -110,7 +110,7 @@ class LocalApiContractTests(unittest.TestCase):
         exported = self.client.get("/v1/analysis-runs/doe-report-001/export")
 
         self.assertEqual(report.status_code, 200)
-        self.assertEqual(report.json()["report_type"], "statpro.doe.analysis_report.v1")
+        self.assertEqual(report.json()["report_type"], "statpro.doe.analysis_report.v2")
         self.assertEqual(report.json()["run"]["etag"], created.json()["etag"])
         self.assertEqual(report.headers["etag"], html.headers["etag"])
         self.assertEqual(report.headers["etag"], exported.headers["etag"])
@@ -120,6 +120,13 @@ class LocalApiContractTests(unittest.TestCase):
         with zipfile.ZipFile(io.BytesIO(exported.content)) as archive:
             self.assertEqual(archive.namelist()[0:2], ["report.html", "report.json"])
             self.assertIn("tables/01-design.csv", archive.namelist())
+
+        customer_report = self.client.get(
+            "/v1/analysis-runs/doe-report-001/report?template_id=customer_review"
+        )
+        self.assertEqual(customer_report.status_code, 200)
+        self.assertEqual(customer_report.json()["template"]["id"], "customer_review")
+        self.assertNotEqual(customer_report.headers["etag"], report.headers["etag"])
 
     def test_doe_report_rejects_a_non_doe_run(self) -> None:
         self.client.post(

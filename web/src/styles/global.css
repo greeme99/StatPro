@@ -45,6 +45,8 @@ svg { width: var(--icon-size); height: var(--icon-size); stroke-width: 1.8; }
 .button-secondary { color: var(--color-text-primary); background: var(--color-bg-surface); border-color: var(--color-border-strong); }
 .button-secondary:hover:not(:disabled), .button-ghost:hover:not(:disabled) { background: var(--color-bg-hover); }
 .button-ghost { color: var(--color-action); background: transparent; }
+.report-template-control { display: grid; gap: var(--space-1); color: var(--color-text-secondary); font-size: 12px; font-weight: 600; }
+.report-template-control select { min-height: var(--control-height); padding: var(--space-0) var(--space-2); color: var(--color-text-primary); background: var(--color-bg-surface); border: var(--border-width) solid var(--color-border-strong); border-radius: var(--radius-md); }
 .spinner { width: var(--space-4); height: var(--space-4); border: 2px solid currentColor; border-right-color: transparent; border-radius: var(--radius-pill); animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .metric-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--grid-gap); margin-bottom: var(--space-5); }
