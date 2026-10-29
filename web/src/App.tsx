@@ -21,6 +21,8 @@ import { FeatureCatalogPage } from "./pages/FeatureCatalogPage";
 import { DoeWorkspacePage } from "./pages/DoeWorkspacePage";
 import { RareEventChartSetupPage } from "./pages/RareEventChartSetupPage";
 import { MenuPreviewPage } from "./pages/MenuPreviewPage";
+import { DmaicGuidePreviewPage } from "./pages/DmaicGuidePreviewPage";
+import { LearningResourcesPreviewPage } from "./pages/LearningResourcesPreviewPage";
 
 export default function App() {
   return (
@@ -46,6 +48,8 @@ export default function App() {
         <Route path="/fmea" element={<FmeaListPage />} />
         <Route path="/fmea/:studyId" element={<FmeaStudyPage />} />
         <Route path="/ui-preview" element={<MenuPreviewPage />} />
+        <Route path="/ui-preview/dmaic" element={<DmaicGuidePreviewPage />} />
+        <Route path="/ui-preview/learning" element={<LearningResourcesPreviewPage />} />
         <Route path="/catalog/:section" element={<FeatureCatalogPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

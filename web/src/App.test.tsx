@@ -39,11 +39,28 @@ describe("StatPro UI", () => {
   it("renders the menu and UI preview with truthful delivery states", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 }));
     render(<MemoryRouter initialEntries={["/ui-preview"]}><App /></MemoryRouter>);
-    expect(await screen.findByRole("heading", { name: "StatPro 메뉴와 작업공간 구조" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "현재 사용할 수 있는 전문 작업공간" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "제조·품질 분석의 시작점" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "핵심 전문 작업공간" })).toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: "작업공간 열기" })[0]).toHaveAttribute("href", "/doe");
-    expect(screen.getAllByText("개발 예정").length).toBeGreaterThan(4);
+    expect(screen.getAllByText("개발 예정").length).toBeGreaterThanOrEqual(4);
     expect(screen.getAllByText("외부 정책 필요").length).toBeGreaterThan(1);
+    expect(screen.getByRole("link", { name: "DMAIC 알아보기" })).toHaveAttribute("href", "/ui-preview/dmaic");
+  });
+
+  it("renders the DMAIC guide as an explanation page linked from the home preview", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 }));
+    render(<MemoryRouter initialEntries={["/ui-preview/dmaic"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "DMAIC를 따라 개선 과제를 구조화합니다" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "DMAIC 단계별 안내" })).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "작업공간 열기" })[0]).toHaveAttribute("href", "/analyses/spc/attribute");
+  });
+
+  it("renders learning resources linked from the DMAIC guide", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 }));
+    render(<MemoryRouter initialEntries={["/ui-preview/learning"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "품질 개선을 위한 학습 리소스" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "DMAIC 방법론 개요" })).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "작업공간 열기" })[0]).toHaveAttribute("href", "/analyses/spc/attribute");
   });
 
   it("submits a standardized two-sided CUSUM plan", async () => {

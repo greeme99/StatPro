@@ -63,7 +63,7 @@ svg { width: var(--icon-size); height: var(--icon-size); stroke-width: 1.8; }
 .feature-catalog { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--grid-gap); }
 .menu-preview { display: grid; gap: var(--space-8); }
 .menu-preview .breadcrumb { margin-bottom: calc(var(--space-8) * -1); }
-.preview-hero, .preview-shell, .preview-dmaic, .preview-contract { border: var(--border-width) solid var(--color-border); border-radius: var(--radius-xl); background: var(--color-bg-surface); box-shadow: var(--shadow-sm); }
+.preview-hero, .preview-shell, .preview-dmaic, .preview-contract, .home-quick-panel, .home-core-panel, .home-dmaic-panel, .home-menu-summary { border: var(--border-width) solid var(--color-border); border-radius: var(--radius-xl); background: var(--color-bg-surface); box-shadow: var(--shadow-sm); }
 .preview-hero { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-8); padding: var(--space-8); }
 .preview-hero h1 { margin: var(--space-2) var(--space-0); font-size: var(--font-display-size); line-height: 1.25; letter-spacing: -.4px; }
 .preview-legend { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-2); }
@@ -98,6 +98,48 @@ svg { width: var(--icon-size); height: var(--icon-size); stroke-width: 1.8; }
 .preview-contract { display: flex; align-items: flex-start; gap: var(--space-4); padding: var(--space-6); }
 .preview-contract > svg { flex: 0 0 auto; color: var(--color-status-success); }
 .preview-contract p { margin-top: var(--space-2); }
+.home-quick-panel, .home-core-panel { padding: var(--space-8); }
+.home-action-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--grid-gap); }
+.home-action-card { min-height: calc(var(--space-16) * 2); display: grid; grid-template-columns: var(--touch-target) minmax(0, 1fr) auto; align-items: center; gap: var(--space-3); padding: var(--card-pad); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-bg-surface); font-weight: 700; }
+.home-action-card:hover:not(.is-unavailable) { border-color: var(--color-action); background: var(--color-bg-selected); }
+.home-action-card.is-unavailable { color: var(--color-text-secondary); }
+.home-action-card .preview-status { min-height: calc(var(--control-height) - var(--space-3)); padding: var(--space-1) var(--space-2); }
+.home-dmaic-panel { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: var(--space-8); padding: var(--space-8); background: var(--color-bg-selected); }
+.preview-hero-actions { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+.home-dmaic-panel h2, .home-menu-summary h2 { margin: var(--space-2) var(--space-0); }
+.home-dmaic-panel .preview-legend { justify-content: flex-start; margin-top: var(--space-5); }
+.home-dmaic-list { display: grid; gap: var(--space-3); margin: var(--space-0); padding: var(--space-0); list-style: none; }
+.home-dmaic-list li { display: grid; grid-template-columns: var(--touch-target) minmax(0, 1fr); gap: var(--space-3); align-items: start; padding: var(--space-4); border-radius: var(--radius-lg); background: var(--color-bg-surface); }
+.home-dmaic-list li > span { display: grid; place-items: center; width: var(--touch-target); height: var(--touch-target); border-radius: var(--radius-pill); color: var(--color-action); background: var(--color-bg-selected); font-weight: 700; font-variant-numeric: tabular-nums; }
+.home-dmaic-list strong { display: block; }
+.home-dmaic-list p { margin-top: var(--space-1); font-size: var(--font-caption-size); }
+.home-menu-summary { display: flex; align-items: flex-start; gap: var(--space-4); padding: var(--space-6); }
+.home-menu-summary > svg:last-child { margin-left: auto; color: var(--color-text-muted); }
+.dmaic-guide { display: grid; gap: var(--space-8); }
+.dmaic-guide-heading { margin-bottom: var(--space-6); text-align: center; }
+.dmaic-guide-heading h2 { margin: var(--space-2) var(--space-0); }
+.dmaic-guide-heading p { margin: var(--space-0) auto; }
+.dmaic-phase-grid, .dmaic-tool-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--grid-gap); }
+.dmaic-phase-card, .dmaic-tool-card { min-height: calc(var(--space-16) * 3); display: flex; flex-direction: column; padding: var(--card-pad); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-bg-surface); box-shadow: var(--shadow-sm); }
+.dmaic-phase-card > span { display: grid; place-items: center; width: var(--touch-target); height: var(--touch-target); margin-bottom: var(--space-5); border-radius: var(--radius-pill); color: var(--color-action); background: var(--color-bg-selected); font-weight: 700; font-variant-numeric: tabular-nums; }
+.dmaic-phase-card h3, .dmaic-tool-card h3 { margin: var(--space-0) var(--space-0) var(--space-2); font-size: var(--font-card-heading-size); }
+.dmaic-phase-card small { margin-top: auto; padding-top: var(--space-5); color: var(--color-text-secondary); font-size: var(--font-caption-size); }
+.dmaic-tool-card header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.dmaic-tool-card .text-link, .dmaic-tool-card .preview-note { display: flex; align-items: center; gap: var(--space-2); margin-top: auto; padding-top: var(--space-5); }
+.dmaic-faq { max-width: var(--content-max); }
+.dmaic-faq details { border: var(--border-width) solid var(--color-border); background: var(--color-bg-surface); }
+.dmaic-faq details:first-of-type { border-radius: var(--radius-lg) var(--radius-lg) var(--radius-sm) var(--radius-sm); }
+.dmaic-faq details:last-of-type { border-radius: var(--radius-sm) var(--radius-sm) var(--radius-lg) var(--radius-lg); }
+.dmaic-faq summary { min-height: var(--touch-target); display: flex; align-items: center; padding: var(--space-4); color: var(--color-text-primary); font-weight: 700; cursor: pointer; }
+.dmaic-faq details p { padding: var(--space-0) var(--space-4) var(--space-4); }
+.learning-phase-grid, .learning-resource-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--grid-gap); }
+.learning-phase-card, .learning-resource-card, .learning-guides { display: grid; gap: var(--space-3); padding: var(--card-pad); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-bg-surface); box-shadow: var(--shadow-sm); }
+.learning-phase-card h3, .learning-resource-card h3, .learning-guides h3, .learning-guides p { margin: var(--space-0); }
+.learning-phase-card p, .learning-phase-card small, .learning-resource-card p, .learning-guides span { color: var(--color-text-secondary); }
+.learning-resource-card > header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.learning-guides { margin-top: var(--space-7); }
+.learning-guides ol { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-3); margin: var(--space-0); padding: var(--space-0); list-style: none; }
+.learning-guides li { display: grid; gap: var(--space-2); padding: var(--space-4); background: var(--color-bg-subtle); border-radius: var(--radius-md); }
 .feature-item { display: flex; flex-direction: column; min-height: calc(var(--space-16) * 3); padding: var(--card-pad); background: var(--color-bg-surface); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); }
 .feature-item header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); color: var(--color-action); }
 .feature-item h2 { margin: var(--space-5) var(--space-0) var(--space-2); }
@@ -342,6 +384,9 @@ dd { margin: var(--space-0); }
   .traceability-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .action-complete-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .inline-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .home-action-grid, .preview-grid, .dmaic-phase-grid, .dmaic-tool-grid, .learning-phase-grid, .learning-resource-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .home-dmaic-panel { grid-template-columns: 1fr; }
+  .learning-guides ol { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 767px) {
   .seven-step-list { grid-template-columns: 1fr; }
