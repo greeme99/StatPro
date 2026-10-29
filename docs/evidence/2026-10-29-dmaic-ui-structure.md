@@ -19,6 +19,9 @@
   탐색 화면은 상관/회귀와 추론 통계를 질문과 결과척도에 따라 카드로 나열한다.
 - Improve 입력 화면은 개선안 선정 매트릭스, 파일럿 계획, 비용편익 분석, 실행계획의
   기본 정보와 단계별 탭을 보인다. DOE는 개선 단계의 도구로 배치된다.
+- Control 입력 화면은 관리계획서, 공정능력, 품질 지표, SPC, 결함 분석을 단계 도구로
+  배치한다. 관리계획서에는 프로젝트 정보·공정 개요·관리 항목·모니터링·품질보증·교육·
+  문서화·결론의 탭이, 공정능력에는 데이터·규격·계산·결과 흐름이 제시된다.
 
 ## StatPro 적용 결정
 
@@ -43,6 +46,10 @@
 - Improve는 SolutionSelectionMatrix, PilotPlan, CostBenefitAnalysis,
   ImplementationPlan을 독립 revision 문서로 둔다. DOE는 기존 Analysis Run을 참조하고
   가중 점수·파일럿 성공 지표·재무 값은 입력 가정에 따른 의사결정 보조로 기록한다.
+- Control은 기존 FMEA `ControlPlan`을 관리계획서의 단일 소유자로 유지하며,
+  DmaicControlHandoff에서 관리 항목·반응 계획·검토 일정과 SPC/공정능력 Run을 참조한다.
+  품질 관리 대시보드와 일반 결함 분석은 데이터 원천 계약과 별도 revision 문서가
+  필요하므로 `개발 예정`으로 둔다.
 
 ## 제한
 
