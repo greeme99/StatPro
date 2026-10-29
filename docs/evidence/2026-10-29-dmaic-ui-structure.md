@@ -17,6 +17,8 @@
 - Analyze 입력 화면은 근본원인 분석·특성요인도·5 Why·파레토의 설정, 문제 정의,
   잠재 원인, 근본원인, 시정조치, 결론을 개별 단계 또는 문서로 보인다. 별도의 방법
   탐색 화면은 상관/회귀와 추론 통계를 질문과 결과척도에 따라 카드로 나열한다.
+- Improve 입력 화면은 개선안 선정 매트릭스, 파일럿 계획, 비용편익 분석, 실행계획의
+  기본 정보와 단계별 탭을 보인다. DOE는 개선 단계의 도구로 배치된다.
 
 ## StatPro 적용 결정
 
@@ -38,6 +40,9 @@
   ParetoStudy를 별도 revision 문서로 둔다. DOE 효과 파레토는 현재 DOE 결과에만
   존재하므로 일반 원인 파레토 기능으로 과장하지 않는다. 상관·회귀·추론 통계는
   현재 구현 증거가 없어 메뉴에서 `개발 예정`으로 남긴다.
+- Improve는 SolutionSelectionMatrix, PilotPlan, CostBenefitAnalysis,
+  ImplementationPlan을 독립 revision 문서로 둔다. DOE는 기존 Analysis Run을 참조하고
+  가중 점수·파일럿 성공 지표·재무 값은 입력 가정에 따른 의사결정 보조로 기록한다.
 
 ## 제한
 
