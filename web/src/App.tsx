@@ -20,6 +20,7 @@ import { CusumSetupPage } from "./pages/CusumSetupPage";
 import { FeatureCatalogPage } from "./pages/FeatureCatalogPage";
 import { DoeWorkspacePage } from "./pages/DoeWorkspacePage";
 import { RareEventChartSetupPage } from "./pages/RareEventChartSetupPage";
+import { MenuPreviewPage } from "./pages/MenuPreviewPage";
 
 export default function App() {
   return (
@@ -44,6 +45,7 @@ export default function App() {
         <Route path="/data/:worksheetId" element={<WorksheetPage />} />
         <Route path="/fmea" element={<FmeaListPage />} />
         <Route path="/fmea/:studyId" element={<FmeaStudyPage />} />
+        <Route path="/ui-preview" element={<MenuPreviewPage />} />
         <Route path="/catalog/:section" element={<FeatureCatalogPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

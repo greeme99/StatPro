@@ -25,6 +25,7 @@
   --ease-standard: cubic-bezier(.2,0,0,1); --ease-enter: cubic-bezier(0,0,.2,1);
   --font-sans: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  --font-display-size: 32px; --font-heading-size: 18px; --font-card-heading-size: 15px; --font-caption-size: 12px;
   --border-width: 1px; --header-height: 56px; --sidebar-width: 240px; --sidebar-compact-width: 64px;
   --control-height: 40px; --touch-target: 44px; --icon-size: 20px; --chart-height: 300px;
   --content-max: 1680px; --drawer-width: 440px; --unsupported-layer: block;

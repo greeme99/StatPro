@@ -36,6 +36,16 @@ describe("StatPro UI", () => {
     expect(screen.getByRole("link", { name: "실험계획법(DOE)" })).toBeInTheDocument();
   });
 
+  it("renders the menu and UI preview with truthful delivery states", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 }));
+    render(<MemoryRouter initialEntries={["/ui-preview"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "StatPro 메뉴와 작업공간 구조" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "현재 사용할 수 있는 전문 작업공간" })).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "작업공간 열기" })[0]).toHaveAttribute("href", "/doe");
+    expect(screen.getAllByText("개발 예정").length).toBeGreaterThan(4);
+    expect(screen.getAllByText("외부 정책 필요").length).toBeGreaterThan(1);
+  });
+
   it("submits a standardized two-sided CUSUM plan", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
