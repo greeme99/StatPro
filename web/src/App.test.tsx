@@ -38,12 +38,12 @@ describe("StatPro UI", () => {
 
   it("renders the menu and UI preview with truthful delivery states", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 }));
-    render(<MemoryRouter initialEntries={["/ui-preview"]}><App /></MemoryRouter>);
+    render(<MemoryRouter initialEntries={["/home"]}><App /></MemoryRouter>);
     expect(await screen.findByRole("heading", { name: "제조·품질 분석의 시작점" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "핵심 전문 작업공간" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "바로가기" })).not.toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: "작업공간 열기" })[0]).toHaveAttribute("href", "/doe");
-    expect(screen.getByRole("link", { name: "DMAIC 알아보기" })).toHaveAttribute("href", "/ui-preview/dmaic");
+    expect(screen.getByRole("link", { name: "DMAIC 알아보기" })).toHaveAttribute("href", "/home/dmaic");
   });
 
   it("opens the UI-preview home from the sidebar home navigation", async () => {
@@ -55,14 +55,23 @@ describe("StatPro UI", () => {
     });
     render(<MemoryRouter initialEntries={["/data"]}><App /></MemoryRouter>);
 
-    await userEvent.click(await screen.findByRole("link", { name: "홈" }));
+    const homeLink = await screen.findByRole("link", { name: "홈" });
+    expect(homeLink).toHaveAttribute("href", "/home");
+    await userEvent.click(homeLink);
+
+    expect(await screen.findByRole("heading", { name: "제조·품질 분석의 시작점" })).toBeInTheDocument();
+  });
+
+  it("redirects the retired preview URL to the fixed home URL", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 }));
+    render(<MemoryRouter initialEntries={["/ui-preview"]}><App /></MemoryRouter>);
 
     expect(await screen.findByRole("heading", { name: "제조·품질 분석의 시작점" })).toBeInTheDocument();
   });
 
   it("renders the DMAIC guide as an explanation page linked from the home preview", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 }));
-    render(<MemoryRouter initialEntries={["/ui-preview/dmaic"]}><App /></MemoryRouter>);
+    render(<MemoryRouter initialEntries={["/home/dmaic"]}><App /></MemoryRouter>);
     expect(await screen.findByRole("heading", { name: "DMAIC를 따라 개선 과제를 구조화합니다" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "DMAIC 단계별 안내" })).toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: "작업공간 열기" })[0]).toHaveAttribute("href", "/analyses/spc/attribute");
@@ -70,7 +79,7 @@ describe("StatPro UI", () => {
 
   it("renders learning resources linked from the DMAIC guide", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 }));
-    render(<MemoryRouter initialEntries={["/ui-preview/learning"]}><App /></MemoryRouter>);
+    render(<MemoryRouter initialEntries={["/home/learning"]}><App /></MemoryRouter>);
     expect(await screen.findByRole("heading", { name: "품질 개선을 위한 학습 리소스" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "DMAIC 방법론 개요" })).toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: "작업공간 열기" })[0]).toHaveAttribute("href", "/analyses/spc/attribute");

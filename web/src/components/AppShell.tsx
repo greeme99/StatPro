@@ -4,7 +4,7 @@ import { NavLink } from "react-router-dom";
 import { getHealth } from "../api";
 
 const navigation = [
-  { to: "/ui-preview", label: "홈", icon: Home },
+  { to: "/home", label: "홈", icon: Home },
   { to: "/data", label: "작업표 및 데이터", icon: Database },
   { to: "/doe", label: "실험계획법(DOE)", icon: FlaskConical },
   { to: "/analyses/spc/attribute", label: "통계적 공정관리(SPC)", icon: BarChart3 },

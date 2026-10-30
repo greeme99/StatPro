@@ -47,9 +47,12 @@ export default function App() {
         <Route path="/data/:worksheetId" element={<WorksheetPage />} />
         <Route path="/fmea" element={<FmeaListPage />} />
         <Route path="/fmea/:studyId" element={<FmeaStudyPage />} />
-        <Route path="/ui-preview" element={<MenuPreviewPage />} />
-        <Route path="/ui-preview/dmaic" element={<DmaicGuidePreviewPage />} />
-        <Route path="/ui-preview/learning" element={<LearningResourcesPreviewPage />} />
+        <Route path="/home" element={<MenuPreviewPage />} />
+        <Route path="/home/dmaic" element={<DmaicGuidePreviewPage />} />
+        <Route path="/home/learning" element={<LearningResourcesPreviewPage />} />
+        <Route path="/ui-preview" element={<Navigate to="/home" replace />} />
+        <Route path="/ui-preview/dmaic" element={<Navigate to="/home/dmaic" replace />} />
+        <Route path="/ui-preview/learning" element={<Navigate to="/home/learning" replace />} />
         <Route path="/catalog/:section" element={<FeatureCatalogPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
