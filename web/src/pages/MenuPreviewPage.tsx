@@ -1,4 +1,4 @@
-import { ArrowRight, BarChart3, CheckCircle2, ClipboardList, FileWarning, FlaskConical, FolderKanban, LayoutDashboard, LockKeyhole, Wrench } from "lucide-react";
+import { ArrowRight, BarChart3, CheckCircle2, FileWarning, FlaskConical, FolderKanban, LayoutDashboard } from "lucide-react";
 import { Link } from "react-router-dom";
 
 type Status = "구현됨" | "개발 예정" | "외부 정책 필요";
@@ -18,10 +18,6 @@ const dmaic = [
 ];
 const statusClass: Record<Status, string> = { "구현됨": "is-implemented", "개발 예정": "is-planned", "외부 정책 필요": "is-policy" };
 function DeliveryBadge({ status }: { status: Status }) { return <span className={`preview-status ${statusClass[status]}`}>{status}</span>; }
-function QuickAction({ item, icon: Icon }: { item: MenuItem; icon: typeof FlaskConical }) {
-  const content = <><span className="preview-icon"><Icon aria-hidden="true" /></span><span>{item.title}</span><DeliveryBadge status={item.status} /></>;
-  return item.to ? <Link className="home-action-card" to={item.to}>{content}</Link> : <article className="home-action-card is-unavailable" aria-label={`${item.title}: ${item.status}`}>{content}</article>;
-}
 function WorkspaceCard({ item, icon: Icon }: { item: MenuItem; icon: typeof FlaskConical }) {
   return <article className="preview-card"><header><span className="preview-icon"><Icon aria-hidden="true" /></span><DeliveryBadge status={item.status} /></header><h3>{item.title}</h3><p>{item.description}</p><Link className="text-link" to={item.to!}>작업공간 열기 <ArrowRight aria-hidden="true" /></Link></article>;
 }
@@ -29,7 +25,6 @@ export function MenuPreviewPage() {
   return <div className="page menu-preview home-preview" data-density="comfortable">
     <nav className="breadcrumb" aria-label="경로"><Link to="/">홈 (Home)</Link><span aria-hidden="true">/</span><span>메뉴 및 UI 미리보기</span></nav>
     <section className="preview-hero"><div><span className="eyebrow">HOME / MENU PREVIEW</span><h1>제조·품질 분석의 시작점</h1><p>홈 (Home)에서 현재 사용할 수 있는 DOE, SPC, FMEA 작업공간으로 바로 이동하고, 프로젝트형 개선 흐름은 DMAIC에서 확장합니다.</p></div><div className="preview-legend" aria-label="상태 범례"><DeliveryBadge status="구현됨" /><DeliveryBadge status="개발 예정" /><DeliveryBadge status="외부 정책 필요" /></div></section>
-    <section className="home-quick-panel" aria-labelledby="quick-title"><header className="preview-section-heading"><span className="eyebrow">QUICK ACCESS</span><h2 id="quick-title">바로가기</h2><p>홈 (Home)에서 핵심 분석 작업공간을 바로 엽니다.</p></header><div className="home-action-grid"><QuickAction item={coreWorkspaces[0]} icon={FlaskConical} /><QuickAction item={coreWorkspaces[1]} icon={BarChart3} /><QuickAction item={coreWorkspaces[2]} icon={FileWarning} /><QuickAction item={{ title: "작업표 및 데이터 (Worksheets & Data)", description: "작업표, 가져오기, 내보내기", status: "개발 예정" }} icon={Wrench} /><QuickAction item={{ title: "결과 및 보고서 (Results & Reports)", description: "분석 실행 이력과 내보내기", status: "개발 예정" }} icon={ClipboardList} /><QuickAction item={{ title: "조직 정책 연동 (Organization Policy)", description: "기업 IdP와 권한 정책", status: "외부 정책 필요" }} icon={LockKeyhole} /></div></section>
     <section className="home-core-panel" aria-labelledby="core-title"><header className="preview-section-heading"><span className="eyebrow">CORE WORKSPACES</span><h2 id="core-title">핵심 전문 작업공간</h2><p>모든 분석은 `설정 → 데이터 → 분석 → 결과 → 보고서` 순서를 따릅니다.</p></header><div className="preview-grid"><WorkspaceCard item={coreWorkspaces[0]} icon={FlaskConical} /><WorkspaceCard item={coreWorkspaces[1]} icon={BarChart3} /><WorkspaceCard item={coreWorkspaces[2]} icon={FileWarning} /></div></section>
     <section className="home-dmaic-panel" aria-labelledby="dmaic-title"><div><span className="eyebrow">IMPROVEMENT PROJECT</span><h2 id="dmaic-title">개선 프로젝트 (DMAIC)</h2><p>프로젝트 맥락과 기존 분석 실행을 참조로 연결하는 확장 작업공간입니다.</p><div className="preview-legend"><DeliveryBadge status="개발 예정" /></div><Link className="text-link" to="/ui-preview/dmaic">DMAIC 알아보기 <ArrowRight aria-hidden="true" /></Link></div><ol className="home-dmaic-list" aria-label="DMAIC 단계">{dmaic.map((item, index) => <li key={item.title}><span>{index + 1}</span><div><strong>{item.title}</strong><p>{item.description}</p></div></li>)}</ol></section>
     <section className="preview-contract" aria-labelledby="ownership-title"><CheckCircle2 aria-hidden="true" /><div><h2 id="ownership-title">데이터와 결과의 소유 경계</h2><p>DOE·SPC 결과는 불변 분석 실행(Analysis Run), FMEA 관리계획서는 FMEA 연구가 소유합니다. DMAIC는 ID·ETag·입력 다이제스트를 참조로만 보관합니다.</p></div></section>

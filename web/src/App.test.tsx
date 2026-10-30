@@ -41,9 +41,8 @@ describe("StatPro UI", () => {
     render(<MemoryRouter initialEntries={["/ui-preview"]}><App /></MemoryRouter>);
     expect(await screen.findByRole("heading", { name: "제조·품질 분석의 시작점" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "핵심 전문 작업공간" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "바로가기" })).not.toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: "작업공간 열기" })[0]).toHaveAttribute("href", "/doe");
-    expect(screen.getAllByText("개발 예정").length).toBeGreaterThanOrEqual(4);
-    expect(screen.getAllByText("외부 정책 필요").length).toBeGreaterThan(1);
     expect(screen.getByRole("link", { name: "DMAIC 알아보기" })).toHaveAttribute("href", "/ui-preview/dmaic");
   });
 
