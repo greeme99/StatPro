@@ -58,6 +58,17 @@ export function createXbarSRun(payload: {
   });
 }
 
+export function createXbarRRun(payload: {
+  run_id: string;
+  subgroups: number[][];
+  rules: "basic" | "nelson";
+}): Promise<StoredRun> {
+  return request("/v1/analysis-runs/xbar-r", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function createEwmaRun(payload: {
   run_id: string;
   values: number[];

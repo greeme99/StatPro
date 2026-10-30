@@ -15,6 +15,7 @@ import { DoeCentralCompositeSetupPage } from "./pages/DoeCentralCompositeSetupPa
 import { DoeBoxBehnkenSetupPage } from "./pages/DoeBoxBehnkenSetupPage";
 import { AttributeChartSetupPage } from "./pages/AttributeChartSetupPage";
 import { XbarSSetupPage } from "./pages/XbarSSetupPage";
+import { XbarRSetupPage } from "./pages/XbarRSetupPage";
 import { EwmaSetupPage } from "./pages/EwmaSetupPage";
 import { CusumSetupPage } from "./pages/CusumSetupPage";
 import { FeatureCatalogPage } from "./pages/FeatureCatalogPage";
@@ -32,6 +33,7 @@ export default function App() {
         <Route path="/analyses/imr/new" element={<ImrSetupPage />} />
         <Route path="/analyses/spc/attribute" element={<AttributeChartSetupPage />} />
         <Route path="/analyses/spc/xbar-s" element={<XbarSSetupPage />} />
+        <Route path="/analyses/spc/xbar-r" element={<XbarRSetupPage />} />
         <Route path="/analyses/spc/ewma" element={<EwmaSetupPage />} />
         <Route path="/analyses/spc/cusum" element={<CusumSetupPage />} />
         <Route path="/analyses/spc/rare-events" element={<RareEventChartSetupPage />} />

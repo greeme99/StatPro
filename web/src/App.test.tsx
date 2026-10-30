@@ -228,6 +228,22 @@ describe("StatPro UI", () => {
     expect(body.rules).toBe("basic");
   });
 
+  it("submits small equal-sized rational subgroups for Xbar-R", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      return new Response(JSON.stringify({}), { status: init?.method === "POST" ? 201 : 200, headers: { "Content-Type": "application/json" } });
+    });
+    render(<MemoryRouter initialEntries={["/analyses/spc/xbar-r"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "Xbar-R 관리도" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Xbar-R 실행" }));
+    await waitFor(() => expect(fetchMock.mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === "POST")).toBe(true));
+    const post = fetchMock.mock.calls.find(([url, init]) => String(url).endsWith("/xbar-r") && (init as RequestInit | undefined)?.method === "POST");
+    const body = JSON.parse(String((post?.[1] as RequestInit).body));
+    expect(body.subgroups).toHaveLength(3);
+    expect(body.subgroups[0]).toHaveLength(5);
+    expect(body.rules).toBe("basic");
+  });
+
   it("renders Xbar-S mean and standard-deviation charts with an accessible table", async () => {
     const result = {
       analysis_type: "spc.xbar_s", engine_version: "0.6.0", input_digest: "f".repeat(64), warnings: [], assumptions: [], provenance: [],
@@ -243,6 +259,24 @@ describe("StatPro UI", () => {
     expect(await screen.findByRole("heading", { name: "부분군 평균(Xbar) 관리도" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "부분군 표준편차(S) 관리도" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Xbar-S 부분군 표" })).toBeInTheDocument();
+    expect(screen.getByText("검토 필요")).toBeInTheDocument();
+  });
+
+  it("renders Xbar-R mean and range charts with an accessible table", async () => {
+    const result = {
+      analysis_type: "spc.xbar_r", engine_version: "0.6.0", input_digest: "a".repeat(64), warnings: [], assumptions: [], provenance: [],
+      parameters: { subgroup_size: 5, a2: 0.577, d3: 0, d4: 2.114, rules: "basic" }, diagnostics: {},
+      tables: { limits: { xbar: { center: 10, lcl: 8, ucl: 12 }, range: { center: 1.2, lcl: 0, ucl: 2.5 } } },
+      plots: { xbar: { values: [9.8, 10.2], signals: [] }, range: { values: [1.1, 1.3], signals: [1] } },
+    };
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      return new Response(JSON.stringify({ run_id: "xbar-r-001", storage_version: 1, etag: "a".repeat(64), result }), { status: 200 });
+    });
+    render(<MemoryRouter initialEntries={["/runs/xbar-r-001"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "부분군 평균(Xbar) 관리도" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "부분군 범위(R) 관리도" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Xbar-R 부분군 표" })).toBeInTheDocument();
     expect(screen.getByText("검토 필요")).toBeInTheDocument();
   });
 

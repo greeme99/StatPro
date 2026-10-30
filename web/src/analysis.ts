@@ -83,6 +83,46 @@ export type XbarSView = {
   sLimits: { center: number; ucl: number; lcl: number };
 };
 
+export type XbarRView = {
+  subgroupSize: number;
+  xbarPoints: ProcessPoint[];
+  rangePoints: ProcessPoint[];
+  xbarLimits: { center: number; ucl: number; lcl: number };
+  rangeLimits: { center: number; ucl: number; lcl: number };
+};
+
+export function toXbarRView(result: ResultBundle | undefined): XbarRView | null {
+  if (!result || result.analysis_type !== "spc.xbar_r") return null;
+  const xbarValues = result.plots.xbar?.values;
+  const xbarSignals = result.plots.xbar?.signals;
+  const rangeValues = result.plots.range?.values;
+  const rangeSignals = result.plots.range?.signals;
+  const xbarLimits = result.tables.limits?.xbar;
+  const rangeLimits = result.tables.limits?.range;
+  const subgroupSize = result.parameters.subgroup_size;
+  if (
+    !Array.isArray(xbarValues) || !Array.isArray(xbarSignals) || !Array.isArray(rangeValues) || !Array.isArray(rangeSignals)
+    || !xbarLimits || !rangeLimits || typeof subgroupSize !== "number" || !Number.isInteger(subgroupSize) || subgroupSize < 2 || subgroupSize > 10
+    || ![xbarLimits.center, xbarLimits.ucl, xbarLimits.lcl, rangeLimits.center, rangeLimits.ucl, rangeLimits.lcl].every(Number.isFinite)
+    || xbarValues.length !== rangeValues.length
+    || xbarValues.some((value) => typeof value !== "number" || !Number.isFinite(value))
+    || rangeValues.some((value) => typeof value !== "number" || !Number.isFinite(value))
+    || xbarSignals.some((value) => typeof value !== "number" || !Number.isInteger(value) || value < 0 || value >= xbarValues.length)
+    || rangeSignals.some((value) => typeof value !== "number" || !Number.isInteger(value) || value < 0 || value >= rangeValues.length)
+  ) return null;
+  const points = (values: unknown[], signals: unknown[]) => {
+    const signalSet = new Set(signals as number[]);
+    return (values as number[]).map((value, index) => ({ index: index + 1, value, signal: signalSet.has(index), rules: [] }));
+  };
+  return {
+    subgroupSize,
+    xbarPoints: points(xbarValues, xbarSignals),
+    rangePoints: points(rangeValues, rangeSignals),
+    xbarLimits,
+    rangeLimits,
+  };
+}
+
 export function toXbarSView(result: ResultBundle | undefined): XbarSView | null {
   if (!result || result.analysis_type !== "spc.xbar_s") return null;
   const xbarValues = result.plots.xbar?.values;
