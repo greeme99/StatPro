@@ -46,6 +46,16 @@ class RareEventChartTests(unittest.TestCase):
         self.assertEqual(result.diagnostics["signal_indices"], [10])
         self.assertTrue(result.tables["chart_points"][10]["signal"])
 
+    def test_g_chart_uses_a_validated_phase_two_baseline_without_reestimating(self) -> None:
+        result = g_chart([1, 1, 1], baseline_mean_interval=9)
+
+        self.assertEqual(result.parameters["parameter_source"], "phase_2_historical")
+        self.assertEqual(result.parameters["baseline_mean_interval"], 9.0)
+        self.assertEqual(result.tables["summary"]["mean_interval"], 9.0)
+        self.assertEqual(result.tables["summary"]["observed_mean_interval"], 1.0)
+        self.assertEqual(result.tables["summary"]["event_probability"], 0.1)
+        self.assertEqual(result.warnings, ())
+
     def test_g_chart_rejects_negative_or_fractional_intervals(self) -> None:
         for values in ([1, -1], [1, 1.5]):
             with self.subTest(values=values):
@@ -67,6 +77,15 @@ class RareEventChartTests(unittest.TestCase):
             t_chart([1.0, 0.0])
         with self.assertRaises(AnalysisInputError):
             t_chart([1.0, 2.0], alpha=0.5)
+
+    def test_t_chart_uses_a_validated_phase_two_baseline_and_validates_it(self) -> None:
+        result = t_chart([1.0, 2.0], baseline_mean_interval=10.0)
+
+        self.assertEqual(result.parameters["parameter_source"], "phase_2_historical")
+        self.assertEqual(result.tables["summary"]["observed_mean_interval"], 1.5)
+        self.assertAlmostEqual(result.tables["chart_points"][0]["ucl"], -10.0 * math.log(0.005))
+        with self.assertRaises(AnalysisInputError):
+            t_chart([1.0, 2.0], baseline_mean_interval=0.0)
 
 
 class IndividualsMovingRangeTests(unittest.TestCase):

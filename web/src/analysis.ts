@@ -260,6 +260,8 @@ export type RareEventChartView = {
   distribution: "geometric" | "exponential";
   points: RareEventChartPoint[];
   meanInterval: number;
+  observedMeanInterval: number;
+  parameterSource: "phase_1_estimated" | "phase_2_historical";
   signalCount: number;
 };
 
@@ -289,12 +291,24 @@ export function toRareEventChartView(
       signal: row.signal,
     });
   }
-  if (typeof summary.mean_interval !== "number" || !Number.isFinite(summary.mean_interval)) return null;
+  const parameterSource = result.parameters.parameter_source === "phase_2_historical"
+    ? "phase_2_historical"
+    : "phase_1_estimated";
+  const observedMeanInterval = typeof summary.observed_mean_interval === "number"
+    && Number.isFinite(summary.observed_mean_interval)
+    ? summary.observed_mean_interval
+    : summary.mean_interval;
+  if (
+    typeof summary.mean_interval !== "number" || !Number.isFinite(summary.mean_interval)
+    || typeof observedMeanInterval !== "number" || !Number.isFinite(observedMeanInterval)
+  ) return null;
   return {
     chart: result.analysis_type === "spc.g_chart" ? "g" : "t",
     distribution,
     points,
     meanInterval: summary.mean_interval,
+    observedMeanInterval,
+    parameterSource,
     signalCount: points.filter((point) => point.signal).length,
   };
 }

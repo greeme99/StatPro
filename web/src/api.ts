@@ -108,11 +108,12 @@ export function createRareEventChartRun(payload: {
   chart: "g" | "t";
   intervals: number[];
   alpha: number;
+  baseline_mean_interval?: number;
 }): Promise<StoredRun> {
-  const { chart, run_id, intervals, alpha } = payload;
+  const { chart, run_id, intervals, alpha, baseline_mean_interval } = payload;
   const body = chart === "g"
-    ? { run_id, opportunities_between_events: intervals, alpha }
-    : { run_id, time_between_events: intervals, alpha };
+    ? { run_id, opportunities_between_events: intervals, alpha, ...(baseline_mean_interval === undefined ? {} : { baseline_mean_interval }) }
+    : { run_id, time_between_events: intervals, alpha, ...(baseline_mean_interval === undefined ? {} : { baseline_mean_interval }) };
   return request(`/v1/analysis-runs/${chart}-chart`, {
     method: "POST",
     body: JSON.stringify(body),

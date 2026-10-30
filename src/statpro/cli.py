@@ -116,11 +116,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             result = u_chart(payload["defects"], payload["inspection_units"])
         elif args.command == "g-chart":
             result = g_chart(
-                payload["opportunities_between_events"], alpha=payload.get("alpha", 0.005)
+                payload["opportunities_between_events"],
+                alpha=payload.get("alpha", 0.005),
+                baseline_mean_interval=payload.get("baseline_mean_interval"),
             )
         elif args.command == "t-chart":
             result = t_chart(
-                payload["time_between_events"], alpha=payload.get("alpha", 0.005)
+                payload["time_between_events"],
+                alpha=payload.get("alpha", 0.005),
+                baseline_mean_interval=payload.get("baseline_mean_interval"),
             )
         elif args.command == "ewma":
             result = ewma_chart(

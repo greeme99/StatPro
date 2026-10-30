@@ -68,6 +68,20 @@ class LocalApiContractTests(unittest.TestCase):
         self.assertEqual(g_created.json()["result"]["parameters"]["distribution"], "geometric")
         self.assertEqual(t_created.json()["result"]["parameters"]["distribution"], "exponential")
 
+    def test_rare_event_run_accepts_a_phase_two_historical_baseline(self) -> None:
+        created = self.client.post(
+            "/v1/analysis-runs/t-chart",
+            json={
+                "run_id": "t-rare-event-phase-two",
+                "time_between_events": [1.0, 2.0, 3.0],
+                "baseline_mean_interval": 10.0,
+            },
+        )
+
+        self.assertEqual(created.status_code, 201)
+        self.assertEqual(created.json()["result"]["parameters"]["parameter_source"], "phase_2_historical")
+        self.assertEqual(created.json()["result"]["tables"]["summary"]["mean_interval"], 10.0)
+
     def test_imr_run_is_created_then_retrieved_with_same_etag(self) -> None:
         created = self.client.post(
             "/v1/analysis-runs/imr",

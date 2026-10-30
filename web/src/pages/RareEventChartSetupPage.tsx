@@ -21,6 +21,7 @@ export function RareEventChartSetupPage() {
   const [runId, setRunId] = useState(() => defaultRunId("g"));
   const [intervalText, setIntervalText] = useState("8\n10\n12\n9\n11\n14\n10\n13");
   const [alpha, setAlpha] = useState("0.005");
+  const [baselineMeanInterval, setBaselineMeanInterval] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const intervalRef = useRef<HTMLTextAreaElement>(null);
@@ -34,6 +35,7 @@ export function RareEventChartSetupPage() {
   async function submit(event: FormEvent) {
     event.preventDefault();
     const tailAlpha = Number(alpha);
+    const baseline = baselineMeanInterval.trim() === "" ? undefined : Number(baselineMeanInterval);
     const invalidIntervals = intervals.some((value) => !Number.isFinite(value) || value < 0 || (chart === "g" && !Number.isInteger(value)) || (chart === "t" && value <= 0));
     if (intervals.length < 2 || invalidIntervals) {
       setError(chart === "g" ? "G 관리도에는 0 이상 정수인 사건 간 기회 수를 두 개 이상 입력하세요." : "T 관리도에는 0보다 큰 사건 간 시간을 두 개 이상 입력하세요.");
@@ -44,10 +46,14 @@ export function RareEventChartSetupPage() {
       setError("양쪽 꼬리 확률은 0보다 크고 0.5보다 작은 값이어야 합니다.");
       return;
     }
+    if (baseline !== undefined && (!Number.isFinite(baseline) || baseline < 0 || (chart === "t" && baseline <= 0))) {
+      setError(chart === "g" ? "G 관리도의 검증된 기준선 평균 간격은 0 이상이어야 합니다." : "T 관리도의 검증된 기준선 평균 간격은 0보다 커야 합니다.");
+      return;
+    }
     setError("");
     setLoading(true);
     try {
-      await createRareEventChartRun({ run_id: runId, chart, intervals, alpha: tailAlpha });
+      await createRareEventChartRun({ run_id: runId, chart, intervals, alpha: tailAlpha, baseline_mean_interval: baseline });
       navigate(`/runs/${runId}`);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "분석을 실행하지 못했습니다.");
@@ -76,9 +82,10 @@ export function RareEventChartSetupPage() {
           <div className="inline-fields">
             <label className="field"><span>{intervalLabel} *</span><textarea ref={intervalRef} rows={9} value={intervalText} onChange={(event) => setIntervalText(event.target.value)} aria-invalid={Boolean(error)} /><small>{intervals.filter(Number.isFinite).length}개 간격 인식됨</small></label>
             <label className="field"><span>양쪽 꼬리 확률 α</span><input inputMode="decimal" value={alpha} onChange={(event) => setAlpha(event.target.value)} /><small>기본값 0.005. 상·하한 각각에 적용합니다.</small></label>
+            <label className="field"><span>검증된 기준선 평균 간격 (선택)</span><input inputMode="decimal" value={baselineMeanInterval} onChange={(event) => setBaselineMeanInterval(event.target.value)} placeholder={chart === "g" ? "예: 12 (기회 수)" : "예: 12.5 (시간·거리·사용량)"} /><small>입력하면 2단계 감시(Phase II)로 실행하며 현재 입력 자료로 기준선을 다시 추정하지 않습니다.</small></label>
           </div>
         </section>
-        <aside className="method-note"><strong>계산 방법</strong><p>{chart === "g" ? "G 관리도는 사건 자체를 제외한 기회 수(0 포함)를 기하분포로 모델링합니다." : "T 관리도는 사건 간 양의 시간·거리·사용량을 지수분포로 모델링합니다."} 입력 자료에서 Phase I 모수를 추정하고, 지정한 꼬리 확률의 확률 한계와 중앙값을 표시합니다.</p></aside>
+        <aside className="method-note"><strong>계산 방법</strong><p>{chart === "g" ? "G 관리도는 사건 자체를 제외한 기회 수(0 포함)를 기하분포로 모델링합니다." : "T 관리도는 사건 간 양의 시간·거리·사용량을 지수분포로 모델링합니다."} 기준선을 비워두면 입력 자료로 1단계 기준선(Phase I) 모수를 추정하고, 검증된 기준선을 입력하면 해당 모수로 2단계 감시(Phase II) 확률 한계와 중앙값을 표시합니다.</p></aside>
         <div className="form-actions"><Button type="submit" variant="primary" loading={loading} icon={<Play />}>관리도 실행</Button></div>
       </form>
     </div>

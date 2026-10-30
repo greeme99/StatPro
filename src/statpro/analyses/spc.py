@@ -455,6 +455,8 @@ def _rare_event_result(
     distribution: Literal["geometric", "exponential"],
     summary: dict[str, float],
     diagnostics: dict[str, float],
+    baseline_mean_interval: float,
+    parameter_source: Literal["phase_1_estimated", "phase_2_historical"],
     warnings: tuple[str, ...] = (),
 ) -> ResultBundle:
     signal_indices = [
@@ -474,7 +476,13 @@ def _rare_event_result(
         }
         for index, value in enumerate(intervals)
     ]
-    payload = {"chart": chart, "intervals": intervals, "alpha": alpha}
+    payload = {
+        "chart": chart,
+        "intervals": intervals,
+        "alpha": alpha,
+        "baseline_mean_interval": baseline_mean_interval,
+        "parameter_source": parameter_source,
+    }
     return ResultBundle(
         analysis_type=f"spc.{chart}_chart",
         engine_version=ENGINE_VERSION,
@@ -485,7 +493,8 @@ def _rare_event_result(
             "limit_method": "probability_limits",
             "lower_tail_alpha": alpha,
             "upper_tail_alpha": alpha,
-            "parameter_source": "phase_1_estimated",
+            "baseline_mean_interval": baseline_mean_interval,
+            "parameter_source": parameter_source,
         },
         tables={"chart_points": points, "summary": summary},
         plots={"rare_event_chart": {"points": points, "signal_indices": signal_indices}},
@@ -497,18 +506,23 @@ def _rare_event_result(
         },
         assumptions=(
             "Intervals are ordered in process time and arise from comparable process conditions.",
-            "Events occur independently with a stable underlying occurrence rate during the Phase I baseline.",
+            "Events occur independently with a stable underlying occurrence rate under the selected baseline.",
             "Probability limits identify investigation candidates and do not by themselves prove a special cause.",
         ),
         warnings=warnings
-        + (
-            "Probability limits are estimated from the supplied Phase I baseline; use a separately validated historical-parameter workflow for ongoing Phase II monitoring.",
-        ),
+        + (() if parameter_source == "phase_2_historical" else (
+            "Probability limits are estimated from the supplied Phase I baseline; use a separately validated historical baseline for ongoing Phase II monitoring.",
+        )),
         provenance=(SAS_RARE_EVENTS_SOURCE,),
     )
 
 
-def g_chart(opportunities_between_events: Sequence[object], *, alpha: float = 0.005) -> ResultBundle:
+def g_chart(
+    opportunities_between_events: Sequence[object],
+    *,
+    alpha: float = 0.005,
+    baseline_mean_interval: float | None = None,
+) -> ResultBundle:
     """Calculate a geometric G chart for nonnegative opportunities between events.
 
     The interval convention excludes the event itself, so zero represents an event
@@ -525,7 +539,21 @@ def g_chart(opportunities_between_events: Sequence[object], *, alpha: float = 0.
             "opportunities_between_events",
         )
     tail_alpha = _rare_event_alpha(alpha)
-    mean_interval = fmean(intervals)
+    observed_mean_interval = fmean(intervals)
+    mean_interval = (
+        observed_mean_interval
+        if baseline_mean_interval is None
+        else finite_values([baseline_mean_interval], "baseline_mean_interval")[0]
+    )
+    if mean_interval < 0.0:
+        raise AnalysisInputError(
+            "invalid_baseline_mean_interval",
+            "A G chart historical baseline mean interval must be nonnegative.",
+            "baseline_mean_interval",
+        )
+    parameter_source: Literal["phase_1_estimated", "phase_2_historical"] = (
+        "phase_1_estimated" if baseline_mean_interval is None else "phase_2_historical"
+    )
     if mean_interval == 0.0:
         return _rare_event_result(
             chart="g",
@@ -535,10 +563,16 @@ def g_chart(opportunities_between_events: Sequence[object], *, alpha: float = 0.
             lcl=0.0,
             ucl=0.0,
             distribution="geometric",
-            summary={"mean_interval": 0.0, "event_probability": 1.0},
+            summary={
+                "mean_interval": 0.0,
+                "observed_mean_interval": observed_mean_interval,
+                "event_probability": 1.0,
+            },
             diagnostics={"actual_lower_tail_probability": 0.0, "actual_upper_tail_probability": 0.0},
+            baseline_mean_interval=mean_interval,
+            parameter_source=parameter_source,
             warnings=(
-                "Every supplied interval is zero, so the estimated event probability is one and the probability limits collapse.",
+                "The selected G-chart baseline mean interval is zero, so the event probability is one and the probability limits collapse.",
             ),
         )
 
@@ -555,15 +589,26 @@ def g_chart(opportunities_between_events: Sequence[object], *, alpha: float = 0.
         lcl=lcl,
         ucl=ucl,
         distribution="geometric",
-        summary={"mean_interval": mean_interval, "event_probability": event_probability},
+        summary={
+            "mean_interval": mean_interval,
+            "observed_mean_interval": observed_mean_interval,
+            "event_probability": event_probability,
+        },
         diagnostics={
             "actual_lower_tail_probability": 0.0 if lcl == 0.0 else 1.0 - non_event_probability**lcl,
             "actual_upper_tail_probability": non_event_probability ** (ucl + 1.0),
         },
+        baseline_mean_interval=mean_interval,
+        parameter_source=parameter_source,
     )
 
 
-def t_chart(time_between_events: Sequence[object], *, alpha: float = 0.005) -> ResultBundle:
+def t_chart(
+    time_between_events: Sequence[object],
+    *,
+    alpha: float = 0.005,
+    baseline_mean_interval: float | None = None,
+) -> ResultBundle:
     """Calculate an exponential T chart for positive time between events."""
 
     intervals = finite_values(time_between_events, "time_between_events")
@@ -581,7 +626,21 @@ def t_chart(time_between_events: Sequence[object], *, alpha: float = 0.005) -> R
                 "time_between_events",
             )
     tail_alpha = _rare_event_alpha(alpha)
-    scale = fmean(intervals)
+    observed_mean_interval = fmean(intervals)
+    scale = (
+        observed_mean_interval
+        if baseline_mean_interval is None
+        else finite_values([baseline_mean_interval], "baseline_mean_interval")[0]
+    )
+    if scale <= 0.0:
+        raise AnalysisInputError(
+            "invalid_baseline_mean_interval",
+            "A T chart historical baseline mean interval must be positive.",
+            "baseline_mean_interval",
+        )
+    parameter_source: Literal["phase_1_estimated", "phase_2_historical"] = (
+        "phase_1_estimated" if baseline_mean_interval is None else "phase_2_historical"
+    )
     lcl = -scale * log(1.0 - tail_alpha)
     center = scale * log(2.0)
     ucl = -scale * log(tail_alpha)
@@ -593,11 +652,17 @@ def t_chart(time_between_events: Sequence[object], *, alpha: float = 0.005) -> R
         lcl=lcl,
         ucl=ucl,
         distribution="exponential",
-        summary={"mean_interval": scale, "median_interval": center},
+        summary={
+            "mean_interval": scale,
+            "observed_mean_interval": observed_mean_interval,
+            "median_interval": center,
+        },
         diagnostics={
             "actual_lower_tail_probability": tail_alpha,
             "actual_upper_tail_probability": tail_alpha,
         },
+        baseline_mean_interval=scale,
+        parameter_source=parameter_source,
     )
 
 

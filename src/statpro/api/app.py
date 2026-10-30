@@ -194,12 +194,14 @@ class GChartRunRequest(ApiModel):
     run_id: RunId
     opportunities_between_events: list[StrictInt]
     alpha: float = Field(default=0.005, gt=0.0, lt=0.5)
+    baseline_mean_interval: float | None = Field(default=None, ge=0.0)
 
 
 class TChartRunRequest(ApiModel):
     run_id: RunId
     time_between_events: list[float]
     alpha: float = Field(default=0.005, gt=0.0, lt=0.5)
+    baseline_mean_interval: float | None = Field(default=None, gt=0.0)
 
 
 class CapabilityRunRequest(ApiModel):
@@ -1302,7 +1304,11 @@ def create_app(
         stored = _save_run(
             repository,
             request.run_id,
-            g_chart(request.opportunities_between_events, alpha=request.alpha),
+            g_chart(
+                request.opportunities_between_events,
+                alpha=request.alpha,
+                baseline_mean_interval=request.baseline_mean_interval,
+            ),
         )
         response.headers["ETag"] = f'"{stored.etag}"'
         return _response(stored)
@@ -1312,7 +1318,11 @@ def create_app(
         stored = _save_run(
             repository,
             request.run_id,
-            t_chart(request.time_between_events, alpha=request.alpha),
+            t_chart(
+                request.time_between_events,
+                alpha=request.alpha,
+                baseline_mean_interval=request.baseline_mean_interval,
+            ),
         )
         response.headers["ETag"] = f'"{stored.etag}"'
         return _response(stored)
