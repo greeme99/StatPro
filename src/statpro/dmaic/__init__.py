@@ -6,8 +6,9 @@ from statpro.dmaic.models import (
     DmaicInputError,
     DmaicProject,
     DmaicProjectStatus,
+    DmaicVoiceOfCustomerStudy,
 )
-from statpro.dmaic.workflow import create_project, save_charter
+from statpro.dmaic.workflow import create_project, save_charter, save_voice_of_customer
 
 __all__ = [
     "DmaicCharter",
@@ -15,6 +16,8 @@ __all__ = [
     "DmaicInputError",
     "DmaicProject",
     "DmaicProjectStatus",
+    "DmaicVoiceOfCustomerStudy",
     "create_project",
     "save_charter",
+    "save_voice_of_customer",
 ]

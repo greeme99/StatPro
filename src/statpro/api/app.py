@@ -72,7 +72,15 @@ from statpro.application.reports import (
     export_doe_report_zip,
     render_doe_report_html,
 )
-from statpro.dmaic import DmaicCharter, DmaicInputError, DmaicProject, create_project, save_charter
+from statpro.dmaic import (
+    DmaicCharter,
+    DmaicInputError,
+    DmaicProject,
+    DmaicVoiceOfCustomerStudy,
+    create_project,
+    save_charter,
+    save_voice_of_customer,
+)
 from statpro.domain.data import (
     DatasetSnapshot,
     DataType,
@@ -118,6 +126,7 @@ FMEA_STUDIES = "fmea-studies"
 FMEA_AP_POLICIES = "fmea-action-priority-policies"
 DMAIC_PROJECTS = "dmaic-projects"
 DMAIC_CHARTERS = "dmaic-charters"
+DMAIC_VOICE_OF_CUSTOMER_STUDIES = "dmaic-voice-of-customer-studies"
 RunId = Annotated[str, Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")]
 
 
@@ -567,6 +576,20 @@ class SaveDmaicCharterRequest(ApiModel):
     occurred_at: str
 
 
+class SaveDmaicVoiceOfCustomerRequest(ApiModel):
+    expected_storage_version: int = Field(ge=1)
+    collection_plan: str
+    data_points: list[str] = Field(min_length=1)
+    requirements: list[str] = Field(min_length=1)
+    pain_points: list[str] = Field(min_length=1)
+    opportunities: list[str] = Field(min_length=1)
+    actions: list[str] = Field(min_length=1)
+    recommendations: list[str] = Field(min_length=1)
+    next_steps: list[str] = Field(min_length=1)
+    actor: str
+    occurred_at: str
+
+
 class StoredDmaicProjectResponse(ApiModel):
     project_id: str
     storage_version: int
@@ -579,6 +602,13 @@ class StoredDmaicCharterResponse(ApiModel):
     storage_version: int
     etag: str
     charter: dict[str, Any]
+
+
+class StoredDmaicVoiceOfCustomerResponse(ApiModel):
+    document_id: str
+    storage_version: int
+    etag: str
+    study: dict[str, Any]
 
 
 class StoredActionPriorityPolicyResponse(ApiModel):
@@ -739,6 +769,17 @@ def _deserialize_dmaic_charter(stored: StoredDocument) -> DmaicCharter:
         ) from error
 
 
+def _deserialize_dmaic_voice_of_customer(
+    stored: StoredDocument,
+) -> DmaicVoiceOfCustomerStudy:
+    try:
+        return DmaicVoiceOfCustomerStudy.from_dict(stored.document["study"])
+    except (KeyError, TypeError, ValueError, DmaicInputError) as error:
+        raise DocumentStoreError(
+            f"Stored DMAIC Voice of Customer study {stored.key} does not match its owned format."
+        ) from error
+
+
 def _dmaic_project_response(stored: StoredDocument) -> StoredDmaicProjectResponse:
     project = _deserialize_dmaic_project(stored)
     return StoredDmaicProjectResponse(
@@ -756,6 +797,18 @@ def _dmaic_charter_response(stored: StoredDocument) -> StoredDmaicCharterRespons
         storage_version=stored.storage_version,
         etag=stored.etag,
         charter=charter.to_dict(),
+    )
+
+
+def _dmaic_voice_of_customer_response(
+    stored: StoredDocument,
+) -> StoredDmaicVoiceOfCustomerResponse:
+    study = _deserialize_dmaic_voice_of_customer(stored)
+    return StoredDmaicVoiceOfCustomerResponse(
+        document_id=stored.key,
+        storage_version=stored.storage_version,
+        etag=stored.etag,
+        study=study.to_dict(),
     )
 
 
@@ -784,6 +837,21 @@ def _save_dmaic_charter(
         DMAIC_CHARTERS,
         charter.document_id,
         {"kind": "dmaic_project_charter", "document_id": charter.document_id, "charter": charter.to_dict()},
+        expected_version=0,
+    )
+
+
+def _save_dmaic_voice_of_customer(
+    repository: DocumentRepository, study: DmaicVoiceOfCustomerStudy
+) -> StoredDocument:
+    return repository.save(
+        DMAIC_VOICE_OF_CUSTOMER_STUDIES,
+        study.document_id,
+        {
+            "kind": "dmaic_voice_of_customer_study",
+            "document_id": study.document_id,
+            "study": study.to_dict(),
+        },
         expected_version=0,
     )
 
@@ -1937,6 +2005,58 @@ def create_app(
             raise DocumentNotFoundError(f"Document {DMAIC_CHARTERS}/{document_id} does not exist.")
         response.headers["ETag"] = f'"{stored.etag}"'
         return _dmaic_charter_response(stored)
+
+    @app.post(
+        "/v1/dmaic-projects/{project_id}/voice-of-customer-studies",
+        status_code=201,
+        response_model=StoredDmaicProjectResponse,
+    )
+    def create_dmaic_voice_of_customer_study(
+        project_id: RunId,
+        request: SaveDmaicVoiceOfCustomerRequest,
+        response: Response,
+    ) -> StoredDmaicProjectResponse:
+        stored, project = _load_dmaic_project(repository, project_id)
+        if stored.storage_version != request.expected_storage_version:
+            raise DocumentConflictError(
+                f"Expected storage version {request.expected_storage_version}; found {stored.storage_version}."
+            )
+        revised, study = save_voice_of_customer(
+            project,
+            collection_plan=request.collection_plan,
+            data_points=tuple(request.data_points),
+            requirements=tuple(request.requirements),
+            pain_points=tuple(request.pain_points),
+            opportunities=tuple(request.opportunities),
+            actions=tuple(request.actions),
+            recommendations=tuple(request.recommendations),
+            next_steps=tuple(request.next_steps),
+            actor=request.actor,
+            occurred_at=request.occurred_at,
+        )
+        _save_dmaic_voice_of_customer(repository, study)
+        saved = _save_dmaic_project(
+            repository, revised, expected_version=request.expected_storage_version
+        )
+        response.headers["ETag"] = f'"{saved.etag}"'
+        return _dmaic_project_response(saved)
+
+    @app.get(
+        "/v1/dmaic-projects/{project_id}/voice-of-customer-studies/{document_id}",
+        response_model=StoredDmaicVoiceOfCustomerResponse,
+    )
+    def get_dmaic_voice_of_customer_study(
+        project_id: RunId, document_id: RunId, response: Response
+    ) -> StoredDmaicVoiceOfCustomerResponse:
+        _stored_project, project = _load_dmaic_project(repository, project_id)
+        stored = repository.load(DMAIC_VOICE_OF_CUSTOMER_STUDIES, document_id)
+        study = _deserialize_dmaic_voice_of_customer(stored)
+        if study.project_id != project.project_id:
+            raise DocumentNotFoundError(
+                f"Document {DMAIC_VOICE_OF_CUSTOMER_STUDIES}/{document_id} does not exist."
+            )
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _dmaic_voice_of_customer_response(stored)
 
     @app.post("/v1/fmea-studies", status_code=201, response_model=StoredFmeaStudyResponse)
     def create_study(

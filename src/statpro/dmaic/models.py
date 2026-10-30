@@ -47,6 +47,7 @@ class DmaicProject:
     parent_digest: str | None
     digest: str
     charter: DmaicDocumentReference | None = None
+    voice_of_customer: DmaicDocumentReference | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -63,11 +64,15 @@ class DmaicProject:
             "parent_digest": self.parent_digest,
             "digest": self.digest,
             "charter": None if self.charter is None else self.charter.to_dict(),
+            "voice_of_customer": (
+                None if self.voice_of_customer is None else self.voice_of_customer.to_dict()
+            ),
         }
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> DmaicProject:
         reference = payload.get("charter")
+        voice_of_customer = payload.get("voice_of_customer")
         project = cls(
             project_id=payload["project_id"], title=payload["title"], owner_ref=payload["owner_ref"],
             sponsor_ref=payload.get("sponsor_ref"), champion_ref=payload.get("champion_ref"),
@@ -75,6 +80,11 @@ class DmaicProject:
             target_end_date=payload.get("target_end_date"), status=DmaicProjectStatus(payload["status"]),
             revision=payload["revision"], parent_digest=payload.get("parent_digest"), digest=payload["digest"],
             charter=None if reference is None else DmaicDocumentReference(**reference),
+            voice_of_customer=(
+                None
+                if voice_of_customer is None
+                else DmaicDocumentReference(**voice_of_customer)
+            ),
         )
         if project.digest != _project_digest(project):
             raise DmaicInputError("project_digest_mismatch", "Stored DMAIC project digest does not match.", "digest")
@@ -124,6 +134,59 @@ class DmaicCharter:
         return charter
 
 
+@dataclass(frozen=True, slots=True)
+class DmaicVoiceOfCustomerStudy:
+    """An immutable Define-phase record of customer needs and planned actions."""
+
+    document_id: str
+    project_id: str
+    revision: int
+    parent_digest: str | None
+    digest: str
+    collection_plan: str
+    data_points: tuple[str, ...]
+    requirements: tuple[str, ...]
+    pain_points: tuple[str, ...]
+    opportunities: tuple[str, ...]
+    actions: tuple[str, ...]
+    recommendations: tuple[str, ...]
+    next_steps: tuple[str, ...]
+    actor: str
+    occurred_at: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            **asdict(self),
+            "data_points": list(self.data_points),
+            "requirements": list(self.requirements),
+            "pain_points": list(self.pain_points),
+            "opportunities": list(self.opportunities),
+            "actions": list(self.actions),
+            "recommendations": list(self.recommendations),
+            "next_steps": list(self.next_steps),
+        }
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> DmaicVoiceOfCustomerStudy:
+        study = cls(
+            document_id=payload["document_id"], project_id=payload["project_id"],
+            revision=payload["revision"], parent_digest=payload.get("parent_digest"),
+            digest=payload["digest"], collection_plan=payload["collection_plan"],
+            data_points=tuple(payload["data_points"]), requirements=tuple(payload["requirements"]),
+            pain_points=tuple(payload["pain_points"]), opportunities=tuple(payload["opportunities"]),
+            actions=tuple(payload["actions"]), recommendations=tuple(payload["recommendations"]),
+            next_steps=tuple(payload["next_steps"]), actor=payload["actor"],
+            occurred_at=payload["occurred_at"],
+        )
+        if study.digest != _voice_of_customer_digest(study):
+            raise DmaicInputError(
+                "voice_of_customer_digest_mismatch",
+                "Stored Voice of Customer study digest does not match.",
+                "digest",
+            )
+        return study
+
+
 def _project_digest(project: DmaicProject) -> str:
     payload = project.to_dict()
     payload.pop("digest")
@@ -132,5 +195,11 @@ def _project_digest(project: DmaicProject) -> str:
 
 def _charter_digest(charter: DmaicCharter) -> str:
     payload = charter.to_dict()
+    payload.pop("digest")
+    return input_digest(payload)
+
+
+def _voice_of_customer_digest(study: DmaicVoiceOfCustomerStudy) -> str:
+    payload = study.to_dict()
     payload.pop("digest")
     return input_digest(payload)
