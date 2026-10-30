@@ -46,6 +46,20 @@ describe("StatPro UI", () => {
     expect(screen.getByRole("link", { name: "DMAIC 알아보기" })).toHaveAttribute("href", "/ui-preview/dmaic");
   });
 
+  it("opens the UI-preview home from the sidebar home navigation", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const payload = String(input).endsWith("/health")
+        ? { ok: true, engine_version: "0.6.0", local_only: true }
+        : { items: [], next_after: null };
+      return new Response(JSON.stringify(payload), { status: 200 });
+    });
+    render(<MemoryRouter initialEntries={["/data"]}><App /></MemoryRouter>);
+
+    await userEvent.click(await screen.findByRole("link", { name: "홈" }));
+
+    expect(await screen.findByRole("heading", { name: "제조·품질 분석의 시작점" })).toBeInTheDocument();
+  });
+
   it("renders the DMAIC guide as an explanation page linked from the home preview", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 }));
     render(<MemoryRouter initialEntries={["/ui-preview/dmaic"]}><App /></MemoryRouter>);
