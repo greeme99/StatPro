@@ -76,9 +76,11 @@ from statpro.dmaic import (
     DmaicCharter,
     DmaicInputError,
     DmaicProject,
+    DmaicSipocMap,
     DmaicVoiceOfCustomerStudy,
     create_project,
     save_charter,
+    save_sipoc,
     save_voice_of_customer,
 )
 from statpro.domain.data import (
@@ -127,6 +129,7 @@ FMEA_AP_POLICIES = "fmea-action-priority-policies"
 DMAIC_PROJECTS = "dmaic-projects"
 DMAIC_CHARTERS = "dmaic-charters"
 DMAIC_VOICE_OF_CUSTOMER_STUDIES = "dmaic-voice-of-customer-studies"
+DMAIC_SIPOC_MAPS = "dmaic-sipoc-maps"
 RunId = Annotated[str, Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")]
 
 
@@ -590,6 +593,19 @@ class SaveDmaicVoiceOfCustomerRequest(ApiModel):
     occurred_at: str
 
 
+class SaveDmaicSipocRequest(ApiModel):
+    expected_storage_version: int = Field(ge=1)
+    process_start_boundary: str
+    process_end_boundary: str
+    suppliers: list[str] = Field(min_length=1)
+    inputs: list[str] = Field(min_length=1)
+    process_steps: list[str] = Field(min_length=1)
+    outputs: list[str] = Field(min_length=1)
+    customers: list[str] = Field(min_length=1)
+    actor: str
+    occurred_at: str
+
+
 class StoredDmaicProjectResponse(ApiModel):
     project_id: str
     storage_version: int
@@ -609,6 +625,13 @@ class StoredDmaicVoiceOfCustomerResponse(ApiModel):
     storage_version: int
     etag: str
     study: dict[str, Any]
+
+
+class StoredDmaicSipocResponse(ApiModel):
+    document_id: str
+    storage_version: int
+    etag: str
+    sipoc: dict[str, Any]
 
 
 class StoredActionPriorityPolicyResponse(ApiModel):
@@ -780,6 +803,15 @@ def _deserialize_dmaic_voice_of_customer(
         ) from error
 
 
+def _deserialize_dmaic_sipoc(stored: StoredDocument) -> DmaicSipocMap:
+    try:
+        return DmaicSipocMap.from_dict(stored.document["sipoc"])
+    except (KeyError, TypeError, ValueError, DmaicInputError) as error:
+        raise DocumentStoreError(
+            f"Stored DMAIC SIPOC map {stored.key} does not match its owned format."
+        ) from error
+
+
 def _dmaic_project_response(stored: StoredDocument) -> StoredDmaicProjectResponse:
     project = _deserialize_dmaic_project(stored)
     return StoredDmaicProjectResponse(
@@ -809,6 +841,16 @@ def _dmaic_voice_of_customer_response(
         storage_version=stored.storage_version,
         etag=stored.etag,
         study=study.to_dict(),
+    )
+
+
+def _dmaic_sipoc_response(stored: StoredDocument) -> StoredDmaicSipocResponse:
+    sipoc = _deserialize_dmaic_sipoc(stored)
+    return StoredDmaicSipocResponse(
+        document_id=stored.key,
+        storage_version=stored.storage_version,
+        etag=stored.etag,
+        sipoc=sipoc.to_dict(),
     )
 
 
@@ -851,6 +893,19 @@ def _save_dmaic_voice_of_customer(
             "kind": "dmaic_voice_of_customer_study",
             "document_id": study.document_id,
             "study": study.to_dict(),
+        },
+        expected_version=0,
+    )
+
+
+def _save_dmaic_sipoc(repository: DocumentRepository, sipoc: DmaicSipocMap) -> StoredDocument:
+    return repository.save(
+        DMAIC_SIPOC_MAPS,
+        sipoc.document_id,
+        {
+            "kind": "dmaic_sipoc_map",
+            "document_id": sipoc.document_id,
+            "sipoc": sipoc.to_dict(),
         },
         expected_version=0,
     )
@@ -2057,6 +2112,55 @@ def create_app(
             )
         response.headers["ETag"] = f'"{stored.etag}"'
         return _dmaic_voice_of_customer_response(stored)
+
+    @app.post(
+        "/v1/dmaic-projects/{project_id}/sipoc-maps",
+        status_code=201,
+        response_model=StoredDmaicProjectResponse,
+    )
+    def create_dmaic_sipoc(
+        project_id: RunId, request: SaveDmaicSipocRequest, response: Response
+    ) -> StoredDmaicProjectResponse:
+        stored, project = _load_dmaic_project(repository, project_id)
+        if stored.storage_version != request.expected_storage_version:
+            raise DocumentConflictError(
+                f"Expected storage version {request.expected_storage_version}; found {stored.storage_version}."
+            )
+        revised, sipoc = save_sipoc(
+            project,
+            process_start_boundary=request.process_start_boundary,
+            process_end_boundary=request.process_end_boundary,
+            suppliers=tuple(request.suppliers),
+            inputs=tuple(request.inputs),
+            process_steps=tuple(request.process_steps),
+            outputs=tuple(request.outputs),
+            customers=tuple(request.customers),
+            actor=request.actor,
+            occurred_at=request.occurred_at,
+        )
+        _save_dmaic_sipoc(repository, sipoc)
+        saved = _save_dmaic_project(
+            repository, revised, expected_version=request.expected_storage_version
+        )
+        response.headers["ETag"] = f'"{saved.etag}"'
+        return _dmaic_project_response(saved)
+
+    @app.get(
+        "/v1/dmaic-projects/{project_id}/sipoc-maps/{document_id}",
+        response_model=StoredDmaicSipocResponse,
+    )
+    def get_dmaic_sipoc(
+        project_id: RunId, document_id: RunId, response: Response
+    ) -> StoredDmaicSipocResponse:
+        _stored_project, project = _load_dmaic_project(repository, project_id)
+        stored = repository.load(DMAIC_SIPOC_MAPS, document_id)
+        sipoc = _deserialize_dmaic_sipoc(stored)
+        if sipoc.project_id != project.project_id:
+            raise DocumentNotFoundError(
+                f"Document {DMAIC_SIPOC_MAPS}/{document_id} does not exist."
+            )
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _dmaic_sipoc_response(stored)
 
     @app.post("/v1/fmea-studies", status_code=201, response_model=StoredFmeaStudyResponse)
     def create_study(

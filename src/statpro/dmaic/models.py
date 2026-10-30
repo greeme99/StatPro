@@ -48,6 +48,7 @@ class DmaicProject:
     digest: str
     charter: DmaicDocumentReference | None = None
     voice_of_customer: DmaicDocumentReference | None = None
+    sipoc: DmaicDocumentReference | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -67,12 +68,14 @@ class DmaicProject:
             "voice_of_customer": (
                 None if self.voice_of_customer is None else self.voice_of_customer.to_dict()
             ),
+            "sipoc": None if self.sipoc is None else self.sipoc.to_dict(),
         }
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> DmaicProject:
         reference = payload.get("charter")
         voice_of_customer = payload.get("voice_of_customer")
+        sipoc = payload.get("sipoc")
         project = cls(
             project_id=payload["project_id"], title=payload["title"], owner_ref=payload["owner_ref"],
             sponsor_ref=payload.get("sponsor_ref"), champion_ref=payload.get("champion_ref"),
@@ -85,6 +88,7 @@ class DmaicProject:
                 if voice_of_customer is None
                 else DmaicDocumentReference(**voice_of_customer)
             ),
+            sipoc=None if sipoc is None else DmaicDocumentReference(**sipoc),
         )
         if project.digest != _project_digest(project):
             raise DmaicInputError("project_digest_mismatch", "Stored DMAIC project digest does not match.", "digest")
@@ -187,6 +191,53 @@ class DmaicVoiceOfCustomerStudy:
         return study
 
 
+@dataclass(frozen=True, slots=True)
+class DmaicSipocMap:
+    """An immutable Define-phase map of process boundaries and SIPOC elements."""
+
+    document_id: str
+    project_id: str
+    revision: int
+    parent_digest: str | None
+    digest: str
+    process_start_boundary: str
+    process_end_boundary: str
+    suppliers: tuple[str, ...]
+    inputs: tuple[str, ...]
+    process_steps: tuple[str, ...]
+    outputs: tuple[str, ...]
+    customers: tuple[str, ...]
+    actor: str
+    occurred_at: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            **asdict(self),
+            "suppliers": list(self.suppliers),
+            "inputs": list(self.inputs),
+            "process_steps": list(self.process_steps),
+            "outputs": list(self.outputs),
+            "customers": list(self.customers),
+        }
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> DmaicSipocMap:
+        sipoc = cls(
+            document_id=payload["document_id"], project_id=payload["project_id"],
+            revision=payload["revision"], parent_digest=payload.get("parent_digest"),
+            digest=payload["digest"], process_start_boundary=payload["process_start_boundary"],
+            process_end_boundary=payload["process_end_boundary"], suppliers=tuple(payload["suppliers"]),
+            inputs=tuple(payload["inputs"]), process_steps=tuple(payload["process_steps"]),
+            outputs=tuple(payload["outputs"]), customers=tuple(payload["customers"]),
+            actor=payload["actor"], occurred_at=payload["occurred_at"],
+        )
+        if sipoc.digest != _sipoc_digest(sipoc):
+            raise DmaicInputError(
+                "sipoc_digest_mismatch", "Stored SIPOC map digest does not match.", "digest"
+            )
+        return sipoc
+
+
 def _project_digest(project: DmaicProject) -> str:
     payload = project.to_dict()
     payload.pop("digest")
@@ -201,5 +252,11 @@ def _charter_digest(charter: DmaicCharter) -> str:
 
 def _voice_of_customer_digest(study: DmaicVoiceOfCustomerStudy) -> str:
     payload = study.to_dict()
+    payload.pop("digest")
+    return input_digest(payload)
+
+
+def _sipoc_digest(sipoc: DmaicSipocMap) -> str:
+    payload = sipoc.to_dict()
     payload.pop("digest")
     return input_digest(payload)

@@ -803,6 +803,44 @@ class LocalApiContractTests(unittest.TestCase):
         )
         self.assertEqual(conflict.status_code, 409)
 
+    def test_dmaic_sipoc_is_versioned_and_retrievable(self) -> None:
+        created = self.client.post(
+            "/v1/dmaic-projects",
+            json={
+                "project_id": "DMAIC-003",
+                "title": "Connector yield",
+                "owner_ref": "quality.engineer",
+            },
+        )
+        self.assertEqual(created.status_code, 201)
+        request = {
+            "expected_storage_version": 1,
+            "process_start_boundary": "Receive connector",
+            "process_end_boundary": "Pack assembly",
+            "suppliers": ["Connector supplier"],
+            "inputs": ["Connector"],
+            "process_steps": ["Inspect", "Insert", "Test"],
+            "outputs": ["Verified assembly"],
+            "customers": ["Final assembly"],
+            "actor": "quality.engineer",
+            "occurred_at": "2026-10-30T09:00:00+09:00",
+        }
+        revised = self.client.post("/v1/dmaic-projects/DMAIC-003/sipoc-maps", json=request)
+        self.assertEqual(revised.status_code, 201)
+        self.assertEqual(revised.json()["storage_version"], 2)
+        reference = revised.json()["project"]["sipoc"]
+        self.assertEqual(reference["revision"], 1)
+        self.assertNotIn("process_steps", revised.json()["project"])
+
+        sipoc = self.client.get(
+            f"/v1/dmaic-projects/DMAIC-003/sipoc-maps/{reference['document_id']}"
+        )
+        self.assertEqual(sipoc.status_code, 200)
+        self.assertEqual(sipoc.json()["sipoc"]["process_steps"], ["Inspect", "Insert", "Test"])
+
+        conflict = self.client.post("/v1/dmaic-projects/DMAIC-003/sipoc-maps", json=request)
+        self.assertEqual(conflict.status_code, 409)
+
     def test_fmea_study_is_created_revised_listed_and_submitted(self) -> None:
         created = self.client.post(
             "/v1/fmea-studies",

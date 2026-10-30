@@ -10,9 +10,11 @@ from statpro.dmaic.models import (
     DmaicInputError,
     DmaicProject,
     DmaicProjectStatus,
+    DmaicSipocMap,
     DmaicVoiceOfCustomerStudy,
     _charter_digest,
     _project_digest,
+    _sipoc_digest,
     _voice_of_customer_digest,
 )
 
@@ -39,7 +41,7 @@ def create_project(*, project_id: str, title: str, owner_ref: str, sponsor_ref: 
         owner_ref=_required(owner_ref, "owner_ref"), sponsor_ref=_optional(sponsor_ref), champion_ref=_optional(champion_ref),
         department=_optional(department), start_date=_optional(start_date), target_end_date=_optional(target_end_date),
         status=DmaicProjectStatus.DRAFT, revision=1, parent_digest=None, digest="", charter=None,
-        voice_of_customer=None)
+        voice_of_customer=None, sipoc=None)
     return replace(project, digest=_project_digest(project))
 
 
@@ -109,3 +111,46 @@ def save_voice_of_customer(
         voice_of_customer=reference,
     )
     return replace(revised, digest=_project_digest(revised)), study
+
+
+def save_sipoc(
+    project: DmaicProject,
+    *,
+    process_start_boundary: str,
+    process_end_boundary: str,
+    suppliers: tuple[str, ...],
+    inputs: tuple[str, ...],
+    process_steps: tuple[str, ...],
+    outputs: tuple[str, ...],
+    customers: tuple[str, ...],
+    actor: str,
+    occurred_at: str,
+) -> tuple[DmaicProject, DmaicSipocMap]:
+    previous = project.sipoc
+    revision = 1 if previous is None else previous.revision + 1
+    sipoc = DmaicSipocMap(
+        document_id=f"{project.project_id}-sipoc-r{revision}",
+        project_id=project.project_id,
+        revision=revision,
+        parent_digest=None if previous is None else previous.digest,
+        digest="",
+        process_start_boundary=_required(process_start_boundary, "process_start_boundary"),
+        process_end_boundary=_required(process_end_boundary, "process_end_boundary"),
+        suppliers=_items(suppliers, "suppliers"),
+        inputs=_items(inputs, "inputs"),
+        process_steps=_items(process_steps, "process_steps"),
+        outputs=_items(outputs, "outputs"),
+        customers=_items(customers, "customers"),
+        actor=_required(actor, "actor"),
+        occurred_at=_required(occurred_at, "occurred_at"),
+    )
+    sipoc = replace(sipoc, digest=_sipoc_digest(sipoc))
+    reference = DmaicDocumentReference("sipoc", sipoc.document_id, sipoc.revision, sipoc.digest)
+    revised = replace(
+        project,
+        revision=project.revision + 1,
+        parent_digest=project.digest,
+        digest="",
+        sipoc=reference,
+    )
+    return replace(revised, digest=_project_digest(revised)), sipoc
