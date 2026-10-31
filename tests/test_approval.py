@@ -15,6 +15,13 @@ from statpro.application.approval import (
     add_identity_file,
     create_approval_identity,
 )
+from statpro.application.enterprise_identity import (
+    EnterpriseApprovalAuthenticator,
+    EnterpriseIdentityRecord,
+    EntraApprovalConfiguration,
+    VerifiedOidcClaims,
+    provided_reference_identities,
+)
 
 
 class ApprovalIdentityTests(unittest.TestCase):
@@ -99,6 +106,99 @@ class ApprovalIdentityTests(unittest.TestCase):
             self.assertEqual(principal.user_id, "quality.approver")
             with self.assertRaises(ValueError):
                 add_identity_file(path, identity)
+
+
+class EnterpriseApprovalIdentityTests(unittest.TestCase):
+    tenant_id = "11111111-2222-3333-4444-555555555555"
+    client_id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+
+    def configuration(self) -> EntraApprovalConfiguration:
+        return EntraApprovalConfiguration.for_tenant(
+            tenant_id=self.tenant_id,
+            client_id=self.client_id,
+            policy_version="provided-master-2026-11-01",
+        )
+
+    def claims(self, **changes: object) -> VerifiedOidcClaims:
+        values: dict[str, object] = {
+            "tenant_id": self.tenant_id,
+            "audience": self.client_id,
+            "issuer": f"https://login.microsoftonline.com/{self.tenant_id}/v2.0",
+            "subject": "entra-object-qa-001",
+            "user_id": "M15082",
+            "display_name": "QA Approver",
+            "roles": ("ROLE_RND_QA", "ROLE_GENERAL"),
+            "authentication_methods": ("pwd", "mfa"),
+        }
+        values.update(changes)
+        return VerifiedOidcClaims(**values)  # type: ignore[arg-type]
+
+    def authenticator(self, claims: VerifiedOidcClaims) -> EnterpriseApprovalAuthenticator:
+        return EnterpriseApprovalAuthenticator(
+            self.configuration(),
+            provided_reference_identities(),
+            token_verifier=lambda token: claims if token == "verified" else (_ for _ in ()).throw(ValueError()),
+        )
+
+    def test_tenant_configuration_derives_public_metadata_without_secrets(self) -> None:
+        configuration = self.configuration()
+
+        self.assertEqual(
+            configuration.discovery_url,
+            f"https://login.microsoftonline.com/{self.tenant_id}/v2.0/.well-known/openid-configuration",
+        )
+        self.assertEqual(
+            configuration.jwks_url,
+            f"https://login.microsoftonline.com/{self.tenant_id}/discovery/v2.0/keys",
+        )
+        self.assertFalse(hasattr(configuration, "client_secret"))
+
+    def test_verified_qa_role_and_mfa_authorize_fmea_approval(self) -> None:
+        claims = self.claims()
+        authenticator = self.authenticator(claims)
+
+        principal, verified = authenticator.verify("Bearer verified")
+        context = authenticator.authorization_context(
+            signer_id=principal.user_id,
+            prior_actors=("quality.engineer",),
+            claims=verified,
+        )
+
+        self.assertEqual(principal.user_id, "M15082")
+        self.assertEqual(principal.role, "fmea_approver")
+        self.assertEqual(principal.authentication_method, "oidc_signed_token+mfa")
+        self.assertEqual(context["effective_roles"], ["ROLE_GENERAL", "ROLE_RND_QA"])
+        self.assertEqual(context["policy_version"], "provided-master-2026-11-01")
+
+    def test_role_master_account_state_mfa_and_authority_fail_closed(self) -> None:
+        with self.assertRaisesRegex(ApprovalAuthorizationError, "not authorized"):
+            self.authenticator(self.claims(user_id="M15024", roles=("ROLE_SALES_B2G",))).verify(
+                "Bearer verified"
+            )
+        inactive = EnterpriseApprovalAuthenticator(
+            self.configuration(),
+            (EnterpriseIdentityRecord("M15082", ("ROLE_RND_QA",), active=False),),
+            token_verifier=lambda _token: self.claims(roles=("ROLE_RND_QA",)),
+        )
+        with self.assertRaisesRegex(ApprovalAuthorizationError, "inactive"):
+            inactive.verify("Bearer verified")
+        with self.assertRaisesRegex(ApprovalAuthorizationError, "requires MFA"):
+            self.authenticator(self.claims(authentication_methods=("pwd",))).verify(
+                "Bearer verified"
+            )
+        with self.assertRaises(ApprovalAuthenticationError):
+            self.authenticator(self.claims(audience="wrong-client")).verify("Bearer verified")
+
+    def test_enterprise_independent_approval_rejects_prior_actor(self) -> None:
+        claims = self.claims()
+        authenticator = self.authenticator(claims)
+        principal, verified = authenticator.verify("Bearer verified")
+        with self.assertRaisesRegex(ApprovalAuthorizationError, "Independent approval"):
+            authenticator.authorization_context(
+                signer_id=principal.user_id,
+                prior_actors=("M15082",),
+                claims=verified,
+            )
 
 
 if __name__ == "__main__":

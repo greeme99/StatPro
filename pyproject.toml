@@ -15,6 +15,7 @@ dependencies = []
 [project.optional-dependencies]
 api = ["fastapi>=0.123,<1", "uvicorn>=0.38,<1"]
 test = ["fastapi>=0.123,<1", "httpx2>=2.14,<3", "jsonschema>=4.23,<5"]
+identity = ["PyJWT[crypto]>=2.10,<3"]
 
 [project.scripts]
 statpro = "statpro.cli:main"

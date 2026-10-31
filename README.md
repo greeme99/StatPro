@@ -78,6 +78,16 @@ statpro-api --storage "D:\StatProData" --host 127.0.0.1 --port 8765
 
 The identity command prompts twice for a password and stores only a salted scrypt verifier. Restart the API after changing the identity file. Open `http://127.0.0.1:8765/docs` for the generated OpenAPI interface. The launcher rejects non-loopback hosts. Analysis Run IDs are immutable; use a new ID for recalculation.
 
+Enterprise FMEA approval is exposed separately at
+`POST /v1/fmea-studies/{study_id}/approve-enterprise`. It remains fail-closed
+until the host injects a verifier that has cryptographically validated the
+Microsoft Entra OIDC token. StatPro then intersects the verified token roles
+with the configured account master, requires an active account and MFA, and
+records the identity-policy decision in the approval audit event. Client
+secrets and signing keys are not part of the persisted policy contract. See
+`docs/evidence/2026-11-01-fmea-enterprise-idp-policy.md` for verified scope and
+remaining live-tenant work.
+
 For an existing DOE Run, download its human-readable report or portable export bundle:
 
 ```powershell

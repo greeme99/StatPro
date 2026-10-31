@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
-from fastapi import FastAPI, Query, Response
+from fastapi import FastAPI, Header, Query, Response
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -67,6 +67,7 @@ from statpro.application.documents import (
     InvalidDocumentKeyError,
     StoredDocument,
 )
+from statpro.application.enterprise_identity import EnterpriseApprovalAuthenticator
 from statpro.application.reports import (
     build_doe_report,
     export_doe_report_zip,
@@ -542,6 +543,11 @@ class ApproveFmeaStudyRequest(ApiModel):
     expected_storage_version: int = Field(ge=1)
     user_id: RunId
     password: SecretStr = Field(min_length=1, max_length=1024)
+    meaning: Literal["approval"] = "approval"
+
+
+class EnterpriseApproveFmeaStudyRequest(ApiModel):
+    expected_storage_version: int = Field(ge=1)
     meaning: Literal["approval"] = "approval"
 
 
@@ -1053,6 +1059,7 @@ def _check_fmea_analysis_evidence(
 def create_app(
     repository: DocumentRepository,
     approval_authenticator: LocalApprovalAuthenticator | None = None,
+    enterprise_approval_authenticator: EnterpriseApprovalAuthenticator | None = None,
 ) -> FastAPI:
     """Create a testable local API with an injected persistence adapter."""
 
@@ -2504,6 +2511,57 @@ def create_app(
         evidence_checks = _check_fmea_analysis_evidence(repository, study)
         failed_checks = [check for check in evidence_checks if check["status"] != "verified"]
         if failed_checks:
+            raise FmeaInputError(
+                "unverified_analysis_evidence_blocks_approval",
+                "All linked SPC/MSA Runs must match before approval.",
+                "analysis_evidence",
+            )
+        executed_at = datetime.now(UTC).isoformat()
+        revised = approve_study(
+            study,
+            signature=ApprovalSignature(
+                signer_id=principal.user_id,
+                signer_name=principal.display_name,
+                role=principal.role,
+                meaning=request.meaning,
+                authority=principal.authority,
+                authentication_method=principal.authentication_method,
+                signed_digest=study.digest,
+                executed_at=executed_at,
+            ),
+            authorization_context=authorization_context,
+        )
+        saved = _save_fmea_study(
+            repository,
+            revised,
+            expected_version=request.expected_storage_version,
+        )
+        response.headers["ETag"] = f'"{saved.etag}"'
+        return _fmea_response(saved)
+
+    @app.post(
+        "/v1/fmea-studies/{study_id}/approve-enterprise",
+        response_model=StoredFmeaStudyResponse,
+    )
+    def approve_fmea_study_enterprise(
+        study_id: RunId,
+        request: EnterpriseApproveFmeaStudyRequest,
+        response: Response,
+        authorization: Annotated[str | None, Header()] = None,
+    ) -> StoredFmeaStudyResponse:
+        _stored, study = _load_fmea_study(repository, study_id)
+        if enterprise_approval_authenticator is None:
+            raise ApprovalConfigurationError(
+                "Configure an enterprise IdP verifier and role policy before approving studies."
+            )
+        principal, claims = enterprise_approval_authenticator.verify(authorization)
+        authorization_context = enterprise_approval_authenticator.authorization_context(
+            signer_id=principal.user_id,
+            prior_actors=tuple(event.actor for event in study.audit_events),
+            claims=claims,
+        )
+        evidence_checks = _check_fmea_analysis_evidence(repository, study)
+        if any(check["status"] != "verified" for check in evidence_checks):
             raise FmeaInputError(
                 "unverified_analysis_evidence_blocks_approval",
                 "All linked SPC/MSA Runs must match before approval.",

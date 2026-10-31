@@ -50,6 +50,10 @@ class LocalApiContractTests(unittest.TestCase):
         self.assertIn("/v1/analysis-runs/u-chart", openapi.json()["paths"])
         self.assertIn("/v1/analysis-runs/g-chart", openapi.json()["paths"])
         self.assertIn("/v1/analysis-runs/t-chart", openapi.json()["paths"])
+        self.assertIn(
+            "/v1/fmea-studies/{study_id}/approve-enterprise",
+            openapi.json()["paths"],
+        )
 
     def test_rare_event_runs_preserve_distinct_input_contracts(self) -> None:
         g_created = self.client.post(
