@@ -36,14 +36,16 @@ describe("StatPro UI", () => {
     expect(screen.getByRole("link", { name: "실험계획법(DOE)" })).toBeInTheDocument();
   });
 
-  it("renders the menu and UI preview with truthful delivery states", async () => {
+  it("renders the process-based home with workspace workflows", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 }));
     render(<MemoryRouter initialEntries={["/home"]}><App /></MemoryRouter>);
-    expect(await screen.findByRole("heading", { name: "제조·품질 분석의 시작점" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "핵심 전문 작업공간" })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "바로가기" })).not.toBeInTheDocument();
-    expect(screen.getAllByRole("link", { name: "작업공간 열기" })[0]).toHaveAttribute("href", "/doe");
-    expect(screen.getByRole("link", { name: "DMAIC 알아보기" })).toHaveAttribute("href", "/home/dmaic");
+    expect(await screen.findByRole("heading", { name: "공정 문제에서 검증된 조치까지" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "업무에 맞는 작업공간에서 시작합니다" })).toBeInTheDocument();
+    expect(screen.getByRole("list", { name: "현장 분석 운영 단계" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "DOE 업무 시작" })).toHaveAttribute("href", "/doe");
+    expect(screen.getByRole("link", { name: "설명 및 작업공간 열기" })).toHaveAttribute("href", "/home/dmaic");
+    expect(screen.queryByText("HOME / MENU PREVIEW")).not.toBeInTheDocument();
+    expect(screen.queryByText("개발 예정")).not.toBeInTheDocument();
   });
 
   it("opens the UI-preview home from the sidebar home navigation", async () => {
@@ -59,14 +61,14 @@ describe("StatPro UI", () => {
     expect(homeLink).toHaveAttribute("href", "/home");
     await userEvent.click(homeLink);
 
-    expect(await screen.findByRole("heading", { name: "제조·품질 분석의 시작점" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "공정 문제에서 검증된 조치까지" })).toBeInTheDocument();
   });
 
   it("redirects the retired preview URL to the fixed home URL", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 }));
     render(<MemoryRouter initialEntries={["/ui-preview"]}><App /></MemoryRouter>);
 
-    expect(await screen.findByRole("heading", { name: "제조·품질 분석의 시작점" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "공정 문제에서 검증된 조치까지" })).toBeInTheDocument();
   });
 
   it("renders the DMAIC guide as an explanation page linked from the home preview", async () => {

@@ -28,7 +28,7 @@
   --font-display-size: 32px; --font-heading-size: 18px; --font-card-heading-size: 15px; --font-caption-size: 12px;
   --border-width: 1px; --header-height: 56px; --sidebar-width: 240px; --sidebar-compact-width: 64px;
   --control-height: 40px; --touch-target: 44px; --icon-size: 20px; --chart-height: 300px;
-  --content-max: 1680px; --drawer-width: 440px; --unsupported-layer: block;
+  --content-max: 1680px; --content-narrow: 640px; --drawer-width: 440px; --unsupported-layer: block;
 }
 
 :root, :root[data-theme="light"] {
