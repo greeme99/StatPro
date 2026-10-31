@@ -95,7 +95,21 @@ describe("StatPro UI", () => {
     await userEvent.click(screen.getByRole("button", { name: "CUSUM 실행" }));
     await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith("/cusum") && (init as RequestInit | undefined)?.method === "POST")).toBe(true));
     const post = fetchMock.mock.calls.find(([url, init]) => String(url).endsWith("/cusum") && (init as RequestInit | undefined)?.method === "POST");
-    expect(JSON.parse(String((post?.[1] as RequestInit).body))).toMatchObject({ target: 50, sigma: 1, reference_value: 0.5, decision_interval: 4 });
+    expect(JSON.parse(String((post?.[1] as RequestInit).body))).toMatchObject({ target: 50, sigma: 1, reference_value: 0.5, decision_interval: 4, fir_head_start: 0, reset_after_signal: false });
+  });
+
+  it("submits explicit CUSUM FIR and reset choices", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      return new Response(JSON.stringify({}), { status: init?.method === "POST" ? 201 : 200, headers: { "Content-Type": "application/json" } });
+    });
+    render(<MemoryRouter initialEntries={["/analyses/spc/cusum"]}><App /></MemoryRouter>);
+    await userEvent.click(await screen.findByLabelText("FIR(빠른 초기 반응) 사용"));
+    await userEvent.click(screen.getByLabelText("신호 후 누적합 재설정"));
+    await userEvent.click(screen.getByRole("button", { name: "CUSUM 실행" }));
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith("/cusum") && (init as RequestInit | undefined)?.method === "POST")).toBe(true));
+    const post = fetchMock.mock.calls.find(([url, init]) => String(url).endsWith("/cusum") && (init as RequestInit | undefined)?.method === "POST");
+    expect(JSON.parse(String((post?.[1] as RequestInit).body))).toMatchObject({ fir_head_start: 2, reset_after_signal: true });
   });
 
   it("submits a geometric rare-event G chart with its distinct interval contract", async () => {
@@ -133,12 +147,12 @@ describe("StatPro UI", () => {
 
   it("renders two-sided CUSUM signals with an accessible table", async () => {
     const points = [
-      { index: 0, observation: 1, standardized_observation: 1, upper_cusum: 0.5, lower_cusum: 0, center: 0, lcl: -4, ucl: 4, signal: false, signal_direction: null },
-      { index: 1, observation: 1, standardized_observation: 1, upper_cusum: 4.5, lower_cusum: 0, center: 0, lcl: -4, ucl: 4, signal: true, signal_direction: "upper" },
+      { index: 0, observation: 1, standardized_observation: 1, upper_cusum: 0.5, lower_cusum: 0, center: 0, lcl: -4, ucl: 4, signal: false, signal_direction: null, reset_applied: false },
+      { index: 1, observation: 1, standardized_observation: 1, upper_cusum: 4.5, lower_cusum: 0, center: 0, lcl: -4, ucl: 4, signal: true, signal_direction: "upper", reset_applied: true },
     ];
     const result = {
       analysis_type: "spc.cusum", engine_version: "0.6.0", input_digest: "c".repeat(64), warnings: [], assumptions: [], provenance: [],
-      parameters: { target: 0, process_sigma: 1, mean_source: "historical", sigma_source: "historical", reference_value: 0.5, decision_interval: 4, standardized: true, initial_cusum: 0 },
+      parameters: { target: 0, process_sigma: 1, mean_source: "historical", sigma_source: "historical", reference_value: 0.5, decision_interval: 4, standardized: true, initial_cusum: 2, fir_head_start: 2, reset_after_signal: true },
       diagnostics: { signal_indices: [1] }, tables: { chart_points: points }, plots: { cusum: { upper_values: [0.5, 4.5], lower_values: [0, 0], signal_indices: [1] } },
     };
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
@@ -148,7 +162,8 @@ describe("StatPro UI", () => {
     render(<MemoryRouter initialEntries={["/runs/cusum-001"]}><App /></MemoryRouter>);
     expect(await screen.findByRole("heading", { name: "CUSUM 관리도" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "CUSUM 관측값과 판정구간" })).toBeInTheDocument();
-    expect(screen.getByText("상측 이탈")).toBeInTheDocument();
+    expect(screen.getByText(/상측 이탈.*재설정됨/)).toBeInTheDocument();
+    expect(screen.getByText(/상측 이탈.*재설정됨/)).toBeInTheDocument();
   });
 
   it("renders the shared Korean control-chart statistics and signal summary for I-MR", async () => {

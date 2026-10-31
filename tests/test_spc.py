@@ -305,6 +305,26 @@ class CusumChartTests(unittest.TestCase):
         self.assertEqual(result.diagnostics["lower_signal_indices"][0], 8)
         self.assertAlmostEqual(result.tables["chart_points"][8]["lower_cusum"], -4.5)
 
+    def test_supports_explicit_fir_head_start_and_reset_after_signal(self) -> None:
+        result = cusum_chart(
+            [1.0, 1.0, 1.0, 1.0],
+            target=0.0,
+            sigma=1.0,
+            reference_value=0.5,
+            decision_interval=2.0,
+            fir_head_start=1.0,
+            reset_after_signal=True,
+        )
+
+        points = result.tables["chart_points"]
+        self.assertAlmostEqual(points[0]["upper_cusum"], 1.5)
+        self.assertTrue(points[2]["signal"])
+        self.assertTrue(points[2]["reset_applied"])
+        self.assertAlmostEqual(points[3]["upper_cusum"], 1.5)
+        self.assertEqual(result.parameters["fir_head_start"], 1.0)
+        self.assertTrue(result.parameters["reset_after_signal"])
+        self.assertEqual(result.diagnostics["reset_signal_indices"], [2])
+
     def test_estimates_target_and_sigma_with_explicit_warnings(self) -> None:
         result = cusum_chart([10.0, 10.2, 9.9, 10.1])
 
@@ -317,6 +337,8 @@ class CusumChartTests(unittest.TestCase):
             ({"reference_value": -0.1}, "invalid_reference_value"),
             ({"decision_interval": 0.0}, "invalid_decision_interval"),
             ({"decision_interval": 101.0}, "invalid_decision_interval"),
+            ({"fir_head_start": -0.1}, "invalid_fir_head_start"),
+            ({"decision_interval": 4.0, "fir_head_start": 4.0}, "invalid_fir_head_start"),
             ({"sigma": 0.0}, "invalid_process_sigma"),
         ]
         for kwargs, code in cases:

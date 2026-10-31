@@ -181,6 +181,8 @@ class CliBoundaryTests(unittest.TestCase):
                         "sigma": 1,
                         "reference_value": 0.5,
                         "decision_interval": 4,
+                        "fir_head_start": 2,
+                        "reset_after_signal": True,
                     }
                 ),
                 encoding="utf-8",
@@ -192,8 +194,10 @@ class CliBoundaryTests(unittest.TestCase):
         result = json.loads(output.getvalue())["result"]
         self.assertEqual(exit_code, 0)
         self.assertEqual(result["analysis_type"], "spc.cusum")
-        self.assertEqual(result["diagnostics"]["upper_signal_indices"][0], 8)
+        self.assertEqual(result["diagnostics"]["upper_signal_indices"][0], 4)
         self.assertEqual(result["diagnostics"]["lower_signal_indices"], [])
+        self.assertEqual(result["parameters"]["fir_head_start"], 2)
+        self.assertTrue(result["parameters"]["reset_after_signal"])
 
     def test_laney_prime_charts_return_sigma_z(self) -> None:
         cases = [

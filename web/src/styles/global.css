@@ -205,6 +205,8 @@ svg { width: var(--icon-size); height: var(--icon-size); stroke-width: 1.8; }
 .field input:focus, .field textarea:focus { border-color: var(--color-action); }
 .field [aria-invalid="true"] { border-color: var(--color-status-danger); }
 .field small { color: var(--color-text-secondary); font-weight: 400; }
+.checkbox-field { align-items: center; display: flex; gap: var(--space-2); min-height: var(--control-height); font-weight: 600; }
+.checkbox-field input { accent-color: var(--color-action); block-size: var(--space-4); inline-size: var(--space-4); }
 .error-banner, .warning-panel { display: flex; gap: var(--space-3); padding: var(--space-4); border-radius: var(--radius-lg); }
 .error-banner { margin-bottom: var(--space-5); color: var(--color-status-danger); background: var(--color-status-danger-bg); }
 .error-banner p { color: inherit; }

@@ -224,6 +224,7 @@ export type CusumPoint = {
   lcl: number;
   signal: boolean;
   signalDirection: "upper" | "lower" | "both" | null;
+  resetApplied: boolean;
 };
 
 export type CusumView = {
@@ -233,6 +234,8 @@ export type CusumView = {
   processSigma: number;
   meanSource: string;
   sigmaSource: string;
+  firHeadStart: number;
+  resetAfterSignal: boolean;
 };
 
 export function toCusumView(result: ResultBundle | undefined): CusumView | null {
@@ -259,6 +262,7 @@ export function toCusumView(result: ResultBundle | undefined): CusumView | null 
       lcl: row.lcl,
       signal: row.signal,
       signalDirection: row.signal_direction as CusumPoint["signalDirection"],
+      resetApplied: row.reset_applied === true,
     });
   }
   const referenceValue = result.parameters.reference_value;
@@ -266,13 +270,17 @@ export function toCusumView(result: ResultBundle | undefined): CusumView | null 
   const processSigma = result.parameters.process_sigma;
   const meanSource = result.parameters.mean_source;
   const sigmaSource = result.parameters.sigma_source;
+  const firHeadStart = result.parameters.fir_head_start ?? result.parameters.initial_cusum;
+  const resetAfterSignal = result.parameters.reset_after_signal ?? false;
   if (
     typeof referenceValue !== "number" || !Number.isFinite(referenceValue)
     || typeof decisionInterval !== "number" || !Number.isFinite(decisionInterval)
     || typeof processSigma !== "number" || !Number.isFinite(processSigma)
     || typeof meanSource !== "string" || typeof sigmaSource !== "string"
+    || typeof firHeadStart !== "number" || !Number.isFinite(firHeadStart)
+    || typeof resetAfterSignal !== "boolean"
   ) return null;
-  return { points, referenceValue, decisionInterval, processSigma, meanSource, sigmaSource };
+  return { points, referenceValue, decisionInterval, processSigma, meanSource, sigmaSource, firHeadStart, resetAfterSignal };
 }
 
 export type AttributeChartPoint = {

@@ -170,6 +170,8 @@ class CusumRunRequest(ApiModel):
     stage: Literal["phase_1", "phase_2"] = "phase_1"
     reference_value: float = 0.5
     decision_interval: float = 4.0
+    fir_head_start: float = 0.0
+    reset_after_signal: bool = False
 
 
 class AttributeChartRunRequest(ApiModel):
@@ -1230,6 +1232,8 @@ def create_app(
                 stage=request.stage,
                 reference_value=request.reference_value,
                 decision_interval=request.decision_interval,
+                fir_head_start=request.fir_head_start,
+                reset_after_signal=request.reset_after_signal,
             ),
         )
         response.headers["ETag"] = f'"{stored.etag}"'

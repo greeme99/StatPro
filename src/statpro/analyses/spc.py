@@ -1334,6 +1334,8 @@ def cusum_chart(
     stage: str = "phase_1",
     reference_value: float = 0.5,
     decision_interval: float = 4.0,
+    fir_head_start: float = 0.0,
+    reset_after_signal: bool = False,
 ) -> ResultBundle:
     """Calculate a standardized two-sided tabular CUSUM for individuals."""
 
@@ -1370,6 +1372,13 @@ def cusum_chart(
             "CUSUM decision interval h must be greater than 0 and no greater than 100.",
             "decision_interval",
         )
+    head_start = finite_values([fir_head_start], "fir_head_start")[0]
+    if not 0.0 <= head_start < h:
+        raise AnalysisInputError(
+            "invalid_fir_head_start",
+            "CUSUM FIR head start must be at least 0 and smaller than decision interval h.",
+            "fir_head_start",
+        )
 
     center = fmean(observations) if target is None else finite_values([target], "target")[0]
     moving_ranges = [abs(current - previous) for previous, current in pairwise(observations)]
@@ -1387,8 +1396,8 @@ def cusum_chart(
             "sigma" if sigma is not None else "values",
         )
 
-    upper = 0.0
-    lower_magnitude = 0.0
+    upper = head_start
+    lower_magnitude = head_start
     upper_values: list[float] = []
     lower_values: list[float] = []
     points: list[dict[str, object]] = []
@@ -1414,6 +1423,7 @@ def cusum_chart(
             if lower_signal
             else None
         )
+        reset_applied = direction is not None and reset_after_signal
         upper_values.append(upper)
         lower_values.append(lower)
         points.append(
@@ -1428,8 +1438,12 @@ def cusum_chart(
                 "ucl": h,
                 "signal": direction is not None,
                 "signal_direction": direction,
+                "reset_applied": reset_applied,
             }
         )
+        if reset_applied:
+            upper = head_start
+            lower_magnitude = head_start
 
     signal_indices = sorted(set(upper_signal_indices + lower_signal_indices))
     warnings: list[str] = []
@@ -1449,6 +1463,10 @@ def cusum_chart(
         "decision_interval": h,
         "stage": stage,
     }
+    if head_start != 0.0:
+        payload["fir_head_start"] = head_start
+    if reset_after_signal:
+        payload["reset_after_signal"] = True
     provenance = [NIST_CUSUM_SOURCE, MINITAB_CUSUM_SOURCE]
     if sigma is None:
         provenance.append(NIST_IMR_SOURCE)
@@ -1464,7 +1482,9 @@ def cusum_chart(
             "reference_value": k,
             "decision_interval": h,
             "standardized": True,
-            "initial_cusum": 0.0,
+            "initial_cusum": head_start,
+            "fir_head_start": head_start,
+            "reset_after_signal": reset_after_signal,
             "stage": stage,
         },
         tables={"chart_points": points},
@@ -1480,11 +1500,13 @@ def cusum_chart(
             "upper_signal_indices": upper_signal_indices,
             "lower_signal_indices": lower_signal_indices,
             "average_moving_range": average_moving_range,
+            "reset_signal_indices": [index for index, point in enumerate(points) if point["reset_applied"]],
         },
         assumptions=(
             "Observations are continuous, independent, and ordered in process time.",
             "Phase 1 may estimate baseline parameters; Phase 2 uses supplied historical target and sigma.",
             "Reference value k and decision interval h are expressed in process-sigma units.",
+            "FIR head start initializes both tabular sums; when enabled, reset begins the next observation at that same head start.",
             "A CUSUM limit signal is an investigation candidate and does not establish a special cause by itself.",
         ),
         warnings=tuple(warnings),

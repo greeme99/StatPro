@@ -143,6 +143,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 stage=payload.get("stage", "phase_1"),
                 reference_value=payload.get("reference_value", 0.5),
                 decision_interval=payload.get("decision_interval", 4.0),
+                fir_head_start=payload.get("fir_head_start", 0.0),
+                reset_after_signal=payload.get("reset_after_signal", False),
             )
         elif args.command == "laney-p-prime":
             result = laney_p_prime(payload["nonconforming"], payload["sample_sizes"])

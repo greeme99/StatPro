@@ -90,6 +90,8 @@ export function createCusumRun(payload: {
   sigma?: number;
   reference_value: number;
   decision_interval: number;
+  fir_head_start?: number;
+  reset_after_signal?: boolean;
 }): Promise<StoredRun> {
   return request("/v1/analysis-runs/cusum", {
     method: "POST",

@@ -361,6 +361,8 @@ class LocalApiContractTests(unittest.TestCase):
                     "sigma": 1,
                     "reference_value": 0.5,
                     "decision_interval": 4,
+                    "fir_head_start": 2,
+                    "reset_after_signal": True,
                 },
                 "spc.cusum",
             ),
