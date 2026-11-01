@@ -85,6 +85,8 @@ export type XbarSView = {
 
 export type XbarRView = {
   subgroupSize: number;
+  ruleSet: string;
+  constants: { a2: number; d3: number; d4: number };
   xbarPoints: ProcessPoint[];
   rangePoints: ProcessPoint[];
   xbarLimits: { center: number; ucl: number; lcl: number };
@@ -100,9 +102,14 @@ export function toXbarRView(result: ResultBundle | undefined): XbarRView | null 
   const xbarLimits = result.tables.limits?.xbar;
   const rangeLimits = result.tables.limits?.range;
   const subgroupSize = result.parameters.subgroup_size;
+  const ruleSet = result.parameters.rules;
+  const a2 = result.parameters.a2;
+  const d3 = result.parameters.d3;
+  const d4 = result.parameters.d4;
   if (
     !Array.isArray(xbarValues) || !Array.isArray(xbarSignals) || !Array.isArray(rangeValues) || !Array.isArray(rangeSignals)
     || !xbarLimits || !rangeLimits || typeof subgroupSize !== "number" || !Number.isInteger(subgroupSize) || subgroupSize < 2 || subgroupSize > 10
+    || typeof ruleSet !== "string" || ![a2, d3, d4].every((value) => typeof value === "number" && Number.isFinite(value))
     || ![xbarLimits.center, xbarLimits.ucl, xbarLimits.lcl, rangeLimits.center, rangeLimits.ucl, rangeLimits.lcl].every(Number.isFinite)
     || xbarValues.length !== rangeValues.length
     || xbarValues.some((value) => typeof value !== "number" || !Number.isFinite(value))
@@ -110,14 +117,28 @@ export function toXbarRView(result: ResultBundle | undefined): XbarRView | null 
     || xbarSignals.some((value) => typeof value !== "number" || !Number.isInteger(value) || value < 0 || value >= xbarValues.length)
     || rangeSignals.some((value) => typeof value !== "number" || !Number.isInteger(value) || value < 0 || value >= rangeValues.length)
   ) return null;
-  const points = (values: unknown[], signals: unknown[]) => {
+  const points = (values: unknown[], signals: unknown[], ruleSignals: unknown) => {
     const signalSet = new Set(signals as number[]);
-    return (values as number[]).map((value, index) => ({ index: index + 1, value, signal: signalSet.has(index), rules: [] }));
+    const rulesByIndex = new Map<number, Set<string>>();
+    if (Array.isArray(ruleSignals)) {
+      for (const event of ruleSignals as RuleSignal[]) {
+        if (typeof event?.rule !== "string" || !Array.isArray(event.involved_indices)) continue;
+        for (const index of event.involved_indices) {
+          if (typeof index !== "number" || !Number.isInteger(index) || index < 0 || index >= values.length) continue;
+          const rules = rulesByIndex.get(index) ?? new Set<string>();
+          rules.add(event.rule);
+          rulesByIndex.set(index, rules);
+        }
+      }
+    }
+    return (values as number[]).map((value, index) => ({ index: index + 1, value, signal: signalSet.has(index), rules: [...(rulesByIndex.get(index) ?? [])].sort() }));
   };
   return {
     subgroupSize,
-    xbarPoints: points(xbarValues, xbarSignals),
-    rangePoints: points(rangeValues, rangeSignals),
+    ruleSet,
+    constants: { a2: a2 as number, d3: d3 as number, d4: d4 as number },
+    xbarPoints: points(xbarValues, xbarSignals, result.plots.xbar?.rule_signals),
+    rangePoints: points(rangeValues, rangeSignals, result.plots.range?.rule_signals),
     xbarLimits,
     rangeLimits,
   };

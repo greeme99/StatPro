@@ -282,9 +282,9 @@ describe("StatPro UI", () => {
   it("renders Xbar-R mean and range charts with an accessible table", async () => {
     const result = {
       analysis_type: "spc.xbar_r", engine_version: "0.6.0", input_digest: "a".repeat(64), warnings: [], assumptions: [], provenance: [],
-      parameters: { subgroup_size: 5, a2: 0.577, d3: 0, d4: 2.114, rules: "basic" }, diagnostics: {},
+      parameters: { subgroup_size: 5, a2: 0.577, d3: 0, d4: 2.114, rules: "nelson" }, diagnostics: {},
       tables: { limits: { xbar: { center: 10, lcl: 8, ucl: 12 }, range: { center: 1.2, lcl: 0, ucl: 2.5 } } },
-      plots: { xbar: { values: [9.8, 10.2], signals: [] }, range: { values: [1.1, 1.3], signals: [1] } },
+      plots: { xbar: { values: [9.8, 10.2], signals: [], rule_signals: [] }, range: { values: [1.1, 1.3], signals: [1], rule_signals: [{ rule: "NELSON-1", involved_indices: [1] }] } },
     };
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
@@ -295,6 +295,9 @@ describe("StatPro UI", () => {
     expect(screen.getByRole("heading", { name: "부분군 범위(R) 관리도" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Xbar-R 부분군 표" })).toBeInTheDocument();
     expect(screen.getByText("검토 필요")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "관리이탈 지점 분석" })).toBeInTheDocument();
+    expect(screen.getAllByText("NELSON-1").length).toBeGreaterThan(0);
+    expect(screen.getByText("Nelson 규칙")).toBeInTheDocument();
   });
 
   it("renders recent analysis runs from the local API", async () => {

@@ -1,6 +1,8 @@
 import { Download, FileJson, FileSpreadsheet, FileText, ImageDown, ImageUp } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { toXbarRView } from "../analysis";
 import type { ResultBundle } from "../types";
+import { downloadArtifact, downloadXbarRPng, printXbarRReport, xbarRExcelXml, xbarRReportSvg } from "../xbarRExport";
 import { Button } from "./Button";
 
 type CsvRow = [section: string, path: string, value: string];
@@ -64,6 +66,7 @@ function downloadJson(filename: string, result: ResultBundle) {
 export function ResultExportMenu({ runId, result }: { runId: string; result: ResultBundle }) {
   const [open, setOpen] = useState(false);
   const menu = useRef<HTMLDivElement>(null);
+  const xbarR = toXbarRView(result);
 
   useEffect(() => {
     if (!open) return;
@@ -87,10 +90,17 @@ export function ResultExportMenu({ runId, result }: { runId: string; result: Res
       {open && <div className="export-popover" role="menu" aria-label="결과 출력 형식">
         <button role="menuitem" onClick={() => { downloadJson(`${runId}-result.json`, result); setOpen(false); }}><FileJson aria-hidden="true" />JSON으로 저장</button>
         <button role="menuitem" title="표·차트 원본 필드를 경로와 값으로 정규화합니다. 계층 구조 전체는 JSON을 사용하세요." onClick={() => { downloadText(`${runId}-result.csv`, resultBundleCsv(result), "text/csv;charset=utf-8"); setOpen(false); }}><FileSpreadsheet aria-hidden="true" />표·차트 데이터(CSV)로 저장</button>
-        <span role="menuitem" aria-disabled="true" title="개발 예정"><FileText aria-hidden="true" />PDF 보고서 <small>개발 예정</small></span>
-        <span role="menuitem" aria-disabled="true" title="개발 예정"><FileSpreadsheet aria-hidden="true" />Excel로 저장 <small>개발 예정</small></span>
-        <span role="menuitem" aria-disabled="true" title="개발 예정"><ImageDown aria-hidden="true" />차트를 PNG로 저장 <small>개발 예정</small></span>
-        <span role="menuitem" aria-disabled="true" title="개발 예정"><ImageUp aria-hidden="true" />차트를 SVG로 저장 <small>개발 예정</small></span>
+        {xbarR ? <>
+          <button role="menuitem" onClick={() => { if (!printXbarRReport(runId, result, xbarR)) window.alert("보고서 창을 열 수 없습니다. 브라우저의 팝업 차단 설정을 확인하세요."); setOpen(false); }}><FileText aria-hidden="true" />PDF 보고서 저장·인쇄</button>
+          <button role="menuitem" onClick={() => { downloadArtifact(`${runId}-xbar-r.xls`, xbarRExcelXml(runId, result, xbarR), "application/vnd.ms-excel;charset=utf-8"); setOpen(false); }}><FileSpreadsheet aria-hidden="true" />Excel로 저장</button>
+          <button role="menuitem" onClick={() => { downloadXbarRPng(runId, xbarR); setOpen(false); }}><ImageDown aria-hidden="true" />차트를 PNG로 저장</button>
+          <button role="menuitem" onClick={() => { downloadArtifact(`${runId}-xbar-r.svg`, xbarRReportSvg(runId, xbarR), "image/svg+xml;charset=utf-8"); setOpen(false); }}><ImageUp aria-hidden="true" />차트를 SVG로 저장</button>
+        </> : <>
+          <span role="menuitem" aria-disabled="true" title="개발 예정"><FileText aria-hidden="true" />PDF 보고서 <small>개발 예정</small></span>
+          <span role="menuitem" aria-disabled="true" title="개발 예정"><FileSpreadsheet aria-hidden="true" />Excel로 저장 <small>개발 예정</small></span>
+          <span role="menuitem" aria-disabled="true" title="개발 예정"><ImageDown aria-hidden="true" />차트를 PNG로 저장 <small>개발 예정</small></span>
+          <span role="menuitem" aria-disabled="true" title="개발 예정"><ImageUp aria-hidden="true" />차트를 SVG로 저장 <small>개발 예정</small></span>
+        </>}
       </div>}
     </div>
   );
