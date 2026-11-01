@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "environment": {
+    "node": "v24.19.0",
+    "platform": "win32",
+    "arch": "x64"
+  },
+  "method": {
+    "note": "Bundle-only measurement. Use browser.html for render timing."
+  },
+  "isolated_bundle": {
+    "recharts": {
+      "javascript_bytes": 532371,
+      "javascript_gzip_bytes": 159033
+    },
+    "echarts_svg": {
+      "javascript_bytes": 497437,
+      "javascript_gzip_bytes": 168526
+    }
+  }
+}

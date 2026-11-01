@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "allowed_spdx_licenses": [
+    "0BSD",
     "Apache-2.0",
     "BlueOak-1.0.0",
     "BSD-2-Clause",
@@ -28,6 +29,7 @@
     "@types/react-dom": {"purpose": "React DOM TypeScript declarations"},
     "@vitejs/plugin-react": {"purpose": "React production build integration"},
     "d3-shape": {"purpose": "Fishbone SVG geometry projection only"},
+    "echarts": {"purpose": "Isolated chart-engine benchmark only; excluded from product runtime", "boundary": "benchmark-only"},
     "jsdom": {"purpose": "Browser-like frontend test runtime"},
     "lucide-react": {"purpose": "Accessible application icons"},
     "react": {"purpose": "Local workbench UI"},

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -50,6 +51,21 @@ class OssGateTests(unittest.TestCase):
         pyproject = {"project": {"optional-dependencies": {}}}
         with self.assertRaisesRegex(oss_gate.GateError, "unapproved license"):
             oss_gate._validate_policy(policy, package, lock, pyproject)
+
+    def test_benchmark_only_dependency_cannot_enter_product_source(self) -> None:
+        policy = {
+            "npm_direct_dependencies": {
+                "echarts": {"boundary": "benchmark-only"},
+            }
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            source_root = Path(directory)
+            (source_root / "chart.ts").write_text(
+                'import { init } from "echarts/core";\n',
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(oss_gate.GateError, "Benchmark-only"):
+                oss_gate._validate_npm_boundaries(policy, source_root)
 
     def test_sbom_component_references_are_unique(self) -> None:
         policy = oss_gate._load_json(oss_gate.POLICY_PATH)

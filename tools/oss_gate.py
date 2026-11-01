@@ -44,6 +44,27 @@ def _license_ids(expression: str) -> set[str]:
     }
 
 
+def _validate_npm_boundaries(policy: dict[str, Any], source_root: Path | None = None) -> None:
+    product_source = source_root or ROOT / "web" / "src"
+    for name, decision in policy["npm_direct_dependencies"].items():
+        if decision.get("boundary") != "benchmark-only":
+            continue
+        import_pattern = re.compile(
+            rf"(?:from\s+|import\s*\()?['\"]{re.escape(name)}(?:/|['\"])",
+        )
+        violations = []
+        for path in product_source.rglob("*"):
+            if path.suffix not in {".js", ".jsx", ".ts", ".tsx"}:
+                continue
+            if import_pattern.search(path.read_text(encoding="utf-8")):
+                violations.append(path.relative_to(product_source).as_posix())
+        if violations:
+            raise GateError(
+                f"Benchmark-only npm dependency imported by product source: {name} "
+                f"({', '.join(sorted(violations))})"
+            )
+
+
 def _validate_policy(
     policy: dict[str, Any], package: dict[str, Any], lock: dict[str, Any], pyproject: dict[str, Any]
 ) -> None:
@@ -54,6 +75,7 @@ def _validate_policy(
         missing = sorted(direct_npm - registered_npm)
         stale = sorted(registered_npm - direct_npm)
         raise GateError(f"npm direct dependency registry mismatch; missing={missing}, stale={stale}")
+    _validate_npm_boundaries(policy)
 
     lock_root = lock["packages"][""]
     for section in ("dependencies", "devDependencies"):

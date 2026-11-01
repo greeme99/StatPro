@@ -1,7 +1,7 @@
 {
   "bomFormat": "CycloneDX",
   "specVersion": "1.5",
-  "serialNumber": "urn:uuid:aea47356-b5f7-5ab9-af0a-5bd8574a2ca7",
+  "serialNumber": "urn:uuid:79d3bb0e-67e1-50b4-ab9a-ce3b95826862",
   "version": 1,
   "metadata": {
     "component": {
@@ -13,7 +13,7 @@
     "properties": [
       {
         "name": "statpro:npm-lock-sha256",
-        "value": "aea47356b5f73ab93f0a5bd8574a2ca75f65a0a5b022d12cafafac57e719b513"
+        "value": "79d3bb0e67e100b45b9ace3b95826862d253481fcc69dd1660e7e03f48511861"
       },
       {
         "name": "statpro:python-resolution",
@@ -1662,6 +1662,19 @@
     },
     {
       "type": "library",
+      "bom-ref": "pkg:npm/echarts@6.1.0",
+      "name": "echarts",
+      "version": "6.1.0",
+      "scope": "optional",
+      "licenses": [
+        {
+          "expression": "Apache-2.0"
+        }
+      ],
+      "purl": "pkg:npm/echarts@6.1.0"
+    },
+    {
+      "type": "library",
       "bom-ref": "pkg:npm/enhanced-resolve@5.26.0",
       "name": "enhanced-resolve",
       "version": "5.26.0",
@@ -2793,6 +2806,19 @@
     },
     {
       "type": "library",
+      "bom-ref": "pkg:npm/tslib@2.3.0",
+      "name": "tslib",
+      "version": "2.3.0",
+      "scope": "optional",
+      "licenses": [
+        {
+          "expression": "0BSD"
+        }
+      ],
+      "purl": "pkg:npm/tslib@2.3.0"
+    },
+    {
+      "type": "library",
       "bom-ref": "pkg:npm/typescript@7.0.2",
       "name": "typescript",
       "version": "7.0.2",
@@ -2959,6 +2985,19 @@
         }
       ],
       "purl": "pkg:npm/xmlchars@2.2.0"
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:npm/zrender@6.1.0",
+      "name": "zrender",
+      "version": "6.1.0",
+      "scope": "optional",
+      "licenses": [
+        {
+          "expression": "BSD-3-Clause"
+        }
+      ],
+      "purl": "pkg:npm/zrender@6.1.0"
     },
     {
       "type": "library",

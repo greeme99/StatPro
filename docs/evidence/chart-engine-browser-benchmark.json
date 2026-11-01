@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "environment": {
+    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36"
+  },
+  "method": {
+    "dimensions": "1200x600",
+    "series": 1,
+    "animation": false,
+    "render_mode": "browser SVG DOM creation",
+    "note": "Indicative same-tab benchmark; excludes interaction and peak-memory profiling."
+  },
+  "cases": {
+    "1000": {
+      "recharts": {"median_ms": 73.2, "p95_ms": 406.2, "svg_characters": 43074, "has_svg": true},
+      "echarts_svg": {"median_ms": 6.7, "p95_ms": 27.4, "svg_characters": 20633, "has_svg": true}
+    },
+    "10000": {
+      "recharts": {"median_ms": 968.9, "p95_ms": 1128.1, "svg_characters": 176672, "has_svg": true},
+      "echarts_svg": {"median_ms": 14.4, "p95_ms": 17.9, "svg_characters": 53472, "has_svg": true}
+    }
+  }
+}
