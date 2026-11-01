@@ -107,6 +107,22 @@ npm run dev -- --host 127.0.0.1
 
 Open `http://127.0.0.1:5173`. Vite proxies `/api` to the loopback API on port 8765. Use `npm run check` for the UI tests, TypeScript check, and production build.
 
+## Open-source quality gate
+
+Every direct dependency must have an explicit purpose in
+`compliance/oss-policy.json`. The gate checks the npm manifest against its lock,
+rejects missing or unapproved declared SPDX licenses across the locked graph,
+and verifies the committed CycloneDX SBOM.
+
+```powershell
+python tools\oss_gate.py --check
+python tools\oss_gate.py --write  # after an approved dependency change
+```
+
+Python extras are currently recorded as declared-but-not-locked and must not be
+presented as a reproducible resolved distribution graph. See
+`docs/09.StatPro_OSS_Governance.md` for the adoption and upgrade procedure.
+
 ## Principles
 
 - Public formulas and standards are the implementation source.

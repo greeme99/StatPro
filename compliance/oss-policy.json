@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "allowed_spdx_licenses": [
+    "Apache-2.0",
+    "BlueOak-1.0.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "CC0-1.0",
+    "ISC",
+    "MIT",
+    "MIT-0",
+    "MPL-2.0"
+  ],
+  "python_direct_dependencies": {
+    "fastapi": {"declared_license": "MIT", "purpose": "Loopback HTTP API adapter", "boundary": "Optional api extra"},
+    "httpx2": {"declared_license": "BSD-3-Clause", "purpose": "API contract tests", "boundary": "Optional test extra"},
+    "jsonschema": {"declared_license": "MIT", "purpose": "ResultBundle schema validation", "boundary": "Optional test extra"},
+    "pyjwt": {"declared_license": "MIT", "purpose": "Verified enterprise identity token decoding", "boundary": "Optional identity extra"},
+    "uvicorn": {"declared_license": "BSD-3-Clause", "purpose": "Loopback ASGI server", "boundary": "Optional api extra"}
+  },
+  "npm_direct_dependencies": {
+    "@tailwindcss/vite": {"purpose": "Design-token CSS build integration"},
+    "@testing-library/jest-dom": {"purpose": "DOM accessibility assertions"},
+    "@testing-library/react": {"purpose": "React workflow tests"},
+    "@testing-library/user-event": {"purpose": "Keyboard and pointer interaction tests"},
+    "@types/d3-shape": {"purpose": "D3 shape TypeScript declarations"},
+    "@types/react": {"purpose": "React TypeScript declarations"},
+    "@types/react-dom": {"purpose": "React DOM TypeScript declarations"},
+    "@vitejs/plugin-react": {"purpose": "React production build integration"},
+    "d3-shape": {"purpose": "Fishbone SVG geometry projection only"},
+    "jsdom": {"purpose": "Browser-like frontend test runtime"},
+    "lucide-react": {"purpose": "Accessible application icons"},
+    "react": {"purpose": "Local workbench UI"},
+    "react-dom": {"purpose": "Browser rendering adapter"},
+    "react-router-dom": {"purpose": "Workspace and workflow routing"},
+    "recharts": {"purpose": "Accessible statistical chart projection"},
+    "tailwindcss": {"purpose": "Design-token CSS compilation"},
+    "typescript": {"purpose": "Frontend static type checking"},
+    "vite": {"purpose": "Local development and production bundling"},
+    "vitest": {"purpose": "Frontend regression tests"}
+  }
+}
