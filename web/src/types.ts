@@ -41,6 +41,37 @@ export type StoredCheckSheet = {
   summary: ResultBundle;
 };
 
+export type FishboneCause = {
+  cause_id: string;
+  text: string;
+  evidence_refs: string[];
+  selected_for_verification: boolean;
+};
+
+export type FishboneCategory = {
+  category_id: string;
+  name: string;
+  causes: FishboneCause[];
+};
+
+export type FishboneSnapshot = {
+  diagram_id: string;
+  title: string;
+  process_name: string;
+  problem_statement: string;
+  revision: number;
+  parent_digest: string | null;
+  digest: string;
+  categories: FishboneCategory[];
+};
+
+export type StoredFishbone = {
+  diagram_id: string;
+  storage_version: number;
+  etag: string;
+  diagram: FishboneSnapshot;
+};
+
 export type StoredRun = {
   run_id: string;
   storage_version: number;

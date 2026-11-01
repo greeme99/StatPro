@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
+import type { StoredFishbone } from "./types";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -1392,5 +1393,57 @@ describe("StatPro UI", () => {
     const patchCall = fetchMock.mock.calls.find(([, init]) => (init as RequestInit | undefined)?.method === "PATCH");
     const body = JSON.parse(String((patchCall?.[1] as RequestInit).body));
     expect(body).toMatchObject({ expected_storage_version: 1, row_index: 0, column_name: "value", value: "11.25" });
+  });
+
+  it("creates a revisioned Fishbone and projects causes with D3", async () => {
+    let stored: StoredFishbone = {
+      diagram_id: "fishbone-ui",
+      storage_version: 1,
+      etag: "fishbone-1",
+      diagram: {
+        diagram_id: "fishbone-ui",
+        title: "조립 스크래치 원인 분석",
+        process_name: "조립 1라인",
+        problem_statement: "외관 스크래치가 목표를 초과한다.",
+        revision: 1,
+        parent_digest: null,
+        digest: "a".repeat(64),
+        categories: ["사람(Man)", "설비(Machine)", "재료(Material)", "방법(Method)", "측정(Measurement)", "환경(Environment)"].map((name, index) => ({ category_id: ["man", "machine", "material", "method", "measurement", "environment"][index], name, causes: [] })),
+      },
+    };
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url.endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      if (url.endsWith("/causes") && init?.method === "POST") {
+        const body = JSON.parse(String(init.body));
+        stored = {
+          ...stored,
+          storage_version: 2,
+          etag: "fishbone-2",
+          diagram: {
+            ...stored.diagram,
+            revision: 2,
+            parent_digest: stored.diagram.digest,
+            digest: "b".repeat(64),
+            categories: stored.diagram.categories.map((category) => category.category_id === body.category_id ? { ...category, causes: [{ cause_id: body.cause_id, text: body.text, evidence_refs: body.evidence_refs, selected_for_verification: body.selected_for_verification }] } : category),
+          },
+        };
+        return new Response(JSON.stringify(stored), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      return new Response(JSON.stringify(stored), { status: 201, headers: { "Content-Type": "application/json" } });
+    });
+
+    render(<MemoryRouter initialEntries={["/spc/tools/fishbone"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "특성요인도(Fishbone Diagram) 작업공간" })).toBeInTheDocument();
+    await userEvent.clear(screen.getByLabelText("문서 ID"));
+    await userEvent.type(screen.getByLabelText("문서 ID"), "fishbone-ui");
+    await userEvent.click(screen.getByRole("button", { name: "6M 작업공간 만들기" }));
+    expect(await screen.findByRole("img", { name: "조립 스크래치 원인 분석" })).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText("원인 후보"), "표준 작업 교육 부족");
+    await userEvent.type(screen.getByLabelText(/증거 참조/), "run:pareto-01");
+    await userEvent.click(screen.getByRole("checkbox", { name: /검증 과제로 선정/ }));
+    await userEvent.click(screen.getByRole("button", { name: /원인 후보 추가/ }));
+    expect((await screen.findAllByText("표준 작업 교육 부족")).length).toBeGreaterThanOrEqual(1);
+    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith("/causes"))).toBe(true);
   });
 });

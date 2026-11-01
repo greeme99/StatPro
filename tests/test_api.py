@@ -56,6 +56,7 @@ class LocalApiContractTests(unittest.TestCase):
             openapi.json()["paths"],
         )
         self.assertIn("/v1/spc/check-sheets", openapi.json()["paths"])
+        self.assertIn("/v1/spc/fishbone-diagrams", openapi.json()["paths"])
 
     def test_check_sheet_records_are_versioned_and_summarized(self) -> None:
         created = self.client.post(
@@ -95,6 +96,52 @@ class LocalApiContractTests(unittest.TestCase):
             },
         )
         self.assertEqual(stale.status_code, 409)
+
+    def test_fishbone_causes_preserve_revision_and_evidence_traceability(self) -> None:
+        created = self.client.post(
+            "/v1/spc/fishbone-diagrams",
+            json={
+                "diagram_id": "assembly-scratch",
+                "title": "조립 스크래치 원인 분석",
+                "process_name": "조립 1라인",
+                "problem_statement": "외관 스크래치가 목표를 초과한다.",
+                "categories": [
+                    {"category_id": "man", "name": "사람"},
+                    {"category_id": "machine", "name": "설비"},
+                    {"category_id": "material", "name": "재료"},
+                    {"category_id": "method", "name": "방법"},
+                    {"category_id": "measurement", "name": "측정"},
+                    {"category_id": "environment", "name": "환경"},
+                ],
+            },
+        )
+        added = self.client.post(
+            "/v1/spc/fishbone-diagrams/assembly-scratch/causes",
+            json={
+                "expected_storage_version": created.json()["storage_version"],
+                "category_id": "machine",
+                "cause_id": "guide-wear",
+                "text": "이송 가이드 마모",
+                "evidence_refs": ["run:pareto-01", "photo:guide-02"],
+                "selected_for_verification": True,
+            },
+        )
+        retrieved = self.client.get(
+            "/v1/spc/fishbone-diagrams/assembly-scratch"
+        )
+
+        self.assertEqual(created.status_code, 201)
+        self.assertEqual(added.status_code, 200)
+        self.assertEqual(added.json()["diagram"]["revision"], 2)
+        self.assertEqual(
+            added.json()["diagram"]["parent_digest"],
+            created.json()["diagram"]["digest"],
+        )
+        cause = added.json()["diagram"]["categories"][1]["causes"][0]
+        self.assertEqual(cause["evidence_refs"], ["run:pareto-01", "photo:guide-02"])
+        self.assertTrue(cause["selected_for_verification"])
+        self.assertEqual(retrieved.status_code, 200)
+        self.assertEqual(retrieved.headers["etag"], added.headers["etag"])
 
     def test_pareto_run_is_persisted_with_source_traceability(self) -> None:
         created = self.client.post(

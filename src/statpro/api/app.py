@@ -122,8 +122,11 @@ from statpro.fmea import (
 )
 from statpro.quality_tools import (
     CheckSheetSnapshot,
+    FishboneSnapshot,
     add_check_sheet_record,
+    add_fishbone_cause,
     create_check_sheet,
+    create_fishbone,
     pareto_analysis,
     summarize_check_sheet,
 )
@@ -139,6 +142,7 @@ DMAIC_CHARTERS = "dmaic-charters"
 DMAIC_VOICE_OF_CUSTOMER_STUDIES = "dmaic-voice-of-customer-studies"
 DMAIC_SIPOC_MAPS = "dmaic-sipoc-maps"
 SPC_CHECK_SHEETS = "spc-check-sheets"
+SPC_FISHBONE_DIAGRAMS = "spc-fishbone-diagrams"
 RunId = Annotated[str, Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")]
 
 
@@ -724,6 +728,35 @@ class ParetoRunRequest(ApiModel):
     source_snapshot_digest: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
 
 
+class FishboneCategoryRequest(ApiModel):
+    category_id: RunId
+    name: str = Field(min_length=1, max_length=80)
+
+
+class CreateFishboneRequest(ApiModel):
+    diagram_id: RunId
+    title: str = Field(min_length=1, max_length=200)
+    process_name: str = Field(min_length=1, max_length=200)
+    problem_statement: str = Field(min_length=1, max_length=1000)
+    categories: list[FishboneCategoryRequest] = Field(min_length=2, max_length=12)
+
+
+class AddFishboneCauseRequest(ApiModel):
+    expected_storage_version: int = Field(ge=1)
+    category_id: RunId
+    cause_id: RunId
+    text: str = Field(min_length=1, max_length=500)
+    evidence_refs: list[str] = Field(default_factory=list, max_length=50)
+    selected_for_verification: bool = False
+
+
+class StoredFishboneResponse(ApiModel):
+    diagram_id: str
+    storage_version: int
+    etag: str
+    diagram: dict[str, Any]
+
+
 def _response(stored: StoredDocument) -> StoredRunResponse:
     return StoredRunResponse(
         run_id=stored.key,
@@ -1049,6 +1082,48 @@ def _check_sheet_response(
         etag=stored.etag,
         sheet=sheet.to_dict(),
         summary=summarize_check_sheet(sheet).to_dict(),
+    )
+
+
+def _load_fishbone(
+    repository: DocumentRepository, diagram_id: str
+) -> tuple[StoredDocument, FishboneSnapshot]:
+    stored = repository.load(SPC_FISHBONE_DIAGRAMS, diagram_id)
+    try:
+        diagram = FishboneSnapshot.from_dict(stored.document["diagram"])
+    except (KeyError, TypeError, ValueError, DomainInputError) as error:
+        raise DocumentStoreError(
+            f"Stored Fishbone {diagram_id} does not match its owned format."
+        ) from error
+    return stored, diagram
+
+
+def _save_fishbone(
+    repository: DocumentRepository,
+    diagram: FishboneSnapshot,
+    *,
+    expected_version: int,
+) -> StoredDocument:
+    return repository.save(
+        SPC_FISHBONE_DIAGRAMS,
+        diagram.diagram_id,
+        {
+            "kind": "spc_fishbone",
+            "diagram_id": diagram.diagram_id,
+            "diagram": diagram.to_dict(),
+        },
+        expected_version=expected_version,
+    )
+
+
+def _fishbone_response(
+    stored: StoredDocument, diagram: FishboneSnapshot
+) -> StoredFishboneResponse:
+    return StoredFishboneResponse(
+        diagram_id=stored.key,
+        storage_version=stored.storage_version,
+        etag=stored.etag,
+        diagram=diagram.to_dict(),
     )
 
 
@@ -2108,6 +2183,65 @@ def create_app(
         )
         response.headers["ETag"] = f'"{saved.etag}"'
         return _check_sheet_response(saved, revised)
+
+    @app.post(
+        "/v1/spc/fishbone-diagrams",
+        status_code=201,
+        response_model=StoredFishboneResponse,
+    )
+    def create_spc_fishbone(
+        request: CreateFishboneRequest, response: Response
+    ) -> StoredFishboneResponse:
+        diagram = create_fishbone(
+            diagram_id=request.diagram_id,
+            title=request.title,
+            process_name=request.process_name,
+            problem_statement=request.problem_statement,
+            categories=tuple(
+                (category.category_id, category.name)
+                for category in request.categories
+            ),
+        )
+        stored = _save_fishbone(repository, diagram, expected_version=0)
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _fishbone_response(stored, diagram)
+
+    @app.get(
+        "/v1/spc/fishbone-diagrams/{diagram_id}",
+        response_model=StoredFishboneResponse,
+    )
+    def get_spc_fishbone(
+        diagram_id: RunId, response: Response
+    ) -> StoredFishboneResponse:
+        stored, diagram = _load_fishbone(repository, diagram_id)
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _fishbone_response(stored, diagram)
+
+    @app.post(
+        "/v1/spc/fishbone-diagrams/{diagram_id}/causes",
+        response_model=StoredFishboneResponse,
+    )
+    def add_spc_fishbone_cause(
+        diagram_id: RunId,
+        request: AddFishboneCauseRequest,
+        response: Response,
+    ) -> StoredFishboneResponse:
+        _stored, diagram = _load_fishbone(repository, diagram_id)
+        revised = add_fishbone_cause(
+            diagram,
+            category_id=request.category_id,
+            cause_id=request.cause_id,
+            text=request.text,
+            evidence_refs=request.evidence_refs,
+            selected_for_verification=request.selected_for_verification,
+        )
+        saved = _save_fishbone(
+            repository,
+            revised,
+            expected_version=request.expected_storage_version,
+        )
+        response.headers["ETag"] = f'"{saved.etag}"'
+        return _fishbone_response(saved, revised)
 
     @app.post(
         "/v1/fmea-action-priority-policies",

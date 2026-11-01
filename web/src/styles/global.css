@@ -455,10 +455,40 @@ dd { margin: var(--space-0); }
 .pareto-input-row input { width: 100%; }
 .pareto-chart { width: 100%; height: var(--chart-height); padding: var(--card-pad); }
 .metric-text { font-size: var(--body-size); }
+.fishbone-workspace { display: grid; gap: var(--space-8); }
+.fishbone-form, .fishbone-cause-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.fishbone-form label, .fishbone-cause-form label { display: grid; gap: var(--space-2); color: var(--color-text-secondary); font-weight: 600; }
+.fishbone-form input, .fishbone-form textarea, .fishbone-cause-form input, .fishbone-cause-form select { width: 100%; min-height: var(--control-height); padding: var(--space-2) var(--space-3); color: var(--color-text-primary); background: var(--color-bg-surface); border: var(--border-width) solid var(--color-border-strong); border-radius: var(--radius-md); }
+.fishbone-form textarea { min-height: calc(var(--control-height) * 2); resize: vertical; }
+.fishbone-form header, .fishbone-cause-form header, .fishbone-wide { grid-column: 1 / -1; }
+.fishbone-status { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--grid-gap); }
+.fishbone-status div { display: grid; gap: var(--space-2); padding: var(--card-pad); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-bg-surface); }
+.fishbone-status span { color: var(--color-text-secondary); }
+.fishbone-status strong { color: var(--color-action); font-size: var(--h2-size); font-variant-numeric: tabular-nums; }
+.fishbone-figure { display: grid; gap: var(--space-4); margin: 0; }
+.fishbone-figure svg { display: block; width: 100%; min-height: var(--chart-height); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-bg-subtle); }
+.fishbone-spine, .fishbone-arrow, .fishbone-bone, .fishbone-cause-line { fill: none; stroke: var(--color-action); stroke-width: calc(var(--border-width) * 2); vector-effect: non-scaling-stroke; }
+.fishbone-cause-line { stroke: var(--color-text-muted); stroke-width: var(--border-width); }
+.fishbone-category { fill: var(--color-text-primary); font-weight: 700; }
+.fishbone-cause { fill: var(--color-text-secondary); font-size: 12px; }
+.fishbone-figure .is-selected .fishbone-cause-line { stroke: var(--color-status-warning); stroke-width: calc(var(--border-width) * 2); }
+.fishbone-figure .is-selected .fishbone-cause { fill: var(--color-status-warning); font-weight: 700; }
+.fishbone-effect rect { fill: var(--color-bg-selected); stroke: var(--color-action); }
+.fishbone-effect text { fill: var(--color-action); font-weight: 700; }
+.fishbone-effect-text { display: grid; place-items: center; height: 100%; overflow: hidden; color: var(--color-text-primary); font-size: 11px; line-height: 1.35; text-align: center; }
+.fishbone-figure figcaption { color: var(--color-text-secondary); }
+.fishbone-accessible-table { max-height: calc(var(--row-h) * 7); overflow: auto; }
+.fishbone-accessible-table th, .fishbone-accessible-table td { text-align: left; }
+.fishbone-cause-form .checkbox-field { display: flex; flex-direction: row; align-items: center; gap: var(--space-2); min-height: var(--control-height); }
+.fishbone-cause-form .checkbox-field input { width: auto; min-height: auto; }
+.fishbone-cause-form .checkbox-field svg { color: var(--color-action); }
 @media (max-width: 1023px) {
   .check-sheet-grid { grid-template-columns: 1fr; }
   .check-sheet-status { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .pareto-settings { grid-template-columns: 1fr; }
+  .fishbone-status { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .fishbone-form, .fishbone-cause-form { grid-template-columns: 1fr; }
+  .fishbone-form header, .fishbone-cause-form header, .fishbone-wide { grid-column: auto; }
 }
 
 @media (max-width: 1439px) {

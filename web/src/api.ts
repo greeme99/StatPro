@@ -1,4 +1,4 @@
-import type { ActionPriorityPolicyPage, ApiError, CellValue, FmeaStudyPage, FmeaStudyReport, StoredActionPriorityPolicy, StoredCheckSheet, StoredFmeaStudy, RunPage, StoredRun, StoredWorksheet, WorksheetPage } from "./types";
+import type { ActionPriorityPolicyPage, ApiError, CellValue, FmeaStudyPage, FmeaStudyReport, StoredActionPriorityPolicy, StoredCheckSheet, StoredFishbone, StoredFmeaStudy, RunPage, StoredRun, StoredWorksheet, WorksheetPage } from "./types";
 
 const API_BASE = import.meta.env.VITE_STATPRO_API_URL ?? "/api";
 
@@ -624,6 +624,37 @@ export function addCheckSheetRecord(sheetId: string, payload: {
   note?: string | null;
 }): Promise<StoredCheckSheet> {
   return request(`/v1/spc/check-sheets/${encodeURIComponent(sheetId)}/records`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function createFishbone(payload: {
+  diagram_id: string;
+  title: string;
+  process_name: string;
+  problem_statement: string;
+  categories: Array<{ category_id: string; name: string }>;
+}): Promise<StoredFishbone> {
+  return request("/v1/spc/fishbone-diagrams", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function getFishbone(diagramId: string): Promise<StoredFishbone> {
+  return request(`/v1/spc/fishbone-diagrams/${encodeURIComponent(diagramId)}`);
+}
+
+export function addFishboneCause(diagramId: string, payload: {
+  expected_storage_version: number;
+  category_id: string;
+  cause_id: string;
+  text: string;
+  evidence_refs: string[];
+  selected_for_verification: boolean;
+}): Promise<StoredFishbone> {
+  return request(`/v1/spc/fishbone-diagrams/${encodeURIComponent(diagramId)}/causes`, {
     method: "POST",
     body: JSON.stringify(payload),
   });
