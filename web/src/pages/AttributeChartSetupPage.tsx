@@ -1,6 +1,6 @@
 import { AlertTriangle, ArrowLeft, Play } from "lucide-react";
 import { FormEvent, useMemo, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { createAttributeChartRun } from "../api";
 import { Button } from "../components/Button";
 
@@ -17,8 +17,10 @@ function parseValues(text: string) {
 
 export function AttributeChartSetupPage() {
   const navigate = useNavigate();
-  const [chart, setChart] = useState<AttributeChartKind>("p");
-  const [runId, setRunId] = useState(() => defaultRunId("p"));
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedChart = searchParams.get("chart");
+  const chart: AttributeChartKind = requestedChart === "np" || requestedChart === "c" || requestedChart === "u" || requestedChart === "p_prime" || requestedChart === "u_prime" ? requestedChart : "p";
+  const [runId, setRunId] = useState(() => defaultRunId(chart));
   const [nonconforming, setNonconforming] = useState("2\n3\n2\n3\n25");
   const [sampleSizes, setSampleSizes] = useState("100\n100\n100\n100\n100");
   const [error, setError] = useState("");
@@ -28,7 +30,7 @@ export function AttributeChartSetupPage() {
   const sizes = useMemo(() => parseValues(sampleSizes), [sampleSizes]);
 
   function selectChart(next: AttributeChartKind) {
-    setChart(next);
+    setSearchParams({ chart: next });
     setRunId(defaultRunId(next));
   }
 
@@ -71,7 +73,7 @@ export function AttributeChartSetupPage() {
 
   return (
     <div className="page form-page" data-density="comfortable">
-      <Link className="back-link" to="/"><ArrowLeft aria-hidden="true" /> 분석 홈</Link>
+      <Link className="back-link" to="/spc/control-charts?type=attributes"><ArrowLeft aria-hidden="true" /> 관리도 작업공간</Link>
       <section className="page-heading">
         <div><span className="eyebrow">SPC / ATTRIBUTES</span><h1>속성 관리도 설정</h1><p>p·np·c·u와 과산포·과소산포를 보정하는 Laney P′·U′를 실행합니다.</p></div>
       </section>

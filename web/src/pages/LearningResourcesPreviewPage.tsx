@@ -12,7 +12,7 @@ const phases = [
 ];
 
 const resources: Resource[] = [
-  { title: "통계적 공정관리(SPC) 시작하기", description: "관리도 선택, 데이터 입력, 신호 해석의 기본 흐름을 학습합니다.", status: "구현됨", to: "/analyses/spc/attribute", icon: BarChart3 },
+  { title: "통계적 공정관리(SPC) 시작하기", description: "관리도 선택, 데이터 입력, 신호 해석의 기본 흐름을 학습합니다.", status: "구현됨", to: "/spc", icon: BarChart3 },
   { title: "실험계획법(DOE) 설계하기", description: "인자와 반응을 정의하고 실행표와 분석 결과를 연결하는 방법을 안내합니다.", status: "구현됨", to: "/doe", icon: FlaskConical },
   { title: "고장 형태 및 영향 분석(FMEA) 활용하기", description: "공정 흐름, 위험 기록, 관리계획서와 승인 근거의 연결을 다룹니다.", status: "구현됨", to: "/fmea", icon: ShieldCheck },
   { title: "측정시스템 분석(MSA) 기초", description: "측정값을 분석하기 전에 반복성·재현성을 확인하는 학습 자료입니다.", status: "개발 예정", icon: Wrench },

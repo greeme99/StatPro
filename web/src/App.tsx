@@ -24,6 +24,9 @@ import { RareEventChartSetupPage } from "./pages/RareEventChartSetupPage";
 import { MenuPreviewPage } from "./pages/MenuPreviewPage";
 import { DmaicGuidePreviewPage } from "./pages/DmaicGuidePreviewPage";
 import { LearningResourcesPreviewPage } from "./pages/LearningResourcesPreviewPage";
+import { SpcWorkspacePage } from "./pages/SpcWorkspacePage";
+import { ControlChartWorkspacePage } from "./pages/ControlChartWorkspacePage";
+import { SpcQualityToolPage } from "./pages/SpcQualityToolPage";
 
 export default function App() {
   return (
@@ -44,6 +47,9 @@ export default function App() {
         <Route path="/analyses/doe/box-behnken" element={<DoeBoxBehnkenSetupPage />} />
         <Route path="/analyses/doe/response-optimizer" element={<DoeOptimizerPage />} />
         <Route path="/doe" element={<DoeWorkspacePage />} />
+        <Route path="/spc" element={<SpcWorkspacePage />} />
+        <Route path="/spc/control-charts" element={<ControlChartWorkspacePage />} />
+        <Route path="/spc/tools/:toolId" element={<SpcQualityToolPage />} />
         <Route path="/runs/:runId" element={<ResultPage />} />
         <Route path="/data" element={<DataPage />} />
         <Route path="/data/:worksheetId" element={<WorksheetPage />} />

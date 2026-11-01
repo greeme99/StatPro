@@ -56,7 +56,7 @@ export function EwmaSetupPage() {
   }
 
   return <div className="page form-page" data-density="comfortable">
-    <Link className="back-link" to="/"><ArrowLeft aria-hidden="true" /> 분석 홈</Link>
+    <Link className="back-link" to="/spc/control-charts"><ArrowLeft aria-hidden="true" /> 관리도 작업공간</Link>
     <section className="page-heading"><div><span className="eyebrow">SPC / TIME-WEIGHTED CHART</span><h1>EWMA 관리도</h1><p>과거 관측값의 영향을 지수적으로 줄여 작은 공정 평균 이동을 감시합니다.</p></div></section>
     {error && <div className="error-banner" role="alert"><AlertTriangle aria-hidden="true" /><div><strong>입력을 확인하세요</strong><p>{error}</p></div></div>}
     <form className="analysis-form" onSubmit={submit}>

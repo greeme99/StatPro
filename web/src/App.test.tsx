@@ -89,7 +89,7 @@ describe("StatPro UI", () => {
     render(<MemoryRouter initialEntries={["/home/dmaic"]}><App /></MemoryRouter>);
     expect(await screen.findByRole("heading", { name: "DMAIC를 따라 개선 과제를 구조화합니다" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "DMAIC 단계별 안내" })).toBeInTheDocument();
-    expect(screen.getAllByRole("link", { name: "작업공간 열기" })[0]).toHaveAttribute("href", "/analyses/spc/attribute");
+    expect(screen.getAllByRole("link", { name: "작업공간 열기" })[0]).toHaveAttribute("href", "/spc");
   });
 
   it("renders learning resources linked from the DMAIC guide", async () => {
@@ -97,7 +97,42 @@ describe("StatPro UI", () => {
     render(<MemoryRouter initialEntries={["/home/learning"]}><App /></MemoryRouter>);
     expect(await screen.findByRole("heading", { name: "품질 개선을 위한 학습 리소스" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "DMAIC 방법론 개요" })).toBeInTheDocument();
-    expect(screen.getAllByRole("link", { name: "작업공간 열기" })[0]).toHaveAttribute("href", "/analyses/spc/attribute");
+    expect(screen.getAllByRole("link", { name: "작업공간 열기" })[0]).toHaveAttribute("href", "/spc");
+  });
+
+  it("organizes the seven SPC quality tools as a field workflow", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 }));
+    render(<MemoryRouter initialEntries={["/spc"]}><App /></MemoryRouter>);
+
+    expect(await screen.findByRole("heading", { name: "통계적 공정관리(SPC) 작업공간" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "목적에 맞는 도구 작업공간을 선택합니다" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "체크 시트 작업공간 열기" })).toHaveAttribute("href", "/spc/tools/check-sheet");
+    expect(screen.getAllByRole("link", { name: "관리도 작업공간 열기" })[0]).toHaveAttribute("href", "/spc/control-charts");
+    expect(screen.getAllByRole("article").length).toBeGreaterThanOrEqual(7);
+  });
+
+  it("classifies control charts by variables and attributes before setup", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 }));
+    render(<MemoryRouter initialEntries={["/spc/control-charts"]}><App /></MemoryRouter>);
+
+    expect(await screen.findByRole("heading", { name: "관리도(Control Chart) 작업공간" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /계량형/ })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("link", { name: "Xbar-R 설정 시작" })).toHaveAttribute("href", "/analyses/spc/xbar-r");
+    expect(screen.queryByRole("link", { name: "p 설정 시작" })).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("tab", { name: /계수형/ }));
+    expect(screen.getByRole("link", { name: "p 설정 시작" })).toHaveAttribute("href", "/analyses/spc/attribute?chart=p");
+    expect(screen.getByRole("link", { name: "Laney U′ 설정 시작" })).toHaveAttribute("href", "/analyses/spc/attribute?chart=u_prime");
+    expect(screen.getByRole("link", { name: "G/T 설정 시작" })).toHaveAttribute("href", "/analyses/spc/rare-events");
+  });
+
+  it("opens the requested attribute chart from the control-chart guide", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 }));
+    render(<MemoryRouter initialEntries={["/analyses/spc/attribute?chart=np"]}><App /></MemoryRouter>);
+
+    expect(await screen.findByRole("heading", { name: "속성 관리도 설정" })).toBeInTheDocument();
+    expect(screen.getByLabelText("관리도")).toHaveValue("np");
+    expect(screen.getByRole("link", { name: "관리도 작업공간" })).toHaveAttribute("href", "/spc/control-charts?type=attributes");
   });
 
   it("submits a standardized two-sided CUSUM plan", async () => {

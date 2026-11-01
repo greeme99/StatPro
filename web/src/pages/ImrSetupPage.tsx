@@ -42,7 +42,7 @@ export function ImrSetupPage() {
 
   return (
     <div className="page form-page" data-density="comfortable">
-      <Link className="back-link" to="/"><ArrowLeft aria-hidden="true" /> 분석 홈</Link>
+      <Link className="back-link" to="/spc/control-charts"><ArrowLeft aria-hidden="true" /> 관리도 작업공간</Link>
       <section className="page-heading">
         <div><span className="eyebrow">SPC / INDIVIDUALS</span><h1>I-MR 분석 설정</h1><p>시간 순서가 유지된 개별 관측값으로 공정 중심과 단기 변동을 확인합니다.</p></div>
       </section>

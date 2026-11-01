@@ -32,7 +32,7 @@ const coreWorkspaces: Workspace[] = [
     description: "공정의 안정성을 감시하고 이상 신호를 현장 조치로 연결합니다.",
     workflow: ["관리도 선택", "공정 데이터 입력", "관리한계 설정", "이상 신호 검토", "조치·보고"],
     action: "SPC 업무 시작",
-    to: "/analyses/spc/attribute",
+    to: "/spc",
     icon: BarChart3,
   },
   {

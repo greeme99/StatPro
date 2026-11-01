@@ -7,7 +7,7 @@ const navigation = [
   { to: "/home", label: "홈 (Home)", icon: Home },
   { to: "/data", label: "작업표 및 데이터 (Worksheet & Data)", icon: Database },
   { to: "/doe", label: "실험계획법 (DOE)", icon: FlaskConical },
-  { to: "/analyses/spc/attribute", label: "통계적 공정관리 (SPC)", icon: BarChart3 },
+  { to: "/spc", label: "통계적 공정관리 (SPC)", icon: BarChart3 },
   { to: "/fmea", label: "고장 형태 및 영향 분석 (FMEA)", icon: FileWarning },
   { to: "/catalog/reports", label: "결과 및 보고서 (Results & Reports)", icon: FileText },
   { to: "/catalog/tools", label: "계산 및 도우미 (Calculators & Helpers)", icon: Calculator },

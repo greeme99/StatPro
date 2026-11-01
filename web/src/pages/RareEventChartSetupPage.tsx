@@ -66,7 +66,7 @@ export function RareEventChartSetupPage() {
   const intervalLabel = chart === "g" ? "사건 간 기회 수" : "사건 간 시간";
   return (
     <div className="page form-page" data-density="comfortable">
-      <Link className="back-link" to="/"><ArrowLeft aria-hidden="true" /> 분석 홈</Link>
+      <Link className="back-link" to="/spc/control-charts?type=attributes"><ArrowLeft aria-hidden="true" /> 관리도 작업공간</Link>
       <section className="page-heading"><div><span className="eyebrow">SPC / RARE EVENTS</span><h1>희귀사건 G/T 관리도 설정</h1><p>드물게 발생하는 사건의 간격을 기하 또는 지수 확률모형으로 점검합니다.</p></div></section>
       {error && <div className="error-banner" role="alert"><AlertTriangle aria-hidden="true" /><div><strong>입력을 확인하세요</strong><p>{error}</p></div></div>}
       <form className="analysis-form" onSubmit={submit}>

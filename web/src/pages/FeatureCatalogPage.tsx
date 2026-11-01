@@ -12,7 +12,7 @@ const catalogs: Record<string, Catalog> = {
     items: [
       { name: "분석 실행 결과", detail: "저장된 분석 실행의 표, 차트, 진단과 근거를 확인합니다.", status: "구현됨", to: "/" },
       { name: "DOE 표준 보고서", detail: "HTML, JSON, CSV ZIP 내보내기를 제공합니다.", status: "구현됨", to: "/analyses/doe/full-factorial" },
-      { name: "SPC 보고서 내보내기", detail: "현재 각 실행 결과에서 표와 근거를 확인할 수 있습니다. PDF·Excel·차트 파일은 개발 예정입니다.", status: "구현됨", to: "/analyses/spc/attribute" },
+      { name: "SPC 보고서 내보내기", detail: "현재 각 실행 결과에서 표와 근거를 확인할 수 있습니다. PDF·Excel·차트 파일은 개발 예정입니다.", status: "구현됨", to: "/spc" },
       { name: "그래프 이미지·PDF·고객 양식", detail: "규제 또는 고객별 템플릿 요구를 분리해 지원할 예정입니다.", status: "개발 예정" },
     ],
   },
@@ -20,7 +20,7 @@ const catalogs: Record<string, Catalog> = {
     title: "계산 및 도우미",
     description: "독립 계산도 분석 실행과 동일하게 입력, 가정, 결과 근거를 남기는 방식으로 확장합니다.",
     items: [
-      { name: "공정능력 분석", detail: "정규 및 경험적 비정규 공정능력 분석을 제공합니다.", status: "구현됨", to: "/analyses/spc/attribute" },
+      { name: "공정능력 분석", detail: "정규 및 경험적 비정규 공정능력 분석을 제공합니다.", status: "구현됨", to: "/spc" },
       { name: "실험 실행 수·설계 선택", detail: "DOE 설계 화면에서 실행 수와 설계 조건을 확인합니다.", status: "구현됨", to: "/analyses/doe/full-factorial" },
       { name: "분석 선택 가이드", detail: "입력 데이터 특성과 업무 목적에 따라 방법을 안내할 예정입니다.", status: "개발 예정" },
     ],
