@@ -1,0 +1,41 @@
+{
+  "fixture_kind": "source-derived-reference",
+  "package": {
+    "name": "SixSigma",
+    "version": "0.11.1",
+    "license": "GPL (>= 2)",
+    "source_url": "https://cran.r-project.org/package=SixSigma",
+    "source_mirror_url": "https://rdrr.io/cran/SixSigma/src/R/ss.cc.R"
+  },
+  "observations": [
+    "ss.cc.getc4 calculates c4 from gamma functions.",
+    "ss.cc.getd2 and ss.cc.getd3 calculate range-distribution constants numerically.",
+    "ss.cc implements moving-range control charts; this fixture does not claim that SixSigma emits StatPro Xbar-R results."
+  ],
+  "derivations": {
+    "c4": "sqrt(2 / (n - 1)) * gamma(n / 2) / gamma((n - 1) / 2)",
+    "a2": "3 / (d2 * sqrt(n))",
+    "d3_factor": "max(0, 1 - 3 * d3 / d2)",
+    "d4_factor": "1 + 3 * d3 / d2"
+  },
+  "tolerances": {
+    "c4_absolute": 1e-10,
+    "xbar_r_factor_absolute": 0.002
+  },
+  "constants": [
+    {"n": 2, "d2": 1.128, "d3": 0.853, "c4": 0.7978845608},
+    {"n": 3, "d2": 1.693, "d3": 0.888, "c4": 0.8862269255},
+    {"n": 4, "d2": 2.059, "d3": 0.880, "c4": 0.9213177319},
+    {"n": 5, "d2": 2.326, "d3": 0.864, "c4": 0.9399856030},
+    {"n": 6, "d2": 2.534, "d3": 0.848, "c4": 0.9515328619},
+    {"n": 7, "d2": 2.704, "d3": 0.833, "c4": 0.9593687887},
+    {"n": 8, "d2": 2.847, "d3": 0.820, "c4": 0.9650304561},
+    {"n": 9, "d2": 2.970, "d3": 0.808, "c4": 0.9693106997},
+    {"n": 10, "d2": 3.078, "d3": 0.797, "c4": 0.9726592741}
+  ],
+  "limitations": [
+    "The d2 and d3 entries are three-decimal published reference values, so derived factor comparisons use the declared tolerance.",
+    "R was not installed in the validation environment; this is a source-derived fixture, not captured R runtime output.",
+    "The fixture establishes an independent coefficient cross-check, not product equivalence with R SixSigma or Minitab."
+  ]
+}
