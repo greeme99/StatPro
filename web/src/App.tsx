@@ -27,6 +27,7 @@ import { LearningResourcesPreviewPage } from "./pages/LearningResourcesPreviewPa
 import { SpcWorkspacePage } from "./pages/SpcWorkspacePage";
 import { ControlChartWorkspacePage } from "./pages/ControlChartWorkspacePage";
 import { SpcQualityToolPage } from "./pages/SpcQualityToolPage";
+import { CheckSheetWorkspacePage } from "./pages/CheckSheetWorkspacePage";
 
 export default function App() {
   return (
@@ -49,6 +50,7 @@ export default function App() {
         <Route path="/doe" element={<DoeWorkspacePage />} />
         <Route path="/spc" element={<SpcWorkspacePage />} />
         <Route path="/spc/control-charts" element={<ControlChartWorkspacePage />} />
+        <Route path="/spc/tools/check-sheet" element={<CheckSheetWorkspacePage />} />
         <Route path="/spc/tools/:toolId" element={<SpcQualityToolPage />} />
         <Route path="/runs/:runId" element={<ResultPage />} />
         <Route path="/data" element={<DataPage />} />

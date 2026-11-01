@@ -431,6 +431,21 @@ dd { margin: var(--space-0); }
 .tool-workspace-flow li { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-4); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-lg); }
 .tool-next-actions article > div { display: grid; gap: var(--space-2); }
 .tool-next-actions h2, .tool-next-actions p { margin: 0; }
+.check-sheet-workspace { display: grid; gap: var(--space-8); }
+.check-sheet-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); }
+.check-sheet-form label { display: grid; gap: var(--space-2); color: var(--color-text-secondary); font-weight: 600; }
+.check-sheet-form input { min-height: var(--control-height); padding: var(--space-2) var(--space-3); color: var(--color-text-primary); background: var(--color-bg-surface); border: var(--border-width) solid var(--color-border-strong); border-radius: var(--radius-md); }
+.check-sheet-form header, .check-sheet-wide, .check-sheet-form .primary-button { grid-column: 1 / -1; }
+.check-sheet-status { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--grid-gap); }
+.check-sheet-status div { display: grid; gap: var(--space-2); padding: var(--card-pad); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-bg-surface); }
+.check-sheet-status span { color: var(--color-text-secondary); }
+.check-sheet-status strong { color: var(--color-action); font-size: var(--h2-size); font-variant-numeric: tabular-nums; }
+.check-sheet-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--grid-gap); align-items: start; }
+.check-sheet-grid .tool-workspace-panel { min-width: 0; }
+@media (max-width: 1023px) {
+  .check-sheet-grid { grid-template-columns: 1fr; }
+  .check-sheet-status { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 
 @media (max-width: 1439px) {
   .page { padding: var(--space-6); }

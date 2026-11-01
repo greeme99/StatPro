@@ -11,6 +11,36 @@ export type ResultBundle = {
   provenance: Array<{ title: string; url: string; authority: string }>;
 };
 
+export type CheckSheetRecord = {
+  record_id: string;
+  category: string;
+  count: number;
+  observed_at: string | null;
+  location: string | null;
+  shift: string | null;
+  lot: string | null;
+  note: string | null;
+};
+
+export type CheckSheetSnapshot = {
+  sheet_id: string;
+  title: string;
+  process_name: string;
+  category_label: string;
+  revision: number;
+  parent_digest: string | null;
+  digest: string;
+  records: CheckSheetRecord[];
+};
+
+export type StoredCheckSheet = {
+  sheet_id: string;
+  storage_version: number;
+  etag: string;
+  sheet: CheckSheetSnapshot;
+  summary: ResultBundle;
+};
+
 export type StoredRun = {
   run_id: string;
   storage_version: number;

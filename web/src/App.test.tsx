@@ -111,6 +111,30 @@ describe("StatPro UI", () => {
     expect(screen.getAllByRole("article").length).toBeGreaterThanOrEqual(7);
   });
 
+  it("creates and records an occurrence in the Check Sheet workspace", async () => {
+    let version = 1;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      const body = init?.body ? JSON.parse(String(init.body)) : {};
+      const recorded = String(input).endsWith("/records");
+      const records = recorded ? [{ record_id: body.record_id, category: body.category, count: body.count, observed_at: null, location: null, shift: null, lot: null, note: null }] : [];
+      if (recorded) version += 1;
+      return new Response(JSON.stringify({
+        sheet_id: "assembly-defects", storage_version: version, etag: `etag-${version}`,
+        sheet: { sheet_id: "assembly-defects", title: "조립 외관 불량", process_name: "조립 1라인", category_label: "불량 유형", revision: version, parent_digest: null, digest: "d", records },
+        summary: { analysis_type: "quality.check_sheet_frequency", engine_version: "0.6.0", input_digest: "i", parameters: {}, tables: { frequencies: recorded ? [{ category: body.category, count: body.count, percentage: 100 }] : [], summary: { total: recorded ? body.count : 0, category_count: recorded ? 1 : 0 } }, plots: {}, diagnostics: {}, assumptions: [], warnings: [], provenance: [] },
+      }), { status: recorded ? 200 : 201, headers: { "Content-Type": "application/json" } });
+    });
+    render(<MemoryRouter initialEntries={["/spc/tools/check-sheet"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "체크 시트(Check Sheet) 작업공간" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /체크 시트 만들기/ }));
+    expect(await screen.findByRole("heading", { name: "2. 현장 기록 추가" })).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText("불량 유형"), "스크래치");
+    await userEvent.click(screen.getByRole("button", { name: /기록 추가/ }));
+    expect((await screen.findAllByRole("cell", { name: "스크래치" })).length).toBe(2);
+    expect(screen.getByText("100.0%")).toBeInTheDocument();
+  });
+
   it("classifies control charts by variables and attributes before setup", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 }));
     render(<MemoryRouter initialEntries={["/spc/control-charts"]}><App /></MemoryRouter>);

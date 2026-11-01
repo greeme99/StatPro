@@ -54,6 +54,46 @@ class LocalApiContractTests(unittest.TestCase):
             "/v1/fmea-studies/{study_id}/approve-enterprise",
             openapi.json()["paths"],
         )
+        self.assertIn("/v1/spc/check-sheets", openapi.json()["paths"])
+
+    def test_check_sheet_records_are_versioned_and_summarized(self) -> None:
+        created = self.client.post(
+            "/v1/spc/check-sheets",
+            json={
+                "sheet_id": "assembly-defects",
+                "title": "조립 외관 불량",
+                "process_name": "조립 1라인",
+                "category_label": "불량 유형",
+            },
+        )
+        recorded = self.client.post(
+            "/v1/spc/check-sheets/assembly-defects/records",
+            json={
+                "expected_storage_version": created.json()["storage_version"],
+                "record_id": "record-001",
+                "category": "스크래치",
+                "count": 3,
+                "shift": "주간",
+            },
+        )
+
+        self.assertEqual(created.status_code, 201)
+        self.assertEqual(recorded.status_code, 200)
+        self.assertEqual(recorded.json()["sheet"]["revision"], 2)
+        self.assertEqual(recorded.json()["summary"]["analysis_type"], "quality.check_sheet_frequency")
+        self.assertEqual(recorded.json()["summary"]["tables"]["summary"]["total"], 3)
+        self.assertEqual(recorded.headers["etag"], self.client.get("/v1/spc/check-sheets/assembly-defects").headers["etag"])
+
+        stale = self.client.post(
+            "/v1/spc/check-sheets/assembly-defects/records",
+            json={
+                "expected_storage_version": created.json()["storage_version"],
+                "record_id": "record-002",
+                "category": "오염",
+                "count": 1,
+            },
+        )
+        self.assertEqual(stale.status_code, 409)
 
     def test_rare_event_runs_preserve_distinct_input_contracts(self) -> None:
         g_created = self.client.post(

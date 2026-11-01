@@ -1,4 +1,4 @@
-import type { ActionPriorityPolicyPage, ApiError, CellValue, FmeaStudyPage, FmeaStudyReport, StoredActionPriorityPolicy, StoredFmeaStudy, RunPage, StoredRun, StoredWorksheet, WorksheetPage } from "./types";
+import type { ActionPriorityPolicyPage, ApiError, CellValue, FmeaStudyPage, FmeaStudyReport, StoredActionPriorityPolicy, StoredCheckSheet, StoredFmeaStudy, RunPage, StoredRun, StoredWorksheet, WorksheetPage } from "./types";
 
 const API_BASE = import.meta.env.VITE_STATPRO_API_URL ?? "/api";
 
@@ -595,6 +595,32 @@ export function replaceWorksheetCell(worksheetId: string, payload: {
 }): Promise<StoredWorksheet> {
   return request(`/v1/worksheets/${encodeURIComponent(worksheetId)}/cells`, {
     method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function createCheckSheet(payload: {
+  sheet_id: string;
+  title: string;
+  process_name: string;
+  category_label: string;
+}): Promise<StoredCheckSheet> {
+  return request("/v1/spc/check-sheets", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export function addCheckSheetRecord(sheetId: string, payload: {
+  expected_storage_version: number;
+  record_id: string;
+  category: string;
+  count: number;
+  observed_at?: string | null;
+  location?: string | null;
+  shift?: string | null;
+  lot?: string | null;
+  note?: string | null;
+}): Promise<StoredCheckSheet> {
+  return request(`/v1/spc/check-sheets/${encodeURIComponent(sheetId)}/records`, {
+    method: "POST",
     body: JSON.stringify(payload),
   });
 }

@@ -120,6 +120,12 @@ from statpro.fmea import (
     link_control_plan_analysis_evidence,
     submit_for_review,
 )
+from statpro.quality_tools import (
+    CheckSheetSnapshot,
+    add_check_sheet_record,
+    create_check_sheet,
+    summarize_check_sheet,
+)
 from statpro.version import ENGINE_VERSION
 
 ANALYSIS_RUNS = "analysis-runs"
@@ -131,6 +137,7 @@ DMAIC_PROJECTS = "dmaic-projects"
 DMAIC_CHARTERS = "dmaic-charters"
 DMAIC_VOICE_OF_CUSTOMER_STUDIES = "dmaic-voice-of-customer-studies"
 DMAIC_SIPOC_MAPS = "dmaic-sipoc-maps"
+SPC_CHECK_SHEETS = "spc-check-sheets"
 RunId = Annotated[str, Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")]
 
 
@@ -674,6 +681,33 @@ class StoredWorksheetResponse(ApiModel):
     dataset: dict[str, Any] | None = None
 
 
+class CreateCheckSheetRequest(ApiModel):
+    sheet_id: RunId
+    title: str = Field(min_length=1)
+    process_name: str = Field(min_length=1)
+    category_label: str = Field(min_length=1)
+
+
+class AddCheckSheetRecordRequest(ApiModel):
+    expected_storage_version: int = Field(ge=1)
+    record_id: RunId
+    category: str = Field(min_length=1)
+    count: int = Field(ge=1)
+    observed_at: str | None = None
+    location: str | None = None
+    shift: str | None = None
+    lot: str | None = None
+    note: str | None = None
+
+
+class StoredCheckSheetResponse(ApiModel):
+    sheet_id: str
+    storage_version: int
+    etag: str
+    sheet: dict[str, Any]
+    summary: dict[str, Any]
+
+
 def _response(stored: StoredDocument) -> StoredRunResponse:
     return StoredRunResponse(
         run_id=stored.key,
@@ -963,6 +997,42 @@ def _save_worksheet(
             "worksheet": worksheet.to_dict(),
         },
         expected_version=expected_version,
+    )
+
+
+def _load_check_sheet(
+    repository: DocumentRepository, sheet_id: str
+) -> tuple[StoredDocument, CheckSheetSnapshot]:
+    stored = repository.load(SPC_CHECK_SHEETS, sheet_id)
+    try:
+        sheet = CheckSheetSnapshot.from_dict(stored.document["sheet"])
+    except (KeyError, TypeError, ValueError, DomainInputError) as error:
+        raise DocumentStoreError(
+            f"Stored Check Sheet {sheet_id} does not match its owned format."
+        ) from error
+    return stored, sheet
+
+
+def _save_check_sheet(
+    repository: DocumentRepository, sheet: CheckSheetSnapshot, *, expected_version: int
+) -> StoredDocument:
+    return repository.save(
+        SPC_CHECK_SHEETS,
+        sheet.sheet_id,
+        {"kind": "spc_check_sheet", "sheet_id": sheet.sheet_id, "sheet": sheet.to_dict()},
+        expected_version=expected_version,
+    )
+
+
+def _check_sheet_response(
+    stored: StoredDocument, sheet: CheckSheetSnapshot
+) -> StoredCheckSheetResponse:
+    return StoredCheckSheetResponse(
+        sheet_id=stored.key,
+        storage_version=stored.storage_version,
+        etag=stored.etag,
+        sheet=sheet.to_dict(),
+        summary=summarize_check_sheet(sheet).to_dict(),
     )
 
 
@@ -1950,6 +2020,61 @@ def create_app(
         )
         response.headers["ETag"] = f'"{saved.etag}"'
         return _worksheet_response(saved)
+
+    @app.post(
+        "/v1/spc/check-sheets",
+        status_code=201,
+        response_model=StoredCheckSheetResponse,
+    )
+    def create_spc_check_sheet(
+        request: CreateCheckSheetRequest, response: Response
+    ) -> StoredCheckSheetResponse:
+        sheet = create_check_sheet(
+            sheet_id=request.sheet_id,
+            title=request.title,
+            process_name=request.process_name,
+            category_label=request.category_label,
+        )
+        stored = _save_check_sheet(repository, sheet, expected_version=0)
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _check_sheet_response(stored, sheet)
+
+    @app.get(
+        "/v1/spc/check-sheets/{sheet_id}", response_model=StoredCheckSheetResponse
+    )
+    def get_spc_check_sheet(
+        sheet_id: RunId, response: Response
+    ) -> StoredCheckSheetResponse:
+        stored, sheet = _load_check_sheet(repository, sheet_id)
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _check_sheet_response(stored, sheet)
+
+    @app.post(
+        "/v1/spc/check-sheets/{sheet_id}/records",
+        response_model=StoredCheckSheetResponse,
+    )
+    def add_spc_check_sheet_record(
+        sheet_id: RunId,
+        request: AddCheckSheetRecordRequest,
+        response: Response,
+    ) -> StoredCheckSheetResponse:
+        _stored, sheet = _load_check_sheet(repository, sheet_id)
+        revised = add_check_sheet_record(
+            sheet,
+            record_id=request.record_id,
+            category=request.category,
+            count=request.count,
+            observed_at=request.observed_at,
+            location=request.location,
+            shift=request.shift,
+            lot=request.lot,
+            note=request.note,
+        )
+        saved = _save_check_sheet(
+            repository, revised, expected_version=request.expected_storage_version
+        )
+        response.headers["ETag"] = f'"{saved.etag}"'
+        return _check_sheet_response(saved, revised)
 
     @app.post(
         "/v1/fmea-action-priority-policies",
