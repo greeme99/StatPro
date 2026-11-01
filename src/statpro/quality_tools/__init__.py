@@ -8,6 +8,7 @@ from statpro.quality_tools.check_sheet import (
     create_check_sheet,
     summarize_check_sheet,
 )
+from statpro.quality_tools.pareto import ParetoInputError, pareto_analysis
 
 __all__ = [
     "CheckSheetInputError",
@@ -16,4 +17,6 @@ __all__ = [
     "add_check_sheet_record",
     "create_check_sheet",
     "summarize_check_sheet",
+    "ParetoInputError",
+    "pareto_analysis",
 ]

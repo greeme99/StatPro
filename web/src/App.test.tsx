@@ -135,6 +135,59 @@ describe("StatPro UI", () => {
     expect(screen.getByText("100.0%")).toBeInTheDocument();
   });
 
+  it("runs a traceable Pareto workflow and renders its dedicated result", async () => {
+    const storedRun = {
+      run_id: "pareto-ui-test",
+      storage_version: 1,
+      etag: "pareto-etag",
+      result: {
+        analysis_type: "quality.pareto",
+        engine_version: "0.6.0",
+        input_digest: "pareto-input",
+        parameters: {
+          subject: "조립 외관 불량",
+          metric_kind: "frequency",
+          threshold_percentage: 80,
+          source_sheet_id: null,
+          source_snapshot_digest: null,
+        },
+        tables: {
+          pareto: [
+            { rank: 1, category: "스크래치", value: 42, percentage: 60, cumulative_value: 42, cumulative_percentage: 60, vital_few: true },
+            { rank: 2, category: "오염", value: 28, percentage: 40, cumulative_value: 70, cumulative_percentage: 100, vital_few: true },
+          ],
+          summary: { total: 70, category_count: 2, vital_few_count: 2, threshold_percentage: 80 },
+        },
+        plots: {}, diagnostics: {},
+        assumptions: ["The cumulative threshold is a prioritization aid, not evidence of causality."],
+        warnings: [], provenance: [],
+      },
+    };
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      return new Response(JSON.stringify(storedRun), { status: init?.method === "POST" ? 201 : 200, headers: { "Content-Type": "application/json" } });
+    });
+
+    render(<MemoryRouter initialEntries={["/spc/tools/pareto-chart"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "파레토 차트(Pareto Chart) 작업공간" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "예제 데이터 불러오기" }));
+    await userEvent.click(screen.getByRole("button", { name: /파레토 분석 실행/ }));
+
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith("/pareto") && (init as RequestInit | undefined)?.method === "POST")).toBe(true));
+    const post = fetchMock.mock.calls.find(([url, init]) => String(url).endsWith("/pareto") && (init as RequestInit | undefined)?.method === "POST");
+    const requestBody = JSON.parse(String((post?.[1] as RequestInit).body));
+    expect(requestBody).toMatchObject({
+      subject: "품질 문제 우선순위",
+      metric_kind: "frequency",
+      threshold_percentage: 80,
+    });
+    expect(requestBody.items).toHaveLength(5);
+    expect(requestBody.items[0]).toEqual({ category: "스크래치", value: 42 });
+    expect(await screen.findByRole("heading", { name: "조립 외관 불량 파레토 차트" })).toBeInTheDocument();
+    expect(screen.getByRole("table", { name: "파레토 차트의 접근 가능한 원본 표" })).toBeInTheDocument();
+    expect(screen.getByText("우선 조사 분류")).toBeInTheDocument();
+  });
+
   it("classifies control charts by variables and attributes before setup", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 }));
     render(<MemoryRouter initialEntries={["/spc/control-charts"]}><App /></MemoryRouter>);

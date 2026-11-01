@@ -1,5 +1,43 @@
 import type { ResultBundle } from "./types";
 
+export type ParetoRow = {
+  rank: number;
+  category: string;
+  value: number;
+  percentage: number;
+  cumulative_value: number;
+  cumulative_percentage: number;
+  vital_few: boolean;
+};
+
+export type ParetoView = {
+  subject: string;
+  metricKind: "frequency" | "cost" | "loss";
+  thresholdPercentage: number;
+  total: number;
+  categoryCount: number;
+  vitalFewCount: number;
+  rows: ParetoRow[];
+  sourceSheetId: string | null;
+};
+
+export function toParetoView(result: ResultBundle | undefined): ParetoView | null {
+  if (!result || result.analysis_type !== "quality.pareto") return null;
+  const rows = result.tables.pareto;
+  const summary = result.tables.summary;
+  if (!Array.isArray(rows) || !summary || typeof summary !== "object") return null;
+  return {
+    subject: String(result.parameters.subject ?? "품질 문제"),
+    metricKind: String(result.parameters.metric_kind ?? "frequency") as ParetoView["metricKind"],
+    thresholdPercentage: Number(result.parameters.threshold_percentage ?? 80),
+    total: Number(summary.total ?? 0),
+    categoryCount: Number(summary.category_count ?? rows.length),
+    vitalFewCount: Number(summary.vital_few_count ?? 0),
+    rows: rows as ParetoRow[],
+    sourceSheetId: typeof result.parameters.source_sheet_id === "string" ? result.parameters.source_sheet_id : null,
+  };
+}
+
 export type ProcessPoint = { index: number; value: number; signal: boolean; rules: string[] };
 
 type RuleSignal = {

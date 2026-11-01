@@ -28,6 +28,7 @@ import { SpcWorkspacePage } from "./pages/SpcWorkspacePage";
 import { ControlChartWorkspacePage } from "./pages/ControlChartWorkspacePage";
 import { SpcQualityToolPage } from "./pages/SpcQualityToolPage";
 import { CheckSheetWorkspacePage } from "./pages/CheckSheetWorkspacePage";
+import { ParetoWorkspacePage } from "./pages/ParetoWorkspacePage";
 
 export default function App() {
   return (
@@ -51,6 +52,7 @@ export default function App() {
         <Route path="/spc" element={<SpcWorkspacePage />} />
         <Route path="/spc/control-charts" element={<ControlChartWorkspacePage />} />
         <Route path="/spc/tools/check-sheet" element={<CheckSheetWorkspacePage />} />
+        <Route path="/spc/tools/pareto-chart" element={<ParetoWorkspacePage />} />
         <Route path="/spc/tools/:toolId" element={<SpcQualityToolPage />} />
         <Route path="/runs/:runId" element={<ResultPage />} />
         <Route path="/data" element={<DataPage />} />

@@ -50,6 +50,7 @@ class LocalApiContractTests(unittest.TestCase):
         self.assertIn("/v1/analysis-runs/u-chart", openapi.json()["paths"])
         self.assertIn("/v1/analysis-runs/g-chart", openapi.json()["paths"])
         self.assertIn("/v1/analysis-runs/t-chart", openapi.json()["paths"])
+        self.assertIn("/v1/analysis-runs/pareto", openapi.json()["paths"])
         self.assertIn(
             "/v1/fmea-studies/{study_id}/approve-enterprise",
             openapi.json()["paths"],
@@ -94,6 +95,30 @@ class LocalApiContractTests(unittest.TestCase):
             },
         )
         self.assertEqual(stale.status_code, 409)
+
+    def test_pareto_run_is_persisted_with_source_traceability(self) -> None:
+        created = self.client.post(
+            "/v1/analysis-runs/pareto",
+            json={
+                "run_id": "pareto-assembly-defects",
+                "subject": "조립 외관 불량",
+                "metric_kind": "frequency",
+                "threshold_percentage": 80,
+                "items": [
+                    {"category": "스크래치", "value": 30},
+                    {"category": "오염", "value": 10},
+                ],
+                "source_sheet_id": "assembly-defects",
+                "source_snapshot_digest": "a" * 64,
+            },
+        )
+        retrieved = self.client.get("/v1/analysis-runs/pareto-assembly-defects")
+
+        self.assertEqual(created.status_code, 201)
+        self.assertEqual(created.json()["result"]["analysis_type"], "quality.pareto")
+        self.assertEqual(created.json()["result"]["tables"]["summary"]["total"], 40)
+        self.assertEqual(created.json()["result"]["parameters"]["source_sheet_id"], "assembly-defects")
+        self.assertEqual(created.headers["etag"], retrieved.headers["etag"])
 
     def test_rare_event_runs_preserve_distinct_input_contracts(self) -> None:
         g_created = self.client.post(

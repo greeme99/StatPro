@@ -608,6 +608,10 @@ export function createCheckSheet(payload: {
   return request("/v1/spc/check-sheets", { method: "POST", body: JSON.stringify(payload) });
 }
 
+export function getCheckSheet(sheetId: string): Promise<StoredCheckSheet> {
+  return request(`/v1/spc/check-sheets/${encodeURIComponent(sheetId)}`);
+}
+
 export function addCheckSheetRecord(sheetId: string, payload: {
   expected_storage_version: number;
   record_id: string;
@@ -620,6 +624,21 @@ export function addCheckSheetRecord(sheetId: string, payload: {
   note?: string | null;
 }): Promise<StoredCheckSheet> {
   return request(`/v1/spc/check-sheets/${encodeURIComponent(sheetId)}/records`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function createParetoRun(payload: {
+  run_id: string;
+  subject: string;
+  metric_kind: "frequency" | "cost" | "loss";
+  threshold_percentage: number;
+  items: Array<{ category: string; value: number }>;
+  source_sheet_id?: string | null;
+  source_snapshot_digest?: string | null;
+}): Promise<StoredRun> {
+  return request("/v1/analysis-runs/pareto", {
     method: "POST",
     body: JSON.stringify(payload),
   });

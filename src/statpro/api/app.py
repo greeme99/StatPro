@@ -124,6 +124,7 @@ from statpro.quality_tools import (
     CheckSheetSnapshot,
     add_check_sheet_record,
     create_check_sheet,
+    pareto_analysis,
     summarize_check_sheet,
 )
 from statpro.version import ENGINE_VERSION
@@ -708,6 +709,21 @@ class StoredCheckSheetResponse(ApiModel):
     summary: dict[str, Any]
 
 
+class ParetoItemRequest(ApiModel):
+    category: str = Field(min_length=1)
+    value: float = Field(ge=0.0)
+
+
+class ParetoRunRequest(ApiModel):
+    run_id: RunId
+    subject: str = Field(default="품질 문제", min_length=1)
+    metric_kind: Literal["frequency", "cost", "loss"] = "frequency"
+    threshold_percentage: float = Field(default=80.0, gt=0.0, le=100.0)
+    items: list[ParetoItemRequest] = Field(min_length=1)
+    source_sheet_id: RunId | None = None
+    source_snapshot_digest: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+
+
 def _response(stored: StoredDocument) -> StoredRunResponse:
     return StoredRunResponse(
         run_id=stored.key,
@@ -1255,6 +1271,23 @@ def create_app(
                 sigma=request.sigma,
                 stage=request.stage,
                 rules=request.rules,
+            ),
+        )
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _response(stored)
+
+    @app.post("/v1/analysis-runs/pareto", status_code=201, response_model=StoredRunResponse)
+    def run_pareto(request: ParetoRunRequest, response: Response) -> StoredRunResponse:
+        stored = _save_run(
+            repository,
+            request.run_id,
+            pareto_analysis(
+                ((item.category, item.value) for item in request.items),
+                metric_kind=request.metric_kind,
+                threshold_percentage=request.threshold_percentage,
+                subject=request.subject,
+                source_sheet_id=request.source_sheet_id,
+                source_snapshot_digest=request.source_snapshot_digest,
             ),
         )
         response.headers["ETag"] = f'"{stored.etag}"'

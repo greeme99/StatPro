@@ -2,7 +2,7 @@ import { AlertTriangle, ArrowLeft, BookOpen, CheckCircle2, Download, FileText, X
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { doeRunArtifactUrl, getRun, type DoeReportTemplate } from "../api";
-import { toAttributeChartView, toCusumView, toDoeBoxBehnkenAnalysisView, toDoeBoxBehnkenView, toDoeCentralCompositeAnalysisView, toDoeCentralCompositeSurfaceView, toDoeCentralCompositeView, toDoeDesirabilityView, toDoeFractionalAnalysisView, toDoeFractionalView, toDoePlackettBurmanAnalysisView, toDoePlackettBurmanView, toDoeView, toEwmaView, toImrView, toRareEventChartView, toXbarRView, toXbarSView, type AttributeChartView, type CusumView, type DoeBoxBehnkenView, type DoeCentralCompositeSurfaceView, type DoeCentralCompositeView, type DoeDesirabilityView, type DoeFractionalAnalysisView, type DoeFractionalView, type DoePlackettBurmanAnalysisView, type DoePlackettBurmanView, type DoeQuadraticAnalysisView, type DoeView, type EwmaView, type RareEventChartView, type XbarRView, type XbarSView } from "../analysis";
+import { toAttributeChartView, toCusumView, toDoeBoxBehnkenAnalysisView, toDoeBoxBehnkenView, toDoeCentralCompositeAnalysisView, toDoeCentralCompositeSurfaceView, toDoeCentralCompositeView, toDoeDesirabilityView, toDoeFractionalAnalysisView, toDoeFractionalView, toDoePlackettBurmanAnalysisView, toDoePlackettBurmanView, toDoeView, toEwmaView, toImrView, toParetoView, toRareEventChartView, toXbarRView, toXbarSView, type AttributeChartView, type CusumView, type DoeBoxBehnkenView, type DoeCentralCompositeSurfaceView, type DoeCentralCompositeView, type DoeDesirabilityView, type DoeFractionalAnalysisView, type DoeFractionalView, type DoePlackettBurmanAnalysisView, type DoePlackettBurmanView, type DoeQuadraticAnalysisView, type DoeView, type EwmaView, type ParetoView, type RareEventChartView, type XbarRView, type XbarSView } from "../analysis";
 import { Button } from "../components/Button";
 import { ControlChartStatistics, ControlLimitBadges, ControlSignalSummary } from "../components/ControlChartResultSections";
 import { ResultExportMenu } from "../components/ResultExportMenu";
@@ -12,6 +12,7 @@ const ProcessRail = lazy(() => import("../components/ProcessRail").then((module)
 const AttributeControlChart = lazy(() => import("../components/AttributeControlChart").then((module) => ({ default: module.AttributeControlChart })));
 const EwmaControlChart = lazy(() => import("../components/EwmaControlChart").then((module) => ({ default: module.EwmaControlChart })));
 const CusumControlChart = lazy(() => import("../components/CusumControlChart").then((module) => ({ default: module.CusumControlChart })));
+const ParetoChart = lazy(() => import("../components/ParetoChart").then((module) => ({ default: module.ParetoChart })));
 
 export function ResultPage() {
   const { runId = "" } = useParams();
@@ -59,6 +60,7 @@ export function ResultPage() {
   const xbarR = toXbarRView(result);
   const ewma = toEwmaView(result);
   const cusum = toCusumView(result);
+  const pareto = toParetoView(result);
   const doe = toDoeView(result);
   const optimizer = toDoeDesirabilityView(result);
   const fractional = toDoeFractionalView(result);
@@ -98,7 +100,7 @@ export function ResultPage() {
         <div className="table-scroll"><table><thead><tr><th scope="col">순서</th><th scope="col">관측값</th><th scope="col">상태</th></tr></thead><tbody>{imr.points.map((point) => <tr key={point.index}><td>{point.index}</td><td>{point.value.toFixed(4)}</td><td>{point.signal ? <span className="status-text is-danger"><AlertTriangle aria-hidden="true" /> {point.rules.length ? point.rules.join(", ") : "3σ 한계 이탈"}</span> : <span className="status-text is-success"><CheckCircle2 aria-hidden="true" /> 정상</span>}</td></tr>)}</tbody></table></div>
       </section>
       <ControlSignalSummary signalCount={signalCount} />
-      </> : cusum ? <CusumResult view={cusum} /> : ewma ? <EwmaResult view={ewma} /> : xbarR ? <XbarRResult view={xbarR} /> : xbarS ? <XbarSResult view={xbarS} /> : attributeChart ? <AttributeChartResult view={attributeChart} /> : rareEventChart ? <RareEventChartResult view={rareEventChart} /> : doe ? <DoeResult doe={doe} /> : optimizer ? <DoeDesirabilityResult optimizer={optimizer} /> : fractional ? <DoeFractionalResult design={fractional} /> : fractionalAnalysis ? <DoeFractionalAnalysisResult analysis={fractionalAnalysis} /> : boxBehnken ? <DoeBoxBehnkenResult design={boxBehnken} /> : boxBehnkenAnalysis ? <DoeQuadraticAnalysisResult analysis={boxBehnkenAnalysis} designLabel="Box–Behnken" methodLabel="Edge-midpoint design" /> : centralComposite ? <DoeCentralCompositeResult design={centralComposite} /> : centralCompositeAnalysis ? <DoeQuadraticAnalysisResult analysis={centralCompositeAnalysis} designLabel="중앙합성" methodLabel={centralCompositeAnalysis.rotatable ? "Rotatable" : "Face-centered"} /> : centralCompositeSurface ? <DoeCentralCompositeSurfaceResult surface={centralCompositeSurface} /> : plackettBurman ? <DoePlackettBurmanResult design={plackettBurman} /> : plackettBurmanAnalysis ? <DoePlackettBurmanAnalysisResult analysis={plackettBurmanAnalysis} /> : <section className="panel generic-result-panel"><header className="panel-heading"><div><span className="eyebrow">RESULT BUNDLE</span><h2>분석 결과 요약</h2></div></header><dl><div><dt>분석 유형</dt><dd>{result.analysis_type}</dd></div><div><dt>진단 항목</dt><dd>{Object.keys(result.diagnostics).length}개</dd></div><div><dt>결과 표</dt><dd>{Object.keys(result.tables).join(", ") || "없음"}</dd></div></dl><p>이 분석의 전용 시각화는 다음 개발 증분에서 제공됩니다. 계산 근거와 원본 ResultBundle은 보존되어 있습니다.</p></section>}
+      </> : pareto ? <ParetoResult view={pareto} /> : cusum ? <CusumResult view={cusum} /> : ewma ? <EwmaResult view={ewma} /> : xbarR ? <XbarRResult view={xbarR} /> : xbarS ? <XbarSResult view={xbarS} /> : attributeChart ? <AttributeChartResult view={attributeChart} /> : rareEventChart ? <RareEventChartResult view={rareEventChart} /> : doe ? <DoeResult doe={doe} /> : optimizer ? <DoeDesirabilityResult optimizer={optimizer} /> : fractional ? <DoeFractionalResult design={fractional} /> : fractionalAnalysis ? <DoeFractionalAnalysisResult analysis={fractionalAnalysis} /> : boxBehnken ? <DoeBoxBehnkenResult design={boxBehnken} /> : boxBehnkenAnalysis ? <DoeQuadraticAnalysisResult analysis={boxBehnkenAnalysis} designLabel="Box–Behnken" methodLabel="Edge-midpoint design" /> : centralComposite ? <DoeCentralCompositeResult design={centralComposite} /> : centralCompositeAnalysis ? <DoeQuadraticAnalysisResult analysis={centralCompositeAnalysis} designLabel="중앙합성" methodLabel={centralCompositeAnalysis.rotatable ? "Rotatable" : "Face-centered"} /> : centralCompositeSurface ? <DoeCentralCompositeSurfaceResult surface={centralCompositeSurface} /> : plackettBurman ? <DoePlackettBurmanResult design={plackettBurman} /> : plackettBurmanAnalysis ? <DoePlackettBurmanAnalysisResult analysis={plackettBurmanAnalysis} /> : <section className="panel generic-result-panel"><header className="panel-heading"><div><span className="eyebrow">RESULT BUNDLE</span><h2>분석 결과 요약</h2></div></header><dl><div><dt>분석 유형</dt><dd>{result.analysis_type}</dd></div><div><dt>진단 항목</dt><dd>{Object.keys(result.diagnostics).length}개</dd></div><div><dt>결과 표</dt><dd>{Object.keys(result.tables).join(", ") || "없음"}</dd></div></dl><p>이 분석의 전용 시각화는 다음 개발 증분에서 제공됩니다. 계산 근거와 원본 ResultBundle은 보존되어 있습니다.</p></section>}
       {result.warnings.length > 0 && <section className="warning-panel"><AlertTriangle aria-hidden="true" /><div><h2>해석 전 확인</h2><ul>{result.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></div></section>}
       {drawerOpen && <><button className="drawer-scrim" aria-label="계산 근거 닫기" onClick={closeDrawer} /><aside ref={drawer} className="detail-drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title"><header><div><span className="eyebrow">EVIDENCE</span><h2 id="drawer-title">계산 근거</h2></div><button ref={closeButton} className="icon-button" aria-label="닫기" onClick={closeDrawer}><X /></button></header><section><h3>분석 가정</h3><ul>{result.assumptions.map((item) => <li key={item}>{item}</li>)}</ul></section><section><h3>공개 출처</h3>{result.provenance.map((source) => <a className="source-link" href={source.url} target="_blank" rel="noreferrer" key={source.url}><strong>{source.title}</strong><span>{source.authority}</span></a>)}</section><section><h3>재현 정보</h3><dl><div><dt>엔진</dt><dd>{result.engine_version}</dd></div><div><dt>Storage version</dt><dd>{run.storage_version}</dd></div><div><dt>ETag</dt><dd className="digest">{run.etag}</dd></div></dl></section></aside></>}
     </div>
@@ -109,6 +111,27 @@ function statistic(value: number | null, digits = 4) {
   if (value === null) return "—";
   if (!Number.isFinite(value)) return value > 0 ? "∞" : "—";
   return value.toFixed(digits);
+}
+
+function ParetoResult({ view }: { view: ParetoView }) {
+  const metricLabels = { frequency: "발생 빈도", cost: "비용", loss: "손실" };
+  return <>
+    <section className="check-sheet-status" aria-label="파레토 분석 요약">
+      <div><span>분석 대상</span><strong className="metric-text">{view.subject}</strong></div>
+      <div><span>총 {metricLabels[view.metricKind]}</span><strong>{view.total.toLocaleString()}</strong></div>
+      <div><span>분류 수</span><strong>{view.categoryCount}</strong></div>
+      <div><span>우선 조사 분류</span><strong>{view.vitalFewCount}</strong></div>
+    </section>
+    <section className="panel result-chart-panel">
+      <header className="panel-heading"><div><span className="eyebrow">PARETO PRIORITIZATION</span><h2>{view.subject} 파레토 차트</h2><p>막대는 분류별 {metricLabels[view.metricKind]}, 선은 누적 기여도입니다. {view.thresholdPercentage}% 기준을 넘는 분류까지 우선 조사 대상으로 표시합니다.</p></div></header>
+      <Suspense fallback={<div className="skeleton chart-skeleton" aria-label="파레토 차트 불러오는 중" />}><ParetoChart rows={view.rows} threshold={view.thresholdPercentage} /></Suspense>
+    </section>
+    <section className="panel table-panel">
+      <header className="panel-heading"><div><span className="eyebrow">ACCESSIBLE DATA</span><h2>분류별 순위와 누적 기여도</h2></div>{view.sourceSheetId && <Link className="text-link" to={`/spc/tools/check-sheet`}>원본 체크 시트 작업공간</Link>}</header>
+      <div className="table-scroll"><table><caption>파레토 차트의 접근 가능한 원본 표</caption><thead><tr><th scope="col">순위</th><th scope="col">분류</th><th scope="col">값</th><th scope="col">구성비</th><th scope="col">누적 비율</th><th scope="col">판정</th></tr></thead><tbody>{view.rows.map((row) => <tr key={row.category}><td>{row.rank}</td><th scope="row">{row.category}</th><td>{row.value.toLocaleString()}</td><td>{row.percentage.toFixed(1)}%</td><td>{row.cumulative_percentage.toFixed(1)}%</td><td>{row.vital_few ? <span className="status-badge is-warning">우선 조사</span> : "후순위"}</td></tr>)}</tbody></table></div>
+    </section>
+    <section className="spc-evidence-note"><AlertTriangle aria-hidden="true" /><p><strong>해석 제한:</strong> 순위와 누적률은 조사 순서를 정하는 근거입니다. 근본 원인은 현장 확인, 특성요인도, 5 Why 또는 추가 통계 분석으로 검증해야 합니다.</p></section>
+  </>;
 }
 
 function EwmaResult({ view }: { view: EwmaView }) {
