@@ -33,7 +33,7 @@ describe("StatPro UI", () => {
     expect(await screen.findByRole("heading", { name: "결과 및 보고서" })).toBeInTheDocument();
     expect(screen.getAllByText("구현됨").length).toBeGreaterThan(2);
     expect(screen.getByText("개발 예정")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "실험계획법(DOE)" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "실험계획법 (DOE)" })).toBeInTheDocument();
   });
 
   it("renders the process-based home with workspace workflows", async () => {
@@ -57,11 +57,24 @@ describe("StatPro UI", () => {
     });
     render(<MemoryRouter initialEntries={["/data"]}><App /></MemoryRouter>);
 
-    const homeLink = await screen.findByRole("link", { name: "홈" });
+    const homeLink = await screen.findByRole("link", { name: "홈 (Home)" });
     expect(homeLink).toHaveAttribute("href", "/home");
     await userEvent.click(homeLink);
 
     expect(await screen.findByRole("heading", { name: "공정 문제에서 검증된 조치까지" })).toBeInTheDocument();
+  });
+
+  it("collapses the sidebar to icons and remembers the user choice", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 }));
+    const { container } = render(<MemoryRouter initialEntries={["/home"]}><App /></MemoryRouter>);
+
+    const collapseButton = await screen.findByRole("button", { name: "사이드 메뉴 감추기" });
+    await userEvent.click(collapseButton);
+
+    expect(container.querySelector(".sidebar")).toHaveClass("is-collapsed");
+    expect(screen.getByRole("button", { name: "사이드 메뉴 보이기" })).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByRole("link", { name: "통계적 공정관리 (SPC)" })).toHaveAttribute("data-tooltip", "통계적 공정관리 (SPC)");
+    expect(localStorage.getItem("statpro-sidebar-collapsed")).toBe("true");
   });
 
   it("redirects the retired preview URL to the fixed home URL", async () => {

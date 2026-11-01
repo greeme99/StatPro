@@ -1,17 +1,17 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Activity, BarChart3, Calculator, Database, FileText, FileWarning, FlaskConical, HelpCircle, Home, Moon, Sun } from "lucide-react";
+import { Activity, BarChart3, Calculator, Database, FileText, FileWarning, FlaskConical, HelpCircle, Home, Moon, PanelLeftClose, PanelLeftOpen, Sun } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { getHealth } from "../api";
 
 const navigation = [
-  { to: "/home", label: "홈", icon: Home },
-  { to: "/data", label: "작업표 및 데이터", icon: Database },
-  { to: "/doe", label: "실험계획법(DOE)", icon: FlaskConical },
-  { to: "/analyses/spc/attribute", label: "통계적 공정관리(SPC)", icon: BarChart3 },
-  { to: "/fmea", label: "고장 형태 및 영향 분석(FMEA)", icon: FileWarning },
-  { to: "/catalog/reports", label: "결과 및 보고서", icon: FileText },
-  { to: "/catalog/tools", label: "계산 및 도우미", icon: Calculator },
-  { to: "/catalog/help", label: "도움말", icon: HelpCircle },
+  { to: "/home", label: "홈 (Home)", icon: Home },
+  { to: "/data", label: "작업표 및 데이터 (Worksheet & Data)", icon: Database },
+  { to: "/doe", label: "실험계획법 (DOE)", icon: FlaskConical },
+  { to: "/analyses/spc/attribute", label: "통계적 공정관리 (SPC)", icon: BarChart3 },
+  { to: "/fmea", label: "고장 형태 및 영향 분석 (FMEA)", icon: FileWarning },
+  { to: "/catalog/reports", label: "결과 및 보고서 (Results & Reports)", icon: FileText },
+  { to: "/catalog/tools", label: "계산 및 도우미 (Calculators & Helpers)", icon: Calculator },
+  { to: "/catalog/help", label: "도움말 (Help)", icon: HelpCircle },
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -20,11 +20,20 @@ export function AppShell({ children }: { children: ReactNode }) {
     const stored = localStorage.getItem("statpro-theme");
     return stored === "dark" ? "dark" : "light";
   });
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    const stored = localStorage.getItem("statpro-sidebar-collapsed");
+    if (stored !== null) return stored === "true";
+    return typeof window.matchMedia === "function" && window.matchMedia("(max-width: 1023px)").matches;
+  });
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     localStorage.setItem("statpro-theme", theme);
   }, [theme]);
+
+  useEffect(() => {
+    localStorage.setItem("statpro-sidebar-collapsed", String(sidebarCollapsed));
+  }, [sidebarCollapsed]);
 
   useEffect(() => {
     let active = true;
@@ -35,7 +44,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <div className="app-frame">
+    <div className={`app-frame${sidebarCollapsed ? " is-sidebar-collapsed" : ""}`}>
       <a className="skip-link" href="#main-content">본문 바로가기</a>
       <header className="app-header">
         <div className="brand-lockup" aria-label="StatPro 홈">
@@ -55,15 +64,30 @@ export function AppShell({ children }: { children: ReactNode }) {
           </button>
         </div>
       </header>
-      <aside className="sidebar" aria-label="주 메뉴">
+      <aside className={`sidebar${sidebarCollapsed ? " is-collapsed" : ""}`} aria-label="주 메뉴">
+        <div className="sidebar-controls">
+          <button
+            className="sidebar-toggle"
+            type="button"
+            aria-label={sidebarCollapsed ? "사이드 메뉴 보이기" : "사이드 메뉴 감추기"}
+            aria-expanded={!sidebarCollapsed}
+            data-tooltip={sidebarCollapsed ? "메뉴 보이기" : undefined}
+            onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
+          >
+            {sidebarCollapsed ? <PanelLeftOpen aria-hidden="true" /> : <PanelLeftClose aria-hidden="true" />}
+            <span>메뉴 감추기</span>
+          </button>
+        </div>
         <nav>
           {navigation.map(({ to, label, icon: Icon }) => (
             <NavLink
               className={({ isActive }) => `nav-item${isActive ? " is-active" : ""}`}
               to={to}
               key={to}
+              aria-label={label}
+              data-tooltip={label}
             >
-              <Icon aria-hidden="true" /><span>{label}</span>
+              <Icon aria-hidden="true" /><span className="nav-label">{label}</span>
             </NavLink>
           ))}
         </nav>
