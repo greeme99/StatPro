@@ -1,4 +1,4 @@
-import type { ActionPriorityPolicyPage, ApiError, CellValue, FmeaStudyPage, FmeaStudyReport, StoredActionPriorityPolicy, StoredCheckSheet, StoredFishbone, StoredFmeaStudy, RunPage, StoredRun, StoredWorksheet, WorksheetPage } from "./types";
+import type { ActionPriorityPolicyPage, ApiError, CellValue, DmaicProjectPage, FmeaStudyPage, FmeaStudyReport, StoredActionPriorityPolicy, StoredCheckSheet, StoredDmaicMeasurementPlan, StoredDmaicProject, StoredFishbone, StoredFmeaStudy, RunPage, StoredRun, StoredWorksheet, WorksheetPage } from "./types";
 
 const API_BASE = import.meta.env.VITE_STATPRO_API_URL ?? "/api";
 
@@ -38,6 +38,49 @@ export function getHealth(): Promise<{ status: string; engine_version: string }>
 
 export function getRun(runId: string): Promise<StoredRun> {
   return request(`/v1/analysis-runs/${encodeURIComponent(runId)}`);
+}
+
+export function listDmaicProjects(limit = 50): Promise<DmaicProjectPage> {
+  return request(`/v1/dmaic-projects?limit=${limit}`);
+}
+
+export function createDmaicProject(payload: {
+  project_id: string;
+  title: string;
+  owner_ref: string;
+  sponsor_ref?: string | null;
+  champion_ref?: string | null;
+  department?: string | null;
+  start_date?: string | null;
+  target_end_date?: string | null;
+}): Promise<StoredDmaicProject> {
+  return request("/v1/dmaic-projects", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export function saveDmaicMeasurementPlan(projectId: string, payload: {
+  expected_storage_version: number;
+  primary_metric: string;
+  baseline_value?: number | null;
+  target_value?: number | null;
+  data_source: string;
+  collection_method: string;
+  collection_frequency: string;
+  sampling_method: string;
+  population_size?: number | null;
+  sample_size?: number | null;
+  sampling_rationale?: string | null;
+  measurement_instrument?: string | null;
+  measurement_unit?: string | null;
+  measurement_precision?: string | null;
+  calibration_required: boolean;
+  msa_required: boolean;
+  analysis_run_ids: string[];
+  actor: string;
+  occurred_at: string;
+}): Promise<StoredDmaicMeasurementPlan> {
+  return request(`/v1/dmaic-projects/${encodeURIComponent(projectId)}/measurement-plans`, {
+    method: "POST", body: JSON.stringify(payload),
+  });
 }
 
 export type DoeReportTemplate = "standard" | "customer_review" | "regulatory_review";

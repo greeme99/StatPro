@@ -23,6 +23,7 @@ import { DoeWorkspacePage } from "./pages/DoeWorkspacePage";
 import { RareEventChartSetupPage } from "./pages/RareEventChartSetupPage";
 import { MenuPreviewPage } from "./pages/MenuPreviewPage";
 import { DmaicGuidePreviewPage } from "./pages/DmaicGuidePreviewPage";
+import { DmaicMeasureWorkspacePage } from "./pages/DmaicMeasureWorkspacePage";
 import { LearningResourcesPreviewPage } from "./pages/LearningResourcesPreviewPage";
 import { SpcWorkspacePage } from "./pages/SpcWorkspacePage";
 import { ControlChartWorkspacePage } from "./pages/ControlChartWorkspacePage";
@@ -63,6 +64,7 @@ export default function App() {
         <Route path="/fmea/:studyId" element={<FmeaStudyPage />} />
         <Route path="/home" element={<MenuPreviewPage />} />
         <Route path="/home/dmaic" element={<DmaicGuidePreviewPage />} />
+        <Route path="/home/dmaic/measure" element={<DmaicMeasureWorkspacePage />} />
         <Route path="/home/learning" element={<LearningResourcesPreviewPage />} />
         <Route path="/ui-preview" element={<Navigate to="/home" replace />} />
         <Route path="/ui-preview/dmaic" element={<Navigate to="/home/dmaic" replace />} />

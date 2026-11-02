@@ -84,6 +84,56 @@ export type RunPage = {
   next_after: string | null;
 };
 
+export type DmaicDocumentReference = {
+  document_id: string;
+  revision: number;
+  digest: string;
+};
+
+export type DmaicProject = {
+  project_id: string;
+  title: string;
+  owner_ref: string;
+  sponsor_ref: string | null;
+  champion_ref: string | null;
+  department: string | null;
+  start_date: string | null;
+  target_end_date: string | null;
+  status: string;
+  revision: number;
+  parent_digest: string | null;
+  digest: string;
+  measurement_plan: DmaicDocumentReference | null;
+};
+
+export type StoredDmaicProject = {
+  project_id: string;
+  storage_version: number;
+  etag: string;
+  project: DmaicProject;
+};
+
+export type DmaicProjectPage = {
+  items: StoredDmaicProject[];
+  next_after: string | null;
+};
+
+export type DmaicMeasurementPlan = {
+  document_id: string;
+  project_id: string;
+  revision: number;
+  digest: string;
+  primary_metric: string;
+  analysis_evidence: Array<{ run_id: string; analysis_type: string; run_etag: string; input_digest: string }>;
+};
+
+export type StoredDmaicMeasurementPlan = {
+  document_id: string;
+  storage_version: number;
+  etag: string;
+  measurement_plan: DmaicMeasurementPlan;
+};
+
 export type ApiError = {
   ok: false;
   error: { code: string; message: string; field?: string | null };
