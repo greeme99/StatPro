@@ -1,4 +1,4 @@
-import type { ActionPriorityPolicyPage, ApiError, CellValue, DmaicProjectPage, FmeaStudyPage, FmeaStudyReport, StoredActionPriorityPolicy, StoredCheckSheet, StoredDmaicMeasurementPlan, StoredDmaicProject, StoredFishbone, StoredFmeaStudy, RunPage, StoredRun, StoredWorksheet, WorksheetPage } from "./types";
+import type { ActionPriorityPolicyPage, ApiError, CellValue, DmaicProjectPage, FmeaStudyPage, FmeaStudyReport, StoredActionPriorityPolicy, StoredCheckSheet, StoredDmaicCharter, StoredDmaicMeasurementPlan, StoredDmaicProject, StoredFishbone, StoredFmeaStudy, RunPage, StoredRun, StoredWorksheet, WorksheetPage } from "./types";
 
 const API_BASE = import.meta.env.VITE_STATPRO_API_URL ?? "/api";
 
@@ -55,6 +55,26 @@ export function createDmaicProject(payload: {
   target_end_date?: string | null;
 }): Promise<StoredDmaicProject> {
   return request("/v1/dmaic-projects", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export function saveDmaicCharter(projectId: string, payload: {
+  expected_storage_version: number;
+  business_case: string;
+  problem_statement: string;
+  scope_in: string[];
+  scope_out: string[];
+  success_metrics: string[];
+  team_refs: string[];
+  budget?: string | null;
+  milestones: string[];
+  risk_refs: string[];
+  assumptions_constraints: string[];
+  actor: string;
+  occurred_at: string;
+}): Promise<StoredDmaicProject> {
+  return request(`/v1/dmaic-projects/${encodeURIComponent(projectId)}/charters`, {
+    method: "POST", body: JSON.stringify(payload),
+  });
 }
 
 export function saveDmaicMeasurementPlan(projectId: string, payload: {

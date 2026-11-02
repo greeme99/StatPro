@@ -103,6 +103,7 @@ export type DmaicProject = {
   revision: number;
   parent_digest: string | null;
   digest: string;
+  charter: DmaicDocumentReference | null;
   measurement_plan: DmaicDocumentReference | null;
 };
 
@@ -132,6 +133,22 @@ export type StoredDmaicMeasurementPlan = {
   storage_version: number;
   etag: string;
   measurement_plan: DmaicMeasurementPlan;
+};
+
+export type DmaicCharter = {
+  document_id: string;
+  project_id: string;
+  revision: number;
+  digest: string;
+  problem_statement: string;
+  success_metrics: string[];
+};
+
+export type StoredDmaicCharter = {
+  document_id: string;
+  storage_version: number;
+  etag: string;
+  charter: DmaicCharter;
 };
 
 export type ApiError = {
