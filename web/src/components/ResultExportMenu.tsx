@@ -1,8 +1,9 @@
 import { Download, FileJson, FileSpreadsheet, FileText, ImageDown, ImageUp } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { toXbarRView } from "../analysis";
+import { toXbarRView, toXbarSView } from "../analysis";
 import type { ResultBundle } from "../types";
 import { downloadArtifact, downloadXbarRPng, printXbarRReport, xbarRExcelXml, xbarRReportSvg } from "../xbarRExport";
+import { downloadXbarSPng, printXbarSReport, xbarSExcelXml, xbarSReportSvg } from "../xbarSExport";
 import { Button } from "./Button";
 
 type CsvRow = [section: string, path: string, value: string];
@@ -67,6 +68,7 @@ export function ResultExportMenu({ runId, result }: { runId: string; result: Res
   const [open, setOpen] = useState(false);
   const menu = useRef<HTMLDivElement>(null);
   const xbarR = toXbarRView(result);
+  const xbarS = toXbarSView(result);
 
   useEffect(() => {
     if (!open) return;
@@ -95,6 +97,11 @@ export function ResultExportMenu({ runId, result }: { runId: string; result: Res
           <button role="menuitem" onClick={() => { downloadArtifact(`${runId}-xbar-r.xls`, xbarRExcelXml(runId, result, xbarR), "application/vnd.ms-excel;charset=utf-8"); setOpen(false); }}><FileSpreadsheet aria-hidden="true" />Excel로 저장</button>
           <button role="menuitem" onClick={() => { downloadXbarRPng(runId, xbarR); setOpen(false); }}><ImageDown aria-hidden="true" />차트를 PNG로 저장</button>
           <button role="menuitem" onClick={() => { downloadArtifact(`${runId}-xbar-r.svg`, xbarRReportSvg(runId, xbarR), "image/svg+xml;charset=utf-8"); setOpen(false); }}><ImageUp aria-hidden="true" />차트를 SVG로 저장</button>
+        </> : xbarS ? <>
+          <button role="menuitem" onClick={() => { if (!printXbarSReport(runId, result, xbarS)) window.alert("보고서 창을 열 수 없습니다. 브라우저의 팝업 차단 설정을 확인하세요."); setOpen(false); }}><FileText aria-hidden="true" />PDF 보고서 저장·인쇄</button>
+          <button role="menuitem" onClick={() => { downloadArtifact(`${runId}-xbar-s.xls`, xbarSExcelXml(runId, result, xbarS), "application/vnd.ms-excel;charset=utf-8"); setOpen(false); }}><FileSpreadsheet aria-hidden="true" />Excel로 저장</button>
+          <button role="menuitem" onClick={() => { downloadXbarSPng(runId, xbarS); setOpen(false); }}><ImageDown aria-hidden="true" />차트를 PNG로 저장</button>
+          <button role="menuitem" onClick={() => { downloadArtifact(`${runId}-xbar-s.svg`, xbarSReportSvg(runId, xbarS), "image/svg+xml;charset=utf-8"); setOpen(false); }}><ImageUp aria-hidden="true" />차트를 SVG로 저장</button>
         </> : <>
           <span role="menuitem" aria-disabled="true" title="개발 예정"><FileText aria-hidden="true" />PDF 보고서 <small>개발 예정</small></span>
           <span role="menuitem" aria-disabled="true" title="개발 예정"><FileSpreadsheet aria-hidden="true" />Excel로 저장 <small>개발 예정</small></span>
