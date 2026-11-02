@@ -93,6 +93,19 @@ describe("StatPro UI", () => {
     expect(screen.getAllByRole("link", { name: "작업공간 열기" })[0]).toHaveAttribute("href", "/spc");
   });
 
+  it("renders the Define-phase VOC workspace and directs users to create a project first", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const payload = String(input).endsWith("/health")
+        ? { ok: true, engine_version: "0.6.0", local_only: true }
+        : { items: [], next_after: null };
+      return new Response(JSON.stringify(payload), { status: 200 });
+    });
+    render(<MemoryRouter initialEntries={["/home/dmaic/voc"]}><App /></MemoryRouter>);
+
+    expect(await screen.findByRole("heading", { name: "고객의 소리 (VOC) 작업공간" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "정의 작업공간 열기" })).toHaveAttribute("href", "/home/dmaic/define");
+  });
+
   it("renders learning resources linked from the DMAIC guide", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 }));
     render(<MemoryRouter initialEntries={["/home/learning"]}><App /></MemoryRouter>);
@@ -313,7 +326,7 @@ describe("StatPro UI", () => {
     await userEvent.click(screen.getByRole("button", { name: "결과 출력" }));
     expect(screen.getByRole("menu", { name: "결과 출력 형식" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: /JSON으로 저장/ })).toBeEnabled();
-    expect(screen.getByText("PDF 보고서").closest("span")).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("menuitem", { name: /PDF 보고서 저장·인쇄/ })).toBeEnabled();
   });
 
   it("submits EWMA observations with historical parameters", async () => {

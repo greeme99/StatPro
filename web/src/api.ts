@@ -77,6 +77,24 @@ export function saveDmaicCharter(projectId: string, payload: {
   });
 }
 
+export function saveDmaicVoiceOfCustomer(projectId: string, payload: {
+  expected_storage_version: number;
+  collection_plan: string;
+  data_points: string[];
+  requirements: string[];
+  pain_points: string[];
+  opportunities: string[];
+  actions: string[];
+  recommendations: string[];
+  next_steps: string[];
+  actor: string;
+  occurred_at: string;
+}): Promise<StoredDmaicProject> {
+  return request(`/v1/dmaic-projects/${encodeURIComponent(projectId)}/voice-of-customer-studies`, {
+    method: "POST", body: JSON.stringify(payload),
+  });
+}
+
 export function saveDmaicMeasurementPlan(projectId: string, payload: {
   expected_storage_version: number;
   primary_metric: string;

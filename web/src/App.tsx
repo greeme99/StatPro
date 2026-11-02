@@ -24,6 +24,7 @@ import { RareEventChartSetupPage } from "./pages/RareEventChartSetupPage";
 import { MenuPreviewPage } from "./pages/MenuPreviewPage";
 import { DmaicGuidePreviewPage } from "./pages/DmaicGuidePreviewPage";
 import { DmaicDefineWorkspacePage } from "./pages/DmaicDefineWorkspacePage";
+import { DmaicVoiceOfCustomerWorkspacePage } from "./pages/DmaicVoiceOfCustomerWorkspacePage";
 import { DmaicMeasureWorkspacePage } from "./pages/DmaicMeasureWorkspacePage";
 import { LearningResourcesPreviewPage } from "./pages/LearningResourcesPreviewPage";
 import { SpcWorkspacePage } from "./pages/SpcWorkspacePage";
@@ -66,6 +67,7 @@ export default function App() {
         <Route path="/home" element={<MenuPreviewPage />} />
         <Route path="/home/dmaic" element={<DmaicGuidePreviewPage />} />
         <Route path="/home/dmaic/define" element={<DmaicDefineWorkspacePage />} />
+        <Route path="/home/dmaic/voc" element={<DmaicVoiceOfCustomerWorkspacePage />} />
         <Route path="/home/dmaic/measure" element={<DmaicMeasureWorkspacePage />} />
         <Route path="/home/learning" element={<LearningResourcesPreviewPage />} />
         <Route path="/ui-preview" element={<Navigate to="/home" replace />} />
