@@ -461,6 +461,16 @@ describe("StatPro UI", () => {
     expect(JSON.parse(String((post?.[1] as RequestInit).body)).rules).toBe("nelson");
   });
 
+  it("labels an empty I-MR success response as an analysis server response", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 201 }));
+    render(<MemoryRouter initialEntries={["/analyses/imr/new"]}><App /></MemoryRouter>);
+
+    await userEvent.click(await screen.findByRole("button", { name: "분석 실행" }));
+
+    expect(await screen.findByText("분석 서버 응답을 확인하세요")).toBeInTheDocument();
+    expect(screen.getByText("분석 실행 결과가 비어 있습니다. 로컬 분석 서버 로그를 확인하세요.")).toBeInTheDocument();
+  });
+
   it("submits a p chart with subgroup counts and sample sizes", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });

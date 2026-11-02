@@ -16,6 +16,7 @@ export function ImrSetupPage() {
   const [target, setTarget] = useState("");
   const [rules, setRules] = useState<"basic" | "western_electric" | "nelson">("western_electric");
   const [error, setError] = useState("");
+  const [errorKind, setErrorKind] = useState<"input" | "server">("input");
   const [loading, setLoading] = useState(false);
   const valuesRef = useRef<HTMLTextAreaElement>(null);
   const parsed = useMemo(() => values.split(/[\s,;]+/).filter(Boolean).map(Number), [values]);
@@ -23,6 +24,7 @@ export function ImrSetupPage() {
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (parsed.length < 2 || parsed.some((value) => !Number.isFinite(value))) {
+      setErrorKind("input");
       setError("유한한 숫자를 두 개 이상 입력하세요. 줄바꿈, 쉼표 또는 공백으로 구분할 수 있습니다.");
       valuesRef.current?.focus();
       return;
@@ -33,6 +35,7 @@ export function ImrSetupPage() {
       await createImrRun({ run_id: runId, values: parsed, rules, ...(target ? { target: Number(target) } : {}) });
       navigate(`/runs/${runId}`);
     } catch (caught) {
+      setErrorKind("server");
       setError(caught instanceof Error ? caught.message : "분석을 실행하지 못했습니다.");
       valuesRef.current?.focus();
     } finally {
@@ -46,7 +49,7 @@ export function ImrSetupPage() {
       <section className="page-heading">
         <div><span className="eyebrow">SPC / INDIVIDUALS</span><h1>I-MR 분석 설정</h1><p>시간 순서가 유지된 개별 관측값으로 공정 중심과 단기 변동을 확인합니다.</p></div>
       </section>
-      {error && <div className="error-banner" role="alert"><AlertTriangle aria-hidden="true" /><div><strong>입력을 확인하세요</strong><p>{error}</p></div></div>}
+      {error && <div className="error-banner" role="alert"><AlertTriangle aria-hidden="true" /><div><strong>{errorKind === "input" ? "입력을 확인하세요" : "분석 서버 응답을 확인하세요"}</strong><p>{error}</p></div></div>}
       <form className="analysis-form" onSubmit={submit}>
         <section className="form-panel">
           <header><span className="step-index">01</span><div><h2>실행 식별자</h2><p>저장 후 변경되지 않는 분석 기록의 이름입니다.</p></div></header>

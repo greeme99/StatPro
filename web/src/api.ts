@@ -7,10 +7,23 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     headers: { "Content-Type": "application/json", ...init?.headers },
   });
-  const payload = (await response.json()) as T | ApiError;
+  const body = await response.text();
+  let payload: T | ApiError | undefined;
+
+  if (body.trim()) {
+    try {
+      payload = JSON.parse(body) as T | ApiError;
+    } catch {
+      throw new Error("분석 서버의 응답 형식을 읽지 못했습니다. 로컬 분석 서버 로그를 확인하세요.");
+    }
+  }
+
   if (!response.ok) {
-    const error = payload as ApiError;
-    throw new Error(error.error?.message ?? "요청을 완료하지 못했습니다.");
+    const error = payload as ApiError | undefined;
+    throw new Error(error?.error?.message ?? `요청을 완료하지 못했습니다. (HTTP ${response.status})`);
+  }
+  if (payload === undefined) {
+    throw new Error("분석 실행 결과가 비어 있습니다. 로컬 분석 서버 로그를 확인하세요.");
   }
   return payload as T;
 }
