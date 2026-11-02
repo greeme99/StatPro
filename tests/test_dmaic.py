@@ -8,17 +8,69 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from statpro.dmaic import (
     DmaicCharter,
+    DmaicMeasurementPlan,
     DmaicProject,
     DmaicSipocMap,
     DmaicVoiceOfCustomerStudy,
     create_project,
     save_charter,
+    save_measurement_plan,
     save_sipoc,
     save_voice_of_customer,
 )
 
 
 class DmaicProjectTests(unittest.TestCase):
+    def test_measurement_plan_revisions_keep_analysis_evidence_identity(self) -> None:
+        project = create_project(
+            project_id="DMAIC-004", title="Connector yield", owner_ref="quality.engineer"
+        )
+        first_project, first = save_measurement_plan(
+            project,
+            primary_metric="First pass yield",
+            data_source="Final inspection station",
+            collection_method="Automated measurement",
+            collection_frequency="Per shift",
+            sampling_method="Random",
+            sample_size=50,
+            analysis_evidence=(
+                {
+                    "run_id": "spc-001",
+                    "analysis_type": "spc.xbar_r",
+                    "run_etag": "run-etag-001",
+                    "input_digest": "a" * 64,
+                },
+            ),
+            actor="quality.engineer",
+            occurred_at="2026-10-30T09:00:00+09:00",
+        )
+        second_project, second = save_measurement_plan(
+            first_project,
+            primary_metric="First pass yield",
+            data_source="Final inspection station",
+            collection_method="Automated measurement",
+            collection_frequency="Daily",
+            sampling_method="Random",
+            sample_size=80,
+            analysis_evidence=(
+                {
+                    "run_id": "spc-001",
+                    "analysis_type": "spc.xbar_r",
+                    "run_etag": "run-etag-001",
+                    "input_digest": "a" * 64,
+                },
+            ),
+            actor="quality.engineer",
+            occurred_at="2026-10-30T10:00:00+09:00",
+        )
+
+        self.assertEqual(first.revision, 1)
+        self.assertEqual(second.revision, 2)
+        self.assertEqual(second.parent_digest, first.digest)
+        self.assertEqual(first.analysis_evidence[0].run_id, "spc-001")
+        self.assertEqual(second_project.measurement_plan.document_id, second.document_id)
+        self.assertNotIn("primary_metric", second_project.to_dict())
+        self.assertEqual(DmaicMeasurementPlan.from_dict(first.to_dict()), first)
     def test_charter_revisions_are_immutable_and_project_keeps_only_reference(self) -> None:
         project = create_project(
             project_id="DMAIC-001", title="Connector yield", owner_ref="quality.engineer"

@@ -33,6 +33,19 @@ class DmaicDocumentReference:
 
 
 @dataclass(frozen=True, slots=True)
+class DmaicAnalysisEvidenceReference:
+    """The immutable identity of an analysis Run used by a DMAIC document."""
+
+    run_id: str
+    analysis_type: str
+    run_etag: str
+    input_digest: str
+
+    def to_dict(self) -> dict[str, str]:
+        return asdict(self)
+
+
+@dataclass(frozen=True, slots=True)
 class DmaicProject:
     project_id: str
     title: str
@@ -49,6 +62,7 @@ class DmaicProject:
     charter: DmaicDocumentReference | None = None
     voice_of_customer: DmaicDocumentReference | None = None
     sipoc: DmaicDocumentReference | None = None
+    measurement_plan: DmaicDocumentReference | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -69,6 +83,9 @@ class DmaicProject:
                 None if self.voice_of_customer is None else self.voice_of_customer.to_dict()
             ),
             "sipoc": None if self.sipoc is None else self.sipoc.to_dict(),
+            "measurement_plan": (
+                None if self.measurement_plan is None else self.measurement_plan.to_dict()
+            ),
         }
 
     @classmethod
@@ -76,6 +93,7 @@ class DmaicProject:
         reference = payload.get("charter")
         voice_of_customer = payload.get("voice_of_customer")
         sipoc = payload.get("sipoc")
+        measurement_plan = payload.get("measurement_plan")
         project = cls(
             project_id=payload["project_id"], title=payload["title"], owner_ref=payload["owner_ref"],
             sponsor_ref=payload.get("sponsor_ref"), champion_ref=payload.get("champion_ref"),
@@ -89,6 +107,11 @@ class DmaicProject:
                 else DmaicDocumentReference(**voice_of_customer)
             ),
             sipoc=None if sipoc is None else DmaicDocumentReference(**sipoc),
+            measurement_plan=(
+                None
+                if measurement_plan is None
+                else DmaicDocumentReference(**measurement_plan)
+            ),
         )
         if project.digest != _project_digest(project):
             raise DmaicInputError("project_digest_mismatch", "Stored DMAIC project digest does not match.", "digest")
@@ -238,6 +261,70 @@ class DmaicSipocMap:
         return sipoc
 
 
+@dataclass(frozen=True, slots=True)
+class DmaicMeasurementPlan:
+    """Immutable Measure-phase data collection plan and analysis evidence links."""
+
+    document_id: str
+    project_id: str
+    revision: int
+    parent_digest: str | None
+    digest: str
+    primary_metric: str
+    baseline_value: float | None
+    target_value: float | None
+    data_source: str
+    collection_method: str
+    collection_frequency: str
+    sampling_method: str
+    population_size: int | None
+    sample_size: int | None
+    sampling_rationale: str | None
+    measurement_instrument: str | None
+    measurement_unit: str | None
+    measurement_precision: str | None
+    calibration_required: bool
+    msa_required: bool
+    analysis_evidence: tuple[DmaicAnalysisEvidenceReference, ...]
+    actor: str
+    occurred_at: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            **asdict(self),
+            "analysis_evidence": [reference.to_dict() for reference in self.analysis_evidence],
+        }
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> DmaicMeasurementPlan:
+        plan = cls(
+            document_id=payload["document_id"], project_id=payload["project_id"],
+            revision=payload["revision"], parent_digest=payload.get("parent_digest"),
+            digest=payload["digest"], primary_metric=payload["primary_metric"],
+            baseline_value=payload.get("baseline_value"), target_value=payload.get("target_value"),
+            data_source=payload["data_source"], collection_method=payload["collection_method"],
+            collection_frequency=payload["collection_frequency"], sampling_method=payload["sampling_method"],
+            population_size=payload.get("population_size"), sample_size=payload.get("sample_size"),
+            sampling_rationale=payload.get("sampling_rationale"),
+            measurement_instrument=payload.get("measurement_instrument"),
+            measurement_unit=payload.get("measurement_unit"),
+            measurement_precision=payload.get("measurement_precision"),
+            calibration_required=payload["calibration_required"], msa_required=payload["msa_required"],
+            analysis_evidence=tuple(
+                DmaicAnalysisEvidenceReference(**reference)
+                for reference in payload.get("analysis_evidence", [])
+            ),
+            actor=payload["actor"], occurred_at=payload["occurred_at"],
+        )
+        if plan.digest != _measurement_plan_digest(plan):
+            raise DmaicInputError(
+                "measurement_plan_digest_mismatch",
+                "Stored measurement plan digest does not match.",
+                "digest",
+            )
+        return plan
+
+
 def _project_digest(project: DmaicProject) -> str:
     payload = project.to_dict()
     payload.pop("digest")
@@ -258,5 +345,11 @@ def _voice_of_customer_digest(study: DmaicVoiceOfCustomerStudy) -> str:
 
 def _sipoc_digest(sipoc: DmaicSipocMap) -> str:
     payload = sipoc.to_dict()
+    payload.pop("digest")
+    return input_digest(payload)
+
+
+def _measurement_plan_digest(plan: DmaicMeasurementPlan) -> str:
+    payload = plan.to_dict()
     payload.pop("digest")
     return input_digest(payload)

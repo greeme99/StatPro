@@ -973,6 +973,57 @@ class LocalApiContractTests(unittest.TestCase):
         conflict = self.client.post("/v1/dmaic-projects/DMAIC-003/sipoc-maps", json=request)
         self.assertEqual(conflict.status_code, 409)
 
+    def test_dmaic_measurement_plan_links_a_persisted_analysis_run(self) -> None:
+        created = self.client.post(
+            "/v1/dmaic-projects",
+            json={
+                "project_id": "DMAIC-004",
+                "title": "Connector yield",
+                "owner_ref": "quality.engineer",
+            },
+        )
+        self.assertEqual(created.status_code, 201)
+        run = self.client.post(
+            "/v1/analysis-runs/imr",
+            json={"run_id": "spc-imr-004", "values": [10.0, 10.1, 9.9, 10.0]},
+        )
+        self.assertEqual(run.status_code, 201)
+        request = {
+            "expected_storage_version": 1,
+            "primary_metric": "First pass yield",
+            "baseline_value": 0.93,
+            "target_value": 0.97,
+            "data_source": "Final inspection station",
+            "collection_method": "Automated measurement",
+            "collection_frequency": "Per shift",
+            "sampling_method": "Random",
+            "sample_size": 50,
+            "measurement_instrument": "Vision inspection system",
+            "calibration_required": True,
+            "msa_required": True,
+            "analysis_run_ids": ["spc-imr-004"],
+            "actor": "quality.engineer",
+            "occurred_at": "2026-10-30T09:00:00+09:00",
+        }
+        revised = self.client.post(
+            "/v1/dmaic-projects/DMAIC-004/measurement-plans", json=request
+        )
+        self.assertEqual(revised.status_code, 201)
+        self.assertEqual(revised.json()["storage_version"], 2)
+        reference = revised.json()["project"]["measurement_plan"]
+        self.assertEqual(reference["revision"], 1)
+        self.assertNotIn("primary_metric", revised.json()["project"])
+
+        plan = self.client.get(
+            "/v1/dmaic-projects/DMAIC-004/measurement-plans/"
+            f"{reference['document_id']}"
+        )
+        self.assertEqual(plan.status_code, 200)
+        self.assertEqual(plan.json()["measurement_plan"]["sample_size"], 50)
+        evidence = plan.json()["measurement_plan"]["analysis_evidence"]
+        self.assertEqual(evidence[0]["run_id"], "spc-imr-004")
+        self.assertEqual(evidence[0]["analysis_type"], "spc.imr")
+
     def test_fmea_study_is_created_revised_listed_and_submitted(self) -> None:
         created = self.client.post(
             "/v1/fmea-studies",

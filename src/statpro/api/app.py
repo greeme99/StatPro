@@ -76,11 +76,13 @@ from statpro.application.reports import (
 from statpro.dmaic import (
     DmaicCharter,
     DmaicInputError,
+    DmaicMeasurementPlan,
     DmaicProject,
     DmaicSipocMap,
     DmaicVoiceOfCustomerStudy,
     create_project,
     save_charter,
+    save_measurement_plan,
     save_sipoc,
     save_voice_of_customer,
 )
@@ -141,6 +143,7 @@ DMAIC_PROJECTS = "dmaic-projects"
 DMAIC_CHARTERS = "dmaic-charters"
 DMAIC_VOICE_OF_CUSTOMER_STUDIES = "dmaic-voice-of-customer-studies"
 DMAIC_SIPOC_MAPS = "dmaic-sipoc-maps"
+DMAIC_MEASUREMENT_PLANS = "dmaic-measurement-plans"
 SPC_CHECK_SHEETS = "spc-check-sheets"
 SPC_FISHBONE_DIAGRAMS = "spc-fishbone-diagrams"
 RunId = Annotated[str, Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")]
@@ -628,6 +631,28 @@ class SaveDmaicSipocRequest(ApiModel):
     occurred_at: str
 
 
+class SaveDmaicMeasurementPlanRequest(ApiModel):
+    expected_storage_version: int = Field(ge=1)
+    primary_metric: str
+    baseline_value: float | None = None
+    target_value: float | None = None
+    data_source: str
+    collection_method: str
+    collection_frequency: str
+    sampling_method: str
+    population_size: int | None = Field(default=None, ge=1)
+    sample_size: int | None = Field(default=None, ge=1)
+    sampling_rationale: str | None = None
+    measurement_instrument: str | None = None
+    measurement_unit: str | None = None
+    measurement_precision: str | None = None
+    calibration_required: bool = False
+    msa_required: bool = False
+    analysis_run_ids: list[RunId] = Field(default_factory=list)
+    actor: str
+    occurred_at: str
+
+
 class StoredDmaicProjectResponse(ApiModel):
     project_id: str
     storage_version: int
@@ -654,6 +679,13 @@ class StoredDmaicSipocResponse(ApiModel):
     storage_version: int
     etag: str
     sipoc: dict[str, Any]
+
+
+class StoredDmaicMeasurementPlanResponse(ApiModel):
+    document_id: str
+    storage_version: int
+    etag: str
+    measurement_plan: dict[str, Any]
 
 
 class StoredActionPriorityPolicyResponse(ApiModel):
@@ -905,6 +937,15 @@ def _deserialize_dmaic_sipoc(stored: StoredDocument) -> DmaicSipocMap:
         ) from error
 
 
+def _deserialize_dmaic_measurement_plan(stored: StoredDocument) -> DmaicMeasurementPlan:
+    try:
+        return DmaicMeasurementPlan.from_dict(stored.document["measurement_plan"])
+    except (KeyError, TypeError, ValueError, DmaicInputError) as error:
+        raise DocumentStoreError(
+            f"Stored DMAIC measurement plan {stored.key} does not match its owned format."
+        ) from error
+
+
 def _dmaic_project_response(stored: StoredDocument) -> StoredDmaicProjectResponse:
     project = _deserialize_dmaic_project(stored)
     return StoredDmaicProjectResponse(
@@ -944,6 +985,18 @@ def _dmaic_sipoc_response(stored: StoredDocument) -> StoredDmaicSipocResponse:
         storage_version=stored.storage_version,
         etag=stored.etag,
         sipoc=sipoc.to_dict(),
+    )
+
+
+def _dmaic_measurement_plan_response(
+    stored: StoredDocument,
+) -> StoredDmaicMeasurementPlanResponse:
+    plan = _deserialize_dmaic_measurement_plan(stored)
+    return StoredDmaicMeasurementPlanResponse(
+        document_id=stored.key,
+        storage_version=stored.storage_version,
+        etag=stored.etag,
+        measurement_plan=plan.to_dict(),
     )
 
 
@@ -999,6 +1052,21 @@ def _save_dmaic_sipoc(repository: DocumentRepository, sipoc: DmaicSipocMap) -> S
             "kind": "dmaic_sipoc_map",
             "document_id": sipoc.document_id,
             "sipoc": sipoc.to_dict(),
+        },
+        expected_version=0,
+    )
+
+
+def _save_dmaic_measurement_plan(
+    repository: DocumentRepository, plan: DmaicMeasurementPlan
+) -> StoredDocument:
+    return repository.save(
+        DMAIC_MEASUREMENT_PLANS,
+        plan.document_id,
+        {
+            "kind": "dmaic_measurement_plan",
+            "document_id": plan.document_id,
+            "measurement_plan": plan.to_dict(),
         },
         expected_version=0,
     )
@@ -2474,6 +2542,70 @@ def create_app(
             )
         response.headers["ETag"] = f'"{stored.etag}"'
         return _dmaic_sipoc_response(stored)
+
+    @app.post(
+        "/v1/dmaic-projects/{project_id}/measurement-plans",
+        status_code=201,
+        response_model=StoredDmaicProjectResponse,
+    )
+    def create_dmaic_measurement_plan(
+        project_id: RunId,
+        request: SaveDmaicMeasurementPlanRequest,
+        response: Response,
+    ) -> StoredDmaicProjectResponse:
+        stored, project = _load_dmaic_project(repository, project_id)
+        if stored.storage_version != request.expected_storage_version:
+            raise DocumentConflictError(
+                f"Expected storage version {request.expected_storage_version}; found {stored.storage_version}."
+            )
+        evidence = tuple(
+            _load_analysis_evidence_reference(repository, run_id).to_dict()
+            for run_id in request.analysis_run_ids
+        )
+        revised, plan = save_measurement_plan(
+            project,
+            primary_metric=request.primary_metric,
+            baseline_value=request.baseline_value,
+            target_value=request.target_value,
+            data_source=request.data_source,
+            collection_method=request.collection_method,
+            collection_frequency=request.collection_frequency,
+            sampling_method=request.sampling_method,
+            population_size=request.population_size,
+            sample_size=request.sample_size,
+            sampling_rationale=request.sampling_rationale,
+            measurement_instrument=request.measurement_instrument,
+            measurement_unit=request.measurement_unit,
+            measurement_precision=request.measurement_precision,
+            calibration_required=request.calibration_required,
+            msa_required=request.msa_required,
+            analysis_evidence=evidence,
+            actor=request.actor,
+            occurred_at=request.occurred_at,
+        )
+        _save_dmaic_measurement_plan(repository, plan)
+        saved = _save_dmaic_project(
+            repository, revised, expected_version=request.expected_storage_version
+        )
+        response.headers["ETag"] = f'"{saved.etag}"'
+        return _dmaic_project_response(saved)
+
+    @app.get(
+        "/v1/dmaic-projects/{project_id}/measurement-plans/{document_id}",
+        response_model=StoredDmaicMeasurementPlanResponse,
+    )
+    def get_dmaic_measurement_plan(
+        project_id: RunId, document_id: RunId, response: Response
+    ) -> StoredDmaicMeasurementPlanResponse:
+        _stored_project, project = _load_dmaic_project(repository, project_id)
+        stored = repository.load(DMAIC_MEASUREMENT_PLANS, document_id)
+        plan = _deserialize_dmaic_measurement_plan(stored)
+        if plan.project_id != project.project_id:
+            raise DocumentNotFoundError(
+                f"Document {DMAIC_MEASUREMENT_PLANS}/{document_id} does not exist."
+            )
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _dmaic_measurement_plan_response(stored)
 
     @app.post("/v1/fmea-studies", status_code=201, response_model=StoredFmeaStudyResponse)
     def create_study(

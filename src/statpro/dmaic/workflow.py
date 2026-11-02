@@ -5,14 +5,17 @@ from __future__ import annotations
 from dataclasses import replace
 
 from statpro.dmaic.models import (
+    DmaicAnalysisEvidenceReference,
     DmaicCharter,
     DmaicDocumentReference,
     DmaicInputError,
+    DmaicMeasurementPlan,
     DmaicProject,
     DmaicProjectStatus,
     DmaicSipocMap,
     DmaicVoiceOfCustomerStudy,
     _charter_digest,
+    _measurement_plan_digest,
     _project_digest,
     _sipoc_digest,
     _voice_of_customer_digest,
@@ -34,6 +37,14 @@ def _items(values: tuple[str, ...], field: str) -> tuple[str, ...]:
     return tuple(dict.fromkeys(_required(value, field) for value in values))
 
 
+def _positive_count(value: int | None, field: str) -> int | None:
+    if value is None:
+        return None
+    if isinstance(value, bool) or value <= 0:
+        raise DmaicInputError("positive_count_required", f"{field} must be positive.", field)
+    return value
+
+
 def create_project(*, project_id: str, title: str, owner_ref: str, sponsor_ref: str | None = None,
                    champion_ref: str | None = None, department: str | None = None,
                    start_date: str | None = None, target_end_date: str | None = None) -> DmaicProject:
@@ -41,7 +52,7 @@ def create_project(*, project_id: str, title: str, owner_ref: str, sponsor_ref: 
         owner_ref=_required(owner_ref, "owner_ref"), sponsor_ref=_optional(sponsor_ref), champion_ref=_optional(champion_ref),
         department=_optional(department), start_date=_optional(start_date), target_end_date=_optional(target_end_date),
         status=DmaicProjectStatus.DRAFT, revision=1, parent_digest=None, digest="", charter=None,
-        voice_of_customer=None, sipoc=None)
+        voice_of_customer=None, sipoc=None, measurement_plan=None)
     return replace(project, digest=_project_digest(project))
 
 
@@ -154,3 +165,62 @@ def save_sipoc(
         sipoc=reference,
     )
     return replace(revised, digest=_project_digest(revised)), sipoc
+
+
+def save_measurement_plan(
+    project: DmaicProject,
+    *,
+    primary_metric: str,
+    data_source: str,
+    collection_method: str,
+    collection_frequency: str,
+    sampling_method: str,
+    sample_size: int | None,
+    analysis_evidence: tuple[dict[str, str], ...],
+    actor: str,
+    occurred_at: str,
+    baseline_value: float | None = None,
+    target_value: float | None = None,
+    population_size: int | None = None,
+    sampling_rationale: str | None = None,
+    measurement_instrument: str | None = None,
+    measurement_unit: str | None = None,
+    measurement_precision: str | None = None,
+    calibration_required: bool = False,
+    msa_required: bool = False,
+) -> tuple[DmaicProject, DmaicMeasurementPlan]:
+    previous = project.measurement_plan
+    revision = 1 if previous is None else previous.revision + 1
+    evidence = tuple(
+        DmaicAnalysisEvidenceReference(
+            run_id=_required(reference["run_id"], "analysis_evidence.run_id"),
+            analysis_type=_required(reference["analysis_type"], "analysis_evidence.analysis_type"),
+            run_etag=_required(reference["run_etag"], "analysis_evidence.run_etag"),
+            input_digest=_required(reference["input_digest"], "analysis_evidence.input_digest"),
+        )
+        for reference in analysis_evidence
+    )
+    if len({reference.run_id for reference in evidence}) != len(evidence):
+        raise DmaicInputError("duplicate_analysis_evidence", "Analysis evidence Run IDs must be unique.", "analysis_evidence")
+    plan = DmaicMeasurementPlan(
+        document_id=f"{project.project_id}-measurement-plan-r{revision}", project_id=project.project_id,
+        revision=revision, parent_digest=None if previous is None else previous.digest, digest="",
+        primary_metric=_required(primary_metric, "primary_metric"), baseline_value=baseline_value,
+        target_value=target_value, data_source=_required(data_source, "data_source"),
+        collection_method=_required(collection_method, "collection_method"),
+        collection_frequency=_required(collection_frequency, "collection_frequency"),
+        sampling_method=_required(sampling_method, "sampling_method"),
+        population_size=_positive_count(population_size, "population_size"),
+        sample_size=_positive_count(sample_size, "sample_size"),
+        sampling_rationale=_optional(sampling_rationale), measurement_instrument=_optional(measurement_instrument),
+        measurement_unit=_optional(measurement_unit), measurement_precision=_optional(measurement_precision),
+        calibration_required=calibration_required, msa_required=msa_required, analysis_evidence=evidence,
+        actor=_required(actor, "actor"), occurred_at=_required(occurred_at, "occurred_at"),
+    )
+    plan = replace(plan, digest=_measurement_plan_digest(plan))
+    reference = DmaicDocumentReference("measurement_plan", plan.document_id, plan.revision, plan.digest)
+    revised = replace(
+        project, revision=project.revision + 1, parent_digest=project.digest, digest="",
+        measurement_plan=reference,
+    )
+    return replace(revised, digest=_project_digest(revised)), plan
