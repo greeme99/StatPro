@@ -14,6 +14,7 @@ from statpro.dmaic.models import (
     DmaicProject,
     DmaicProjectStatus,
     DmaicRootCauseAnalysis,
+    DmaicSolutionSelection,
     DmaicSipocMap,
     DmaicStakeholder,
     DmaicStakeholderAssessment,
@@ -23,6 +24,7 @@ from statpro.dmaic.models import (
     _problem_definition_digest,
     _project_digest,
     _root_cause_analysis_digest,
+    _solution_selection_digest,
     _sipoc_digest,
     _stakeholder_assessment_digest,
     _voice_of_customer_digest,
@@ -397,3 +399,57 @@ def save_root_cause_analysis(
     reference = DmaicDocumentReference("root_cause_analysis", analysis.document_id, analysis.revision, analysis.digest)
     revised = replace(project, revision=project.revision + 1, parent_digest=project.digest, digest="", root_cause_analysis=reference)
     return replace(revised, digest=_project_digest(revised)), analysis
+
+
+def save_solution_selection(
+    project: DmaicProject,
+    *,
+    problem_statement: str,
+    candidate_solutions: tuple[str, ...],
+    selected_solution: str,
+    decision_rationale: str,
+    validation_plan: str,
+    analysis_evidence: tuple[dict[str, str], ...],
+    actor: str,
+    occurred_at: str,
+) -> tuple[DmaicProject, DmaicSolutionSelection]:
+    """Save an Improve decision and retain the root-cause and Run evidence used."""
+    previous = project.solution_selection
+    revision = 1 if previous is None else previous.revision + 1
+    candidates = _items(candidate_solutions, "candidate_solutions")
+    selected = _required(selected_solution, "selected_solution")
+    if selected not in candidates:
+        raise DmaicInputError(
+            "selected_solution_not_candidate",
+            "selected_solution must be one of candidate_solutions.",
+            "selected_solution",
+        )
+    evidence = tuple(
+        DmaicAnalysisEvidenceReference(
+            run_id=_required(item["run_id"], "analysis_evidence.run_id"),
+            analysis_type=_required(item["analysis_type"], "analysis_evidence.analysis_type"),
+            run_etag=_required(item["run_etag"], "analysis_evidence.run_etag"),
+            input_digest=_required(item["input_digest"], "analysis_evidence.input_digest"),
+        )
+        for item in analysis_evidence
+    )
+    if len({item.run_id for item in evidence}) != len(evidence):
+        raise DmaicInputError("duplicate_analysis_evidence", "Analysis evidence Run IDs must be unique.", "analysis_evidence")
+    sources = tuple(item for item in (
+        project.root_cause_analysis, project.problem_definition, project.measurement_plan,
+        project.sipoc, project.charter,
+    ) if item is not None)
+    selection = DmaicSolutionSelection(
+        document_id=f"{project.project_id}-solution-selection-r{revision}", project_id=project.project_id,
+        revision=revision, parent_digest=None if previous is None else previous.digest, digest="",
+        problem_statement=_required(problem_statement, "problem_statement"),
+        candidate_solutions=candidates, selected_solution=selected,
+        decision_rationale=_required(decision_rationale, "decision_rationale"),
+        validation_plan=_required(validation_plan, "validation_plan"),
+        source_documents=sources, analysis_evidence=evidence,
+        actor=_required(actor, "actor"), occurred_at=_required(occurred_at, "occurred_at"),
+    )
+    selection = replace(selection, digest=_solution_selection_digest(selection))
+    reference = DmaicDocumentReference("solution_selection", selection.document_id, selection.revision, selection.digest)
+    revised = replace(project, revision=project.revision + 1, parent_digest=project.digest, digest="", solution_selection=reference)
+    return replace(revised, digest=_project_digest(revised)), selection

@@ -1,4 +1,4 @@
-import type { ActionPriorityPolicyPage, ApiError, CellValue, DmaicProjectPage, FmeaStudyPage, FmeaStudyReport, StoredActionPriorityPolicy, StoredCheckSheet, StoredDmaicCharter, StoredDmaicMeasurementPlan, StoredDmaicProject, StoredDmaicRootCauseAnalysis, StoredFishbone, StoredFmeaStudy, RunPage, StoredRun, StoredWorksheet, WorksheetPage } from "./types";
+import type { ActionPriorityPolicyPage, ApiError, CellValue, DmaicProjectPage, FmeaStudyPage, FmeaStudyReport, StoredActionPriorityPolicy, StoredCheckSheet, StoredDmaicCharter, StoredDmaicMeasurementPlan, StoredDmaicProject, StoredDmaicRootCauseAnalysis, StoredDmaicSolutionSelection, StoredFishbone, StoredFmeaStudy, RunPage, StoredRun, StoredWorksheet, WorksheetPage } from "./types";
 
 const API_BASE = import.meta.env.VITE_STATPRO_API_URL ?? "/api";
 
@@ -201,6 +201,26 @@ export function saveDmaicRootCauseAnalysis(projectId: string, payload: {
 
 export function getDmaicRootCauseAnalysis(projectId: string, documentId: string): Promise<StoredDmaicRootCauseAnalysis> {
   return request(`/v1/dmaic-projects/${encodeURIComponent(projectId)}/root-cause-analyses/${encodeURIComponent(documentId)}`);
+}
+
+export function saveDmaicSolutionSelection(projectId: string, payload: {
+  expected_storage_version: number;
+  problem_statement: string;
+  candidate_solutions: string[];
+  selected_solution: string;
+  decision_rationale: string;
+  validation_plan: string;
+  analysis_run_ids: string[];
+  actor: string;
+  occurred_at: string;
+}): Promise<StoredDmaicProject> {
+  return request(`/v1/dmaic-projects/${encodeURIComponent(projectId)}/solution-selections`, {
+    method: "POST", body: JSON.stringify(payload),
+  });
+}
+
+export function getDmaicSolutionSelection(projectId: string, documentId: string): Promise<StoredDmaicSolutionSelection> {
+  return request(`/v1/dmaic-projects/${encodeURIComponent(projectId)}/solution-selections/${encodeURIComponent(documentId)}`);
 }
 
 export type DoeReportTemplate = "standard" | "customer_review" | "regulatory_review";

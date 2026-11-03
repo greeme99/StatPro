@@ -80,6 +80,7 @@ from statpro.dmaic import (
     DmaicProblemDefinition,
     DmaicProject,
     DmaicRootCauseAnalysis,
+    DmaicSolutionSelection,
     DmaicSipocMap,
     DmaicStakeholderAssessment,
     DmaicVoiceOfCustomerStudy,
@@ -88,6 +89,7 @@ from statpro.dmaic import (
     save_measurement_plan,
     save_problem_definition,
     save_root_cause_analysis,
+    save_solution_selection,
     save_sipoc,
     save_stakeholder_assessment,
     save_voice_of_customer,
@@ -153,6 +155,7 @@ DMAIC_STAKEHOLDER_ASSESSMENTS = "dmaic-stakeholder-assessments"
 DMAIC_PROBLEM_DEFINITIONS = "dmaic-problem-definitions"
 DMAIC_MEASUREMENT_PLANS = "dmaic-measurement-plans"
 DMAIC_ROOT_CAUSE_ANALYSES = "dmaic-root-cause-analyses"
+DMAIC_SOLUTION_SELECTIONS = "dmaic-solution-selections"
 SPC_CHECK_SHEETS = "spc-check-sheets"
 SPC_FISHBONE_DIAGRAMS = "spc-fishbone-diagrams"
 RunId = Annotated[str, Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")]
@@ -709,6 +712,18 @@ class SaveDmaicRootCauseAnalysisRequest(ApiModel):
     occurred_at: str
 
 
+class SaveDmaicSolutionSelectionRequest(ApiModel):
+    expected_storage_version: int = Field(ge=1)
+    problem_statement: str
+    candidate_solutions: list[str] = Field(min_length=1)
+    selected_solution: str
+    decision_rationale: str
+    validation_plan: str
+    analysis_run_ids: list[RunId] = Field(default_factory=list)
+    actor: str
+    occurred_at: str
+
+
 class StoredDmaicProjectResponse(ApiModel):
     project_id: str
     storage_version: int
@@ -763,6 +778,13 @@ class StoredDmaicRootCauseAnalysisResponse(ApiModel):
     storage_version: int
     etag: str
     root_cause_analysis: dict[str, Any]
+
+
+class StoredDmaicSolutionSelectionResponse(ApiModel):
+    document_id: str
+    storage_version: int
+    etag: str
+    solution_selection: dict[str, Any]
 
 
 class StoredActionPriorityPolicyResponse(ApiModel):
@@ -1054,6 +1076,15 @@ def _deserialize_dmaic_root_cause_analysis(stored: StoredDocument) -> DmaicRootC
         ) from error
 
 
+def _deserialize_dmaic_solution_selection(stored: StoredDocument) -> DmaicSolutionSelection:
+    try:
+        return DmaicSolutionSelection.from_dict(stored.document["solution_selection"])
+    except (KeyError, TypeError, ValueError, DmaicInputError) as error:
+        raise DocumentStoreError(
+            f"Stored DMAIC solution selection {stored.key} does not match its owned format."
+        ) from error
+
+
 def _dmaic_project_response(stored: StoredDocument) -> StoredDmaicProjectResponse:
     project = _deserialize_dmaic_project(stored)
     return StoredDmaicProjectResponse(
@@ -1139,6 +1170,16 @@ def _dmaic_root_cause_analysis_response(
     return StoredDmaicRootCauseAnalysisResponse(
         document_id=stored.key, storage_version=stored.storage_version, etag=stored.etag,
         root_cause_analysis=analysis.to_dict(),
+    )
+
+
+def _dmaic_solution_selection_response(
+    stored: StoredDocument,
+) -> StoredDmaicSolutionSelectionResponse:
+    selection = _deserialize_dmaic_solution_selection(stored)
+    return StoredDmaicSolutionSelectionResponse(
+        document_id=stored.key, storage_version=stored.storage_version, etag=stored.etag,
+        solution_selection=selection.to_dict(),
     )
 
 
@@ -1252,6 +1293,18 @@ def _save_dmaic_root_cause_analysis(
         analysis.document_id,
         {"kind": "dmaic_root_cause_analysis", "document_id": analysis.document_id,
          "root_cause_analysis": analysis.to_dict()},
+        expected_version=0,
+    )
+
+
+def _save_dmaic_solution_selection(
+    repository: DocumentRepository, selection: DmaicSolutionSelection
+) -> StoredDocument:
+    return repository.save(
+        DMAIC_SOLUTION_SELECTIONS,
+        selection.document_id,
+        {"kind": "dmaic_solution_selection", "document_id": selection.document_id,
+         "solution_selection": selection.to_dict()},
         expected_version=0,
     )
 
@@ -2942,6 +2995,60 @@ def create_app(
             )
         response.headers["ETag"] = f'"{stored.etag}"'
         return _dmaic_root_cause_analysis_response(stored)
+
+    @app.post(
+        "/v1/dmaic-projects/{project_id}/solution-selections",
+        status_code=201,
+        response_model=StoredDmaicProjectResponse,
+    )
+    def create_dmaic_solution_selection(
+        project_id: RunId,
+        request: SaveDmaicSolutionSelectionRequest,
+        response: Response,
+    ) -> StoredDmaicProjectResponse:
+        stored, project = _load_dmaic_project(repository, project_id)
+        if stored.storage_version != request.expected_storage_version:
+            raise DocumentConflictError(
+                f"Expected storage version {request.expected_storage_version}; found {stored.storage_version}."
+            )
+        evidence = tuple(
+            _load_analysis_evidence_reference(repository, run_id).to_dict()
+            for run_id in request.analysis_run_ids
+        )
+        revised, selection = save_solution_selection(
+            project,
+            problem_statement=request.problem_statement,
+            candidate_solutions=tuple(request.candidate_solutions),
+            selected_solution=request.selected_solution,
+            decision_rationale=request.decision_rationale,
+            validation_plan=request.validation_plan,
+            analysis_evidence=evidence,
+            actor=request.actor,
+            occurred_at=request.occurred_at,
+        )
+        _save_dmaic_solution_selection(repository, selection)
+        saved = _save_dmaic_project(
+            repository, revised, expected_version=request.expected_storage_version
+        )
+        response.headers["ETag"] = f'"{saved.etag}"'
+        return _dmaic_project_response(saved)
+
+    @app.get(
+        "/v1/dmaic-projects/{project_id}/solution-selections/{document_id}",
+        response_model=StoredDmaicSolutionSelectionResponse,
+    )
+    def get_dmaic_solution_selection(
+        project_id: RunId, document_id: RunId, response: Response
+    ) -> StoredDmaicSolutionSelectionResponse:
+        _stored_project, project = _load_dmaic_project(repository, project_id)
+        stored = repository.load(DMAIC_SOLUTION_SELECTIONS, document_id)
+        selection = _deserialize_dmaic_solution_selection(stored)
+        if selection.project_id != project.project_id:
+            raise DocumentNotFoundError(
+                f"Document {DMAIC_SOLUTION_SELECTIONS}/{document_id} does not exist."
+            )
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _dmaic_solution_selection_response(stored)
 
     @app.post("/v1/fmea-studies", status_code=201, response_model=StoredFmeaStudyResponse)
     def create_study(

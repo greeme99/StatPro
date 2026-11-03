@@ -19,6 +19,7 @@ from statpro.dmaic import (
     save_measurement_plan,
     save_problem_definition,
     save_root_cause_analysis,
+    save_solution_selection,
     save_sipoc,
     save_stakeholder_assessment,
     save_voice_of_customer,
@@ -26,6 +27,36 @@ from statpro.dmaic import (
 
 
 class DmaicProjectTests(unittest.TestCase):
+    def test_solution_selection_snapshots_root_cause_and_doe_evidence(self) -> None:
+        project = create_project(
+            project_id="DMAIC-IMPROVE", title="Connector yield", owner_ref="quality.engineer"
+        )
+        project, definition = save_problem_definition(
+            project, problem_statement="Connector defect rate increased", impact="Scrap cost",
+            current_state="4.2%", target_state="1.0%", timeframe="Q4", location_scope="Line 2",
+            severity="high", urgency="high", objectives=("Verify causes",),
+            actor="quality.engineer", occurred_at="2026-11-04T10:00:00+09:00",
+        )
+        project, analysis = save_root_cause_analysis(
+            project, problem_statement=definition.problem_statement, method="fishbone_pareto",
+            candidate_causes=("Torque variation",), verified_causes=("Torque variation",),
+            next_actions=("Run DOE",), analysis_evidence=(), actor="quality.engineer",
+            occurred_at="2026-11-04T10:05:00+09:00",
+        )
+        revised, selection = save_solution_selection(
+            project, problem_statement=analysis.problem_statement,
+            candidate_solutions=("Set torque window", "Add fixture guide"),
+            selected_solution="Set torque window", decision_rationale="Lowest setup risk.",
+            validation_plan="Validate with a blocked DOE.", analysis_evidence=({
+                "run_id": "doe-001", "analysis_type": "doe.full_factorial",
+                "run_etag": "run-etag", "input_digest": "b" * 64,
+            },), actor="quality.engineer", occurred_at="2026-11-04T10:10:00+09:00",
+        )
+        self.assertEqual(revised.solution_selection.document_id, selection.document_id)
+        self.assertEqual(selection.source_documents[0].document_id, analysis.document_id)
+        self.assertEqual(selection.analysis_evidence[0].run_id, "doe-001")
+        self.assertEqual(type(selection).from_dict(selection.to_dict()), selection)
+
     def test_root_cause_analysis_revisions_snapshot_project_and_run_evidence(self) -> None:
         project = create_project(
             project_id="DMAIC-RCA", title="Connector yield", owner_ref="quality.engineer"

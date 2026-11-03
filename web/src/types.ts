@@ -111,6 +111,7 @@ export type DmaicProject = {
   problem_definition: DmaicDocumentReference | null;
   measurement_plan: DmaicDocumentReference | null;
   root_cause_analysis: DmaicDocumentReference | null;
+  solution_selection: DmaicDocumentReference | null;
 };
 
 export type StoredDmaicProject = {
@@ -164,6 +165,30 @@ export type StoredDmaicRootCauseAnalysis = {
   storage_version: number;
   etag: string;
   root_cause_analysis: DmaicRootCauseAnalysis;
+};
+
+export type DmaicSolutionSelection = {
+  document_id: string;
+  project_id: string;
+  revision: number;
+  parent_digest: string | null;
+  digest: string;
+  problem_statement: string;
+  candidate_solutions: string[];
+  selected_solution: string;
+  decision_rationale: string;
+  validation_plan: string;
+  source_documents: DmaicDocumentReference[];
+  analysis_evidence: Array<{ run_id: string; analysis_type: string; run_etag: string; input_digest: string }>;
+  actor: string;
+  occurred_at: string;
+};
+
+export type StoredDmaicSolutionSelection = {
+  document_id: string;
+  storage_version: number;
+  etag: string;
+  solution_selection: DmaicSolutionSelection;
 };
 
 export type DmaicCharter = {

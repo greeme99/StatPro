@@ -9,7 +9,7 @@ const phases: PhaseCard[] = [
   { title: "정의 (Define)", description: "문제, 고객 요구사항, 프로젝트 범위를 명확히 합니다.", tools: "프로젝트 헌장 · VOC · SIPOC · 이해관계자 분석", to: "/home/dmaic/define", actionLabel: "정의 작업공간 열기" },
   { title: "측정 (Measure)", description: "기준 성과를 만들고 측정 품질을 확인합니다.", tools: "데이터 수집 · Gage R&R · 측정시스템 분석", to: "/home/dmaic/measure", actionLabel: "측정 작업공간 열기" },
   { title: "분석 (Analyze)", description: "변동을 조사하고 집중할 원인을 검증합니다.", tools: "파레토 · 특성요인도 · 5 Why · 근본원인 분석", to: "/home/dmaic/analyze/root-causes", actionLabel: "근본원인 분석 열기" },
-  { title: "개선 (Improve)", description: "개선안을 비교하고 실험으로 효과를 확인합니다.", tools: "실험계획법(DOE) · 개선안 선정 · 시범 운영" },
+  { title: "개선 (Improve)", description: "개선안을 비교하고 실험으로 효과를 확인합니다.", tools: "실험계획법(DOE) · 개선안 선정 · 시범 운영", to: "/home/dmaic/improve/solution-selection", actionLabel: "개선안 선정 열기" },
   { title: "관리 (Control)", description: "성과를 모니터링하고 개선 상태를 유지합니다.", tools: "통계적 공정관리(SPC) · 관리계획서 · FMEA" },
 ];
 

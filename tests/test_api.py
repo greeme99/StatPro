@@ -1720,3 +1720,47 @@ class LocalApiContractTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 422)
         self.assertEqual(response.json()["error"]["code"], "invalid_base64")
+
+    def test_dmaic_solution_selection_is_versioned_and_retrievable(self) -> None:
+        created = self.client.post(
+            "/v1/dmaic-projects",
+            json={
+                "project_id": "DMAIC-IMPROVE-API",
+                "title": "Connector yield",
+                "owner_ref": "quality.engineer",
+            },
+        )
+        self.assertEqual(created.status_code, 201)
+        run = self.client.post(
+            "/v1/analysis-runs/imr",
+            json={"run_id": "spc-imr-improve", "values": [10.0, 10.1, 9.9, 10.0]},
+        )
+        self.assertEqual(run.status_code, 201)
+        revised = self.client.post(
+            "/v1/dmaic-projects/DMAIC-IMPROVE-API/solution-selections",
+            json={
+                "expected_storage_version": 1,
+                "problem_statement": "Connector defect rate increased",
+                "candidate_solutions": ["Set torque window", "Add fixture guide"],
+                "selected_solution": "Set torque window",
+                "decision_rationale": "Lowest setup risk.",
+                "validation_plan": "Validate the change with a blocked DOE.",
+                "analysis_run_ids": ["spc-imr-improve"],
+                "actor": "quality.engineer",
+                "occurred_at": "2026-11-04T10:10:00+09:00",
+            },
+        )
+        self.assertEqual(revised.status_code, 201)
+        self.assertEqual(revised.json()["storage_version"], 2)
+        reference = revised.json()["project"]["solution_selection"]
+        self.assertEqual(reference["revision"], 1)
+        self.assertNotIn("candidate_solutions", revised.json()["project"])
+
+        selection = self.client.get(
+            "/v1/dmaic-projects/DMAIC-IMPROVE-API/solution-selections/"
+            f"{reference['document_id']}"
+        )
+        self.assertEqual(selection.status_code, 200)
+        document = selection.json()["solution_selection"]
+        self.assertEqual(document["selected_solution"], "Set torque window")
+        self.assertEqual(document["analysis_evidence"][0]["run_id"], "spc-imr-improve")
