@@ -173,10 +173,14 @@ export function saveDmaicMeasurementPlan(projectId: string, payload: {
   analysis_run_ids: string[];
   actor: string;
   occurred_at: string;
-}): Promise<StoredDmaicMeasurementPlan> {
+}): Promise<StoredDmaicProject> {
   return request(`/v1/dmaic-projects/${encodeURIComponent(projectId)}/measurement-plans`, {
     method: "POST", body: JSON.stringify(payload),
   });
+}
+
+export function getDmaicMeasurementPlan(projectId: string, documentId: string): Promise<StoredDmaicMeasurementPlan> {
+  return request(`/v1/dmaic-projects/${encodeURIComponent(projectId)}/measurement-plans/${encodeURIComponent(documentId)}`);
 }
 
 export type DoeReportTemplate = "standard" | "customer_review" | "regulatory_review";

@@ -316,6 +316,17 @@ def save_measurement_plan(
     )
     if len({reference.run_id for reference in evidence}) != len(evidence):
         raise DmaicInputError("duplicate_analysis_evidence", "Analysis evidence Run IDs must be unique.", "analysis_evidence")
+    source_documents = tuple(
+        reference
+        for reference in (
+            project.charter,
+            project.voice_of_customer,
+            project.sipoc,
+            project.stakeholder_assessment,
+            project.problem_definition,
+        )
+        if reference is not None
+    )
     plan = DmaicMeasurementPlan(
         document_id=f"{project.project_id}-measurement-plan-r{revision}", project_id=project.project_id,
         revision=revision, parent_digest=None if previous is None else previous.digest, digest="",
@@ -328,7 +339,8 @@ def save_measurement_plan(
         sample_size=_positive_count(sample_size, "sample_size"),
         sampling_rationale=_optional(sampling_rationale), measurement_instrument=_optional(measurement_instrument),
         measurement_unit=_optional(measurement_unit), measurement_precision=_optional(measurement_precision),
-        calibration_required=calibration_required, msa_required=msa_required, analysis_evidence=evidence,
+        calibration_required=calibration_required, msa_required=msa_required,
+        source_documents=source_documents, analysis_evidence=evidence,
         actor=_required(actor, "actor"), occurred_at=_required(occurred_at, "occurred_at"),
     )
     plan = replace(plan, digest=_measurement_plan_digest(plan))

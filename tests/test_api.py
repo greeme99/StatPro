@@ -1023,6 +1023,7 @@ class LocalApiContractTests(unittest.TestCase):
         evidence = plan.json()["measurement_plan"]["analysis_evidence"]
         self.assertEqual(evidence[0]["run_id"], "spc-imr-004")
         self.assertEqual(evidence[0]["analysis_type"], "spc.imr")
+        self.assertEqual(plan.json()["measurement_plan"]["source_documents"], [])
 
     def test_dmaic_stakeholder_assessment_is_versioned_and_retrievable(self) -> None:
         created = self.client.post(

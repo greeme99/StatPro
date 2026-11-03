@@ -75,6 +75,41 @@ class DmaicProjectTests(unittest.TestCase):
         self.assertEqual(second_project.measurement_plan.document_id, second.document_id)
         self.assertNotIn("primary_metric", second_project.to_dict())
         self.assertEqual(DmaicMeasurementPlan.from_dict(first.to_dict()), first)
+
+    def test_measurement_plan_snapshots_current_define_document_references(self) -> None:
+        project = create_project(
+            project_id="DMAIC-TRACE", title="Connector yield", owner_ref="quality.engineer"
+        )
+        project, charter = save_charter(
+            project,
+            business_case="Reduce scrap cost", problem_statement="Connector failures exceed target.",
+            scope_in=("Assembly",), scope_out=("Supplier process",),
+            success_metrics=("First pass yield",), team_refs=("quality.engineer",),
+            budget=None, milestones=("Measure",), risk_refs=("RISK-001",),
+            assumptions_constraints=("Line availability",), actor="quality.engineer",
+            occurred_at="2026-11-03T09:00:00+09:00",
+        )
+        project, definition = save_problem_definition(
+            project,
+            problem_statement="Connector failures exceed target.", impact="Rework increases cost.",
+            current_state="Yield is 93%.", target_state="Yield is 98%.",
+            timeframe="This quarter.", location_scope="Assembly line 2.", severity="high",
+            urgency="medium", objectives=("Reduce failures.",), actor="quality.engineer",
+            occurred_at="2026-11-03T09:05:00+09:00",
+        )
+        _revised, plan = save_measurement_plan(
+            project, primary_metric="First pass yield", data_source="Final inspection",
+            collection_method="Automated", collection_frequency="Per shift",
+            sampling_method="Random", sample_size=50, analysis_evidence=(),
+            actor="quality.engineer", occurred_at="2026-11-03T09:10:00+09:00",
+        )
+
+        self.assertEqual(
+            plan.source_documents,
+            (project.charter, project.problem_definition),
+        )
+        self.assertEqual(plan.source_documents[0].digest, charter.digest)
+        self.assertEqual(plan.source_documents[1].digest, definition.digest)
     def test_charter_revisions_are_immutable_and_project_keeps_only_reference(self) -> None:
         project = create_project(
             project_id="DMAIC-001", title="Connector yield", owner_ref="quality.engineer"

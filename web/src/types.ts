@@ -85,6 +85,7 @@ export type RunPage = {
 };
 
 export type DmaicDocumentReference = {
+  document_type: string;
   document_id: string;
   revision: number;
   digest: string;
@@ -129,6 +130,7 @@ export type DmaicMeasurementPlan = {
   revision: number;
   digest: string;
   primary_metric: string;
+  source_documents: DmaicDocumentReference[];
   analysis_evidence: Array<{ run_id: string; analysis_type: string; run_etag: string; input_digest: string }>;
 };
 

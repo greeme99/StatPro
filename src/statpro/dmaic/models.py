@@ -397,7 +397,7 @@ class DmaicProblemDefinition:
 
 @dataclass(frozen=True, slots=True)
 class DmaicMeasurementPlan:
-    """Immutable Measure-phase data collection plan and analysis evidence links."""
+    """Immutable Measure-phase plan with Define-document and analysis evidence links."""
 
     document_id: str
     project_id: str
@@ -419,6 +419,7 @@ class DmaicMeasurementPlan:
     measurement_precision: str | None
     calibration_required: bool
     msa_required: bool
+    source_documents: tuple[DmaicDocumentReference, ...]
     analysis_evidence: tuple[DmaicAnalysisEvidenceReference, ...]
     actor: str
     occurred_at: str
@@ -426,6 +427,7 @@ class DmaicMeasurementPlan:
     def to_dict(self) -> dict[str, Any]:
         return {
             **asdict(self),
+            "source_documents": [reference.to_dict() for reference in self.source_documents],
             "analysis_evidence": [reference.to_dict() for reference in self.analysis_evidence],
         }
 
@@ -444,6 +446,10 @@ class DmaicMeasurementPlan:
             measurement_unit=payload.get("measurement_unit"),
             measurement_precision=payload.get("measurement_precision"),
             calibration_required=payload["calibration_required"], msa_required=payload["msa_required"],
+            source_documents=tuple(
+                DmaicDocumentReference(**reference)
+                for reference in payload.get("source_documents", [])
+            ),
             analysis_evidence=tuple(
                 DmaicAnalysisEvidenceReference(**reference)
                 for reference in payload.get("analysis_evidence", [])
