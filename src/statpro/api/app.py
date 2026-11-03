@@ -79,6 +79,7 @@ from statpro.dmaic import (
     DmaicMeasurementPlan,
     DmaicProblemDefinition,
     DmaicProject,
+    DmaicRootCauseAnalysis,
     DmaicSipocMap,
     DmaicStakeholderAssessment,
     DmaicVoiceOfCustomerStudy,
@@ -86,6 +87,7 @@ from statpro.dmaic import (
     save_charter,
     save_measurement_plan,
     save_problem_definition,
+    save_root_cause_analysis,
     save_sipoc,
     save_stakeholder_assessment,
     save_voice_of_customer,
@@ -150,6 +152,7 @@ DMAIC_SIPOC_MAPS = "dmaic-sipoc-maps"
 DMAIC_STAKEHOLDER_ASSESSMENTS = "dmaic-stakeholder-assessments"
 DMAIC_PROBLEM_DEFINITIONS = "dmaic-problem-definitions"
 DMAIC_MEASUREMENT_PLANS = "dmaic-measurement-plans"
+DMAIC_ROOT_CAUSE_ANALYSES = "dmaic-root-cause-analyses"
 SPC_CHECK_SHEETS = "spc-check-sheets"
 SPC_FISHBONE_DIAGRAMS = "spc-fishbone-diagrams"
 RunId = Annotated[str, Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")]
@@ -694,6 +697,18 @@ class SaveDmaicMeasurementPlanRequest(ApiModel):
     occurred_at: str
 
 
+class SaveDmaicRootCauseAnalysisRequest(ApiModel):
+    expected_storage_version: int = Field(ge=1)
+    problem_statement: str
+    method: Literal["fishbone_pareto", "five_whys", "data_analysis"]
+    candidate_causes: list[str] = Field(min_length=1)
+    verified_causes: list[str] = Field(min_length=1)
+    next_actions: list[str] = Field(min_length=1)
+    analysis_run_ids: list[RunId] = Field(default_factory=list)
+    actor: str
+    occurred_at: str
+
+
 class StoredDmaicProjectResponse(ApiModel):
     project_id: str
     storage_version: int
@@ -741,6 +756,13 @@ class StoredDmaicMeasurementPlanResponse(ApiModel):
     storage_version: int
     etag: str
     measurement_plan: dict[str, Any]
+
+
+class StoredDmaicRootCauseAnalysisResponse(ApiModel):
+    document_id: str
+    storage_version: int
+    etag: str
+    root_cause_analysis: dict[str, Any]
 
 
 class StoredActionPriorityPolicyResponse(ApiModel):
@@ -1023,6 +1045,15 @@ def _deserialize_dmaic_measurement_plan(stored: StoredDocument) -> DmaicMeasurem
         ) from error
 
 
+def _deserialize_dmaic_root_cause_analysis(stored: StoredDocument) -> DmaicRootCauseAnalysis:
+    try:
+        return DmaicRootCauseAnalysis.from_dict(stored.document["root_cause_analysis"])
+    except (KeyError, TypeError, ValueError, DmaicInputError) as error:
+        raise DocumentStoreError(
+            f"Stored DMAIC root cause analysis {stored.key} does not match its owned format."
+        ) from error
+
+
 def _dmaic_project_response(stored: StoredDocument) -> StoredDmaicProjectResponse:
     project = _deserialize_dmaic_project(stored)
     return StoredDmaicProjectResponse(
@@ -1098,6 +1129,16 @@ def _dmaic_measurement_plan_response(
         storage_version=stored.storage_version,
         etag=stored.etag,
         measurement_plan=plan.to_dict(),
+    )
+
+
+def _dmaic_root_cause_analysis_response(
+    stored: StoredDocument,
+) -> StoredDmaicRootCauseAnalysisResponse:
+    analysis = _deserialize_dmaic_root_cause_analysis(stored)
+    return StoredDmaicRootCauseAnalysisResponse(
+        document_id=stored.key, storage_version=stored.storage_version, etag=stored.etag,
+        root_cause_analysis=analysis.to_dict(),
     )
 
 
@@ -1199,6 +1240,18 @@ def _save_dmaic_measurement_plan(
             "document_id": plan.document_id,
             "measurement_plan": plan.to_dict(),
         },
+        expected_version=0,
+    )
+
+
+def _save_dmaic_root_cause_analysis(
+    repository: DocumentRepository, analysis: DmaicRootCauseAnalysis
+) -> StoredDocument:
+    return repository.save(
+        DMAIC_ROOT_CAUSE_ANALYSES,
+        analysis.document_id,
+        {"kind": "dmaic_root_cause_analysis", "document_id": analysis.document_id,
+         "root_cause_analysis": analysis.to_dict()},
         expected_version=0,
     )
 
@@ -2835,6 +2888,60 @@ def create_app(
             )
         response.headers["ETag"] = f'"{stored.etag}"'
         return _dmaic_measurement_plan_response(stored)
+
+    @app.post(
+        "/v1/dmaic-projects/{project_id}/root-cause-analyses",
+        status_code=201,
+        response_model=StoredDmaicProjectResponse,
+    )
+    def create_dmaic_root_cause_analysis(
+        project_id: RunId,
+        request: SaveDmaicRootCauseAnalysisRequest,
+        response: Response,
+    ) -> StoredDmaicProjectResponse:
+        stored, project = _load_dmaic_project(repository, project_id)
+        if stored.storage_version != request.expected_storage_version:
+            raise DocumentConflictError(
+                f"Expected storage version {request.expected_storage_version}; found {stored.storage_version}."
+            )
+        evidence = tuple(
+            _load_analysis_evidence_reference(repository, run_id).to_dict()
+            for run_id in request.analysis_run_ids
+        )
+        revised, analysis = save_root_cause_analysis(
+            project,
+            problem_statement=request.problem_statement,
+            method=request.method,
+            candidate_causes=tuple(request.candidate_causes),
+            verified_causes=tuple(request.verified_causes),
+            next_actions=tuple(request.next_actions),
+            analysis_evidence=evidence,
+            actor=request.actor,
+            occurred_at=request.occurred_at,
+        )
+        _save_dmaic_root_cause_analysis(repository, analysis)
+        saved = _save_dmaic_project(
+            repository, revised, expected_version=request.expected_storage_version
+        )
+        response.headers["ETag"] = f'"{saved.etag}"'
+        return _dmaic_project_response(saved)
+
+    @app.get(
+        "/v1/dmaic-projects/{project_id}/root-cause-analyses/{document_id}",
+        response_model=StoredDmaicRootCauseAnalysisResponse,
+    )
+    def get_dmaic_root_cause_analysis(
+        project_id: RunId, document_id: RunId, response: Response
+    ) -> StoredDmaicRootCauseAnalysisResponse:
+        _stored_project, project = _load_dmaic_project(repository, project_id)
+        stored = repository.load(DMAIC_ROOT_CAUSE_ANALYSES, document_id)
+        analysis = _deserialize_dmaic_root_cause_analysis(stored)
+        if analysis.project_id != project.project_id:
+            raise DocumentNotFoundError(
+                f"Document {DMAIC_ROOT_CAUSE_ANALYSES}/{document_id} does not exist."
+            )
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _dmaic_root_cause_analysis_response(stored)
 
     @app.post("/v1/fmea-studies", status_code=201, response_model=StoredFmeaStudyResponse)
     def create_study(

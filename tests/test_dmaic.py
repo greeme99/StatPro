@@ -18,6 +18,7 @@ from statpro.dmaic import (
     save_charter,
     save_measurement_plan,
     save_problem_definition,
+    save_root_cause_analysis,
     save_sipoc,
     save_stakeholder_assessment,
     save_voice_of_customer,
@@ -25,6 +26,29 @@ from statpro.dmaic import (
 
 
 class DmaicProjectTests(unittest.TestCase):
+    def test_root_cause_analysis_revisions_snapshot_project_and_run_evidence(self) -> None:
+        project = create_project(
+            project_id="DMAIC-RCA", title="Connector yield", owner_ref="quality.engineer"
+        )
+        project, definition = save_problem_definition(
+            project, problem_statement="Connector defect rate increased", impact="Scrap cost",
+            current_state="4.2%", target_state="1.0%", timeframe="Q4", location_scope="Line 2",
+            severity="high", urgency="high", objectives=("Verify causes",),
+            actor="quality.engineer", occurred_at="2026-11-03T10:00:00+09:00",
+        )
+        revised, analysis = save_root_cause_analysis(
+            project, problem_statement=definition.problem_statement, method="fishbone_pareto",
+            candidate_causes=("Torque variation",), verified_causes=("Torque variation",),
+            next_actions=("Run DOE",), analysis_evidence=({
+                "run_id": "pareto-001", "analysis_type": "quality.pareto",
+                "run_etag": "run-etag", "input_digest": "a" * 64,
+            },), actor="quality.engineer", occurred_at="2026-11-03T10:05:00+09:00",
+        )
+        self.assertEqual(revised.root_cause_analysis.document_id, analysis.document_id)
+        self.assertEqual(analysis.source_documents[0].document_id, definition.document_id)
+        self.assertEqual(analysis.analysis_evidence[0].run_id, "pareto-001")
+        self.assertEqual(type(analysis).from_dict(analysis.to_dict()), analysis)
+
     def test_measurement_plan_revisions_keep_analysis_evidence_identity(self) -> None:
         project = create_project(
             project_id="DMAIC-004", title="Connector yield", owner_ref="quality.engineer"

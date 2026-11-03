@@ -13,6 +13,7 @@ from statpro.dmaic.models import (
     DmaicProblemDefinition,
     DmaicProject,
     DmaicProjectStatus,
+    DmaicRootCauseAnalysis,
     DmaicSipocMap,
     DmaicStakeholder,
     DmaicStakeholderAssessment,
@@ -21,6 +22,7 @@ from statpro.dmaic.models import (
     _measurement_plan_digest,
     _problem_definition_digest,
     _project_digest,
+    _root_cause_analysis_digest,
     _sipoc_digest,
     _stakeholder_assessment_digest,
     _voice_of_customer_digest,
@@ -71,7 +73,7 @@ def create_project(*, project_id: str, title: str, owner_ref: str, sponsor_ref: 
         department=_optional(department), start_date=_optional(start_date), target_end_date=_optional(target_end_date),
         status=DmaicProjectStatus.DRAFT, revision=1, parent_digest=None, digest="", charter=None,
         voice_of_customer=None, sipoc=None, stakeholder_assessment=None, problem_definition=None,
-        measurement_plan=None)
+        measurement_plan=None, root_cause_analysis=None)
     return replace(project, digest=_project_digest(project))
 
 
@@ -350,3 +352,48 @@ def save_measurement_plan(
         measurement_plan=reference,
     )
     return replace(revised, digest=_project_digest(revised)), plan
+
+
+def save_root_cause_analysis(
+    project: DmaicProject,
+    *,
+    problem_statement: str,
+    method: str,
+    candidate_causes: tuple[str, ...],
+    verified_causes: tuple[str, ...],
+    next_actions: tuple[str, ...],
+    analysis_evidence: tuple[dict[str, str], ...],
+    actor: str,
+    occurred_at: str,
+) -> tuple[DmaicProject, DmaicRootCauseAnalysis]:
+    """Save an Analyze decision, retaining selected source and Run evidence."""
+    previous = project.root_cause_analysis
+    revision = 1 if previous is None else previous.revision + 1
+    evidence = tuple(
+        DmaicAnalysisEvidenceReference(
+            run_id=_required(item["run_id"], "analysis_evidence.run_id"),
+            analysis_type=_required(item["analysis_type"], "analysis_evidence.analysis_type"),
+            run_etag=_required(item["run_etag"], "analysis_evidence.run_etag"),
+            input_digest=_required(item["input_digest"], "analysis_evidence.input_digest"),
+        )
+        for item in analysis_evidence
+    )
+    if len({item.run_id for item in evidence}) != len(evidence):
+        raise DmaicInputError("duplicate_analysis_evidence", "Analysis evidence Run IDs must be unique.", "analysis_evidence")
+    sources = tuple(item for item in (
+        project.problem_definition, project.measurement_plan, project.sipoc, project.charter
+    ) if item is not None)
+    analysis = DmaicRootCauseAnalysis(
+        document_id=f"{project.project_id}-root-cause-analysis-r{revision}", project_id=project.project_id,
+        revision=revision, parent_digest=None if previous is None else previous.digest, digest="",
+        problem_statement=_required(problem_statement, "problem_statement"),
+        method=_choice(method, {"fishbone_pareto", "five_whys", "data_analysis"}, "method"),
+        candidate_causes=_items(candidate_causes, "candidate_causes"),
+        verified_causes=_items(verified_causes, "verified_causes"), next_actions=_items(next_actions, "next_actions"),
+        source_documents=sources, analysis_evidence=evidence,
+        actor=_required(actor, "actor"), occurred_at=_required(occurred_at, "occurred_at"),
+    )
+    analysis = replace(analysis, digest=_root_cause_analysis_digest(analysis))
+    reference = DmaicDocumentReference("root_cause_analysis", analysis.document_id, analysis.revision, analysis.digest)
+    revised = replace(project, revision=project.revision + 1, parent_digest=project.digest, digest="", root_cause_analysis=reference)
+    return replace(revised, digest=_project_digest(revised)), analysis

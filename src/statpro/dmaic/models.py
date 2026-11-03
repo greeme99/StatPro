@@ -65,6 +65,7 @@ class DmaicProject:
     stakeholder_assessment: DmaicDocumentReference | None = None
     problem_definition: DmaicDocumentReference | None = None
     measurement_plan: DmaicDocumentReference | None = None
+    root_cause_analysis: DmaicDocumentReference | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -98,6 +99,9 @@ class DmaicProject:
             "measurement_plan": (
                 None if self.measurement_plan is None else self.measurement_plan.to_dict()
             ),
+            "root_cause_analysis": (
+                None if self.root_cause_analysis is None else self.root_cause_analysis.to_dict()
+            ),
         }
 
     @classmethod
@@ -108,6 +112,7 @@ class DmaicProject:
         stakeholder_assessment = payload.get("stakeholder_assessment")
         problem_definition = payload.get("problem_definition")
         measurement_plan = payload.get("measurement_plan")
+        root_cause_analysis = payload.get("root_cause_analysis")
         project = cls(
             project_id=payload["project_id"], title=payload["title"], owner_ref=payload["owner_ref"],
             sponsor_ref=payload.get("sponsor_ref"), champion_ref=payload.get("champion_ref"),
@@ -135,6 +140,11 @@ class DmaicProject:
                 None
                 if measurement_plan is None
                 else DmaicDocumentReference(**measurement_plan)
+            ),
+            root_cause_analysis=(
+                None
+                if root_cause_analysis is None
+                else DmaicDocumentReference(**root_cause_analysis)
             ),
         )
         if project.digest != _project_digest(project):
@@ -465,6 +475,52 @@ class DmaicMeasurementPlan:
         return plan
 
 
+@dataclass(frozen=True, slots=True)
+class DmaicRootCauseAnalysis:
+    """Immutable Analyze-phase decision record with upstream and Run evidence."""
+
+    document_id: str
+    project_id: str
+    revision: int
+    parent_digest: str | None
+    digest: str
+    problem_statement: str
+    method: str
+    candidate_causes: tuple[str, ...]
+    verified_causes: tuple[str, ...]
+    next_actions: tuple[str, ...]
+    source_documents: tuple[DmaicDocumentReference, ...]
+    analysis_evidence: tuple[DmaicAnalysisEvidenceReference, ...]
+    actor: str
+    occurred_at: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            **asdict(self),
+            "candidate_causes": list(self.candidate_causes),
+            "verified_causes": list(self.verified_causes),
+            "next_actions": list(self.next_actions),
+            "source_documents": [item.to_dict() for item in self.source_documents],
+            "analysis_evidence": [item.to_dict() for item in self.analysis_evidence],
+        }
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> DmaicRootCauseAnalysis:
+        analysis = cls(
+            document_id=payload["document_id"], project_id=payload["project_id"],
+            revision=payload["revision"], parent_digest=payload.get("parent_digest"),
+            digest=payload["digest"], problem_statement=payload["problem_statement"], method=payload["method"],
+            candidate_causes=tuple(payload["candidate_causes"]), verified_causes=tuple(payload["verified_causes"]),
+            next_actions=tuple(payload["next_actions"]),
+            source_documents=tuple(DmaicDocumentReference(**item) for item in payload.get("source_documents", [])),
+            analysis_evidence=tuple(DmaicAnalysisEvidenceReference(**item) for item in payload.get("analysis_evidence", [])),
+            actor=payload["actor"], occurred_at=payload["occurred_at"],
+        )
+        if analysis.digest != _root_cause_analysis_digest(analysis):
+            raise DmaicInputError("root_cause_analysis_digest_mismatch", "Stored root cause analysis digest does not match.", "digest")
+        return analysis
+
+
 def _project_digest(project: DmaicProject) -> str:
     payload = project.to_dict()
     payload.pop("digest")
@@ -503,5 +559,11 @@ def _problem_definition_digest(definition: DmaicProblemDefinition) -> str:
 
 def _measurement_plan_digest(plan: DmaicMeasurementPlan) -> str:
     payload = plan.to_dict()
+    payload.pop("digest")
+    return input_digest(payload)
+
+
+def _root_cause_analysis_digest(analysis: DmaicRootCauseAnalysis) -> str:
+    payload = analysis.to_dict()
     payload.pop("digest")
     return input_digest(payload)
