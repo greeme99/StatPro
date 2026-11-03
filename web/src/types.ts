@@ -110,6 +110,7 @@ export type DmaicProject = {
   stakeholder_assessment: DmaicDocumentReference | null;
   problem_definition: DmaicDocumentReference | null;
   measurement_plan: DmaicDocumentReference | null;
+  root_cause_analysis: DmaicDocumentReference | null;
 };
 
 export type StoredDmaicProject = {
@@ -139,6 +140,30 @@ export type StoredDmaicMeasurementPlan = {
   storage_version: number;
   etag: string;
   measurement_plan: DmaicMeasurementPlan;
+};
+
+export type DmaicRootCauseAnalysis = {
+  document_id: string;
+  project_id: string;
+  revision: number;
+  parent_digest: string | null;
+  digest: string;
+  problem_statement: string;
+  method: "fishbone_pareto" | "five_whys" | "data_analysis";
+  candidate_causes: string[];
+  verified_causes: string[];
+  next_actions: string[];
+  source_documents: DmaicDocumentReference[];
+  analysis_evidence: Array<{ run_id: string; analysis_type: string; run_etag: string; input_digest: string }>;
+  actor: string;
+  occurred_at: string;
+};
+
+export type StoredDmaicRootCauseAnalysis = {
+  document_id: string;
+  storage_version: number;
+  etag: string;
+  root_cause_analysis: DmaicRootCauseAnalysis;
 };
 
 export type DmaicCharter = {

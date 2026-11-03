@@ -1,4 +1,4 @@
-import type { ActionPriorityPolicyPage, ApiError, CellValue, DmaicProjectPage, FmeaStudyPage, FmeaStudyReport, StoredActionPriorityPolicy, StoredCheckSheet, StoredDmaicCharter, StoredDmaicMeasurementPlan, StoredDmaicProject, StoredFishbone, StoredFmeaStudy, RunPage, StoredRun, StoredWorksheet, WorksheetPage } from "./types";
+import type { ActionPriorityPolicyPage, ApiError, CellValue, DmaicProjectPage, FmeaStudyPage, FmeaStudyReport, StoredActionPriorityPolicy, StoredCheckSheet, StoredDmaicCharter, StoredDmaicMeasurementPlan, StoredDmaicProject, StoredDmaicRootCauseAnalysis, StoredFishbone, StoredFmeaStudy, RunPage, StoredRun, StoredWorksheet, WorksheetPage } from "./types";
 
 const API_BASE = import.meta.env.VITE_STATPRO_API_URL ?? "/api";
 
@@ -181,6 +181,26 @@ export function saveDmaicMeasurementPlan(projectId: string, payload: {
 
 export function getDmaicMeasurementPlan(projectId: string, documentId: string): Promise<StoredDmaicMeasurementPlan> {
   return request(`/v1/dmaic-projects/${encodeURIComponent(projectId)}/measurement-plans/${encodeURIComponent(documentId)}`);
+}
+
+export function saveDmaicRootCauseAnalysis(projectId: string, payload: {
+  expected_storage_version: number;
+  problem_statement: string;
+  method: "fishbone_pareto" | "five_whys" | "data_analysis";
+  candidate_causes: string[];
+  verified_causes: string[];
+  next_actions: string[];
+  analysis_run_ids: string[];
+  actor: string;
+  occurred_at: string;
+}): Promise<StoredDmaicProject> {
+  return request(`/v1/dmaic-projects/${encodeURIComponent(projectId)}/root-cause-analyses`, {
+    method: "POST", body: JSON.stringify(payload),
+  });
+}
+
+export function getDmaicRootCauseAnalysis(projectId: string, documentId: string): Promise<StoredDmaicRootCauseAnalysis> {
+  return request(`/v1/dmaic-projects/${encodeURIComponent(projectId)}/root-cause-analyses/${encodeURIComponent(documentId)}`);
 }
 
 export type DoeReportTemplate = "standard" | "customer_review" | "regulatory_review";
