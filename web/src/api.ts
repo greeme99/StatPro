@@ -112,6 +112,28 @@ export function saveDmaicSipoc(projectId: string, payload: {
   });
 }
 
+export function saveDmaicStakeholderAssessment(projectId: string, payload: {
+  expected_storage_version: number;
+  stakeholders: Array<{
+    stakeholder_id: string;
+    name: string;
+    role: string;
+    department?: string | null;
+    influence: number;
+    interest: number;
+    attitude: "supportive" | "neutral" | "resistant";
+    communication: "low" | "medium" | "high";
+    concerns: string[];
+    expectations: string[];
+  }>;
+  actor: string;
+  occurred_at: string;
+}): Promise<StoredDmaicProject> {
+  return request(`/v1/dmaic-projects/${encodeURIComponent(projectId)}/stakeholder-assessments`, {
+    method: "POST", body: JSON.stringify(payload),
+  });
+}
+
 export function saveDmaicMeasurementPlan(projectId: string, payload: {
   expected_storage_version: number;
   primary_metric: string;

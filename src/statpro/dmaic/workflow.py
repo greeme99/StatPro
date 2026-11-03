@@ -13,11 +13,14 @@ from statpro.dmaic.models import (
     DmaicProject,
     DmaicProjectStatus,
     DmaicSipocMap,
+    DmaicStakeholder,
+    DmaicStakeholderAssessment,
     DmaicVoiceOfCustomerStudy,
     _charter_digest,
     _measurement_plan_digest,
     _project_digest,
     _sipoc_digest,
+    _stakeholder_assessment_digest,
     _voice_of_customer_digest,
 )
 
@@ -45,6 +48,19 @@ def _positive_count(value: int | None, field: str) -> int | None:
     return value
 
 
+def _score(value: int, field: str) -> int:
+    if isinstance(value, bool) or value < 1 or value > 5:
+        raise DmaicInputError("score_out_of_range", f"{field} must be between 1 and 5.", field)
+    return value
+
+
+def _choice(value: str, allowed: set[str], field: str) -> str:
+    normalized = _required(value, field)
+    if normalized not in allowed:
+        raise DmaicInputError("invalid_choice", f"{field} is not supported.", field)
+    return normalized
+
+
 def create_project(*, project_id: str, title: str, owner_ref: str, sponsor_ref: str | None = None,
                    champion_ref: str | None = None, department: str | None = None,
                    start_date: str | None = None, target_end_date: str | None = None) -> DmaicProject:
@@ -52,7 +68,7 @@ def create_project(*, project_id: str, title: str, owner_ref: str, sponsor_ref: 
         owner_ref=_required(owner_ref, "owner_ref"), sponsor_ref=_optional(sponsor_ref), champion_ref=_optional(champion_ref),
         department=_optional(department), start_date=_optional(start_date), target_end_date=_optional(target_end_date),
         status=DmaicProjectStatus.DRAFT, revision=1, parent_digest=None, digest="", charter=None,
-        voice_of_customer=None, sipoc=None, measurement_plan=None)
+        voice_of_customer=None, sipoc=None, stakeholder_assessment=None, measurement_plan=None)
     return replace(project, digest=_project_digest(project))
 
 
@@ -165,6 +181,51 @@ def save_sipoc(
         sipoc=reference,
     )
     return replace(revised, digest=_project_digest(revised)), sipoc
+
+
+def save_stakeholder_assessment(
+    project: DmaicProject,
+    *,
+    stakeholders: tuple[dict[str, object], ...],
+    actor: str,
+    occurred_at: str,
+) -> tuple[DmaicProject, DmaicStakeholderAssessment]:
+    """Save a new immutable stakeholder assessment revision for a project."""
+    previous = project.stakeholder_assessment
+    revision = 1 if previous is None else previous.revision + 1
+    records = tuple(
+        DmaicStakeholder(
+            stakeholder_id=_required(str(item["stakeholder_id"]), "stakeholders.stakeholder_id"),
+            name=_required(str(item["name"]), "stakeholders.name"),
+            role=_required(str(item["role"]), "stakeholders.role"),
+            department=_optional(item.get("department") if isinstance(item.get("department"), str) else None),
+            influence=_score(item["influence"], "stakeholders.influence"),  # type: ignore[arg-type]
+            interest=_score(item["interest"], "stakeholders.interest"),  # type: ignore[arg-type]
+            attitude=_choice(str(item["attitude"]), {"supportive", "neutral", "resistant"}, "stakeholders.attitude"),
+            communication=_choice(str(item["communication"]), {"low", "medium", "high"}, "stakeholders.communication"),
+            concerns=_items(tuple(str(value) for value in item.get("concerns", ())), "stakeholders.concerns"),
+            expectations=_items(tuple(str(value) for value in item.get("expectations", ())), "stakeholders.expectations"),
+        )
+        for item in stakeholders
+    )
+    if not records:
+        raise DmaicInputError("stakeholders_required", "At least one stakeholder is required.", "stakeholders")
+    if len({item.stakeholder_id for item in records}) != len(records):
+        raise DmaicInputError("duplicate_stakeholder", "Stakeholder IDs must be unique.", "stakeholders")
+    assessment = DmaicStakeholderAssessment(
+        document_id=f"{project.project_id}-stakeholders-r{revision}", project_id=project.project_id,
+        revision=revision, parent_digest=None if previous is None else previous.digest, digest="",
+        stakeholders=records, actor=_required(actor, "actor"), occurred_at=_required(occurred_at, "occurred_at"),
+    )
+    assessment = replace(assessment, digest=_stakeholder_assessment_digest(assessment))
+    reference = DmaicDocumentReference(
+        "stakeholder_assessment", assessment.document_id, assessment.revision, assessment.digest
+    )
+    revised = replace(
+        project, revision=project.revision + 1, parent_digest=project.digest, digest="",
+        stakeholder_assessment=reference,
+    )
+    return replace(revised, digest=_project_digest(revised)), assessment
 
 
 def save_measurement_plan(

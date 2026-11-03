@@ -9,6 +9,8 @@ from statpro.dmaic.models import (
     DmaicProject,
     DmaicProjectStatus,
     DmaicSipocMap,
+    DmaicStakeholder,
+    DmaicStakeholderAssessment,
     DmaicVoiceOfCustomerStudy,
 )
 from statpro.dmaic.workflow import (
@@ -16,6 +18,7 @@ from statpro.dmaic.workflow import (
     save_charter,
     save_measurement_plan,
     save_sipoc,
+    save_stakeholder_assessment,
     save_voice_of_customer,
 )
 
@@ -28,10 +31,13 @@ __all__ = [
     "DmaicProject",
     "DmaicProjectStatus",
     "DmaicSipocMap",
+    "DmaicStakeholder",
+    "DmaicStakeholderAssessment",
     "DmaicVoiceOfCustomerStudy",
     "create_project",
     "save_charter",
     "save_measurement_plan",
     "save_sipoc",
+    "save_stakeholder_assessment",
     "save_voice_of_customer",
 ]

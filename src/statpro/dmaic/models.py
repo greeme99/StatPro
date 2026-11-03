@@ -62,6 +62,7 @@ class DmaicProject:
     charter: DmaicDocumentReference | None = None
     voice_of_customer: DmaicDocumentReference | None = None
     sipoc: DmaicDocumentReference | None = None
+    stakeholder_assessment: DmaicDocumentReference | None = None
     measurement_plan: DmaicDocumentReference | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -83,6 +84,11 @@ class DmaicProject:
                 None if self.voice_of_customer is None else self.voice_of_customer.to_dict()
             ),
             "sipoc": None if self.sipoc is None else self.sipoc.to_dict(),
+            "stakeholder_assessment": (
+                None
+                if self.stakeholder_assessment is None
+                else self.stakeholder_assessment.to_dict()
+            ),
             "measurement_plan": (
                 None if self.measurement_plan is None else self.measurement_plan.to_dict()
             ),
@@ -93,6 +99,7 @@ class DmaicProject:
         reference = payload.get("charter")
         voice_of_customer = payload.get("voice_of_customer")
         sipoc = payload.get("sipoc")
+        stakeholder_assessment = payload.get("stakeholder_assessment")
         measurement_plan = payload.get("measurement_plan")
         project = cls(
             project_id=payload["project_id"], title=payload["title"], owner_ref=payload["owner_ref"],
@@ -107,6 +114,11 @@ class DmaicProject:
                 else DmaicDocumentReference(**voice_of_customer)
             ),
             sipoc=None if sipoc is None else DmaicDocumentReference(**sipoc),
+            stakeholder_assessment=(
+                None
+                if stakeholder_assessment is None
+                else DmaicDocumentReference(**stakeholder_assessment)
+            ),
             measurement_plan=(
                 None
                 if measurement_plan is None
@@ -262,6 +274,71 @@ class DmaicSipocMap:
 
 
 @dataclass(frozen=True, slots=True)
+class DmaicStakeholder:
+    """A project stakeholder with explicit influence, interest, and engagement intent."""
+
+    stakeholder_id: str
+    name: str
+    role: str
+    department: str | None
+    influence: int
+    interest: int
+    attitude: str
+    communication: str
+    concerns: tuple[str, ...]
+    expectations: tuple[str, ...]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            **asdict(self),
+            "concerns": list(self.concerns),
+            "expectations": list(self.expectations),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class DmaicStakeholderAssessment:
+    """An immutable Define-phase stakeholder assessment for a DMAIC project."""
+
+    document_id: str
+    project_id: str
+    revision: int
+    parent_digest: str | None
+    digest: str
+    stakeholders: tuple[DmaicStakeholder, ...]
+    actor: str
+    occurred_at: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {**asdict(self), "stakeholders": [item.to_dict() for item in self.stakeholders]}
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> DmaicStakeholderAssessment:
+        assessment = cls(
+            document_id=payload["document_id"], project_id=payload["project_id"],
+            revision=payload["revision"], parent_digest=payload.get("parent_digest"),
+            digest=payload["digest"],
+            stakeholders=tuple(
+                DmaicStakeholder(
+                    stakeholder_id=item["stakeholder_id"], name=item["name"], role=item["role"],
+                    department=item.get("department"), influence=item["influence"],
+                    interest=item["interest"], attitude=item["attitude"], communication=item["communication"],
+                    concerns=tuple(item.get("concerns", [])), expectations=tuple(item.get("expectations", [])),
+                )
+                for item in payload["stakeholders"]
+            ),
+            actor=payload["actor"], occurred_at=payload["occurred_at"],
+        )
+        if assessment.digest != _stakeholder_assessment_digest(assessment):
+            raise DmaicInputError(
+                "stakeholder_assessment_digest_mismatch",
+                "Stored stakeholder assessment digest does not match.",
+                "digest",
+            )
+        return assessment
+
+
+@dataclass(frozen=True, slots=True)
 class DmaicMeasurementPlan:
     """Immutable Measure-phase data collection plan and analysis evidence links."""
 
@@ -345,6 +422,12 @@ def _voice_of_customer_digest(study: DmaicVoiceOfCustomerStudy) -> str:
 
 def _sipoc_digest(sipoc: DmaicSipocMap) -> str:
     payload = sipoc.to_dict()
+    payload.pop("digest")
+    return input_digest(payload)
+
+
+def _stakeholder_assessment_digest(assessment: DmaicStakeholderAssessment) -> str:
+    payload = assessment.to_dict()
     payload.pop("digest")
     return input_digest(payload)
 

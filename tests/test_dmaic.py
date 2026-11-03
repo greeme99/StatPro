@@ -11,11 +11,13 @@ from statpro.dmaic import (
     DmaicMeasurementPlan,
     DmaicProject,
     DmaicSipocMap,
+    DmaicStakeholderAssessment,
     DmaicVoiceOfCustomerStudy,
     create_project,
     save_charter,
     save_measurement_plan,
     save_sipoc,
+    save_stakeholder_assessment,
     save_voice_of_customer,
 )
 
@@ -165,6 +167,39 @@ class DmaicProjectTests(unittest.TestCase):
         self.assertEqual(second_project.sipoc.document_id, second.document_id)
         self.assertNotIn("process_steps", second_project.to_dict())
         self.assertEqual(DmaicSipocMap.from_dict(first.to_dict()), first)
+
+    def test_stakeholder_assessment_revisions_are_immutable_and_project_keeps_only_reference(self) -> None:
+        project = create_project(
+            project_id="DMAIC-004", title="Connector yield", owner_ref="quality.engineer"
+        )
+        first_project, first = save_stakeholder_assessment(
+            project,
+            stakeholders=({
+                "stakeholder_id": "owner", "name": "Line owner", "role": "Approve changes",
+                "department": "Production", "influence": 5, "interest": 4,
+                "attitude": "supportive", "communication": "high",
+                "concerns": ("Downtime",), "expectations": ("Stable yield",),
+            },),
+            actor="quality.engineer", occurred_at="2026-11-03T09:00:00+09:00",
+        )
+        second_project, second = save_stakeholder_assessment(
+            first_project,
+            stakeholders=({
+                "stakeholder_id": "owner", "name": "Line owner", "role": "Approve changes",
+                "department": "Production", "influence": 5, "interest": 5,
+                "attitude": "supportive", "communication": "high",
+                "concerns": ("Downtime",), "expectations": ("Stable yield", "Fast escalation"),
+            },),
+            actor="quality.engineer", occurred_at="2026-11-03T10:00:00+09:00",
+        )
+
+        self.assertEqual(first.revision, 1)
+        self.assertEqual(second.revision, 2)
+        self.assertEqual(second.parent_digest, first.digest)
+        self.assertEqual(first.stakeholders[0].interest, 4)
+        self.assertEqual(second_project.stakeholder_assessment.document_id, second.document_id)
+        self.assertNotIn("stakeholders", second_project.to_dict())
+        self.assertEqual(DmaicStakeholderAssessment.from_dict(first.to_dict()), first)
 
 
 if __name__ == "__main__":

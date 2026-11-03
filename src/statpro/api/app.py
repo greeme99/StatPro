@@ -79,11 +79,13 @@ from statpro.dmaic import (
     DmaicMeasurementPlan,
     DmaicProject,
     DmaicSipocMap,
+    DmaicStakeholderAssessment,
     DmaicVoiceOfCustomerStudy,
     create_project,
     save_charter,
     save_measurement_plan,
     save_sipoc,
+    save_stakeholder_assessment,
     save_voice_of_customer,
 )
 from statpro.domain.data import (
@@ -143,6 +145,7 @@ DMAIC_PROJECTS = "dmaic-projects"
 DMAIC_CHARTERS = "dmaic-charters"
 DMAIC_VOICE_OF_CUSTOMER_STUDIES = "dmaic-voice-of-customer-studies"
 DMAIC_SIPOC_MAPS = "dmaic-sipoc-maps"
+DMAIC_STAKEHOLDER_ASSESSMENTS = "dmaic-stakeholder-assessments"
 DMAIC_MEASUREMENT_PLANS = "dmaic-measurement-plans"
 SPC_CHECK_SHEETS = "spc-check-sheets"
 SPC_FISHBONE_DIAGRAMS = "spc-fishbone-diagrams"
@@ -631,6 +634,26 @@ class SaveDmaicSipocRequest(ApiModel):
     occurred_at: str
 
 
+class DmaicStakeholderRequest(ApiModel):
+    stakeholder_id: str
+    name: str
+    role: str
+    department: str | None = None
+    influence: int = Field(ge=1, le=5)
+    interest: int = Field(ge=1, le=5)
+    attitude: str
+    communication: str
+    concerns: list[str] = Field(default_factory=list)
+    expectations: list[str] = Field(default_factory=list)
+
+
+class SaveDmaicStakeholderAssessmentRequest(ApiModel):
+    expected_storage_version: int = Field(ge=1)
+    stakeholders: list[DmaicStakeholderRequest] = Field(min_length=1)
+    actor: str
+    occurred_at: str
+
+
 class SaveDmaicMeasurementPlanRequest(ApiModel):
     expected_storage_version: int = Field(ge=1)
     primary_metric: str
@@ -679,6 +702,13 @@ class StoredDmaicSipocResponse(ApiModel):
     storage_version: int
     etag: str
     sipoc: dict[str, Any]
+
+
+class StoredDmaicStakeholderAssessmentResponse(ApiModel):
+    document_id: str
+    storage_version: int
+    etag: str
+    assessment: dict[str, Any]
 
 
 class StoredDmaicMeasurementPlanResponse(ApiModel):
@@ -937,6 +967,17 @@ def _deserialize_dmaic_sipoc(stored: StoredDocument) -> DmaicSipocMap:
         ) from error
 
 
+def _deserialize_dmaic_stakeholder_assessment(
+    stored: StoredDocument,
+) -> DmaicStakeholderAssessment:
+    try:
+        return DmaicStakeholderAssessment.from_dict(stored.document["assessment"])
+    except (KeyError, TypeError, ValueError, DmaicInputError) as error:
+        raise DocumentStoreError(
+            f"Stored DMAIC stakeholder assessment {stored.key} does not match its owned format."
+        ) from error
+
+
 def _deserialize_dmaic_measurement_plan(stored: StoredDocument) -> DmaicMeasurementPlan:
     try:
         return DmaicMeasurementPlan.from_dict(stored.document["measurement_plan"])
@@ -985,6 +1026,18 @@ def _dmaic_sipoc_response(stored: StoredDocument) -> StoredDmaicSipocResponse:
         storage_version=stored.storage_version,
         etag=stored.etag,
         sipoc=sipoc.to_dict(),
+    )
+
+
+def _dmaic_stakeholder_assessment_response(
+    stored: StoredDocument,
+) -> StoredDmaicStakeholderAssessmentResponse:
+    assessment = _deserialize_dmaic_stakeholder_assessment(stored)
+    return StoredDmaicStakeholderAssessmentResponse(
+        document_id=stored.key,
+        storage_version=stored.storage_version,
+        etag=stored.etag,
+        assessment=assessment.to_dict(),
     )
 
 
@@ -1052,6 +1105,21 @@ def _save_dmaic_sipoc(repository: DocumentRepository, sipoc: DmaicSipocMap) -> S
             "kind": "dmaic_sipoc_map",
             "document_id": sipoc.document_id,
             "sipoc": sipoc.to_dict(),
+        },
+        expected_version=0,
+    )
+
+
+def _save_dmaic_stakeholder_assessment(
+    repository: DocumentRepository, assessment: DmaicStakeholderAssessment
+) -> StoredDocument:
+    return repository.save(
+        DMAIC_STAKEHOLDER_ASSESSMENTS,
+        assessment.document_id,
+        {
+            "kind": "dmaic_stakeholder_assessment",
+            "document_id": assessment.document_id,
+            "assessment": assessment.to_dict(),
         },
         expected_version=0,
     )
@@ -2542,6 +2610,51 @@ def create_app(
             )
         response.headers["ETag"] = f'"{stored.etag}"'
         return _dmaic_sipoc_response(stored)
+
+    @app.post(
+        "/v1/dmaic-projects/{project_id}/stakeholder-assessments",
+        status_code=201,
+        response_model=StoredDmaicProjectResponse,
+    )
+    def create_dmaic_stakeholder_assessment(
+        project_id: RunId,
+        request: SaveDmaicStakeholderAssessmentRequest,
+        response: Response,
+    ) -> StoredDmaicProjectResponse:
+        stored, project = _load_dmaic_project(repository, project_id)
+        if stored.storage_version != request.expected_storage_version:
+            raise DocumentConflictError(
+                f"Expected storage version {request.expected_storage_version}; found {stored.storage_version}."
+            )
+        revised, assessment = save_stakeholder_assessment(
+            project,
+            stakeholders=tuple(item.model_dump() for item in request.stakeholders),
+            actor=request.actor,
+            occurred_at=request.occurred_at,
+        )
+        _save_dmaic_stakeholder_assessment(repository, assessment)
+        saved = _save_dmaic_project(
+            repository, revised, expected_version=request.expected_storage_version
+        )
+        response.headers["ETag"] = f'"{saved.etag}"'
+        return _dmaic_project_response(saved)
+
+    @app.get(
+        "/v1/dmaic-projects/{project_id}/stakeholder-assessments/{document_id}",
+        response_model=StoredDmaicStakeholderAssessmentResponse,
+    )
+    def get_dmaic_stakeholder_assessment(
+        project_id: RunId, document_id: RunId, response: Response
+    ) -> StoredDmaicStakeholderAssessmentResponse:
+        _stored_project, project = _load_dmaic_project(repository, project_id)
+        stored = repository.load(DMAIC_STAKEHOLDER_ASSESSMENTS, document_id)
+        assessment = _deserialize_dmaic_stakeholder_assessment(stored)
+        if assessment.project_id != project.project_id:
+            raise DocumentNotFoundError(
+                f"Document {DMAIC_STAKEHOLDER_ASSESSMENTS}/{document_id} does not exist."
+            )
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _dmaic_stakeholder_assessment_response(stored)
 
     @app.post(
         "/v1/dmaic-projects/{project_id}/measurement-plans",

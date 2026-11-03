@@ -1024,6 +1024,49 @@ class LocalApiContractTests(unittest.TestCase):
         self.assertEqual(evidence[0]["run_id"], "spc-imr-004")
         self.assertEqual(evidence[0]["analysis_type"], "spc.imr")
 
+    def test_dmaic_stakeholder_assessment_is_versioned_and_retrievable(self) -> None:
+        created = self.client.post(
+            "/v1/dmaic-projects",
+            json={
+                "project_id": "DMAIC-005",
+                "title": "Connector yield",
+                "owner_ref": "quality.engineer",
+            },
+        )
+        self.assertEqual(created.status_code, 201)
+        request = {
+            "expected_storage_version": 1,
+            "stakeholders": [{
+                "stakeholder_id": "line-owner", "name": "Line owner",
+                "role": "Approve changes", "department": "Production",
+                "influence": 5, "interest": 4, "attitude": "supportive",
+                "communication": "high", "concerns": ["Downtime"],
+                "expectations": ["Stable yield"],
+            }],
+            "actor": "quality.engineer",
+            "occurred_at": "2026-11-03T09:00:00+09:00",
+        }
+        revised = self.client.post(
+            "/v1/dmaic-projects/DMAIC-005/stakeholder-assessments", json=request
+        )
+        self.assertEqual(revised.status_code, 201)
+        self.assertEqual(revised.json()["storage_version"], 2)
+        reference = revised.json()["project"]["stakeholder_assessment"]
+        self.assertEqual(reference["revision"], 1)
+        self.assertNotIn("stakeholders", revised.json()["project"])
+
+        assessment = self.client.get(
+            "/v1/dmaic-projects/DMAIC-005/stakeholder-assessments/"
+            f"{reference['document_id']}"
+        )
+        self.assertEqual(assessment.status_code, 200)
+        self.assertEqual(assessment.json()["assessment"]["stakeholders"][0]["influence"], 5)
+
+        conflict = self.client.post(
+            "/v1/dmaic-projects/DMAIC-005/stakeholder-assessments", json=request
+        )
+        self.assertEqual(conflict.status_code, 409)
+
     def test_fmea_study_is_created_revised_listed_and_submitted(self) -> None:
         created = self.client.post(
             "/v1/fmea-studies",
