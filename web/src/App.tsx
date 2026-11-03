@@ -27,6 +27,7 @@ import { DmaicDefineWorkspacePage } from "./pages/DmaicDefineWorkspacePage";
 import { DmaicVoiceOfCustomerWorkspacePage } from "./pages/DmaicVoiceOfCustomerWorkspacePage";
 import { DmaicSipocWorkspacePage } from "./pages/DmaicSipocWorkspacePage";
 import { DmaicStakeholderWorkspacePage } from "./pages/DmaicStakeholderWorkspacePage";
+import { DmaicProblemDefinitionWorkspacePage } from "./pages/DmaicProblemDefinitionWorkspacePage";
 import { DmaicMeasureWorkspacePage } from "./pages/DmaicMeasureWorkspacePage";
 import { LearningResourcesPreviewPage } from "./pages/LearningResourcesPreviewPage";
 import { SpcWorkspacePage } from "./pages/SpcWorkspacePage";
@@ -72,6 +73,7 @@ export default function App() {
         <Route path="/home/dmaic/voc" element={<DmaicVoiceOfCustomerWorkspacePage />} />
         <Route path="/home/dmaic/sipoc" element={<DmaicSipocWorkspacePage />} />
         <Route path="/home/dmaic/stakeholders" element={<DmaicStakeholderWorkspacePage />} />
+        <Route path="/home/dmaic/problem-definition" element={<DmaicProblemDefinitionWorkspacePage />} />
         <Route path="/home/dmaic/measure" element={<DmaicMeasureWorkspacePage />} />
         <Route path="/home/learning" element={<LearningResourcesPreviewPage />} />
         <Route path="/ui-preview" element={<Navigate to="/home" replace />} />

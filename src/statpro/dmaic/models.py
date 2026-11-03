@@ -63,6 +63,7 @@ class DmaicProject:
     voice_of_customer: DmaicDocumentReference | None = None
     sipoc: DmaicDocumentReference | None = None
     stakeholder_assessment: DmaicDocumentReference | None = None
+    problem_definition: DmaicDocumentReference | None = None
     measurement_plan: DmaicDocumentReference | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -89,6 +90,11 @@ class DmaicProject:
                 if self.stakeholder_assessment is None
                 else self.stakeholder_assessment.to_dict()
             ),
+            "problem_definition": (
+                None
+                if self.problem_definition is None
+                else self.problem_definition.to_dict()
+            ),
             "measurement_plan": (
                 None if self.measurement_plan is None else self.measurement_plan.to_dict()
             ),
@@ -100,6 +106,7 @@ class DmaicProject:
         voice_of_customer = payload.get("voice_of_customer")
         sipoc = payload.get("sipoc")
         stakeholder_assessment = payload.get("stakeholder_assessment")
+        problem_definition = payload.get("problem_definition")
         measurement_plan = payload.get("measurement_plan")
         project = cls(
             project_id=payload["project_id"], title=payload["title"], owner_ref=payload["owner_ref"],
@@ -118,6 +125,11 @@ class DmaicProject:
                 None
                 if stakeholder_assessment is None
                 else DmaicDocumentReference(**stakeholder_assessment)
+            ),
+            problem_definition=(
+                None
+                if problem_definition is None
+                else DmaicDocumentReference(**problem_definition)
             ),
             measurement_plan=(
                 None
@@ -339,6 +351,51 @@ class DmaicStakeholderAssessment:
 
 
 @dataclass(frozen=True, slots=True)
+class DmaicProblemDefinition:
+    """An immutable Define-phase statement of the problem, gap, and decision urgency."""
+
+    document_id: str
+    project_id: str
+    revision: int
+    parent_digest: str | None
+    digest: str
+    problem_statement: str
+    impact: str
+    current_state: str
+    target_state: str
+    timeframe: str
+    location_scope: str
+    severity: str
+    urgency: str
+    objectives: tuple[str, ...]
+    actor: str
+    occurred_at: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {**asdict(self), "objectives": list(self.objectives)}
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> DmaicProblemDefinition:
+        definition = cls(
+            document_id=payload["document_id"], project_id=payload["project_id"],
+            revision=payload["revision"], parent_digest=payload.get("parent_digest"),
+            digest=payload["digest"], problem_statement=payload["problem_statement"],
+            impact=payload["impact"], current_state=payload["current_state"],
+            target_state=payload["target_state"], timeframe=payload["timeframe"],
+            location_scope=payload["location_scope"], severity=payload["severity"],
+            urgency=payload["urgency"], objectives=tuple(payload["objectives"]),
+            actor=payload["actor"], occurred_at=payload["occurred_at"],
+        )
+        if definition.digest != _problem_definition_digest(definition):
+            raise DmaicInputError(
+                "problem_definition_digest_mismatch",
+                "Stored problem definition digest does not match.",
+                "digest",
+            )
+        return definition
+
+
+@dataclass(frozen=True, slots=True)
 class DmaicMeasurementPlan:
     """Immutable Measure-phase data collection plan and analysis evidence links."""
 
@@ -428,6 +485,12 @@ def _sipoc_digest(sipoc: DmaicSipocMap) -> str:
 
 def _stakeholder_assessment_digest(assessment: DmaicStakeholderAssessment) -> str:
     payload = assessment.to_dict()
+    payload.pop("digest")
+    return input_digest(payload)
+
+
+def _problem_definition_digest(definition: DmaicProblemDefinition) -> str:
+    payload = definition.to_dict()
     payload.pop("digest")
     return input_digest(payload)
 

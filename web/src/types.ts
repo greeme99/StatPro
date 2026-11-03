@@ -107,6 +107,7 @@ export type DmaicProject = {
   voice_of_customer: DmaicDocumentReference | null;
   sipoc: DmaicDocumentReference | null;
   stakeholder_assessment: DmaicDocumentReference | null;
+  problem_definition: DmaicDocumentReference | null;
   measurement_plan: DmaicDocumentReference | null;
 };
 

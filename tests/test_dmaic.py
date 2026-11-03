@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from statpro.dmaic import (
     DmaicCharter,
     DmaicMeasurementPlan,
+    DmaicProblemDefinition,
     DmaicProject,
     DmaicSipocMap,
     DmaicStakeholderAssessment,
@@ -16,6 +17,7 @@ from statpro.dmaic import (
     create_project,
     save_charter,
     save_measurement_plan,
+    save_problem_definition,
     save_sipoc,
     save_stakeholder_assessment,
     save_voice_of_customer,
@@ -200,6 +202,46 @@ class DmaicProjectTests(unittest.TestCase):
         self.assertEqual(second_project.stakeholder_assessment.document_id, second.document_id)
         self.assertNotIn("stakeholders", second_project.to_dict())
         self.assertEqual(DmaicStakeholderAssessment.from_dict(first.to_dict()), first)
+
+    def test_problem_definition_revisions_are_immutable_and_project_keeps_only_reference(self) -> None:
+        project = create_project(
+            project_id="DMAIC-006", title="Connector yield", owner_ref="quality.engineer"
+        )
+        first_project, first = save_problem_definition(
+            project,
+            problem_statement="Connector insertion defects exceed the target.",
+            impact="Rework delays shipment and increases inspection cost.",
+            current_state="First-pass yield is 93%.",
+            target_state="First-pass yield is at least 98%.",
+            timeframe="Improve before the next customer audit.",
+            location_scope="Line 2 connector insertion station.",
+            severity="high",
+            urgency="medium",
+            objectives=("Reduce connector insertion defects.",),
+            actor="quality.engineer",
+            occurred_at="2026-11-03T09:00:00+09:00",
+        )
+        second_project, second = save_problem_definition(
+            first_project,
+            problem_statement="Connector insertion defects exceed the target.",
+            impact="Rework delays shipment and increases inspection cost.",
+            current_state="First-pass yield is 93%.",
+            target_state="First-pass yield is at least 98%.",
+            timeframe="Improve before the next customer audit.",
+            location_scope="Line 2 connector insertion station.",
+            severity="high",
+            urgency="high",
+            objectives=("Reduce connector insertion defects.", "Stabilize the inspection handoff."),
+            actor="quality.engineer",
+            occurred_at="2026-11-03T10:00:00+09:00",
+        )
+        self.assertEqual(first.revision, 1)
+        self.assertEqual(second.revision, 2)
+        self.assertEqual(second.parent_digest, first.digest)
+        self.assertEqual(first.urgency, "medium")
+        self.assertEqual(second_project.problem_definition.document_id, second.document_id)
+        self.assertNotIn("problem_statement", second_project.to_dict())
+        self.assertEqual(DmaicProblemDefinition.from_dict(first.to_dict()), first)
 
 
 if __name__ == "__main__":

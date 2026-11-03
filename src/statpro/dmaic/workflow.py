@@ -10,6 +10,7 @@ from statpro.dmaic.models import (
     DmaicDocumentReference,
     DmaicInputError,
     DmaicMeasurementPlan,
+    DmaicProblemDefinition,
     DmaicProject,
     DmaicProjectStatus,
     DmaicSipocMap,
@@ -18,6 +19,7 @@ from statpro.dmaic.models import (
     DmaicVoiceOfCustomerStudy,
     _charter_digest,
     _measurement_plan_digest,
+    _problem_definition_digest,
     _project_digest,
     _sipoc_digest,
     _stakeholder_assessment_digest,
@@ -68,7 +70,8 @@ def create_project(*, project_id: str, title: str, owner_ref: str, sponsor_ref: 
         owner_ref=_required(owner_ref, "owner_ref"), sponsor_ref=_optional(sponsor_ref), champion_ref=_optional(champion_ref),
         department=_optional(department), start_date=_optional(start_date), target_end_date=_optional(target_end_date),
         status=DmaicProjectStatus.DRAFT, revision=1, parent_digest=None, digest="", charter=None,
-        voice_of_customer=None, sipoc=None, stakeholder_assessment=None, measurement_plan=None)
+        voice_of_customer=None, sipoc=None, stakeholder_assessment=None, problem_definition=None,
+        measurement_plan=None)
     return replace(project, digest=_project_digest(project))
 
 
@@ -226,6 +229,56 @@ def save_stakeholder_assessment(
         stakeholder_assessment=reference,
     )
     return replace(revised, digest=_project_digest(revised)), assessment
+
+
+def save_problem_definition(
+    project: DmaicProject,
+    *,
+    problem_statement: str,
+    impact: str,
+    current_state: str,
+    target_state: str,
+    timeframe: str,
+    location_scope: str,
+    severity: str,
+    urgency: str,
+    objectives: tuple[str, ...],
+    actor: str,
+    occurred_at: str,
+) -> tuple[DmaicProject, DmaicProblemDefinition]:
+    """Save the project problem definition as an immutable Define-phase revision."""
+    previous = project.problem_definition
+    revision = 1 if previous is None else previous.revision + 1
+    definition = DmaicProblemDefinition(
+        document_id=f"{project.project_id}-problem-definition-r{revision}",
+        project_id=project.project_id,
+        revision=revision,
+        parent_digest=None if previous is None else previous.digest,
+        digest="",
+        problem_statement=_required(problem_statement, "problem_statement"),
+        impact=_required(impact, "impact"),
+        current_state=_required(current_state, "current_state"),
+        target_state=_required(target_state, "target_state"),
+        timeframe=_required(timeframe, "timeframe"),
+        location_scope=_required(location_scope, "location_scope"),
+        severity=_choice(severity, {"low", "medium", "high"}, "severity"),
+        urgency=_choice(urgency, {"low", "medium", "high"}, "urgency"),
+        objectives=_items(objectives, "objectives"),
+        actor=_required(actor, "actor"),
+        occurred_at=_required(occurred_at, "occurred_at"),
+    )
+    definition = replace(definition, digest=_problem_definition_digest(definition))
+    reference = DmaicDocumentReference(
+        "problem_definition", definition.document_id, definition.revision, definition.digest
+    )
+    revised = replace(
+        project,
+        revision=project.revision + 1,
+        parent_digest=project.digest,
+        digest="",
+        problem_definition=reference,
+    )
+    return replace(revised, digest=_project_digest(revised)), definition
 
 
 def save_measurement_plan(

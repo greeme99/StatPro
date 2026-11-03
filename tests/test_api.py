@@ -1067,6 +1067,51 @@ class LocalApiContractTests(unittest.TestCase):
         )
         self.assertEqual(conflict.status_code, 409)
 
+    def test_dmaic_problem_definition_is_versioned_and_retrievable(self) -> None:
+        created = self.client.post(
+            "/v1/dmaic-projects",
+            json={
+                "project_id": "DMAIC-006",
+                "title": "Connector yield",
+                "owner_ref": "quality.engineer",
+            },
+        )
+        self.assertEqual(created.status_code, 201)
+        request = {
+            "expected_storage_version": 1,
+            "problem_statement": "Connector insertion defects exceed the target.",
+            "impact": "Rework delays shipment and increases inspection cost.",
+            "current_state": "First-pass yield is 93%.",
+            "target_state": "First-pass yield is at least 98%.",
+            "timeframe": "Improve before the next customer audit.",
+            "location_scope": "Line 2 connector insertion station.",
+            "severity": "high",
+            "urgency": "medium",
+            "objectives": ["Reduce connector insertion defects."],
+            "actor": "quality.engineer",
+            "occurred_at": "2026-11-03T09:00:00+09:00",
+        }
+        revised = self.client.post(
+            "/v1/dmaic-projects/DMAIC-006/problem-definitions", json=request
+        )
+        self.assertEqual(revised.status_code, 201)
+        self.assertEqual(revised.json()["storage_version"], 2)
+        reference = revised.json()["project"]["problem_definition"]
+        self.assertEqual(reference["revision"], 1)
+        self.assertNotIn("problem_statement", revised.json()["project"])
+
+        definition = self.client.get(
+            "/v1/dmaic-projects/DMAIC-006/problem-definitions/"
+            f"{reference['document_id']}"
+        )
+        self.assertEqual(definition.status_code, 200)
+        self.assertEqual(definition.json()["problem_definition"]["severity"], "high")
+
+        conflict = self.client.post(
+            "/v1/dmaic-projects/DMAIC-006/problem-definitions", json=request
+        )
+        self.assertEqual(conflict.status_code, 409)
+
     def test_fmea_study_is_created_revised_listed_and_submitted(self) -> None:
         created = self.client.post(
             "/v1/fmea-studies",

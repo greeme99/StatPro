@@ -77,6 +77,7 @@ from statpro.dmaic import (
     DmaicCharter,
     DmaicInputError,
     DmaicMeasurementPlan,
+    DmaicProblemDefinition,
     DmaicProject,
     DmaicSipocMap,
     DmaicStakeholderAssessment,
@@ -84,6 +85,7 @@ from statpro.dmaic import (
     create_project,
     save_charter,
     save_measurement_plan,
+    save_problem_definition,
     save_sipoc,
     save_stakeholder_assessment,
     save_voice_of_customer,
@@ -146,6 +148,7 @@ DMAIC_CHARTERS = "dmaic-charters"
 DMAIC_VOICE_OF_CUSTOMER_STUDIES = "dmaic-voice-of-customer-studies"
 DMAIC_SIPOC_MAPS = "dmaic-sipoc-maps"
 DMAIC_STAKEHOLDER_ASSESSMENTS = "dmaic-stakeholder-assessments"
+DMAIC_PROBLEM_DEFINITIONS = "dmaic-problem-definitions"
 DMAIC_MEASUREMENT_PLANS = "dmaic-measurement-plans"
 SPC_CHECK_SHEETS = "spc-check-sheets"
 SPC_FISHBONE_DIAGRAMS = "spc-fishbone-diagrams"
@@ -654,6 +657,21 @@ class SaveDmaicStakeholderAssessmentRequest(ApiModel):
     occurred_at: str
 
 
+class SaveDmaicProblemDefinitionRequest(ApiModel):
+    expected_storage_version: int = Field(ge=1)
+    problem_statement: str
+    impact: str
+    current_state: str
+    target_state: str
+    timeframe: str
+    location_scope: str
+    severity: Literal["low", "medium", "high"]
+    urgency: Literal["low", "medium", "high"]
+    objectives: list[str] = Field(min_length=1)
+    actor: str
+    occurred_at: str
+
+
 class SaveDmaicMeasurementPlanRequest(ApiModel):
     expected_storage_version: int = Field(ge=1)
     primary_metric: str
@@ -709,6 +727,13 @@ class StoredDmaicStakeholderAssessmentResponse(ApiModel):
     storage_version: int
     etag: str
     assessment: dict[str, Any]
+
+
+class StoredDmaicProblemDefinitionResponse(ApiModel):
+    document_id: str
+    storage_version: int
+    etag: str
+    problem_definition: dict[str, Any]
 
 
 class StoredDmaicMeasurementPlanResponse(ApiModel):
@@ -978,6 +1003,17 @@ def _deserialize_dmaic_stakeholder_assessment(
         ) from error
 
 
+def _deserialize_dmaic_problem_definition(
+    stored: StoredDocument,
+) -> DmaicProblemDefinition:
+    try:
+        return DmaicProblemDefinition.from_dict(stored.document["problem_definition"])
+    except (KeyError, TypeError, ValueError, DmaicInputError) as error:
+        raise DocumentStoreError(
+            f"Stored DMAIC problem definition {stored.key} does not match its owned format."
+        ) from error
+
+
 def _deserialize_dmaic_measurement_plan(stored: StoredDocument) -> DmaicMeasurementPlan:
     try:
         return DmaicMeasurementPlan.from_dict(stored.document["measurement_plan"])
@@ -1038,6 +1074,18 @@ def _dmaic_stakeholder_assessment_response(
         storage_version=stored.storage_version,
         etag=stored.etag,
         assessment=assessment.to_dict(),
+    )
+
+
+def _dmaic_problem_definition_response(
+    stored: StoredDocument,
+) -> StoredDmaicProblemDefinitionResponse:
+    definition = _deserialize_dmaic_problem_definition(stored)
+    return StoredDmaicProblemDefinitionResponse(
+        document_id=stored.key,
+        storage_version=stored.storage_version,
+        etag=stored.etag,
+        problem_definition=definition.to_dict(),
     )
 
 
@@ -1120,6 +1168,21 @@ def _save_dmaic_stakeholder_assessment(
             "kind": "dmaic_stakeholder_assessment",
             "document_id": assessment.document_id,
             "assessment": assessment.to_dict(),
+        },
+        expected_version=0,
+    )
+
+
+def _save_dmaic_problem_definition(
+    repository: DocumentRepository, definition: DmaicProblemDefinition
+) -> StoredDocument:
+    return repository.save(
+        DMAIC_PROBLEM_DEFINITIONS,
+        definition.document_id,
+        {
+            "kind": "dmaic_problem_definition",
+            "document_id": definition.document_id,
+            "problem_definition": definition.to_dict(),
         },
         expected_version=0,
     )
@@ -2655,6 +2718,59 @@ def create_app(
             )
         response.headers["ETag"] = f'"{stored.etag}"'
         return _dmaic_stakeholder_assessment_response(stored)
+
+    @app.post(
+        "/v1/dmaic-projects/{project_id}/problem-definitions",
+        status_code=201,
+        response_model=StoredDmaicProjectResponse,
+    )
+    def create_dmaic_problem_definition(
+        project_id: RunId,
+        request: SaveDmaicProblemDefinitionRequest,
+        response: Response,
+    ) -> StoredDmaicProjectResponse:
+        stored, project = _load_dmaic_project(repository, project_id)
+        if stored.storage_version != request.expected_storage_version:
+            raise DocumentConflictError(
+                f"Expected storage version {request.expected_storage_version}; found {stored.storage_version}."
+            )
+        revised, definition = save_problem_definition(
+            project,
+            problem_statement=request.problem_statement,
+            impact=request.impact,
+            current_state=request.current_state,
+            target_state=request.target_state,
+            timeframe=request.timeframe,
+            location_scope=request.location_scope,
+            severity=request.severity,
+            urgency=request.urgency,
+            objectives=tuple(request.objectives),
+            actor=request.actor,
+            occurred_at=request.occurred_at,
+        )
+        _save_dmaic_problem_definition(repository, definition)
+        saved = _save_dmaic_project(
+            repository, revised, expected_version=request.expected_storage_version
+        )
+        response.headers["ETag"] = f'"{saved.etag}"'
+        return _dmaic_project_response(saved)
+
+    @app.get(
+        "/v1/dmaic-projects/{project_id}/problem-definitions/{document_id}",
+        response_model=StoredDmaicProblemDefinitionResponse,
+    )
+    def get_dmaic_problem_definition(
+        project_id: RunId, document_id: RunId, response: Response
+    ) -> StoredDmaicProblemDefinitionResponse:
+        _stored_project, project = _load_dmaic_project(repository, project_id)
+        stored = repository.load(DMAIC_PROBLEM_DEFINITIONS, document_id)
+        definition = _deserialize_dmaic_problem_definition(stored)
+        if definition.project_id != project.project_id:
+            raise DocumentNotFoundError(
+                f"Document {DMAIC_PROBLEM_DEFINITIONS}/{document_id} does not exist."
+            )
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _dmaic_problem_definition_response(stored)
 
     @app.post(
         "/v1/dmaic-projects/{project_id}/measurement-plans",

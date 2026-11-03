@@ -134,6 +134,25 @@ export function saveDmaicStakeholderAssessment(projectId: string, payload: {
   });
 }
 
+export function saveDmaicProblemDefinition(projectId: string, payload: {
+  expected_storage_version: number;
+  problem_statement: string;
+  impact: string;
+  current_state: string;
+  target_state: string;
+  timeframe: string;
+  location_scope: string;
+  severity: "low" | "medium" | "high";
+  urgency: "low" | "medium" | "high";
+  objectives: string[];
+  actor: string;
+  occurred_at: string;
+}): Promise<StoredDmaicProject> {
+  return request(`/v1/dmaic-projects/${encodeURIComponent(projectId)}/problem-definitions`, {
+    method: "POST", body: JSON.stringify(payload),
+  });
+}
+
 export function saveDmaicMeasurementPlan(projectId: string, payload: {
   expected_storage_version: number;
   primary_metric: string;
