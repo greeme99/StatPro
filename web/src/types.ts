@@ -105,6 +105,7 @@ export type DmaicProject = {
   digest: string;
   charter: DmaicDocumentReference | null;
   voice_of_customer: DmaicDocumentReference | null;
+  sipoc: DmaicDocumentReference | null;
   measurement_plan: DmaicDocumentReference | null;
 };
 

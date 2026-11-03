@@ -95,6 +95,23 @@ export function saveDmaicVoiceOfCustomer(projectId: string, payload: {
   });
 }
 
+export function saveDmaicSipoc(projectId: string, payload: {
+  expected_storage_version: number;
+  process_start_boundary: string;
+  process_end_boundary: string;
+  suppliers: string[];
+  inputs: string[];
+  process_steps: string[];
+  outputs: string[];
+  customers: string[];
+  actor: string;
+  occurred_at: string;
+}): Promise<StoredDmaicProject> {
+  return request(`/v1/dmaic-projects/${encodeURIComponent(projectId)}/sipoc-maps`, {
+    method: "POST", body: JSON.stringify(payload),
+  });
+}
+
 export function saveDmaicMeasurementPlan(projectId: string, payload: {
   expected_storage_version: number;
   primary_metric: string;
