@@ -77,6 +77,7 @@ from statpro.dmaic import (
     DmaicCharter,
     DmaicInputError,
     DmaicMeasurementPlan,
+    DmaicPilotPlan,
     DmaicProblemDefinition,
     DmaicProject,
     DmaicRootCauseAnalysis,
@@ -87,6 +88,7 @@ from statpro.dmaic import (
     create_project,
     save_charter,
     save_measurement_plan,
+    save_pilot_plan,
     save_problem_definition,
     save_root_cause_analysis,
     save_solution_selection,
@@ -156,6 +158,7 @@ DMAIC_PROBLEM_DEFINITIONS = "dmaic-problem-definitions"
 DMAIC_MEASUREMENT_PLANS = "dmaic-measurement-plans"
 DMAIC_ROOT_CAUSE_ANALYSES = "dmaic-root-cause-analyses"
 DMAIC_SOLUTION_SELECTIONS = "dmaic-solution-selections"
+DMAIC_PILOT_PLANS = "dmaic-pilot-plans"
 SPC_CHECK_SHEETS = "spc-check-sheets"
 SPC_FISHBONE_DIAGRAMS = "spc-fishbone-diagrams"
 RunId = Annotated[str, Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")]
@@ -724,6 +727,21 @@ class SaveDmaicSolutionSelectionRequest(ApiModel):
     occurred_at: str
 
 
+class SaveDmaicPilotPlanRequest(ApiModel):
+    expected_storage_version: int = Field(ge=1)
+    pilot_type: Literal["before_after", "controlled_trial", "doe_confirmation"]
+    scope: str
+    study_design: str
+    sample_plan: str
+    duration: str
+    success_metrics: list[str] = Field(min_length=1)
+    stop_criteria: list[str] = Field(min_length=1)
+    risk_responses: list[str] = Field(min_length=1)
+    analysis_run_ids: list[RunId] = Field(default_factory=list)
+    actor: str
+    occurred_at: str
+
+
 class StoredDmaicProjectResponse(ApiModel):
     project_id: str
     storage_version: int
@@ -785,6 +803,13 @@ class StoredDmaicSolutionSelectionResponse(ApiModel):
     storage_version: int
     etag: str
     solution_selection: dict[str, Any]
+
+
+class StoredDmaicPilotPlanResponse(ApiModel):
+    document_id: str
+    storage_version: int
+    etag: str
+    pilot_plan: dict[str, Any]
 
 
 class StoredActionPriorityPolicyResponse(ApiModel):
@@ -1085,6 +1110,15 @@ def _deserialize_dmaic_solution_selection(stored: StoredDocument) -> DmaicSoluti
         ) from error
 
 
+def _deserialize_dmaic_pilot_plan(stored: StoredDocument) -> DmaicPilotPlan:
+    try:
+        return DmaicPilotPlan.from_dict(stored.document["pilot_plan"])
+    except (KeyError, TypeError, ValueError, DmaicInputError) as error:
+        raise DocumentStoreError(
+            f"Stored DMAIC pilot plan {stored.key} does not match its owned format."
+        ) from error
+
+
 def _dmaic_project_response(stored: StoredDocument) -> StoredDmaicProjectResponse:
     project = _deserialize_dmaic_project(stored)
     return StoredDmaicProjectResponse(
@@ -1180,6 +1214,14 @@ def _dmaic_solution_selection_response(
     return StoredDmaicSolutionSelectionResponse(
         document_id=stored.key, storage_version=stored.storage_version, etag=stored.etag,
         solution_selection=selection.to_dict(),
+    )
+
+
+def _dmaic_pilot_plan_response(stored: StoredDocument) -> StoredDmaicPilotPlanResponse:
+    plan = _deserialize_dmaic_pilot_plan(stored)
+    return StoredDmaicPilotPlanResponse(
+        document_id=stored.key, storage_version=stored.storage_version, etag=stored.etag,
+        pilot_plan=plan.to_dict(),
     )
 
 
@@ -1305,6 +1347,17 @@ def _save_dmaic_solution_selection(
         selection.document_id,
         {"kind": "dmaic_solution_selection", "document_id": selection.document_id,
          "solution_selection": selection.to_dict()},
+        expected_version=0,
+    )
+
+
+def _save_dmaic_pilot_plan(
+    repository: DocumentRepository, plan: DmaicPilotPlan
+) -> StoredDocument:
+    return repository.save(
+        DMAIC_PILOT_PLANS,
+        plan.document_id,
+        {"kind": "dmaic_pilot_plan", "document_id": plan.document_id, "pilot_plan": plan.to_dict()},
         expected_version=0,
     )
 
@@ -3049,6 +3102,63 @@ def create_app(
             )
         response.headers["ETag"] = f'"{stored.etag}"'
         return _dmaic_solution_selection_response(stored)
+
+    @app.post(
+        "/v1/dmaic-projects/{project_id}/pilot-plans",
+        status_code=201,
+        response_model=StoredDmaicProjectResponse,
+    )
+    def create_dmaic_pilot_plan(
+        project_id: RunId,
+        request: SaveDmaicPilotPlanRequest,
+        response: Response,
+    ) -> StoredDmaicProjectResponse:
+        stored, project = _load_dmaic_project(repository, project_id)
+        if stored.storage_version != request.expected_storage_version:
+            raise DocumentConflictError(
+                f"Expected storage version {request.expected_storage_version}; found {stored.storage_version}."
+            )
+        evidence = tuple(
+            _load_analysis_evidence_reference(repository, run_id).to_dict()
+            for run_id in request.analysis_run_ids
+        )
+        revised, plan = save_pilot_plan(
+            project,
+            pilot_type=request.pilot_type,
+            scope=request.scope,
+            study_design=request.study_design,
+            sample_plan=request.sample_plan,
+            duration=request.duration,
+            success_metrics=tuple(request.success_metrics),
+            stop_criteria=tuple(request.stop_criteria),
+            risk_responses=tuple(request.risk_responses),
+            analysis_evidence=evidence,
+            actor=request.actor,
+            occurred_at=request.occurred_at,
+        )
+        _save_dmaic_pilot_plan(repository, plan)
+        saved = _save_dmaic_project(
+            repository, revised, expected_version=request.expected_storage_version
+        )
+        response.headers["ETag"] = f'"{saved.etag}"'
+        return _dmaic_project_response(saved)
+
+    @app.get(
+        "/v1/dmaic-projects/{project_id}/pilot-plans/{document_id}",
+        response_model=StoredDmaicPilotPlanResponse,
+    )
+    def get_dmaic_pilot_plan(
+        project_id: RunId, document_id: RunId, response: Response
+    ) -> StoredDmaicPilotPlanResponse:
+        _stored_project, project = _load_dmaic_project(repository, project_id)
+        stored = repository.load(DMAIC_PILOT_PLANS, document_id)
+        plan = _deserialize_dmaic_pilot_plan(stored)
+        if plan.project_id != project.project_id:
+            raise DocumentNotFoundError(
+                f"Document {DMAIC_PILOT_PLANS}/{document_id} does not exist."
+            )
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _dmaic_pilot_plan_response(stored)
 
     @app.post("/v1/fmea-studies", status_code=201, response_model=StoredFmeaStudyResponse)
     def create_study(

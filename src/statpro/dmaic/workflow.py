@@ -11,6 +11,7 @@ from statpro.dmaic.models import (
     DmaicInputError,
     DmaicMeasurementPlan,
     DmaicProblemDefinition,
+    DmaicPilotPlan,
     DmaicProject,
     DmaicProjectStatus,
     DmaicRootCauseAnalysis,
@@ -23,6 +24,7 @@ from statpro.dmaic.models import (
     _measurement_plan_digest,
     _problem_definition_digest,
     _project_digest,
+    _pilot_plan_digest,
     _root_cause_analysis_digest,
     _solution_selection_digest,
     _sipoc_digest,
@@ -453,3 +455,53 @@ def save_solution_selection(
     reference = DmaicDocumentReference("solution_selection", selection.document_id, selection.revision, selection.digest)
     revised = replace(project, revision=project.revision + 1, parent_digest=project.digest, digest="", solution_selection=reference)
     return replace(revised, digest=_project_digest(revised)), selection
+
+
+def save_pilot_plan(
+    project: DmaicProject,
+    *,
+    pilot_type: str,
+    scope: str,
+    study_design: str,
+    sample_plan: str,
+    duration: str,
+    success_metrics: tuple[str, ...],
+    stop_criteria: tuple[str, ...],
+    risk_responses: tuple[str, ...],
+    analysis_evidence: tuple[dict[str, str], ...],
+    actor: str,
+    occurred_at: str,
+) -> tuple[DmaicProject, DmaicPilotPlan]:
+    """Save a pilot plan without claiming that the planned pilot has run."""
+    previous = project.pilot_plan
+    revision = 1 if previous is None else previous.revision + 1
+    evidence = tuple(
+        DmaicAnalysisEvidenceReference(
+            run_id=_required(item["run_id"], "analysis_evidence.run_id"),
+            analysis_type=_required(item["analysis_type"], "analysis_evidence.analysis_type"),
+            run_etag=_required(item["run_etag"], "analysis_evidence.run_etag"),
+            input_digest=_required(item["input_digest"], "analysis_evidence.input_digest"),
+        )
+        for item in analysis_evidence
+    )
+    if len({item.run_id for item in evidence}) != len(evidence):
+        raise DmaicInputError("duplicate_analysis_evidence", "Analysis evidence Run IDs must be unique.", "analysis_evidence")
+    sources = tuple(item for item in (
+        project.solution_selection, project.root_cause_analysis, project.problem_definition,
+        project.measurement_plan, project.sipoc, project.charter,
+    ) if item is not None)
+    plan = DmaicPilotPlan(
+        document_id=f"{project.project_id}-pilot-plan-r{revision}", project_id=project.project_id,
+        revision=revision, parent_digest=None if previous is None else previous.digest, digest="",
+        pilot_type=_choice(pilot_type, {"before_after", "controlled_trial", "doe_confirmation"}, "pilot_type"),
+        scope=_required(scope, "scope"), study_design=_required(study_design, "study_design"),
+        sample_plan=_required(sample_plan, "sample_plan"), duration=_required(duration, "duration"),
+        success_metrics=_items(success_metrics, "success_metrics"),
+        stop_criteria=_items(stop_criteria, "stop_criteria"), risk_responses=_items(risk_responses, "risk_responses"),
+        source_documents=sources, analysis_evidence=evidence,
+        actor=_required(actor, "actor"), occurred_at=_required(occurred_at, "occurred_at"),
+    )
+    plan = replace(plan, digest=_pilot_plan_digest(plan))
+    reference = DmaicDocumentReference("pilot_plan", plan.document_id, plan.revision, plan.digest)
+    revised = replace(project, revision=project.revision + 1, parent_digest=project.digest, digest="", pilot_plan=reference)
+    return replace(revised, digest=_project_digest(revised)), plan

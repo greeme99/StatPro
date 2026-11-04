@@ -17,6 +17,7 @@ from statpro.dmaic import (
     create_project,
     save_charter,
     save_measurement_plan,
+    save_pilot_plan,
     save_problem_definition,
     save_root_cause_analysis,
     save_solution_selection,
@@ -27,6 +28,43 @@ from statpro.dmaic import (
 
 
 class DmaicProjectTests(unittest.TestCase):
+    def test_pilot_plan_snapshots_solution_selection_and_evidence(self) -> None:
+        project = create_project(
+            project_id="DMAIC-PILOT", title="Connector yield", owner_ref="quality.engineer"
+        )
+        project, selection = save_solution_selection(
+            project,
+            problem_statement="Connector defect rate increased",
+            candidate_solutions=("Set torque window",),
+            selected_solution="Set torque window",
+            decision_rationale="Lowest setup risk.",
+            validation_plan="Validate with a blocked DOE.",
+            analysis_evidence=(),
+            actor="quality.engineer",
+            occurred_at="2026-11-05T10:00:00+09:00",
+        )
+        revised, plan = save_pilot_plan(
+            project,
+            pilot_type="doe_confirmation",
+            scope="Line 2 assembly",
+            study_design="Blocked DOE confirmation",
+            sample_plan="30 units per condition",
+            duration="Two shifts",
+            success_metrics=("Defect rate below 1%",),
+            stop_criteria=("Safety incident",),
+            risk_responses=("Stop and restore the prior setting",),
+            analysis_evidence=({
+                "run_id": "doe-002", "analysis_type": "doe.full_factorial",
+                "run_etag": "run-etag", "input_digest": "c" * 64,
+            },),
+            actor="quality.engineer",
+            occurred_at="2026-11-05T10:05:00+09:00",
+        )
+        self.assertEqual(revised.pilot_plan.document_id, plan.document_id)
+        self.assertEqual(plan.source_documents[0].document_id, selection.document_id)
+        self.assertEqual(plan.analysis_evidence[0].run_id, "doe-002")
+        self.assertEqual(type(plan).from_dict(plan.to_dict()), plan)
+
     def test_solution_selection_snapshots_root_cause_and_doe_evidence(self) -> None:
         project = create_project(
             project_id="DMAIC-IMPROVE", title="Connector yield", owner_ref="quality.engineer"

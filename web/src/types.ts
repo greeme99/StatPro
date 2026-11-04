@@ -112,6 +112,7 @@ export type DmaicProject = {
   measurement_plan: DmaicDocumentReference | null;
   root_cause_analysis: DmaicDocumentReference | null;
   solution_selection: DmaicDocumentReference | null;
+  pilot_plan: DmaicDocumentReference | null;
 };
 
 export type StoredDmaicProject = {
@@ -189,6 +190,33 @@ export type StoredDmaicSolutionSelection = {
   storage_version: number;
   etag: string;
   solution_selection: DmaicSolutionSelection;
+};
+
+export type DmaicPilotPlan = {
+  document_id: string;
+  project_id: string;
+  revision: number;
+  parent_digest: string | null;
+  digest: string;
+  pilot_type: "before_after" | "controlled_trial" | "doe_confirmation";
+  scope: string;
+  study_design: string;
+  sample_plan: string;
+  duration: string;
+  success_metrics: string[];
+  stop_criteria: string[];
+  risk_responses: string[];
+  source_documents: DmaicDocumentReference[];
+  analysis_evidence: Array<{ run_id: string; analysis_type: string; run_etag: string; input_digest: string }>;
+  actor: string;
+  occurred_at: string;
+};
+
+export type StoredDmaicPilotPlan = {
+  document_id: string;
+  storage_version: number;
+  etag: string;
+  pilot_plan: DmaicPilotPlan;
 };
 
 export type DmaicCharter = {

@@ -1,4 +1,4 @@
-import type { ActionPriorityPolicyPage, ApiError, CellValue, DmaicProjectPage, FmeaStudyPage, FmeaStudyReport, StoredActionPriorityPolicy, StoredCheckSheet, StoredDmaicCharter, StoredDmaicMeasurementPlan, StoredDmaicProject, StoredDmaicRootCauseAnalysis, StoredDmaicSolutionSelection, StoredFishbone, StoredFmeaStudy, RunPage, StoredRun, StoredWorksheet, WorksheetPage } from "./types";
+import type { ActionPriorityPolicyPage, ApiError, CellValue, DmaicProjectPage, FmeaStudyPage, FmeaStudyReport, StoredActionPriorityPolicy, StoredCheckSheet, StoredDmaicCharter, StoredDmaicMeasurementPlan, StoredDmaicPilotPlan, StoredDmaicProject, StoredDmaicRootCauseAnalysis, StoredDmaicSolutionSelection, StoredFishbone, StoredFmeaStudy, RunPage, StoredRun, StoredWorksheet, WorksheetPage } from "./types";
 
 const API_BASE = import.meta.env.VITE_STATPRO_API_URL ?? "/api";
 
@@ -221,6 +221,27 @@ export function saveDmaicSolutionSelection(projectId: string, payload: {
 
 export function getDmaicSolutionSelection(projectId: string, documentId: string): Promise<StoredDmaicSolutionSelection> {
   return request(`/v1/dmaic-projects/${encodeURIComponent(projectId)}/solution-selections/${encodeURIComponent(documentId)}`);
+}
+
+export function saveDmaicPilotPlan(projectId: string, payload: {
+  expected_storage_version: number;
+  pilot_type: "before_after" | "controlled_trial" | "doe_confirmation";
+  scope: string;
+  study_design: string;
+  sample_plan: string;
+  duration: string;
+  success_metrics: string[];
+  stop_criteria: string[];
+  risk_responses: string[];
+  analysis_run_ids: string[];
+  actor: string;
+  occurred_at: string;
+}): Promise<StoredDmaicProject> {
+  return request(`/v1/dmaic-projects/${encodeURIComponent(projectId)}/pilot-plans`, { method: "POST", body: JSON.stringify(payload) });
+}
+
+export function getDmaicPilotPlan(projectId: string, documentId: string): Promise<StoredDmaicPilotPlan> {
+  return request(`/v1/dmaic-projects/${encodeURIComponent(projectId)}/pilot-plans/${encodeURIComponent(documentId)}`);
 }
 
 export type DoeReportTemplate = "standard" | "customer_review" | "regulatory_review";

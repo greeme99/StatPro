@@ -1764,3 +1764,49 @@ class LocalApiContractTests(unittest.TestCase):
         document = selection.json()["solution_selection"]
         self.assertEqual(document["selected_solution"], "Set torque window")
         self.assertEqual(document["analysis_evidence"][0]["run_id"], "spc-imr-improve")
+
+    def test_dmaic_pilot_plan_is_versioned_and_retrievable(self) -> None:
+        created = self.client.post(
+            "/v1/dmaic-projects",
+            json={
+                "project_id": "DMAIC-PILOT-API",
+                "title": "Connector yield",
+                "owner_ref": "quality.engineer",
+            },
+        )
+        self.assertEqual(created.status_code, 201)
+        run = self.client.post(
+            "/v1/analysis-runs/imr",
+            json={"run_id": "spc-imr-pilot", "values": [10.0, 10.1, 9.9, 10.0]},
+        )
+        self.assertEqual(run.status_code, 201)
+        revised = self.client.post(
+            "/v1/dmaic-projects/DMAIC-PILOT-API/pilot-plans",
+            json={
+                "expected_storage_version": 1,
+                "pilot_type": "before_after",
+                "scope": "Line 2 assembly",
+                "study_design": "Before and after comparison",
+                "sample_plan": "30 units per shift",
+                "duration": "Two shifts",
+                "success_metrics": ["Defect rate below 1%"],
+                "stop_criteria": ["Safety incident"],
+                "risk_responses": ["Stop and restore the prior setting"],
+                "analysis_run_ids": ["spc-imr-pilot"],
+                "actor": "quality.engineer",
+                "occurred_at": "2026-11-05T10:10:00+09:00",
+            },
+        )
+        self.assertEqual(revised.status_code, 201)
+        self.assertEqual(revised.json()["storage_version"], 2)
+        reference = revised.json()["project"]["pilot_plan"]
+        self.assertEqual(reference["revision"], 1)
+
+        plan = self.client.get(
+            "/v1/dmaic-projects/DMAIC-PILOT-API/pilot-plans/"
+            f"{reference['document_id']}"
+        )
+        self.assertEqual(plan.status_code, 200)
+        document = plan.json()["pilot_plan"]
+        self.assertEqual(document["pilot_type"], "before_after")
+        self.assertEqual(document["analysis_evidence"][0]["run_id"], "spc-imr-pilot")
