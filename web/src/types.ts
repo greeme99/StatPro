@@ -120,6 +120,49 @@ export type QualityMetricPage = {
   next_after: string | null;
 };
 
+export type DefectCategory = {
+  category: string;
+  defect_count: number;
+  opportunity_count: number;
+  unit_loss: number;
+  severity: number;
+};
+
+export type DefectAnalysisSnapshot = {
+  analysis_id: string;
+  title: string;
+  process_name: string;
+  period: string;
+  owner_ref: string;
+  revision: number;
+  parent_digest: string | null;
+  digest: string;
+  source: null | { check_sheet_id: string; check_sheet_etag: string; check_sheet_digest: string };
+  categories: DefectCategory[];
+};
+
+export type DefectAnalysisSummary = {
+  total_defects: number;
+  total_opportunities: number;
+  dpmo: number;
+  estimated_loss: number;
+  top_risk_category: string;
+  categories: Array<DefectCategory & { dpmo: number; estimated_loss: number; risk_score: number }>;
+};
+
+export type StoredDefectAnalysis = {
+  analysis_id: string;
+  storage_version: number;
+  etag: string;
+  analysis: DefectAnalysisSnapshot;
+  summary: DefectAnalysisSummary;
+};
+
+export type DefectAnalysisPage = {
+  items: StoredDefectAnalysis[];
+  next_after: string | null;
+};
+
 export type DmaicDocumentReference = {
   document_type: string;
   document_id: string;

@@ -73,6 +73,15 @@ from statpro.application.reports import (
     export_doe_report_zip,
     render_doe_report_html,
 )
+from statpro.defect_analysis import (
+    DefectAnalysisInputError,
+    DefectAnalysisSnapshot,
+    DefectCategory,
+    DefectSource,
+    create_defect_analysis,
+    revise_defect_analysis,
+    summarize_defect_analysis,
+)
 from statpro.dmaic import (
     DmaicCharter,
     DmaicInputError,
@@ -163,6 +172,7 @@ DMAIC_PILOT_PLANS = "dmaic-pilot-plans"
 SPC_CHECK_SHEETS = "spc-check-sheets"
 SPC_FISHBONE_DIAGRAMS = "spc-fishbone-diagrams"
 QUALITY_METRICS = "quality-metrics"
+DEFECT_ANALYSES = "defect-analyses"
 RunId = Annotated[str, Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")]
 
 
@@ -422,6 +432,29 @@ class CreateQualityMetricRequest(ApiModel):
     lower_critical: float | None = None
     upper_warning: float | None = None
     upper_critical: float | None = None
+
+
+class DefectCategoryRequest(ApiModel):
+    category: str = Field(min_length=1, max_length=160)
+    defect_count: int = Field(ge=0)
+    opportunity_count: int = Field(ge=1)
+    unit_loss: float = Field(default=0.0, ge=0.0)
+    severity: int = Field(default=1, ge=1, le=10)
+
+
+class CreateDefectAnalysisRequest(ApiModel):
+    analysis_id: RunId
+    title: str = Field(min_length=1, max_length=200)
+    process_name: str = Field(min_length=1, max_length=200)
+    period: str = Field(min_length=1, max_length=80)
+    owner_ref: str = Field(min_length=1, max_length=128)
+    source_check_sheet_id: RunId | None = None
+    categories: list[DefectCategoryRequest] = Field(min_length=1, max_length=200)
+
+
+class ReviseDefectAnalysisRequest(CreateDefectAnalysisRequest):
+    analysis_id: RunId | None = None
+    expected_storage_version: int = Field(ge=1)
 
 
 class StoredRunResponse(ApiModel):
@@ -1459,6 +1492,73 @@ def _check_sheet_response(
     )
 
 
+def _load_defect_analysis(
+    repository: DocumentRepository, analysis_id: str
+) -> tuple[StoredDocument, DefectAnalysisSnapshot]:
+    stored = repository.load(DEFECT_ANALYSES, analysis_id)
+    try:
+        analysis = DefectAnalysisSnapshot.from_dict(stored.document["analysis"])
+    except (KeyError, TypeError, ValueError, DomainInputError) as error:
+        raise DocumentStoreError(
+            f"Stored defect analysis {analysis_id} does not match its owned format."
+        ) from error
+    return stored, analysis
+
+
+def _save_defect_analysis(
+    repository: DocumentRepository,
+    analysis: DefectAnalysisSnapshot,
+    *,
+    expected_version: int,
+) -> StoredDocument:
+    return repository.save(
+        DEFECT_ANALYSES,
+        analysis.analysis_id,
+        {"kind": "defect_analysis", "analysis_id": analysis.analysis_id,
+         "analysis": analysis.to_dict()},
+        expected_version=expected_version,
+    )
+
+
+def _defect_response(stored: StoredDocument, analysis: DefectAnalysisSnapshot) -> dict[str, Any]:
+    return {
+        "analysis_id": stored.key,
+        "storage_version": stored.storage_version,
+        "etag": stored.etag,
+        "analysis": analysis.to_dict(),
+        "summary": summarize_defect_analysis(analysis),
+    }
+
+
+def _defect_source_and_categories(
+    repository: DocumentRepository,
+    source_sheet_id: str | None,
+    category_requests: list[DefectCategoryRequest],
+) -> tuple[DefectSource | None, tuple[DefectCategory, ...]]:
+    categories = tuple(
+        DefectCategory(
+            category=item.category, defect_count=item.defect_count,
+            opportunity_count=item.opportunity_count, unit_loss=item.unit_loss,
+            severity=item.severity,
+        ) for item in category_requests
+    )
+    if source_sheet_id is None:
+        return None, categories
+    stored, sheet = _load_check_sheet(repository, source_sheet_id)
+    expected = {
+        row["category"]: row["count"]
+        for row in summarize_check_sheet(sheet).tables["frequencies"]
+    }
+    supplied = {item.category.strip(): item.defect_count for item in categories}
+    if supplied != expected:
+        raise DefectAnalysisInputError(
+            "source_count_mismatch",
+            "Category defect counts must exactly match the referenced Check Sheet revision.",
+            "categories",
+        )
+    return DefectSource(sheet.sheet_id, stored.etag, sheet.digest), categories
+
+
 def _load_fishbone(
     repository: DocumentRepository, diagram_id: str
 ) -> tuple[StoredDocument, FishboneSnapshot]:
@@ -2481,6 +2581,69 @@ def create_app(
             } for item in page],
             "next_after": page[-1].key if has_more and page else None,
         }
+
+    @app.post("/v1/defect-analyses", status_code=201)
+    def create_defect_analysis_document(
+        request: CreateDefectAnalysisRequest, response: Response
+    ) -> dict[str, Any]:
+        source, categories = _defect_source_and_categories(
+            repository, request.source_check_sheet_id, request.categories
+        )
+        analysis = create_defect_analysis(
+            analysis_id=request.analysis_id, title=request.title,
+            process_name=request.process_name, period=request.period,
+            owner_ref=request.owner_ref, categories=categories, source=source,
+        )
+        stored = _save_defect_analysis(repository, analysis, expected_version=0)
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _defect_response(stored, analysis)
+
+    @app.get("/v1/defect-analyses/{analysis_id}")
+    def get_defect_analysis_document(
+        analysis_id: RunId, response: Response
+    ) -> dict[str, Any]:
+        stored, analysis = _load_defect_analysis(repository, analysis_id)
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _defect_response(stored, analysis)
+
+    @app.put("/v1/defect-analyses/{analysis_id}")
+    def revise_defect_analysis_document(
+        analysis_id: RunId,
+        request: ReviseDefectAnalysisRequest,
+        response: Response,
+    ) -> dict[str, Any]:
+        _stored, previous = _load_defect_analysis(repository, analysis_id)
+        if request.analysis_id is not None and request.analysis_id != analysis_id:
+            raise DefectAnalysisInputError(
+                "analysis_id_mismatch", "Body analysis_id must match the path.", "analysis_id"
+            )
+        source, categories = _defect_source_and_categories(
+            repository, request.source_check_sheet_id, request.categories
+        )
+        analysis = revise_defect_analysis(
+            previous, title=request.title, process_name=request.process_name,
+            period=request.period, owner_ref=request.owner_ref,
+            categories=categories, source=source,
+        )
+        stored = _save_defect_analysis(
+            repository, analysis, expected_version=request.expected_storage_version
+        )
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _defect_response(stored, analysis)
+
+    @app.get("/v1/defect-analyses")
+    def list_defect_analyses(
+        limit: Annotated[int, Query(ge=1, le=100)] = 50,
+        after: Annotated[str | None, Query(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")] = None,
+    ) -> dict[str, Any]:
+        stored = repository.list_documents(DEFECT_ANALYSES, after=after, limit=limit + 1)
+        has_more = len(stored) > limit
+        page = stored[:limit]
+        items = []
+        for item in page:
+            analysis = DefectAnalysisSnapshot.from_dict(item.document["analysis"])
+            items.append(_defect_response(item, analysis))
+        return {"items": items, "next_after": page[-1].key if has_more and page else None}
 
     @app.post(
         "/v1/worksheets/import-csv",

@@ -37,6 +37,21 @@ describe("StatPro UI", () => {
     expect(screen.getByRole("link", { name: "실험계획법 (DOE)" })).toBeInTheDocument();
   });
 
+  it("renders the revisioned defect analysis workspace", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const payload = String(input).endsWith("/health")
+        ? { ok: true, engine_version: "0.6.0", local_only: true }
+        : { items: [], next_after: null };
+      return new Response(JSON.stringify(payload), { status: 200 });
+    });
+    render(<MemoryRouter initialEntries={["/defects"]}><App /></MemoryRouter>);
+
+    expect(await screen.findByRole("heading", { name: "결함 분석 (Defect Analysis) 작업공간" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "새 결함 분석" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "범주 추가" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "결함 분석 (Defect Analysis)" })).toHaveAttribute("href", "/defects");
+  });
+
   it("renders the process-based home with workspace workflows", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 }));
     render(<MemoryRouter initialEntries={["/home"]}><App /></MemoryRouter>);

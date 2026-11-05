@@ -550,6 +550,20 @@ dd { margin: var(--space-0); }
 .quality-inline-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: var(--grid-gap); }
 .quality-thresholds { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--grid-gap); margin: 0; padding: var(--space-4); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-lg); }
 .quality-thresholds legend { padding: 0 var(--space-2); font-weight: 700; }
+.defect-workspace { display: grid; gap: var(--space-6); }
+.defect-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: var(--grid-gap); align-items: start; }
+.defect-form { display: grid; gap: var(--space-5); }
+.defect-form > header, .defect-category-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4); }
+.defect-form h3, .defect-form p, .defect-category-heading h3, .defect-category-heading p { margin: 0; }
+.defect-document-list { display: grid; gap: var(--space-2); }
+.defect-document-list button { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); width: 100%; padding: var(--space-3); color: var(--color-text-primary); text-align: left; background: var(--color-bg-surface); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-md); cursor: pointer; }
+.defect-document-list button.is-selected { color: var(--color-action); background: var(--color-bg-selected); border-color: var(--color-action); }
+.defect-document-list button span:first-child { display: grid; gap: var(--space-1); }
+.defect-document-list small { color: var(--color-text-secondary); }
+.defect-category-table { display: grid; gap: var(--space-2); overflow-x: auto; }
+.defect-category-row { display: grid; grid-template-columns: minmax(10rem, 2fr) repeat(4, minmax(6rem, 1fr)) var(--touch-target); gap: var(--space-2); align-items: center; min-width: 48rem; }
+.defect-category-row.is-heading { color: var(--color-text-secondary); font-size: var(--font-caption-size); font-weight: 700; }
+.defect-category-row input { width: 100%; min-height: var(--control-height); padding: var(--space-2) var(--space-3); color: var(--color-text-primary); background: var(--color-bg-surface); border: var(--border-width) solid var(--color-border-strong); border-radius: var(--radius-md); }
 @media (max-width: 1023px) {
   .check-sheet-grid { grid-template-columns: 1fr; }
   .check-sheet-status { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -560,6 +574,7 @@ dd { margin: var(--space-0); }
   .quality-process-rail, .quality-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .quality-layout { grid-template-columns: 1fr; }
   .quality-source-form { position: static; }
+  .defect-layout { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 1439px) {

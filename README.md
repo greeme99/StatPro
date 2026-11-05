@@ -11,6 +11,7 @@
 - **데이터·실행 관리**: CSV Dataset snapshot, revision Worksheet, Analysis Run, ETag/낙관적 동시성, cursor paging, ResultBundle
 - **품질 도구와 DMAIC 연결**: 체크 시트, 일반 파레토, 특성요인도, 홈 기반 DMAIC 작업 흐름과 학습 리소스
 - **품질 대시보드**: 저장된 ResultBundle의 수치 경로를 불변 지표 스냅샷으로 연결하고 상태·담당·검토 주기·원본 Run 증거를 함께 표시
+- **결함 분석**: 체크 시트 개정 근거 또는 수동 입력에서 범주별 결함·검사 기회·단위 손실·심각도를 기록하고 DPMO·손실·위험 우선순위를 불변 개정으로 보존
 
 제품 웹 UI의 표준 흐름은 `홈(Home) → 작업공간(Workspace) → 작업 흐름(Workflow) → 데이터 입력(Input) → 분석 실행(Run) → 결과 검토(Review) → 결과 출력(Export)`입니다. 메뉴와 화면 표기는 한국어를 우선하고 필요한 경우 영어를 괄호로 병기합니다.
 
@@ -45,7 +46,7 @@ npm run dev -- --host 127.0.0.1
 
 API 문서: <http://127.0.0.1:8765/docs> · 웹 UI: <http://127.0.0.1:5173>
 
-주요 화면 경로는 `/home`, `/data`, `/doe`, `/spc`, `/fmea`, `/quality`, `/home/dmaic`, `/home/learning`입니다. `/api` 요청은 loopback API로 프록시됩니다.
+주요 화면 경로는 `/home`, `/data`, `/doe`, `/spc`, `/fmea`, `/quality`, `/defects`, `/home/dmaic`, `/home/learning`입니다. `/api` 요청은 loopback API로 프록시됩니다.
 
 ## 결과와 내보내기
 
@@ -63,7 +64,7 @@ cd ..
 python tools\oss_gate.py --check
 ```
 
-현재 기준 검증 결과는 Python 234개, 웹 76개 테스트 통과, 웹 빌드 통과, OSS 게이트 통과입니다. 전체 Ruff 실행에는 기존 코드의 11개 비관련 lint 항목이 남아 있으므로 새 변경은 대상 파일에 대해 별도 검사하고 기존 부채는 후속 정리 항목으로 추적합니다.
+현재 기준 검증 결과는 Python 254개와 웹 85개 테스트 통과, 웹 빌드 통과, OSS 게이트 통과입니다. 전체 Ruff 실행에는 기존 코드의 15개 비관련 lint 항목이 남아 있으므로 새 변경은 대상 파일에 대해 별도 검사하고 기존 부채는 후속 정리 항목으로 추적합니다.
 
 차트 엔진은 제품 런타임에서 Recharts를 사용합니다. ECharts 6.1.0은 `web/benchmarks/chart-engines/`의 격리된 성능 비교에만 존재하며 제품 코드로 가져오지 않습니다. 근거는 [브라우저 벤치마크](docs/evidence/chart-engine-browser-benchmark.json), [번들 벤치마크](docs/evidence/chart-engine-bundle-benchmark.json)에 보존합니다.
 

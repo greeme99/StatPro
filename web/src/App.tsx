@@ -40,6 +40,7 @@ import { CheckSheetWorkspacePage } from "./pages/CheckSheetWorkspacePage";
 import { ParetoWorkspacePage } from "./pages/ParetoWorkspacePage";
 import { FishboneWorkspacePage } from "./pages/FishboneWorkspacePage";
 import { QualityDashboardPage } from "./pages/QualityDashboardPage";
+import { DefectAnalysisPage } from "./pages/DefectAnalysisPage";
 
 export default function App() {
   return (
@@ -72,6 +73,7 @@ export default function App() {
         <Route path="/fmea" element={<FmeaListPage />} />
         <Route path="/fmea/:studyId" element={<FmeaStudyPage />} />
         <Route path="/quality" element={<QualityDashboardPage />} />
+        <Route path="/defects" element={<DefectAnalysisPage />} />
         <Route path="/home" element={<MenuPreviewPage />} />
         <Route path="/home/dmaic" element={<DmaicGuidePreviewPage />} />
         <Route path="/home/dmaic/define" element={<DmaicDefineWorkspacePage />} />

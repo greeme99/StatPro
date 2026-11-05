@@ -58,6 +58,7 @@ class LocalApiContractTests(unittest.TestCase):
         self.assertIn("/v1/spc/check-sheets", openapi.json()["paths"])
         self.assertIn("/v1/spc/fishbone-diagrams", openapi.json()["paths"])
         self.assertIn("/v1/quality-metrics", openapi.json()["paths"])
+        self.assertIn("/v1/defect-analyses", openapi.json()["paths"])
 
     def test_quality_metric_snapshot_preserves_the_stored_run_evidence(self) -> None:
         run = self.client.post(
@@ -160,6 +161,150 @@ class LocalApiContractTests(unittest.TestCase):
             },
         )
         self.assertEqual(stale.status_code, 409)
+
+    def test_defect_analysis_revisions_capture_check_sheet_evidence(self) -> None:
+        sheet = self.client.post(
+            "/v1/spc/check-sheets",
+            json={
+                "sheet_id": "defect-source",
+                "title": "조립 불량 기록",
+                "process_name": "조립 1라인",
+                "category_label": "불량 유형",
+            },
+        )
+        first_record = self.client.post(
+            "/v1/spc/check-sheets/defect-source/records",
+            json={
+                "expected_storage_version": sheet.json()["storage_version"],
+                "record_id": "scratch-001",
+                "category": "스크래치",
+                "count": 3,
+            },
+        )
+        second_record = self.client.post(
+            "/v1/spc/check-sheets/defect-source/records",
+            json={
+                "expected_storage_version": first_record.json()["storage_version"],
+                "record_id": "contamination-001",
+                "category": "오염",
+                "count": 1,
+            },
+        )
+        created = self.client.post(
+            "/v1/defect-analyses",
+            json={
+                "analysis_id": "assembly-loss",
+                "title": "조립 손실 우선순위",
+                "process_name": "조립 1라인",
+                "period": "2026-W45",
+                "owner_ref": "quality.engineer",
+                "source_check_sheet_id": "defect-source",
+                "categories": [
+                    {
+                        "category": "스크래치",
+                        "defect_count": 3,
+                        "opportunity_count": 1000,
+                        "unit_loss": 1200,
+                        "severity": 8,
+                    },
+                    {
+                        "category": "오염",
+                        "defect_count": 1,
+                        "opportunity_count": 1000,
+                        "unit_loss": 500,
+                        "severity": 4,
+                    },
+                ],
+            },
+        )
+
+        self.assertEqual(second_record.status_code, 200)
+        self.assertEqual(created.status_code, 201)
+        self.assertEqual(created.json()["analysis"]["revision"], 1)
+        self.assertEqual(
+            created.json()["analysis"]["source"]["check_sheet_etag"],
+            second_record.json()["etag"],
+        )
+        self.assertEqual(created.json()["summary"]["total_defects"], 4)
+        self.assertEqual(created.json()["summary"]["dpmo"], 2000.0)
+        self.assertEqual(
+            created.json()["summary"]["top_risk_category"], "스크래치"
+        )
+
+        revised = self.client.put(
+            "/v1/defect-analyses/assembly-loss",
+            json={
+                "expected_storage_version": created.json()["storage_version"],
+                "title": "조립 손실 우선순위 - 검토",
+                "process_name": "조립 1라인",
+                "period": "2026-W45",
+                "owner_ref": "quality.manager",
+                "source_check_sheet_id": "defect-source",
+                "categories": [
+                    {
+                        "category": "스크래치",
+                        "defect_count": 3,
+                        "opportunity_count": 1200,
+                        "unit_loss": 1200,
+                        "severity": 8,
+                    },
+                    {
+                        "category": "오염",
+                        "defect_count": 1,
+                        "opportunity_count": 1200,
+                        "unit_loss": 500,
+                        "severity": 4,
+                    },
+                ],
+            },
+        )
+        stale = self.client.put(
+            "/v1/defect-analyses/assembly-loss",
+            json={
+                "expected_storage_version": created.json()["storage_version"],
+                "title": "stale",
+                "process_name": "조립 1라인",
+                "period": "2026-W45",
+                "owner_ref": "quality.manager",
+                "categories": [
+                    {
+                        "category": "스크래치",
+                        "defect_count": 3,
+                        "opportunity_count": 1200,
+                    }
+                ],
+            },
+        )
+        mismatch = self.client.post(
+            "/v1/defect-analyses",
+            json={
+                "analysis_id": "bad-source-count",
+                "title": "불일치",
+                "process_name": "조립 1라인",
+                "period": "2026-W45",
+                "owner_ref": "quality.engineer",
+                "source_check_sheet_id": "defect-source",
+                "categories": [
+                    {
+                        "category": "스크래치",
+                        "defect_count": 2,
+                        "opportunity_count": 1000,
+                    }
+                ],
+            },
+        )
+        listed = self.client.get("/v1/defect-analyses")
+
+        self.assertEqual(revised.status_code, 200)
+        self.assertEqual(revised.json()["analysis"]["revision"], 2)
+        self.assertEqual(
+            revised.json()["analysis"]["parent_digest"],
+            created.json()["analysis"]["digest"],
+        )
+        self.assertEqual(stale.status_code, 409)
+        self.assertEqual(mismatch.status_code, 422)
+        self.assertEqual(listed.status_code, 200)
+        self.assertEqual(listed.json()["items"][0]["analysis_id"], "assembly-loss")
 
     def test_fishbone_causes_preserve_revision_and_evidence_traceability(self) -> None:
         created = self.client.post(

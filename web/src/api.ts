@@ -1,4 +1,4 @@
-import type { ActionPriorityPolicyPage, ApiError, CellValue, DmaicProjectPage, FmeaStudyPage, FmeaStudyReport, QualityMetricPage, StoredActionPriorityPolicy, StoredCheckSheet, StoredDmaicCharter, StoredDmaicMeasurementPlan, StoredDmaicPilotPlan, StoredDmaicProject, StoredDmaicRootCauseAnalysis, StoredDmaicSolutionSelection, StoredFishbone, StoredFmeaStudy, StoredQualityMetric, RunPage, StoredRun, StoredWorksheet, WorksheetPage } from "./types";
+import type { ActionPriorityPolicyPage, ApiError, CellValue, DefectAnalysisPage, DmaicProjectPage, FmeaStudyPage, FmeaStudyReport, QualityMetricPage, StoredActionPriorityPolicy, StoredCheckSheet, StoredDefectAnalysis, StoredDmaicCharter, StoredDmaicMeasurementPlan, StoredDmaicPilotPlan, StoredDmaicProject, StoredDmaicRootCauseAnalysis, StoredDmaicSolutionSelection, StoredFishbone, StoredFmeaStudy, StoredQualityMetric, RunPage, StoredRun, StoredWorksheet, WorksheetPage } from "./types";
 
 const API_BASE = import.meta.env.VITE_STATPRO_API_URL ?? "/api";
 
@@ -58,6 +58,28 @@ export function createQualityMetric(payload: {
   upper_critical?: number | null;
 }): Promise<StoredQualityMetric> {
   return request("/v1/quality-metrics", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export type DefectAnalysisPayload = {
+  analysis_id?: string;
+  title: string;
+  process_name: string;
+  period: string;
+  owner_ref: string;
+  source_check_sheet_id?: string | null;
+  categories: Array<{ category: string; defect_count: number; opportunity_count: number; unit_loss: number; severity: number }>;
+};
+
+export function listDefectAnalyses(limit = 50): Promise<DefectAnalysisPage> {
+  return request(`/v1/defect-analyses?limit=${limit}`);
+}
+
+export function createDefectAnalysis(payload: DefectAnalysisPayload & { analysis_id: string }): Promise<StoredDefectAnalysis> {
+  return request("/v1/defect-analyses", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export function reviseDefectAnalysis(analysisId: string, payload: DefectAnalysisPayload & { expected_storage_version: number }): Promise<StoredDefectAnalysis> {
+  return request(`/v1/defect-analyses/${encodeURIComponent(analysisId)}`, { method: "PUT", body: JSON.stringify(payload) });
 }
 
 export function listDmaicProjects(limit = 50): Promise<DmaicProjectPage> {

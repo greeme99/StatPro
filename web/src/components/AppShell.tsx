@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Activity, BarChart3, Calculator, Database, FileText, FileWarning, FlaskConical, Gauge, HelpCircle, Home, Moon, PanelLeftClose, PanelLeftOpen, Sun } from "lucide-react";
+import { Activity, BarChart3, Bug, Calculator, Database, FileText, FileWarning, FlaskConical, Gauge, HelpCircle, Home, Moon, PanelLeftClose, PanelLeftOpen, Sun } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { getHealth } from "../api";
 
@@ -10,6 +10,7 @@ const navigation = [
   { to: "/spc", label: "통계적 공정관리 (SPC)", icon: BarChart3 },
   { to: "/fmea", label: "고장 형태 및 영향 분석 (FMEA)", icon: FileWarning },
   { to: "/quality", label: "품질 대시보드 (Quality Dashboard)", icon: Gauge },
+  { to: "/defects", label: "결함 분석 (Defect Analysis)", icon: Bug },
   { to: "/catalog/reports", label: "결과 및 보고서 (Results & Reports)", icon: FileText },
   { to: "/catalog/tools", label: "계산 및 도우미 (Calculators & Helpers)", icon: Calculator },
   { to: "/catalog/help", label: "도움말 (Help)", icon: HelpCircle },

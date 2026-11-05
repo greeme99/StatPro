@@ -1,7 +1,7 @@
 {
   "bomFormat": "CycloneDX",
   "specVersion": "1.5",
-  "serialNumber": "urn:uuid:79d3bb0e-67e1-50b4-ab9a-ce3b95826862",
+  "serialNumber": "urn:uuid:842e84df-6960-594f-a152-f719c63bad4d",
   "version": 1,
   "metadata": {
     "component": {
@@ -13,7 +13,7 @@
     "properties": [
       {
         "name": "statpro:npm-lock-sha256",
-        "value": "79d3bb0e67e100b45b9ace3b95826862d253481fcc69dd1660e7e03f48511861"
+        "value": "842e84df6960794f6152f719c63bad4d260cd577aa62966fd024098fdfc96a65"
       },
       {
         "name": "statpro:python-resolution",
