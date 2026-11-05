@@ -1,6 +1,6 @@
 import { AlertTriangle, ArrowLeft, CheckCircle2, ClipboardCheck, FilePlus2, GitBranch, Link2, ShieldAlert, Upload, Wrench } from "lucide-react";
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { addFmeaAction, addFmeaControlPlanItem, addFmeaFailure, addFmeaProcessCharacteristic, addFmeaProcessStep, approveFmeaStudy, attachActionPriorityPolicy, completeFmeaAction, createActionPriorityPolicy, getFmeaStudy, getFmeaStudyReport, linkFmeaControlPlanAnalysisEvidence, listActionPriorityPolicies, submitFmeaForReview } from "../api";
 import { Button } from "../components/Button";
 import type { FailureAnalysis, FmeaStudyReport, RecommendedAction, StoredActionPriorityPolicy, StoredFmeaStudy } from "../types";
@@ -20,6 +20,9 @@ const stepTitles: Record<string, string> = {
 
 export function FmeaStudyPage() {
   const { studyId = "" } = useParams();
+  const [search] = useSearchParams();
+  const handoffRunId = search.get("analysisRunId");
+  const handoffDigest = search.get("inputDigest");
   const itemIdRef = useRef<HTMLInputElement>(null);
   const [stored, setStored] = useState<StoredFmeaStudy | null>(null);
   const [policies, setPolicies] = useState<StoredActionPriorityPolicy[]>([]);
@@ -355,6 +358,7 @@ export function FmeaStudyPage() {
         <div><span className="eyebrow">{study.study_type === "process" ? "PROCESS FMEA" : "DESIGN FMEA"}</span><h1>{study.name}</h1><p>{study.study_id} · {study.standard_version} · revision {study.revision}</p></div>
         <div className="result-actions"><span className={`status-badge status-${study.status}`}>{statusLabels[study.status]}</span>{study.status === "draft" && <><Button onClick={() => setShowForm((value) => !value)} icon={<FilePlus2 />}>{showForm ? "입력 닫기" : "고장 모드 추가"}</Button><Button onClick={() => setShowActionForm((value) => !value)} disabled={study.items.length === 0} icon={<Wrench />}>{showActionForm ? "조치 입력 닫기" : "권고조치 추가"}</Button><Button variant="primary" disabled={study.items.length === 0} loading={busy} onClick={handleSubmitReview} icon={<ClipboardCheck />}>검토 요청</Button></>}{study.status === "in_review" && <Button onClick={() => setShowApprovalForm((value) => !value)} icon={<CheckCircle2 />}>{showApprovalForm ? "승인 닫기" : "승인 서명"}</Button>}</div>
       </section>
+      {handoffRunId && <section className="spc-evidence-note" aria-label="전달받은 SPC 실행 증거"><Link2 aria-hidden="true" /><div><strong>SPC 실행 증거가 연결 대기 중입니다</strong><p><strong>{handoffRunId}</strong>{handoffDigest ? <> · 입력 다이제스트 <span className="digest">{handoffDigest}</span></> : null}. 공정흐름과 Control Plan 항목을 준비한 뒤 <strong>SPC/MSA 결과 연결</strong>에서 저장하면 서버가 실행 결과를 재검증합니다.</p></div></section>}
       {error && <div className="error-banner" role="alert"><AlertTriangle aria-hidden="true" /><p>{error}</p></div>}
       {showApprovalForm && study.status === "in_review" && <form className="panel traceability-form" onSubmit={handleApprove}>
         <label className="field">승인자 ID<input name="user_id" autoComplete="username" required /></label>
@@ -430,7 +434,7 @@ export function FmeaStudyPage() {
         </form>}
         {traceEditor === "evidence" && <form className="traceability-form" onSubmit={handleLinkAnalysisEvidence}>
           <label className="field">Control Plan 항목<select name="control_id" required defaultValue=""><option value="" disabled>항목 선택</option>{controlPlanItems.map((item) => <option key={item.control_id} value={item.control_id}>{item.control_id}</option>)}</select></label>
-          <label className="field">저장된 SPC/MSA Run ID<input name="run_id" required /></label>
+          <div className="field"><label htmlFor="spc-run-id">저장된 SPC/MSA Run ID</label><input id="spc-run-id" name="run_id" required defaultValue={handoffRunId ?? ""} aria-describedby="spc-run-id-help" /><small id="spc-run-id-help">{handoffRunId ? "SPC 결과 화면에서 전달된 실행 ID입니다. 저장 시 서버가 결과 다이제스트를 다시 검증합니다." : "분석 결과 화면에서 실행 ID를 전달하거나 직접 입력하세요."}</small></div>
           <label className="field">연결 담당자<input name="actor" required defaultValue="quality.engineer" /></label>
           <div className="form-actions"><Button type="submit" loading={busy}>실행 결과 연결</Button></div>
         </form>}

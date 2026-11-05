@@ -1,6 +1,6 @@
-import { AlertTriangle, ArrowRight, FilePlus2, FileWarning } from "lucide-react";
+import { AlertTriangle, ArrowRight, FilePlus2, FileWarning, ShieldCheck } from "lucide-react";
 import { type FormEvent, useEffect, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { createFmeaStudy, listFmeaStudies } from "../api";
 import { Button } from "../components/Button";
 import type { StoredFmeaStudy } from "../types";
@@ -14,6 +14,12 @@ const statusLabels = {
 
 export function FmeaListPage() {
   const navigate = useNavigate();
+  const [search] = useSearchParams();
+  const analysisRunId = search.get("analysisRunId");
+  const inputDigest = search.get("inputDigest");
+  const handoffSearch = analysisRunId
+    ? `?analysisRunId=${encodeURIComponent(analysisRunId)}${inputDigest ? `&inputDigest=${encodeURIComponent(inputDigest)}` : ""}`
+    : "";
   const idRef = useRef<HTMLInputElement>(null);
   const [studies, setStudies] = useState<StoredFmeaStudy[]>([]);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
@@ -48,7 +54,7 @@ export function FmeaListPage() {
         actor: String(form.get("actor") ?? "").trim(),
         occurred_at: new Date().toISOString(),
       });
-      navigate(`/fmea/${created.study_id}`);
+      navigate(`/fmea/${created.study_id}${handoffSearch}`);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "FMEA Study를 만들지 못했습니다.");
     } finally {
@@ -62,6 +68,8 @@ export function FmeaListPage() {
         <div><span className="eyebrow">RISK WORKBENCH</span><h1>FMEA Study</h1><p>고장 모드와 위험평가를 revision 단위로 기록하고 검토 상태를 관리합니다.</p></div>
       </section>
 
+      {analysisRunId && <section className="spc-evidence-note" aria-label="SPC 실행 증거 전달"><ShieldCheck aria-hidden="true" /><div><strong>SPC 실행 증거를 전달받았습니다</strong><p><strong>{analysisRunId}</strong>{inputDigest ? <> · 입력 다이제스트 <span className="digest">{inputDigest}</span></> : null}. 연구를 열거나 만든 다음 <strong>SPC/MSA 결과 연결</strong>에서 이 실행 ID를 선택하면 관리계획서에 저장·재검증됩니다.</p></div></section>}
+
       {error && <div className="error-banner" role="alert"><AlertTriangle aria-hidden="true" /><p>{error}</p></div>}
 
       <section className="fmea-list-layout">
@@ -70,7 +78,7 @@ export function FmeaListPage() {
           {state === "loading" && <div className="state-message"><p>FMEA 목록을 불러오는 중입니다.</p></div>}
           {state === "error" && <div className="state-message is-error"><AlertTriangle aria-hidden="true" /><h3>목록을 불러오지 못했습니다</h3><p>로컬 API 연결을 확인하세요.</p></div>}
           {state === "ready" && studies.length === 0 && <div className="state-message"><FileWarning aria-hidden="true" /><h3>아직 FMEA Study가 없습니다</h3><p>오른쪽 양식에서 첫 Study를 만드세요.</p></div>}
-          {studies.length > 0 && <div className="table-scroll"><table><thead><tr><th>Study</th><th>Revision</th><th>유형</th><th>상태</th><th>고장 모드</th><th><span className="sr-only">열기</span></th></tr></thead><tbody>{studies.map(({ study }) => <tr key={study.study_id}><td><strong>{study.name}</strong><small className="table-subtitle">{study.study_id}</small></td><td>{study.revision}</td><td>{study.study_type === "process" ? "PFMEA" : "DFMEA"}</td><td><span className={`status-badge status-${study.status}`}>{statusLabels[study.status]}</span></td><td>{study.items.length}</td><td><Link className="text-link" to={`/fmea/${study.study_id}`}>열기 <ArrowRight aria-hidden="true" /></Link></td></tr>)}</tbody></table></div>}
+          {studies.length > 0 && <div className="table-scroll"><table><thead><tr><th>Study</th><th>Revision</th><th>유형</th><th>상태</th><th>고장 모드</th><th><span className="sr-only">열기</span></th></tr></thead><tbody>{studies.map(({ study }) => <tr key={study.study_id}><td><strong>{study.name}</strong><small className="table-subtitle">{study.study_id}</small></td><td>{study.revision}</td><td>{study.study_type === "process" ? "PFMEA" : "DFMEA"}</td><td><span className={`status-badge status-${study.status}`}>{statusLabels[study.status]}</span></td><td>{study.items.length}</td><td><Link className="text-link" to={`/fmea/${study.study_id}${handoffSearch}`}>열기 <ArrowRight aria-hidden="true" /></Link></td></tr>)}</tbody></table></div>}
         </article>
 
         <form className="panel compact-form" onSubmit={handleCreate}>

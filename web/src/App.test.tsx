@@ -336,6 +336,8 @@ describe("StatPro UI", () => {
     expect(screen.getByLabelText("관리도 통계")).toBeInTheDocument();
     expect(screen.getByText("공정이 통계적 관리 상태입니다")).toBeInTheDocument();
     expect(screen.getByText("CL 10.0000")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "현장 조치와 증적 연결" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "FMEA 관리계획 연결" })).toHaveAttribute("href", "/fmea?analysisRunId=imr-result&inputDigest=" + "i".repeat(64));
     await userEvent.click(screen.getByRole("button", { name: "결과 출력" }));
     expect(screen.getByRole("menu", { name: "결과 출력 형식" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: /JSON으로 저장/ })).toBeEnabled();
