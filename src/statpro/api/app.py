@@ -81,8 +81,8 @@ from statpro.dmaic import (
     DmaicProblemDefinition,
     DmaicProject,
     DmaicRootCauseAnalysis,
-    DmaicSolutionSelection,
     DmaicSipocMap,
+    DmaicSolutionSelection,
     DmaicStakeholderAssessment,
     DmaicVoiceOfCustomerStudy,
     create_project,
@@ -91,8 +91,8 @@ from statpro.dmaic import (
     save_pilot_plan,
     save_problem_definition,
     save_root_cause_analysis,
-    save_solution_selection,
     save_sipoc,
+    save_solution_selection,
     save_stakeholder_assessment,
     save_voice_of_customer,
 )
@@ -132,6 +132,7 @@ from statpro.fmea import (
     link_control_plan_analysis_evidence,
     submit_for_review,
 )
+from statpro.quality_dashboard import create_quality_metric_snapshot
 from statpro.quality_tools import (
     CheckSheetSnapshot,
     FishboneSnapshot,
@@ -161,6 +162,7 @@ DMAIC_SOLUTION_SELECTIONS = "dmaic-solution-selections"
 DMAIC_PILOT_PLANS = "dmaic-pilot-plans"
 SPC_CHECK_SHEETS = "spc-check-sheets"
 SPC_FISHBONE_DIAGRAMS = "spc-fishbone-diagrams"
+QUALITY_METRICS = "quality-metrics"
 RunId = Annotated[str, Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")]
 
 
@@ -406,6 +408,20 @@ class GageRrRunRequest(ApiModel):
     run_id: RunId
     records: list[MeasurementRequest]
     study_variation_multiplier: float = 6.0
+
+
+class CreateQualityMetricRequest(ApiModel):
+    metric_id: RunId
+    name: str = Field(min_length=1, max_length=160)
+    unit: str = Field(default="", max_length=32)
+    run_id: RunId
+    value_path: str = Field(min_length=3, max_length=256)
+    refresh_cycle: str = Field(min_length=1, max_length=80)
+    owner_ref: str = Field(min_length=1, max_length=128)
+    lower_warning: float | None = None
+    lower_critical: float | None = None
+    upper_warning: float | None = None
+    upper_critical: float | None = None
 
 
 class StoredRunResponse(ApiModel):
@@ -2404,6 +2420,65 @@ def create_app(
         page = stored[:limit]
         return {
             "items": [_response(item).model_dump() for item in page],
+            "next_after": page[-1].key if has_more and page else None,
+        }
+
+    @app.post("/v1/quality-metrics", status_code=201)
+    def create_quality_metric(
+        request: CreateQualityMetricRequest, response: Response
+    ) -> dict[str, Any]:
+        run = repository.load(ANALYSIS_RUNS, request.run_id)
+        result = run.document.get("result")
+        if not isinstance(result, dict):
+            raise DocumentStoreError(
+                f"Stored analysis Run {request.run_id} does not match its owned format."
+            )
+        metric = create_quality_metric_snapshot(
+            metric_id=request.metric_id,
+            name=request.name,
+            unit=request.unit,
+            run_id=run.key,
+            run_etag=run.etag,
+            result=result,
+            value_path=request.value_path,
+            refresh_cycle=request.refresh_cycle,
+            owner_ref=request.owner_ref,
+            captured_at=datetime.now(UTC).isoformat(),
+            lower_warning=request.lower_warning,
+            lower_critical=request.lower_critical,
+            upper_warning=request.upper_warning,
+            upper_critical=request.upper_critical,
+        )
+        stored = repository.save(
+            QUALITY_METRICS,
+            request.metric_id,
+            {"kind": "quality_metric_snapshot", "metric_id": request.metric_id,
+             "metric": metric.to_dict()},
+            expected_version=0,
+        )
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return {
+            "metric_id": stored.key,
+            "storage_version": stored.storage_version,
+            "etag": stored.etag,
+            "metric": stored.document["metric"],
+        }
+
+    @app.get("/v1/quality-metrics")
+    def list_quality_metrics(
+        limit: Annotated[int, Query(ge=1, le=100)] = 50,
+        after: Annotated[str | None, Query(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")] = None,
+    ) -> dict[str, Any]:
+        stored = repository.list_documents(QUALITY_METRICS, after=after, limit=limit + 1)
+        has_more = len(stored) > limit
+        page = stored[:limit]
+        return {
+            "items": [{
+                "metric_id": item.key,
+                "storage_version": item.storage_version,
+                "etag": item.etag,
+                "metric": item.document["metric"],
+            } for item in page],
             "next_after": page[-1].key if has_more and page else None,
         }
 

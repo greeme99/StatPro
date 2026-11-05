@@ -84,6 +84,42 @@ export type RunPage = {
   next_after: string | null;
 };
 
+export type QualityMetricSnapshot = {
+  metric_id: string;
+  name: string;
+  unit: string;
+  value: number;
+  status: "good" | "warning" | "critical";
+  source: {
+    run_id: string;
+    run_etag: string;
+    analysis_type: string;
+    engine_version: string;
+    input_digest: string;
+    value_path: string;
+  };
+  refresh_cycle: string;
+  owner_ref: string;
+  captured_at: string;
+  lower_warning: number | null;
+  lower_critical: number | null;
+  upper_warning: number | null;
+  upper_critical: number | null;
+  digest: string;
+};
+
+export type StoredQualityMetric = {
+  metric_id: string;
+  storage_version: number;
+  etag: string;
+  metric: QualityMetricSnapshot;
+};
+
+export type QualityMetricPage = {
+  items: StoredQualityMetric[];
+  next_after: string | null;
+};
+
 export type DmaicDocumentReference = {
   document_type: string;
   document_id: string;

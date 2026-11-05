@@ -57,6 +57,70 @@ class LocalApiContractTests(unittest.TestCase):
         )
         self.assertIn("/v1/spc/check-sheets", openapi.json()["paths"])
         self.assertIn("/v1/spc/fishbone-diagrams", openapi.json()["paths"])
+        self.assertIn("/v1/quality-metrics", openapi.json()["paths"])
+
+    def test_quality_metric_snapshot_preserves_the_stored_run_evidence(self) -> None:
+        run = self.client.post(
+            "/v1/analysis-runs/g-chart",
+            json={
+                "run_id": "g-dashboard-source",
+                "opportunities_between_events": [8, 9, 10],
+            },
+        )
+        created = self.client.post(
+            "/v1/quality-metrics",
+            json={
+                "metric_id": "rare-event-baseline",
+                "name": "희귀사건 평균 간격",
+                "unit": "기회",
+                "run_id": "g-dashboard-source",
+                "value_path": "tables.summary.mean_interval",
+                "refresh_cycle": "주간 검토",
+                "owner_ref": "quality.line-1",
+                "lower_warning": 8.5,
+                "lower_critical": 7.0,
+            },
+        )
+        listed = self.client.get("/v1/quality-metrics")
+
+        self.assertEqual(run.status_code, 201)
+        self.assertEqual(created.status_code, 201)
+        metric = created.json()["metric"]
+        self.assertEqual(metric["value"], 9.0)
+        self.assertEqual(metric["status"], "good")
+        self.assertEqual(metric["source"]["run_id"], "g-dashboard-source")
+        self.assertEqual(metric["source"]["run_etag"], run.json()["etag"])
+        self.assertEqual(
+            metric["source"]["input_digest"], run.json()["result"]["input_digest"]
+        )
+        self.assertEqual(listed.status_code, 200)
+        self.assertEqual(listed.json()["items"][0]["metric_id"], "rare-event-baseline")
+
+        duplicate = self.client.post(
+            "/v1/quality-metrics",
+            json={
+                "metric_id": "rare-event-baseline",
+                "name": "중복",
+                "run_id": "g-dashboard-source",
+                "value_path": "tables.summary.mean_interval",
+                "refresh_cycle": "주간",
+                "owner_ref": "quality.line-1",
+            },
+        )
+        self.assertEqual(duplicate.status_code, 409)
+
+        invalid = self.client.post(
+            "/v1/quality-metrics",
+            json={
+                "metric_id": "invalid-plot-source",
+                "name": "잘못된 소스",
+                "run_id": "g-dashboard-source",
+                "value_path": "plots.chart_points",
+                "refresh_cycle": "주간",
+                "owner_ref": "quality.line-1",
+            },
+        )
+        self.assertEqual(invalid.status_code, 422)
 
     def test_check_sheet_records_are_versioned_and_summarized(self) -> None:
         created = self.client.post(

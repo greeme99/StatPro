@@ -1,4 +1,4 @@
-import type { ActionPriorityPolicyPage, ApiError, CellValue, DmaicProjectPage, FmeaStudyPage, FmeaStudyReport, StoredActionPriorityPolicy, StoredCheckSheet, StoredDmaicCharter, StoredDmaicMeasurementPlan, StoredDmaicPilotPlan, StoredDmaicProject, StoredDmaicRootCauseAnalysis, StoredDmaicSolutionSelection, StoredFishbone, StoredFmeaStudy, RunPage, StoredRun, StoredWorksheet, WorksheetPage } from "./types";
+import type { ActionPriorityPolicyPage, ApiError, CellValue, DmaicProjectPage, FmeaStudyPage, FmeaStudyReport, QualityMetricPage, StoredActionPriorityPolicy, StoredCheckSheet, StoredDmaicCharter, StoredDmaicMeasurementPlan, StoredDmaicPilotPlan, StoredDmaicProject, StoredDmaicRootCauseAnalysis, StoredDmaicSolutionSelection, StoredFishbone, StoredFmeaStudy, StoredQualityMetric, RunPage, StoredRun, StoredWorksheet, WorksheetPage } from "./types";
 
 const API_BASE = import.meta.env.VITE_STATPRO_API_URL ?? "/api";
 
@@ -38,6 +38,26 @@ export function getHealth(): Promise<{ status: string; engine_version: string }>
 
 export function getRun(runId: string): Promise<StoredRun> {
   return request(`/v1/analysis-runs/${encodeURIComponent(runId)}`);
+}
+
+export function listQualityMetrics(limit = 50): Promise<QualityMetricPage> {
+  return request(`/v1/quality-metrics?limit=${limit}`);
+}
+
+export function createQualityMetric(payload: {
+  metric_id: string;
+  name: string;
+  unit: string;
+  run_id: string;
+  value_path: string;
+  refresh_cycle: string;
+  owner_ref: string;
+  lower_warning?: number | null;
+  lower_critical?: number | null;
+  upper_warning?: number | null;
+  upper_critical?: number | null;
+}): Promise<StoredQualityMetric> {
+  return request("/v1/quality-metrics", { method: "POST", body: JSON.stringify(payload) });
 }
 
 export function listDmaicProjects(limit = 50): Promise<DmaicProjectPage> {
