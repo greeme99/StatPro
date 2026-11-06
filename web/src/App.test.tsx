@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -91,6 +91,55 @@ describe("StatPro UI", () => {
     expect(screen.getByRole("button", { name: "사이드 메뉴 보이기" })).toHaveAttribute("aria-expanded", "false");
     expect(screen.getByRole("link", { name: "통계적 공정관리 (SPC)" })).toHaveAttribute("data-tooltip", "통계적 공정관리 (SPC)");
     expect(localStorage.getItem("statpro-sidebar-collapsed")).toBe("true");
+  });
+
+  it("opens the contextual AI Copilot and answers without changing analysis settings", async () => {
+    localStorage.clear();
+    const user = userEvent.setup();
+    render(<MemoryRouter initialEntries={["/analyses/spc/xbar-r"]}><App /></MemoryRouter>);
+
+    await user.click(screen.getByRole("button", { name: "AI Copilot 보이기" }));
+    const panel = screen.getByRole("complementary", { name: "AI Copilot" });
+    expect(panel).toHaveClass("is-open");
+    expect(within(panel).getByText("통계적 공정관리 (SPC)")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "관리한계 설정값을 설명해줘" }));
+    expect(await screen.findByText(/설정값은 데이터 구조와 탐지 목적에 따라 달라집니다/)).toBeInTheDocument();
+    expect(localStorage.getItem("statpro-copilot-open")).toBe("true");
+
+    await user.click(screen.getByRole("button", { name: "AI Copilot 닫기" }));
+    expect(localStorage.getItem("statpro-copilot-open")).toBe("false");
+  });
+
+  it("grounds Copilot answers in the immutable analysis run contract", async () => {
+    const storedRun = {
+      run_id: "copilot-run-001",
+      storage_version: 3,
+      etag: "etag-copilot-run-001",
+      result: {
+        analysis_type: "spc.imr",
+        engine_version: "0.6.0",
+        input_digest: "1234567890abcdef1234567890abcdef",
+        parameters: {}, tables: {}, plots: {}, diagnostics: {},
+        assumptions: ["시간 순서로 관측됨"], warnings: ["표본 수를 확인하세요"], provenance: [],
+      },
+    };
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const payload = String(input).endsWith("/health")
+        ? { ok: true, engine_version: "0.6.0", local_only: true }
+        : storedRun;
+      return new Response(JSON.stringify(payload), { status: 200, headers: { "Content-Type": "application/json" } });
+    });
+    const user = userEvent.setup();
+    render(<MemoryRouter initialEntries={["/runs/copilot-run-001"]}><App /></MemoryRouter>);
+
+    await user.click(await screen.findByRole("button", { name: "AI Copilot 보이기" }));
+    const evidence = await screen.findByRole("region", { name: "현재 근거" });
+    expect(within(evidence).getByText("copilot-run-001")).toBeInTheDocument();
+    expect(within(evidence).getByText(/엔진 0.6.0 · 가정 1개 · 경고 1개/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "이상 신호가 나오면 무엇을 해야 하나요?" }));
+    expect(await screen.findByText(/현재 근거: 실행 copilot-run-001, spc.imr, 엔진 0.6.0, 경고 1개/)).toBeInTheDocument();
   });
 
   it("redirects the retired preview URL to the fixed home URL", async () => {

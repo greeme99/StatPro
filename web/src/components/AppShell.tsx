@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Activity, BarChart3, Bug, Calculator, Database, FileText, FileWarning, FlaskConical, Gauge, HelpCircle, Home, Moon, PanelLeftClose, PanelLeftOpen, Sun } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { getHealth } from "../api";
+import { CopilotPanel } from "./CopilotPanel";
 
 const navigation = [
   { to: "/home", label: "홈 (Home)", icon: Home },
@@ -99,6 +100,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </aside>
       <main id="main-content" className="main-content">{children}</main>
+      <CopilotPanel />
       <div className="viewport-warning" role="alert">
         <Activity aria-hidden="true" />
         <h1>더 넓은 화면이 필요합니다</h1>
