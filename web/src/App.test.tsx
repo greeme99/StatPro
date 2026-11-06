@@ -32,9 +32,24 @@ describe("StatPro UI", () => {
     });
     render(<MemoryRouter initialEntries={["/catalog/reports"]}><App /></MemoryRouter>);
     expect(await screen.findByRole("heading", { name: "결과 및 보고서" })).toBeInTheDocument();
-    expect(screen.getAllByText("구현됨").length).toBeGreaterThan(2);
+    expect(screen.getAllByText("구현됨").length).toBeGreaterThan(3);
+    expect(screen.getByRole("heading", { name: "DOE 그래프·검토 양식" })).toBeInTheDocument();
+    expect(screen.getByText(/지원 Plot의 SVG와 표 CSV·JSON/)).toBeInTheDocument();
     expect(screen.getByText("개발 예정")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "실험계획법 (DOE)" })).toBeInTheDocument();
+  });
+
+  it("separates implemented enterprise FMEA authorization from tenant operations", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      return new Response(JSON.stringify({ items: [] }), { status: 200 });
+    });
+    render(<MemoryRouter initialEntries={["/catalog/help"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "도움말" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "기업 IdP 승인·직무분리" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "기업 IdP 승인·직무분리 기능으로 이동" })).toHaveAttribute("href", "/fmea");
+    expect(screen.getByRole("heading", { name: "운영 tenant·계정 수명주기" })).toBeInTheDocument();
+    expect(screen.getByText("외부 정책 필요")).toBeInTheDocument();
   });
 
   it("renders the revisioned defect analysis workspace", async () => {

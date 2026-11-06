@@ -13,7 +13,8 @@ const catalogs: Record<string, Catalog> = {
       { name: "분석 실행 결과", detail: "저장된 분석 실행의 표, 차트, 진단과 근거를 확인합니다.", status: "구현됨", to: "/" },
       { name: "DOE 표준 보고서", detail: "HTML, JSON, CSV ZIP 내보내기를 제공합니다.", status: "구현됨", to: "/analyses/doe/full-factorial" },
       { name: "SPC 보고서 내보내기", detail: "I-MR·Xbar-R·Xbar-S는 PDF 인쇄·Excel·PNG·SVG를, 나머지는 JSON·CSV를 제공합니다.", status: "구현됨", to: "/spc" },
-      { name: "그래프 이미지·PDF·고객 양식", detail: "규제 또는 고객별 템플릿 요구를 분리해 지원할 예정입니다.", status: "개발 예정" },
+      { name: "DOE 그래프·검토 양식", detail: "지원 Plot의 SVG와 표 CSV·JSON을 묶어 내보내고 표준·고객·규제 검토용 HTML 양식을 선택합니다.", status: "구현됨", to: "/doe" },
+      { name: "PDF·조직 승인 양식", detail: "PDF 파일 생성, 조직별 필수 항목 검증과 전자서명 양식은 별도 확장 범위입니다.", status: "개발 예정" },
     ],
   },
   tools: {
@@ -22,7 +23,8 @@ const catalogs: Record<string, Catalog> = {
     items: [
       { name: "공정능력 분석", detail: "정규 및 경험적 비정규 공정능력 분석을 제공합니다.", status: "구현됨", to: "/spc" },
       { name: "실험 실행 수·설계 선택", detail: "DOE 설계 화면에서 실행 수와 설계 조건을 확인합니다.", status: "구현됨", to: "/analyses/doe/full-factorial" },
-      { name: "분석 선택 가이드", detail: "입력 데이터 특성과 업무 목적에 따라 방법을 안내할 예정입니다.", status: "개발 예정" },
+      { name: "SPC·DOE 선택 가이드", detail: "데이터 유형과 업무 목적에 따라 관리도와 실험설계를 선택하고 해당 작업공간으로 이동합니다.", status: "구현됨", to: "/spc" },
+      { name: "통합 분석 추천", detail: "모든 통계 모듈을 아우르는 자동 방법 추천과 검정력 기반 비교는 후속 범위입니다.", status: "개발 예정" },
     ],
   },
   help: {
@@ -31,7 +33,8 @@ const catalogs: Record<string, Catalog> = {
     items: [
       { name: "단계별 설정", detail: "DOE, SPC, FMEA 설정 화면에서 완료 조건과 검증 메시지를 제공합니다.", status: "구현됨", to: "/analyses/doe/full-factorial" },
       { name: "통계 방법·근거", detail: "각 분석 실행의 근거와 제한사항을 결과 화면에서 확인합니다.", status: "구현됨", to: "/" },
-      { name: "기업 계정 연동·직무분리", detail: "조직의 IdP와 권한 정책이 제공될 때 연동 범위를 확정합니다.", status: "외부 정책 필요" },
+      { name: "기업 IdP 승인·직무분리", detail: "검증된 Entra OIDC claims와 조직 권한 마스터를 교차검증하고 MFA·활성 계정·독립 승인을 실패 폐쇄합니다.", status: "구현됨", to: "/fmea" },
+      { name: "운영 tenant·계정 수명주기", detail: "운영 tenant 등록, 비밀 관리, 조건부 접근과 SCIM 비활성화 연동은 조직 관리자 설정과 실환경 검증이 필요합니다.", status: "외부 정책 필요" },
     ],
   },
 };
@@ -50,7 +53,7 @@ export function FeatureCatalogPage() {
           return <article className="feature-item" key={item.name}>
             <header><Icon aria-hidden="true" /><span className={`delivery-status status-${item.status.replaceAll(" ", "-")}`}>{item.status}</span></header>
             <h2>{item.name}</h2><p>{item.detail}</p>
-            {item.to ? <Link className="text-link" to={item.to}>기능으로 이동 <ExternalLink aria-hidden="true" /></Link> : <p className="catalog-note">현재 분석을 실행할 수 없습니다. 제공 범위가 확정되면 이 메뉴에서 시작합니다.</p>}
+            {item.to ? <Link className="text-link" to={item.to} aria-label={`${item.name} 기능으로 이동`}>기능으로 이동 <ExternalLink aria-hidden="true" /></Link> : <p className="catalog-note">현재 분석을 실행할 수 없습니다. 제공 범위가 확정되면 이 메뉴에서 시작합니다.</p>}
           </article>;
         })}
       </section>
