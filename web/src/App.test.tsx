@@ -151,6 +151,62 @@ describe("StatPro UI", () => {
     expect(screen.getByRole("link", { name: /다음 작업: 고객의 소리/ })).toHaveAttribute("href", "/home/dmaic/voc");
   });
 
+  it("expands DMAIC documents into linked analysis and FMEA decision evidence", async () => {
+    localStorage.setItem("statpro-active-project-id", "DMAIC-LINE-03");
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.endsWith("/health")) {
+        return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      }
+      if (url.endsWith("/measurement-plans/measure-001")) {
+        return new Response(JSON.stringify({
+          document_id: "measure-001", storage_version: 2, etag: "measure-etag",
+          measurement_plan: {
+            document_id: "measure-001", project_id: "DMAIC-LINE-03", revision: 2, digest: "measure-digest",
+            primary_metric: "도금 두께", source_documents: [],
+            analysis_evidence: [{ run_id: "SPC-BASE-01", analysis_type: "spc.xbar_s", run_etag: "run-etag", input_digest: "abcdef1234567890" }],
+          },
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      if (url.endsWith("/control-handoffs/control-001")) {
+        return new Response(JSON.stringify({
+          document_id: "control-001", storage_version: 3, etag: "control-etag",
+          control_handoff: {
+            document_id: "control-001", project_id: "DMAIC-LINE-03", revision: 1, parent_digest: null, digest: "control-digest",
+            monitoring_plan: "Xbar-S 주간 검토", review_frequency: "weekly", effectiveness_criteria: [],
+            reaction_plans: [{ trigger: "관리한계 이탈", action: "라인 정지 및 원인 확인", owner_ref: "quality.lead", escalation_ref: null, response_time: "30분" }],
+            source_documents: [],
+            fmea_control_plan: { study_id: "PFMEA-PLATING", study_etag: "fmea-etag", study_digest: "fmea-digest", control_ids: ["CP-THICKNESS"] },
+            analysis_evidence: [{ run_id: "SPC-CONTROL-01", analysis_type: "spc.xbar_s", run_etag: "control-run-etag", input_digest: "1234567890abcdef" }],
+            actor: "quality.lead", occurred_at: "2026-11-06T09:00:00+09:00",
+          },
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      const payload = { items: [{
+        project_id: "DMAIC-LINE-03", storage_version: 6, etag: "project-etag",
+        project: {
+          project_id: "DMAIC-LINE-03", title: "도금 관리조건 표준화", owner_ref: "quality.lead",
+          sponsor_ref: null, champion_ref: null, department: "품질보증", start_date: "2026-10-01", target_end_date: "2027-01-31",
+          status: "active", revision: 6, parent_digest: null, digest: "project-digest",
+          charter: { document_type: "charter", document_id: "charter-003", revision: 1, digest: "charter-digest" },
+          voice_of_customer: null, sipoc: null, stakeholder_assessment: null, problem_definition: null,
+          measurement_plan: { document_type: "measurement_plan", document_id: "measure-001", revision: 2, digest: "measure-digest" },
+          root_cause_analysis: null, solution_selection: null, pilot_plan: null,
+          control_handoff: { document_type: "control_handoff", document_id: "control-001", revision: 1, digest: "control-digest" },
+        },
+      }], next_after: null };
+      return new Response(JSON.stringify(payload), { status: 200, headers: { "Content-Type": "application/json" } });
+    });
+
+    render(<MemoryRouter initialEntries={["/home/dmaic/project"]}><App /></MemoryRouter>);
+
+    const decisionEvidence = await screen.findByRole("table", { name: "프로젝트 판단 근거" });
+    expect(within(decisionEvidence).getByText(/도금 두께 기준선/)).toBeInTheDocument();
+    expect(within(decisionEvidence).getByRole("link", { name: /spc\.xbar_s.*SPC-BASE-01/ })).toHaveAttribute("href", "/runs/SPC-BASE-01");
+    expect(within(decisionEvidence).getByRole("link", { name: /PFMEA-PLATING.*CP-THICKNESS/ })).toHaveAttribute("href", "/fmea/PFMEA-PLATING");
+    expect(screen.getByText("분석 실행", { selector: "dt" }).parentElement).toHaveTextContent("2건");
+  });
+
   it("opens the contextual AI Copilot and answers without changing analysis settings", async () => {
     localStorage.clear();
     const user = userEvent.setup();

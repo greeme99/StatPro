@@ -196,7 +196,7 @@ svg { width: var(--icon-size); height: var(--icon-size); stroke-width: 1.8; }
 .dmaic-phase-card small { margin-top: auto; padding-top: var(--space-5); color: var(--color-text-secondary); font-size: var(--font-caption-size); }
 .dmaic-project-overview { display: grid; gap: var(--space-5); }
 .dmaic-project-overview > .breadcrumb { margin-bottom: calc(var(--space-5) * -1); }
-.dmaic-project-summary, .dmaic-project-phases, .dmaic-evidence-panel, .dmaic-project-integrations, .dmaic-project-empty { padding: var(--card-pad); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-bg-surface); box-shadow: var(--shadow-sm); }
+.dmaic-project-summary, .dmaic-project-phases, .dmaic-evidence-panel, .dmaic-result-utilization, .dmaic-project-integrations, .dmaic-project-empty { padding: var(--card-pad); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-bg-surface); box-shadow: var(--shadow-sm); }
 .dmaic-project-summary { display: grid; grid-template-columns: minmax(0, 1fr) minmax(16rem, 22rem); gap: var(--space-5); align-items: end; }
 .dmaic-project-summary h2 { margin: var(--space-1) var(--space-0); }
 .dmaic-project-summary label { display: grid; gap: var(--space-2); color: var(--color-text-secondary); font-weight: 600; }
@@ -207,8 +207,8 @@ svg { width: var(--icon-size); height: var(--icon-size); stroke-width: 1.8; }
 .dmaic-project-summary dd { margin: var(--space-1) var(--space-0) var(--space-0); font-weight: 700; }
 .dmaic-project-progress { grid-column: 1 / -1; height: var(--space-2); overflow: hidden; border-radius: var(--radius-pill); background: var(--color-bg-subtle); }
 .dmaic-project-progress span { display: block; height: 100%; border-radius: inherit; background: var(--color-fill-brand); transition: width var(--dur-base) var(--ease-standard); }
-.dmaic-project-phases > header, .dmaic-evidence-panel > header { display: flex; align-items: end; justify-content: space-between; gap: var(--space-6); margin-bottom: var(--space-5); }
-.dmaic-project-phases h2, .dmaic-evidence-panel h2, .dmaic-project-integrations h2, .dmaic-project-empty h2 { margin: var(--space-1) var(--space-0); }
+.dmaic-project-phases > header, .dmaic-evidence-panel > header, .dmaic-result-utilization > header { display: flex; align-items: end; justify-content: space-between; gap: var(--space-6); margin-bottom: var(--space-5); }
+.dmaic-project-phases h2, .dmaic-evidence-panel h2, .dmaic-result-utilization h2, .dmaic-project-integrations h2, .dmaic-project-empty h2 { margin: var(--space-1) var(--space-0); }
 .dmaic-project-phases ol { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--space-3); margin: var(--space-0); padding: var(--space-0); list-style: none; }
 .dmaic-project-phases li { display: grid; grid-template-columns: var(--touch-target) minmax(0, 1fr); gap: var(--space-3); padding: var(--space-4); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-md); }
 .dmaic-project-phases li > span { display: grid; place-items: center; width: var(--touch-target); height: var(--touch-target); border-radius: var(--radius-pill); color: var(--color-action); background: var(--color-bg-selected); font-weight: 700; }
@@ -224,6 +224,27 @@ svg { width: var(--icon-size); height: var(--icon-size); stroke-width: 1.8; }
 .dmaic-evidence-row code { overflow: hidden; color: inherit; font-family: var(--font-mono); font-size: var(--font-caption-size); text-overflow: ellipsis; white-space: nowrap; }
 .evidence-status { display: inline-flex; align-items: center; gap: var(--space-2); font-weight: 600; }
 .is-recorded .evidence-status { color: var(--color-status-success); }
+.dmaic-result-utilization > dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); margin: var(--space-0) var(--space-0) var(--space-5); }
+.dmaic-result-utilization > dl div { padding: var(--space-3); border-radius: var(--radius-md); background: var(--color-bg-subtle); }
+.dmaic-result-utilization dt { color: var(--color-text-secondary); font-size: var(--font-caption-size); }
+.dmaic-result-utilization dd { margin: var(--space-1) var(--space-0) var(--space-0); font-size: var(--font-card-heading-size); font-weight: 700; }
+.dmaic-result-table { min-width: 58rem; overflow: hidden; border: var(--border-width) solid var(--color-border); border-radius: var(--radius-md); }
+.dmaic-result-utilization { overflow-x: auto; }
+.dmaic-result-row { display: grid; grid-template-columns: .85fr 1.4fr 1.3fr 1.1fr; gap: var(--space-3); align-items: center; min-height: var(--row-h); padding: var(--space-3); border-bottom: var(--border-width) solid var(--color-border); }
+.dmaic-result-row:last-child { border-bottom: 0; }
+.dmaic-result-row.is-header { color: var(--color-text-secondary); background: var(--color-bg-subtle); font-size: var(--font-caption-size); font-weight: 700; }
+.dmaic-result-row > span { min-width: 0; }
+.dmaic-result-row > span:first-child { display: grid; gap: var(--space-1); }
+.dmaic-result-row small { color: var(--color-text-secondary); font-size: var(--font-caption-size); }
+.evidence-link { display: inline-flex; align-items: center; gap: var(--space-2); min-height: var(--touch-target); color: var(--color-action); text-decoration: none; }
+.evidence-link:hover strong { text-decoration: underline; }
+.evidence-link:focus-visible { border-radius: var(--radius-sm); }
+.evidence-link > svg { flex: 0 0 auto; width: var(--space-4); height: var(--space-4); }
+.evidence-link > span { display: grid; min-width: 0; }
+.evidence-link small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dmaic-result-empty { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-4); border-radius: var(--radius-md); color: var(--color-text-secondary); background: var(--color-bg-subtle); }
+.dmaic-result-empty p { margin: var(--space-0); }
+.dmaic-result-empty svg { flex: 0 0 auto; color: var(--color-action); }
 .dmaic-project-integrations, .dmaic-project-empty { display: flex; gap: var(--space-4); align-items: flex-start; }
 .dmaic-project-integrations > svg, .dmaic-project-empty > svg { flex: 0 0 auto; color: var(--color-action); }
 .dmaic-project-integrations > div > div { display: flex; flex-wrap: wrap; gap: var(--space-5); margin-top: var(--space-3); }
@@ -694,7 +715,7 @@ dd { margin: var(--space-0); }
   .quality-metric-grid { grid-template-columns: 1fr; }
   .dmaic-project-summary { grid-template-columns: 1fr; }
   .dmaic-project-summary dl { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .dmaic-project-phases > header, .dmaic-evidence-panel > header { align-items: flex-start; flex-direction: column; }
+  .dmaic-project-phases > header, .dmaic-evidence-panel > header, .dmaic-result-utilization > header { align-items: flex-start; flex-direction: column; }
   .dmaic-project-phases ol { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 767px) {
