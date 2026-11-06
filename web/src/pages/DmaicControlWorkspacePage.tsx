@@ -8,6 +8,7 @@ import {
   listRuns,
   saveDmaicControlHandoff,
 } from "../api";
+import { persistActiveProject, selectActiveProject } from "../projectContext";
 import type {
   DmaicReactionPlanItem,
   StoredDmaicControlHandoff,
@@ -71,7 +72,7 @@ export function DmaicControlWorkspacePage() {
         ]);
         const controlRuns = runPage.items.filter(isControlEvidence);
         setProjects(projectPage.items);
-        setSelectedProject(projectPage.items[0] ?? null);
+        setSelectedProject(selectActiveProject(projectPage.items));
         setStudies(studyPage.items);
         setSelectedStudyId(studyPage.items[0]?.study_id ?? "");
         setRuns(controlRuns);
@@ -134,7 +135,7 @@ export function DmaicControlWorkspacePage() {
     <section className="spc-tool-hero"><span className="preview-icon"><ShieldCheck aria-hidden="true" /></span><div><span className="eyebrow">CONTROL · REACT · VERIFY</span><h1>관리 (Control) 인수인계 작업공간</h1><p>개선 결과를 FMEA 관리계획과 연결하고, SPC·공정능력 실행 근거로 유지 효과를 검증하는 운영 계약을 만듭니다.</p></div></section>
     <ol className="spc-process-rail" aria-label="관리 인수인계 작업 흐름"><li><span>1</span><div><strong>설정</strong><p>개선 프로젝트 선택</p></div></li><li><span>2</span><div><strong>데이터</strong><p>FMEA 관리항목 연결</p></div></li><li><span>3</span><div><strong>분석</strong><p>SPC 효과 근거 선택</p></div></li><li><span>4</span><div><strong>결과</strong><p>반응계획 검토</p></div></li><li><span>5</span><div><strong>보고서</strong><p>불변 인수인계 저장</p></div></li></ol>
     {loading ? <p className="method-note">프로젝트, FMEA 및 관리 분석 실행을 불러오는 중입니다.</p> : <>
-      <section className="tool-workspace-panel"><header><h2>1. 개선 프로젝트 선택</h2><p>파일럿 결과와 운영 관리 근거가 귀속될 프로젝트를 선택합니다.</p></header>{projects.length === 0 ? <p className="method-note">먼저 <Link to="/home/dmaic/define">정의 (Define) 작업공간</Link>에서 개선 프로젝트를 만드세요.</p> : <div className="dmaic-project-picker"><label>프로젝트<select value={selectedProject?.project_id ?? ""} onChange={(event) => { setSelectedProject(projects.find((item) => item.project_id === event.target.value) ?? null); setSaved(null); }}><option value="">프로젝트를 선택하세요</option>{projects.map((item) => <option key={item.project_id} value={item.project_id}>{item.project.title} ({item.project_id})</option>)}</select></label></div>}</section>
+      <section className="tool-workspace-panel"><header><h2>1. 개선 프로젝트 선택</h2><p>파일럿 결과와 운영 관리 근거가 귀속될 프로젝트를 선택합니다.</p></header>{projects.length === 0 ? <p className="method-note">먼저 <Link to="/home/dmaic/define">정의 (Define) 작업공간</Link>에서 개선 프로젝트를 만드세요.</p> : <div className="dmaic-project-picker"><label>프로젝트<select value={selectedProject?.project_id ?? ""} onChange={(event) => { const project = projects.find((item) => item.project_id === event.target.value) ?? null; setSelectedProject(project); persistActiveProject(project); setSaved(null); }}><option value="">프로젝트를 선택하세요</option>{projects.map((item) => <option key={item.project_id} value={item.project_id}>{item.project.title} ({item.project_id})</option>)}</select></label></div>}</section>
       {selectedProject && <form className="tool-workspace-panel dmaic-measure-form" onSubmit={saveHandoff}>
         <header><h2>2. 운영 관리계획과 효과 검증</h2><p><strong>{selectedProject.project.title}</strong> · 프로젝트 개정 {selectedProject.project.revision}</p></header>
         <p className="method-note"><strong>인수인계 원칙:</strong> 관리항목, 분석 결과, 반응 책임자를 함께 저장합니다. 저장은 승인이나 공정 안정성 보증을 의미하지 않습니다.</p>

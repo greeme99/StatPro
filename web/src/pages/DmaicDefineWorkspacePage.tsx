@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { ArrowRight, CircleAlert, ClipboardList, Flag, GitBranch, MessageSquareText, ShieldCheck, Users, UsersRound } from "lucide-react";
 import { Link } from "react-router-dom";
 import { createDmaicProject, listDmaicProjects, saveDmaicCharter } from "../api";
+import { persistActiveProject, selectActiveProject } from "../projectContext";
 import type { StoredDmaicProject } from "../types";
 
 type CharterForm = {
@@ -33,7 +34,7 @@ export function DmaicDefineWorkspacePage() {
       try {
         const page = await listDmaicProjects();
         setProjects(page.items);
-        setSelected(page.items[0] ?? null);
+        setSelected(selectActiveProject(page.items));
       } catch (cause) {
         setError(cause instanceof Error ? cause.message : "개선 프로젝트를 불러오지 못했습니다.");
       } finally {
@@ -60,6 +61,7 @@ export function DmaicDefineWorkspacePage() {
       });
       setProjects((current) => [stored, ...current]);
       setSelected(stored);
+      persistActiveProject(stored);
       setShowCreate(false);
       setError("");
     } catch (cause) {
@@ -100,7 +102,7 @@ export function DmaicDefineWorkspacePage() {
     <section className="spc-tool-hero"><span className="preview-icon"><ClipboardList aria-hidden="true" /></span><div><span className="eyebrow">DEFINE · CHARTER · ALIGN</span><h1>정의 (Define) 작업공간</h1><p>현장 문제와 성공 기준을 프로젝트 헌장으로 고정해, 이후 측정·분석·개선 활동의 공통 기준으로 사용합니다.</p></div></section>
     <ol className="spc-process-rail" aria-label="프로젝트 헌장 작업 흐름"><li><span>1</span><div><strong>설정</strong><p>개선 프로젝트 선택</p></div></li><li><span>2</span><div><strong>업무 범위</strong><p>문제와 경계 정의</p></div></li><li><span>3</span><div><strong>실행 기준</strong><p>성과·팀·일정 합의</p></div></li><li><span>4</span><div><strong>위험 검토</strong><p>제약과 위험 기록</p></div></li><li><span>5</span><div><strong>보고서</strong><p>불변 개정 저장</p></div></li></ol>
     {loading ? <p className="method-note">로컬 개선 프로젝트를 불러오는 중입니다.</p> : <>
-      <section className="tool-workspace-panel"><header><h2>1. 개선 프로젝트 선택</h2><p>프로젝트 헌장은 선택한 프로젝트에 새 개정으로 저장됩니다.</p></header><div className="dmaic-project-picker"><label>프로젝트<select value={selected?.project_id ?? ""} onChange={(event) => { setSelected(projects.find((project) => project.project_id === event.target.value) ?? null); setSaved(null); }}><option value="">프로젝트를 선택하세요</option>{projects.map((project) => <option key={project.project_id} value={project.project_id}>{project.project.title} ({project.project_id})</option>)}</select></label><button className="button button-secondary" type="button" onClick={() => setShowCreate((value) => !value)}>새 개선 프로젝트 만들기</button></div>
+      <section className="tool-workspace-panel"><header><h2>1. 개선 프로젝트 선택</h2><p>프로젝트 헌장은 선택한 프로젝트에 새 개정으로 저장됩니다.</p></header><div className="dmaic-project-picker"><label>프로젝트<select value={selected?.project_id ?? ""} onChange={(event) => { const project = projects.find((item) => item.project_id === event.target.value) ?? null; setSelected(project); persistActiveProject(project); setSaved(null); }}><option value="">프로젝트를 선택하세요</option>{projects.map((project) => <option key={project.project_id} value={project.project_id}>{project.project.title} ({project.project_id})</option>)}</select></label><button className="button button-secondary" type="button" onClick={() => setShowCreate((value) => !value)}>새 개선 프로젝트 만들기</button></div>
       {showCreate && <form className="check-sheet-form" onSubmit={createProject}><label>프로젝트 ID<input name="project_id" defaultValue={`define-${Date.now()}`} required /></label><label>프로젝트명<input name="title" placeholder="예: 조립 불량률 개선" required /></label><label>책임자<input name="owner_ref" defaultValue="local-operator" required /></label><label>후원자<input name="sponsor_ref" /></label><label className="check-sheet-wide">부서<input name="department" placeholder="예: 제조기술팀" /></label><button className="primary-button" type="submit">프로젝트 만들기 <ArrowRight aria-hidden="true" /></button></form>}</section>
       {selected && <form className="tool-workspace-panel dmaic-define-form" onSubmit={saveCharter}><header><h2>2. 프로젝트 헌장 작성</h2><p><strong>{selected.project.title}</strong> · 현재 프로젝트 개정 {selected.project.revision}</p></header><div className="check-sheet-form"><label className="check-sheet-wide">추진 배경<textarea value={charter.businessCase} onChange={(event) => update("businessCase", event.target.value)} placeholder="왜 이 개선 과제가 필요한지 적으세요." required /></label><label className="check-sheet-wide">문제 정의<textarea value={charter.problemStatement} onChange={(event) => update("problemStatement", event.target.value)} placeholder="관찰된 문제, 영향, 발생 조건을 구체적으로 적으세요." required /></label><label>범위 포함<textarea value={charter.scopeIn} onChange={(event) => update("scopeIn", event.target.value)} placeholder="한 줄에 하나씩 입력" required /></label><label>범위 제외<textarea value={charter.scopeOut} onChange={(event) => update("scopeOut", event.target.value)} placeholder="한 줄에 하나씩 입력" required /></label><label>성공지표<textarea value={charter.successMetrics} onChange={(event) => update("successMetrics", event.target.value)} placeholder="예: 외관 불량률 2% 이하" required /></label><label>프로젝트 팀<textarea value={charter.teamRefs} onChange={(event) => update("teamRefs", event.target.value)} placeholder="역할 또는 사용자 참조를 한 줄에 하나씩 입력" required /></label><label>주요 마일스톤<textarea value={charter.milestones} onChange={(event) => update("milestones", event.target.value)} placeholder="예: 기준선 확정 2026-11-30" required /></label><label>위험·이해관계자<textarea value={charter.risks} onChange={(event) => update("risks", event.target.value)} placeholder="위험 또는 관리 책임자를 한 줄에 하나씩 입력" required /></label><label>예산<input value={charter.budget} onChange={(event) => update("budget", event.target.value)} placeholder="예: 5,000,000 KRW" /></label><label>저장 담당자<input value={charter.actor} onChange={(event) => update("actor", event.target.value)} required /></label><label className="check-sheet-wide">가정·제약사항<textarea value={charter.constraints} onChange={(event) => update("constraints", event.target.value)} placeholder="한 줄에 하나씩 입력" required /></label></div><button className="primary-button" type="submit">프로젝트 헌장 저장 <ArrowRight aria-hidden="true" /></button></form>}
       {!selected && !showCreate && <section className="tool-workspace-panel"><p className="method-note">프로젝트 헌장을 시작하려면 기존 개선 프로젝트를 선택하거나 새 프로젝트를 만드세요.</p></section>}

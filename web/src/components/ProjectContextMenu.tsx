@@ -2,10 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { Check, ChevronDown, FolderKanban, Plus, X } from "lucide-react";
 import { Link } from "react-router-dom";
 import { listDmaicProjects } from "../api";
+import { ACTIVE_PROJECT_ID, ACTIVE_PROJECT_TITLE, persistActiveProject } from "../projectContext";
 import type { StoredDmaicProject } from "../types";
-
-const ACTIVE_PROJECT_ID = "statpro-active-project-id";
-const ACTIVE_PROJECT_TITLE = "statpro-active-project-title";
 
 export function ProjectContextMenu() {
   const [open, setOpen] = useState(false);
@@ -29,8 +27,7 @@ export function ProjectContextMenu() {
   }, [open, projects.length]);
 
   const selectProject = (stored: StoredDmaicProject) => {
-    localStorage.setItem(ACTIVE_PROJECT_ID, stored.project_id);
-    localStorage.setItem(ACTIVE_PROJECT_TITLE, stored.project.title);
+    persistActiveProject(stored);
     setActiveId(stored.project_id);
     setActiveTitle(stored.project.title);
     setOpen(false);
