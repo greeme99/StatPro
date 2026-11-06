@@ -192,6 +192,7 @@ export type DmaicProject = {
   root_cause_analysis: DmaicDocumentReference | null;
   solution_selection: DmaicDocumentReference | null;
   pilot_plan: DmaicDocumentReference | null;
+  control_handoff: DmaicDocumentReference | null;
 };
 
 export type StoredDmaicProject = {
@@ -296,6 +297,52 @@ export type StoredDmaicPilotPlan = {
   storage_version: number;
   etag: string;
   pilot_plan: DmaicPilotPlan;
+};
+
+export type DmaicAnalysisEvidenceReference = {
+  run_id: string;
+  analysis_type: string;
+  run_etag: string;
+  input_digest: string;
+};
+
+export type DmaicFmeaControlPlanReference = {
+  study_id: string;
+  study_etag: string;
+  study_digest: string;
+  control_ids: string[];
+};
+
+export type DmaicReactionPlanItem = {
+  trigger: string;
+  action: string;
+  owner_ref: string;
+  escalation_ref: string | null;
+  response_time: string;
+};
+
+export type DmaicControlHandoff = {
+  document_id: string;
+  project_id: string;
+  revision: number;
+  parent_digest: string | null;
+  digest: string;
+  monitoring_plan: string;
+  review_frequency: string;
+  effectiveness_criteria: string[];
+  reaction_plans: DmaicReactionPlanItem[];
+  source_documents: DmaicDocumentReference[];
+  fmea_control_plan: DmaicFmeaControlPlanReference;
+  analysis_evidence: DmaicAnalysisEvidenceReference[];
+  actor: string;
+  occurred_at: string;
+};
+
+export type StoredDmaicControlHandoff = {
+  document_id: string;
+  storage_version: number;
+  etag: string;
+  control_handoff: DmaicControlHandoff;
 };
 
 export type DmaicCharter = {

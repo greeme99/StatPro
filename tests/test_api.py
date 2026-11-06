@@ -59,6 +59,10 @@ class LocalApiContractTests(unittest.TestCase):
         self.assertIn("/v1/spc/fishbone-diagrams", openapi.json()["paths"])
         self.assertIn("/v1/quality-metrics", openapi.json()["paths"])
         self.assertIn("/v1/defect-analyses", openapi.json()["paths"])
+        self.assertIn(
+            "/v1/dmaic-projects/{project_id}/control-handoffs",
+            openapi.json()["paths"],
+        )
 
     def test_quality_metric_snapshot_preserves_the_stored_run_evidence(self) -> None:
         run = self.client.post(
@@ -2019,3 +2023,131 @@ class LocalApiContractTests(unittest.TestCase):
         document = plan.json()["pilot_plan"]
         self.assertEqual(document["pilot_type"], "before_after")
         self.assertEqual(document["analysis_evidence"][0]["run_id"], "spc-imr-pilot")
+
+    def test_dmaic_control_handoff_links_fmea_controls_and_spc_evidence(self) -> None:
+        project = self.client.post(
+            "/v1/dmaic-projects",
+            json={
+                "project_id": "DMAIC-CONTROL-API",
+                "title": "Connector yield",
+                "owner_ref": "quality.engineer",
+            },
+        )
+        run = self.client.post(
+            "/v1/analysis-runs/imr",
+            json={"run_id": "spc-imr-control", "values": [10.0, 10.1, 9.9, 10.0]},
+        )
+        study = self.client.post(
+            "/v1/fmea-studies",
+            json={
+                "study_id": "PFMEA-CONTROL-API",
+                "name": "Connector Assembly",
+                "study_type": "process",
+                "standard_version": "customer-standard-2026",
+                "actor": "quality.engineer",
+                "occurred_at": "2026-11-05T10:00:00+09:00",
+            },
+        )
+        step = self.client.post(
+            "/v1/fmea-studies/PFMEA-CONTROL-API/process-steps",
+            json={
+                "expected_storage_version": study.json()["storage_version"],
+                "step_id": "STEP-010",
+                "sequence": 10,
+                "name": "Connector insertion",
+                "operation": "Seat connector in fixture",
+                "actor": "process.engineer",
+                "occurred_at": "2026-11-05T10:02:00+09:00",
+            },
+        )
+        characteristic = self.client.post(
+            "/v1/fmea-studies/PFMEA-CONTROL-API/process-characteristics",
+            json={
+                "expected_storage_version": step.json()["storage_version"],
+                "characteristic_id": "CHAR-001",
+                "process_step_id": "STEP-010",
+                "name": "Insertion depth",
+                "characteristic_type": "product",
+                "specification": "12.0 +/- 0.2 mm",
+                "actor": "quality.engineer",
+                "occurred_at": "2026-11-05T10:04:00+09:00",
+            },
+        )
+        failure = self.client.post(
+            "/v1/fmea-studies/PFMEA-CONTROL-API/failure-analyses",
+            json={
+                "expected_storage_version": characteristic.json()["storage_version"],
+                "item_id": "FA-001",
+                "structure_element": "Connector",
+                "function": "Maintain contact",
+                "requirement": "Resistance within specification",
+                "failure_mode": "Incomplete insertion",
+                "effect": "Open circuit",
+                "cause": "Fixture drift",
+                "prevention_control": "Setup checklist",
+                "detection_control": "Depth gauge",
+                "ratings": {"severity": 8, "occurrence": 4, "detection": 5},
+                "process_step_id": "STEP-010",
+                "characteristic_ids": ["CHAR-001"],
+                "actor": "quality.engineer",
+                "occurred_at": "2026-11-05T10:06:00+09:00",
+            },
+        )
+        control = self.client.post(
+            "/v1/fmea-studies/PFMEA-CONTROL-API/control-plan-items",
+            json={
+                "expected_storage_version": failure.json()["storage_version"],
+                "control_id": "CP-001",
+                "phase": "production",
+                "characteristic_id": "CHAR-001",
+                "failure_item_ids": ["FA-001"],
+                "measurement_method": "Digital depth gauge",
+                "sample_size": 5,
+                "frequency": "Every shift",
+                "control_method": "I-MR chart",
+                "reaction_plan": "Stop line and segregate lot",
+                "reaction_owner": "line.supervisor",
+                "actor": "quality.engineer",
+                "occurred_at": "2026-11-05T10:10:00+09:00",
+            },
+        )
+        self.assertEqual(project.status_code, 201)
+        self.assertEqual(run.status_code, 201)
+        self.assertEqual(study.status_code, 201)
+        self.assertEqual(step.status_code, 200)
+        self.assertEqual(characteristic.status_code, 200)
+        self.assertEqual(failure.status_code, 200)
+        self.assertEqual(control.status_code, 200)
+
+        revised = self.client.post(
+            "/v1/dmaic-projects/DMAIC-CONTROL-API/control-handoffs",
+            json={
+                "expected_storage_version": project.json()["storage_version"],
+                "monitoring_plan": "Review I-MR signals at the end of each shift.",
+                "review_frequency": "Every shift",
+                "effectiveness_criteria": ["No Rule 1 signal for 20 observations"],
+                "reaction_plans": [{
+                    "trigger": "Any Rule 1 signal",
+                    "action": "Stop the line and quarantine the current lot",
+                    "owner_ref": "line.supervisor",
+                    "escalation_ref": "quality.manager",
+                    "response_time": "Within 15 minutes",
+                }],
+                "fmea_study_id": "PFMEA-CONTROL-API",
+                "fmea_control_ids": ["CP-001"],
+                "analysis_run_ids": ["spc-imr-control"],
+                "actor": "quality.engineer",
+                "occurred_at": "2026-11-05T11:00:00+09:00",
+            },
+        )
+        self.assertEqual(revised.status_code, 201)
+        reference = revised.json()["project"]["control_handoff"]
+        stored = self.client.get(
+            "/v1/dmaic-projects/DMAIC-CONTROL-API/control-handoffs/"
+            f"{reference['document_id']}"
+        )
+        self.assertEqual(stored.status_code, 200)
+        handoff = stored.json()["control_handoff"]
+        self.assertEqual(handoff["fmea_control_plan"]["control_ids"], ["CP-001"])
+        self.assertEqual(handoff["analysis_evidence"][0]["run_id"], "spc-imr-control")
+        self.assertEqual(handoff["reaction_plans"][0]["owner_ref"], "line.supervisor")

@@ -84,6 +84,7 @@ from statpro.defect_analysis import (
 )
 from statpro.dmaic import (
     DmaicCharter,
+    DmaicControlHandoff,
     DmaicInputError,
     DmaicMeasurementPlan,
     DmaicPilotPlan,
@@ -96,6 +97,7 @@ from statpro.dmaic import (
     DmaicVoiceOfCustomerStudy,
     create_project,
     save_charter,
+    save_control_handoff,
     save_measurement_plan,
     save_pilot_plan,
     save_problem_definition,
@@ -169,6 +171,7 @@ DMAIC_MEASUREMENT_PLANS = "dmaic-measurement-plans"
 DMAIC_ROOT_CAUSE_ANALYSES = "dmaic-root-cause-analyses"
 DMAIC_SOLUTION_SELECTIONS = "dmaic-solution-selections"
 DMAIC_PILOT_PLANS = "dmaic-pilot-plans"
+DMAIC_CONTROL_HANDOFFS = "dmaic-control-handoffs"
 SPC_CHECK_SHEETS = "spc-check-sheets"
 SPC_FISHBONE_DIAGRAMS = "spc-fishbone-diagrams"
 QUALITY_METRICS = "quality-metrics"
@@ -791,6 +794,27 @@ class SaveDmaicPilotPlanRequest(ApiModel):
     occurred_at: str
 
 
+class DmaicReactionPlanRequest(ApiModel):
+    trigger: str
+    action: str
+    owner_ref: str
+    escalation_ref: str | None = None
+    response_time: str
+
+
+class SaveDmaicControlHandoffRequest(ApiModel):
+    expected_storage_version: int = Field(ge=1)
+    monitoring_plan: str
+    review_frequency: str
+    effectiveness_criteria: list[str] = Field(min_length=1)
+    reaction_plans: list[DmaicReactionPlanRequest] = Field(min_length=1)
+    fmea_study_id: RunId
+    fmea_control_ids: list[RunId] = Field(min_length=1)
+    analysis_run_ids: list[RunId] = Field(min_length=1)
+    actor: str
+    occurred_at: str
+
+
 class StoredDmaicProjectResponse(ApiModel):
     project_id: str
     storage_version: int
@@ -859,6 +883,13 @@ class StoredDmaicPilotPlanResponse(ApiModel):
     storage_version: int
     etag: str
     pilot_plan: dict[str, Any]
+
+
+class StoredDmaicControlHandoffResponse(ApiModel):
+    document_id: str
+    storage_version: int
+    etag: str
+    control_handoff: dict[str, Any]
 
 
 class StoredActionPriorityPolicyResponse(ApiModel):
@@ -1168,6 +1199,15 @@ def _deserialize_dmaic_pilot_plan(stored: StoredDocument) -> DmaicPilotPlan:
         ) from error
 
 
+def _deserialize_dmaic_control_handoff(stored: StoredDocument) -> DmaicControlHandoff:
+    try:
+        return DmaicControlHandoff.from_dict(stored.document["control_handoff"])
+    except (KeyError, TypeError, ValueError, DmaicInputError) as error:
+        raise DocumentStoreError(
+            f"Stored DMAIC control handoff {stored.key} does not match its owned format."
+        ) from error
+
+
 def _dmaic_project_response(stored: StoredDocument) -> StoredDmaicProjectResponse:
     project = _deserialize_dmaic_project(stored)
     return StoredDmaicProjectResponse(
@@ -1271,6 +1311,16 @@ def _dmaic_pilot_plan_response(stored: StoredDocument) -> StoredDmaicPilotPlanRe
     return StoredDmaicPilotPlanResponse(
         document_id=stored.key, storage_version=stored.storage_version, etag=stored.etag,
         pilot_plan=plan.to_dict(),
+    )
+
+
+def _dmaic_control_handoff_response(
+    stored: StoredDocument,
+) -> StoredDmaicControlHandoffResponse:
+    handoff = _deserialize_dmaic_control_handoff(stored)
+    return StoredDmaicControlHandoffResponse(
+        document_id=stored.key, storage_version=stored.storage_version, etag=stored.etag,
+        control_handoff=handoff.to_dict(),
     )
 
 
@@ -1407,6 +1457,18 @@ def _save_dmaic_pilot_plan(
         DMAIC_PILOT_PLANS,
         plan.document_id,
         {"kind": "dmaic_pilot_plan", "document_id": plan.document_id, "pilot_plan": plan.to_dict()},
+        expected_version=0,
+    )
+
+
+def _save_dmaic_control_handoff(
+    repository: DocumentRepository, handoff: DmaicControlHandoff
+) -> StoredDocument:
+    return repository.save(
+        DMAIC_CONTROL_HANDOFFS,
+        handoff.document_id,
+        {"kind": "dmaic_control_handoff", "document_id": handoff.document_id,
+         "control_handoff": handoff.to_dict()},
         expected_version=0,
     )
 
@@ -3397,6 +3459,90 @@ def create_app(
             )
         response.headers["ETag"] = f'"{stored.etag}"'
         return _dmaic_pilot_plan_response(stored)
+
+    @app.post(
+        "/v1/dmaic-projects/{project_id}/control-handoffs",
+        status_code=201,
+        response_model=StoredDmaicProjectResponse,
+    )
+    def create_dmaic_control_handoff(
+        project_id: RunId,
+        request: SaveDmaicControlHandoffRequest,
+        response: Response,
+    ) -> StoredDmaicProjectResponse:
+        stored, project = _load_dmaic_project(repository, project_id)
+        if stored.storage_version != request.expected_storage_version:
+            raise DocumentConflictError(
+                f"Expected storage version {request.expected_storage_version}; found {stored.storage_version}."
+            )
+        run_evidence = tuple(
+            _load_analysis_evidence_reference(repository, run_id)
+            for run_id in request.analysis_run_ids
+        )
+        unsupported = [
+            item.analysis_type for item in run_evidence
+            if not (
+                item.analysis_type.startswith("spc.")
+                or item.analysis_type.startswith("capability.")
+            )
+        ]
+        if unsupported:
+            raise DmaicInputError(
+                "unsupported_control_evidence",
+                "Control handoff accepts only SPC or capability analysis Runs.",
+                "analysis_run_ids",
+            )
+        fmea_stored, fmea_study = _load_fmea_study(repository, request.fmea_study_id)
+        available_control_ids = {item.control_id for item in fmea_study.control_plan_items}
+        missing_control_ids = [
+            control_id for control_id in request.fmea_control_ids
+            if control_id not in available_control_ids
+        ]
+        if missing_control_ids:
+            raise DmaicInputError(
+                "fmea_control_not_found",
+                "One or more selected FMEA control-plan items do not exist in the stored study.",
+                "fmea_control_ids",
+            )
+        revised, handoff = save_control_handoff(
+            project,
+            monitoring_plan=request.monitoring_plan,
+            review_frequency=request.review_frequency,
+            effectiveness_criteria=tuple(request.effectiveness_criteria),
+            reaction_plans=tuple(item.model_dump() for item in request.reaction_plans),
+            fmea_control_plan={
+                "study_id": fmea_study.study_id,
+                "study_etag": fmea_stored.etag,
+                "study_digest": fmea_study.digest,
+                "control_ids": tuple(request.fmea_control_ids),
+            },
+            analysis_evidence=tuple(item.to_dict() for item in run_evidence),
+            actor=request.actor,
+            occurred_at=request.occurred_at,
+        )
+        _save_dmaic_control_handoff(repository, handoff)
+        saved = _save_dmaic_project(
+            repository, revised, expected_version=request.expected_storage_version
+        )
+        response.headers["ETag"] = f'"{saved.etag}"'
+        return _dmaic_project_response(saved)
+
+    @app.get(
+        "/v1/dmaic-projects/{project_id}/control-handoffs/{document_id}",
+        response_model=StoredDmaicControlHandoffResponse,
+    )
+    def get_dmaic_control_handoff(
+        project_id: RunId, document_id: RunId, response: Response
+    ) -> StoredDmaicControlHandoffResponse:
+        _stored_project, project = _load_dmaic_project(repository, project_id)
+        stored = repository.load(DMAIC_CONTROL_HANDOFFS, document_id)
+        handoff = _deserialize_dmaic_control_handoff(stored)
+        if handoff.project_id != project.project_id:
+            raise DocumentNotFoundError(
+                f"Document {DMAIC_CONTROL_HANDOFFS}/{document_id} does not exist."
+            )
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _dmaic_control_handoff_response(stored)
 
     @app.post("/v1/fmea-studies", status_code=201, response_model=StoredFmeaStudyResponse)
     def create_study(

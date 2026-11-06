@@ -7,27 +7,31 @@ from dataclasses import replace
 from statpro.dmaic.models import (
     DmaicAnalysisEvidenceReference,
     DmaicCharter,
+    DmaicControlHandoff,
     DmaicDocumentReference,
+    DmaicFmeaControlPlanReference,
     DmaicInputError,
     DmaicMeasurementPlan,
-    DmaicProblemDefinition,
     DmaicPilotPlan,
+    DmaicProblemDefinition,
     DmaicProject,
     DmaicProjectStatus,
+    DmaicReactionPlanItem,
     DmaicRootCauseAnalysis,
-    DmaicSolutionSelection,
     DmaicSipocMap,
+    DmaicSolutionSelection,
     DmaicStakeholder,
     DmaicStakeholderAssessment,
     DmaicVoiceOfCustomerStudy,
     _charter_digest,
+    _control_handoff_digest,
     _measurement_plan_digest,
+    _pilot_plan_digest,
     _problem_definition_digest,
     _project_digest,
-    _pilot_plan_digest,
     _root_cause_analysis_digest,
-    _solution_selection_digest,
     _sipoc_digest,
+    _solution_selection_digest,
     _stakeholder_assessment_digest,
     _voice_of_customer_digest,
 )
@@ -505,3 +509,98 @@ def save_pilot_plan(
     reference = DmaicDocumentReference("pilot_plan", plan.document_id, plan.revision, plan.digest)
     revised = replace(project, revision=project.revision + 1, parent_digest=project.digest, digest="", pilot_plan=reference)
     return replace(revised, digest=_project_digest(revised)), plan
+
+
+def save_control_handoff(
+    project: DmaicProject,
+    *,
+    monitoring_plan: str,
+    review_frequency: str,
+    effectiveness_criteria: tuple[str, ...],
+    reaction_plans: tuple[dict[str, str | None], ...],
+    fmea_control_plan: dict[str, object],
+    analysis_evidence: tuple[dict[str, str], ...],
+    actor: str,
+    occurred_at: str,
+) -> tuple[DmaicProject, DmaicControlHandoff]:
+    """Save a Control-phase operating contract with immutable evidence identities."""
+    previous = project.control_handoff
+    revision = 1 if previous is None else previous.revision + 1
+    evidence = tuple(
+        DmaicAnalysisEvidenceReference(
+            run_id=_required(item["run_id"], "analysis_evidence.run_id"),
+            analysis_type=_required(item["analysis_type"], "analysis_evidence.analysis_type"),
+            run_etag=_required(item["run_etag"], "analysis_evidence.run_etag"),
+            input_digest=_required(item["input_digest"], "analysis_evidence.input_digest"),
+        )
+        for item in analysis_evidence
+    )
+    if not evidence:
+        raise DmaicInputError("analysis_evidence_required", "At least one SPC or capability Run is required.", "analysis_evidence")
+    if len({item.run_id for item in evidence}) != len(evidence):
+        raise DmaicInputError("duplicate_analysis_evidence", "Analysis evidence Run IDs must be unique.", "analysis_evidence")
+    if any(
+        not (
+            item.analysis_type.startswith("spc.")
+            or item.analysis_type.startswith("capability.")
+        )
+        for item in evidence
+    ):
+        raise DmaicInputError(
+            "unsupported_control_evidence",
+            "Control handoff accepts only SPC or capability analysis Runs.",
+            "analysis_evidence",
+        )
+    reactions = tuple(
+        DmaicReactionPlanItem(
+            trigger=_required(str(item["trigger"]), "reaction_plans.trigger"),
+            action=_required(str(item["action"]), "reaction_plans.action"),
+            owner_ref=_required(str(item["owner_ref"]), "reaction_plans.owner_ref"),
+            escalation_ref=_optional(item.get("escalation_ref")),
+            response_time=_required(str(item["response_time"]), "reaction_plans.response_time"),
+        )
+        for item in reaction_plans
+    )
+    if not reactions:
+        raise DmaicInputError("reaction_plan_required", "At least one reaction plan is required.", "reaction_plans")
+    control_ids = _items(
+        tuple(str(value) for value in fmea_control_plan["control_ids"]),  # type: ignore[index]
+        "fmea_control_plan.control_ids",
+    )
+    if not control_ids:
+        raise DmaicInputError(
+            "fmea_control_required",
+            "At least one FMEA control-plan item is required.",
+            "fmea_control_plan.control_ids",
+        )
+    fmea = DmaicFmeaControlPlanReference(
+        study_id=_required(str(fmea_control_plan["study_id"]), "fmea_control_plan.study_id"),
+        study_etag=_required(str(fmea_control_plan["study_etag"]), "fmea_control_plan.study_etag"),
+        study_digest=_required(str(fmea_control_plan["study_digest"]), "fmea_control_plan.study_digest"),
+        control_ids=control_ids,
+    )
+    sources = tuple(item for item in (
+        project.pilot_plan, project.solution_selection, project.root_cause_analysis,
+        project.measurement_plan, project.problem_definition, project.stakeholder_assessment,
+        project.sipoc, project.voice_of_customer, project.charter,
+    ) if item is not None)
+    criteria = _items(effectiveness_criteria, "effectiveness_criteria")
+    if not criteria:
+        raise DmaicInputError(
+            "effectiveness_criteria_required",
+            "At least one effectiveness criterion is required.",
+            "effectiveness_criteria",
+        )
+    handoff = DmaicControlHandoff(
+        document_id=f"{project.project_id}-control-handoff-r{revision}", project_id=project.project_id,
+        revision=revision, parent_digest=None if previous is None else previous.digest, digest="",
+        monitoring_plan=_required(monitoring_plan, "monitoring_plan"),
+        review_frequency=_required(review_frequency, "review_frequency"),
+        effectiveness_criteria=criteria,
+        reaction_plans=reactions, source_documents=sources, fmea_control_plan=fmea,
+        analysis_evidence=evidence, actor=_required(actor, "actor"), occurred_at=_required(occurred_at, "occurred_at"),
+    )
+    handoff = replace(handoff, digest=_control_handoff_digest(handoff))
+    reference = DmaicDocumentReference("control_handoff", handoff.document_id, handoff.revision, handoff.digest)
+    revised = replace(project, revision=project.revision + 1, parent_digest=project.digest, digest="", control_handoff=reference)
+    return replace(revised, digest=_project_digest(revised)), handoff

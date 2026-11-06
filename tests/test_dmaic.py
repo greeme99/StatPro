@@ -8,6 +8,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from statpro.dmaic import (
     DmaicCharter,
+    DmaicControlHandoff,
+    DmaicInputError,
     DmaicMeasurementPlan,
     DmaicProblemDefinition,
     DmaicProject,
@@ -16,18 +18,104 @@ from statpro.dmaic import (
     DmaicVoiceOfCustomerStudy,
     create_project,
     save_charter,
+    save_control_handoff,
     save_measurement_plan,
     save_pilot_plan,
     save_problem_definition,
     save_root_cause_analysis,
-    save_solution_selection,
     save_sipoc,
+    save_solution_selection,
     save_stakeholder_assessment,
     save_voice_of_customer,
 )
 
 
 class DmaicProjectTests(unittest.TestCase):
+    def test_control_handoff_snapshots_fmea_and_control_run_evidence(self) -> None:
+        project = create_project(
+            project_id="DMAIC-CONTROL", title="Connector yield", owner_ref="quality.engineer"
+        )
+        project, selection = save_solution_selection(
+            project,
+            problem_statement="Connector defect rate increased",
+            candidate_solutions=("Set torque window",),
+            selected_solution="Set torque window",
+            decision_rationale="Lowest setup risk.",
+            validation_plan="Validate with a blocked DOE.",
+            analysis_evidence=(),
+            actor="quality.engineer",
+            occurred_at="2026-11-05T10:00:00+09:00",
+        )
+        revised, handoff = save_control_handoff(
+            project,
+            monitoring_plan="Review the Xbar-R chart at the end of every shift.",
+            review_frequency="Every shift",
+            effectiveness_criteria=("No Rule 1 signal for 20 subgroups",),
+            reaction_plans=({
+                "trigger": "Any Rule 1 signal",
+                "action": "Stop the line and quarantine the current lot",
+                "owner_ref": "line.supervisor",
+                "escalation_ref": "quality.manager",
+                "response_time": "Within 15 minutes",
+            },),
+            fmea_control_plan={
+                "study_id": "PFMEA-001",
+                "study_etag": "fmea-etag-001",
+                "study_digest": "f" * 64,
+                "control_ids": ("CP-001",),
+            },
+            analysis_evidence=({
+                "run_id": "spc-xbar-r-001",
+                "analysis_type": "spc.xbar_r",
+                "run_etag": "run-etag-001",
+                "input_digest": "a" * 64,
+            },),
+            actor="quality.engineer",
+            occurred_at="2026-11-05T11:00:00+09:00",
+        )
+
+        self.assertEqual(revised.control_handoff.document_id, handoff.document_id)
+        self.assertEqual(handoff.source_documents[0].document_id, selection.document_id)
+        self.assertEqual(handoff.fmea_control_plan.control_ids, ("CP-001",))
+        self.assertEqual(handoff.analysis_evidence[0].run_id, "spc-xbar-r-001")
+        self.assertEqual(DmaicControlHandoff.from_dict(handoff.to_dict()), handoff)
+
+    def test_control_handoff_rejects_non_control_evidence(self) -> None:
+        project = create_project(
+            project_id="DMAIC-CONTROL-INVALID",
+            title="Connector yield",
+            owner_ref="quality.engineer",
+        )
+
+        with self.assertRaisesRegex(DmaicInputError, "only SPC or capability"):
+            save_control_handoff(
+                project,
+                monitoring_plan="Review every shift.",
+                review_frequency="Every shift",
+                effectiveness_criteria=("Cpk above 1.33",),
+                reaction_plans=({
+                    "trigger": "Cpk below 1.33",
+                    "action": "Open a containment action",
+                    "owner_ref": "quality.engineer",
+                    "escalation_ref": None,
+                    "response_time": "Within one shift",
+                },),
+                fmea_control_plan={
+                    "study_id": "PFMEA-001",
+                    "study_etag": "fmea-etag-001",
+                    "study_digest": "f" * 64,
+                    "control_ids": ("CP-001",),
+                },
+                analysis_evidence=({
+                    "run_id": "doe-001",
+                    "analysis_type": "doe.full_factorial",
+                    "run_etag": "run-etag-001",
+                    "input_digest": "a" * 64,
+                },),
+                actor="quality.engineer",
+                occurred_at="2026-11-05T11:00:00+09:00",
+            )
+
     def test_pilot_plan_snapshots_solution_selection_and_evidence(self) -> None:
         project = create_project(
             project_id="DMAIC-PILOT", title="Connector yield", owner_ref="quality.engineer"

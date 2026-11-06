@@ -106,6 +106,22 @@ describe("StatPro UI", () => {
     expect(await screen.findByRole("heading", { name: "DMAIC를 따라 개선 과제를 구조화합니다" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "DMAIC 단계별 안내" })).toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: "작업공간 열기" })[0]).toHaveAttribute("href", "/spc");
+    expect(screen.getByRole("link", { name: "관리 인수인계 열기" })).toHaveAttribute("href", "/home/dmaic/control");
+  });
+
+  it("renders the Control-phase handoff workspace with required evidence guidance", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const payload = String(input).endsWith("/health")
+        ? { ok: true, engine_version: "0.6.0", local_only: true }
+        : { items: [], next_after: null };
+      return new Response(JSON.stringify(payload), { status: 200, headers: { "Content-Type": "application/json" } });
+    });
+    render(<MemoryRouter initialEntries={["/home/dmaic/control"]}><App /></MemoryRouter>);
+
+    expect(await screen.findByRole("heading", { name: "관리 (Control) 인수인계 작업공간" })).toBeInTheDocument();
+    expect(screen.getByRole("list", { name: "관리 인수인계 작업 흐름" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "정의 (Define) 작업공간" })).toHaveAttribute("href", "/home/dmaic/define");
+    expect(screen.getByRole("link", { name: "관리도 작업공간 열기" })).toHaveAttribute("href", "/spc/control-charts");
   });
 
   it("renders the Define-phase VOC workspace and directs users to create a project first", async () => {

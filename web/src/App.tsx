@@ -32,6 +32,7 @@ import { DmaicMeasureWorkspacePage } from "./pages/DmaicMeasureWorkspacePage";
 import { DmaicRootCauseWorkspacePage } from "./pages/DmaicRootCauseWorkspacePage";
 import { DmaicSolutionSelectionWorkspacePage } from "./pages/DmaicSolutionSelectionWorkspacePage";
 import { DmaicPilotPlanWorkspacePage } from "./pages/DmaicPilotPlanWorkspacePage";
+import { DmaicControlWorkspacePage } from "./pages/DmaicControlWorkspacePage";
 import { LearningResourcesPreviewPage } from "./pages/LearningResourcesPreviewPage";
 import { SpcWorkspacePage } from "./pages/SpcWorkspacePage";
 import { ControlChartWorkspacePage } from "./pages/ControlChartWorkspacePage";
@@ -85,6 +86,7 @@ export default function App() {
         <Route path="/home/dmaic/analyze/root-causes" element={<DmaicRootCauseWorkspacePage />} />
         <Route path="/home/dmaic/improve/solution-selection" element={<DmaicSolutionSelectionWorkspacePage />} />
         <Route path="/home/dmaic/improve/pilot-plan" element={<DmaicPilotPlanWorkspacePage />} />
+        <Route path="/home/dmaic/control" element={<DmaicControlWorkspacePage />} />
         <Route path="/home/learning" element={<LearningResourcesPreviewPage />} />
         <Route path="/ui-preview" element={<Navigate to="/home" replace />} />
         <Route path="/ui-preview/dmaic" element={<Navigate to="/home/dmaic" replace />} />

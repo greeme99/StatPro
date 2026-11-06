@@ -46,6 +46,31 @@ class DmaicAnalysisEvidenceReference:
 
 
 @dataclass(frozen=True, slots=True)
+class DmaicFmeaControlPlanReference:
+    """Immutable identity of the FMEA control-plan snapshot used for handoff."""
+
+    study_id: str
+    study_etag: str
+    study_digest: str
+    control_ids: tuple[str, ...]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {**asdict(self), "control_ids": list(self.control_ids)}
+
+
+@dataclass(frozen=True, slots=True)
+class DmaicReactionPlanItem:
+    trigger: str
+    action: str
+    owner_ref: str
+    escalation_ref: str | None
+    response_time: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(frozen=True, slots=True)
 class DmaicProject:
     project_id: str
     title: str
@@ -68,6 +93,7 @@ class DmaicProject:
     root_cause_analysis: DmaicDocumentReference | None = None
     solution_selection: DmaicDocumentReference | None = None
     pilot_plan: DmaicDocumentReference | None = None
+    control_handoff: DmaicDocumentReference | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -108,6 +134,9 @@ class DmaicProject:
                 None if self.solution_selection is None else self.solution_selection.to_dict()
             ),
             "pilot_plan": None if self.pilot_plan is None else self.pilot_plan.to_dict(),
+            "control_handoff": (
+                None if self.control_handoff is None else self.control_handoff.to_dict()
+            ),
         }
 
     @classmethod
@@ -121,6 +150,7 @@ class DmaicProject:
         root_cause_analysis = payload.get("root_cause_analysis")
         solution_selection = payload.get("solution_selection")
         pilot_plan = payload.get("pilot_plan")
+        control_handoff = payload.get("control_handoff")
         project = cls(
             project_id=payload["project_id"], title=payload["title"], owner_ref=payload["owner_ref"],
             sponsor_ref=payload.get("sponsor_ref"), champion_ref=payload.get("champion_ref"),
@@ -160,6 +190,11 @@ class DmaicProject:
                 else DmaicDocumentReference(**solution_selection)
             ),
             pilot_plan=None if pilot_plan is None else DmaicDocumentReference(**pilot_plan),
+            control_handoff=(
+                None
+                if control_handoff is None
+                else DmaicDocumentReference(**control_handoff)
+            ),
         )
         if project.digest != _project_digest(project):
             raise DmaicInputError("project_digest_mismatch", "Stored DMAIC project digest does not match.", "digest")
@@ -630,6 +665,58 @@ class DmaicPilotPlan:
         return plan
 
 
+@dataclass(frozen=True, slots=True)
+class DmaicControlHandoff:
+    """Immutable Control-phase operating contract and evidence handoff."""
+
+    document_id: str
+    project_id: str
+    revision: int
+    parent_digest: str | None
+    digest: str
+    monitoring_plan: str
+    review_frequency: str
+    effectiveness_criteria: tuple[str, ...]
+    reaction_plans: tuple[DmaicReactionPlanItem, ...]
+    source_documents: tuple[DmaicDocumentReference, ...]
+    fmea_control_plan: DmaicFmeaControlPlanReference
+    analysis_evidence: tuple[DmaicAnalysisEvidenceReference, ...]
+    actor: str
+    occurred_at: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            **asdict(self),
+            "effectiveness_criteria": list(self.effectiveness_criteria),
+            "reaction_plans": [item.to_dict() for item in self.reaction_plans],
+            "source_documents": [item.to_dict() for item in self.source_documents],
+            "fmea_control_plan": self.fmea_control_plan.to_dict(),
+            "analysis_evidence": [item.to_dict() for item in self.analysis_evidence],
+        }
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> DmaicControlHandoff:
+        fmea = payload["fmea_control_plan"]
+        handoff = cls(
+            document_id=payload["document_id"], project_id=payload["project_id"],
+            revision=payload["revision"], parent_digest=payload.get("parent_digest"),
+            digest=payload["digest"], monitoring_plan=payload["monitoring_plan"],
+            review_frequency=payload["review_frequency"],
+            effectiveness_criteria=tuple(payload["effectiveness_criteria"]),
+            reaction_plans=tuple(DmaicReactionPlanItem(**item) for item in payload["reaction_plans"]),
+            source_documents=tuple(DmaicDocumentReference(**item) for item in payload.get("source_documents", [])),
+            fmea_control_plan=DmaicFmeaControlPlanReference(
+                study_id=fmea["study_id"], study_etag=fmea["study_etag"],
+                study_digest=fmea["study_digest"], control_ids=tuple(fmea["control_ids"]),
+            ),
+            analysis_evidence=tuple(DmaicAnalysisEvidenceReference(**item) for item in payload.get("analysis_evidence", [])),
+            actor=payload["actor"], occurred_at=payload["occurred_at"],
+        )
+        if handoff.digest != _control_handoff_digest(handoff):
+            raise DmaicInputError("control_handoff_digest_mismatch", "Stored control handoff digest does not match.", "digest")
+        return handoff
+
+
 def _project_digest(project: DmaicProject) -> str:
     payload = project.to_dict()
     payload.pop("digest")
@@ -686,5 +773,11 @@ def _solution_selection_digest(selection: DmaicSolutionSelection) -> str:
 
 def _pilot_plan_digest(plan: DmaicPilotPlan) -> str:
     payload = plan.to_dict()
+    payload.pop("digest")
+    return input_digest(payload)
+
+
+def _control_handoff_digest(handoff: DmaicControlHandoff) -> str:
+    payload = handoff.to_dict()
     payload.pop("digest")
     return input_digest(payload)

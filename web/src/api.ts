@@ -1,4 +1,4 @@
-import type { ActionPriorityPolicyPage, ApiError, CellValue, DefectAnalysisPage, DmaicProjectPage, FmeaStudyPage, FmeaStudyReport, QualityMetricPage, StoredActionPriorityPolicy, StoredCheckSheet, StoredDefectAnalysis, StoredDmaicCharter, StoredDmaicMeasurementPlan, StoredDmaicPilotPlan, StoredDmaicProject, StoredDmaicRootCauseAnalysis, StoredDmaicSolutionSelection, StoredFishbone, StoredFmeaStudy, StoredQualityMetric, RunPage, StoredRun, StoredWorksheet, WorksheetPage } from "./types";
+import type { ActionPriorityPolicyPage, ApiError, CellValue, DefectAnalysisPage, DmaicProjectPage, FmeaStudyPage, FmeaStudyReport, QualityMetricPage, StoredActionPriorityPolicy, StoredCheckSheet, StoredDefectAnalysis, StoredDmaicCharter, StoredDmaicControlHandoff, StoredDmaicMeasurementPlan, StoredDmaicPilotPlan, StoredDmaicProject, StoredDmaicRootCauseAnalysis, StoredDmaicSolutionSelection, StoredFishbone, StoredFmeaStudy, StoredQualityMetric, RunPage, StoredRun, StoredWorksheet, WorksheetPage } from "./types";
 
 const API_BASE = import.meta.env.VITE_STATPRO_API_URL ?? "/api";
 
@@ -284,6 +284,33 @@ export function saveDmaicPilotPlan(projectId: string, payload: {
 
 export function getDmaicPilotPlan(projectId: string, documentId: string): Promise<StoredDmaicPilotPlan> {
   return request(`/v1/dmaic-projects/${encodeURIComponent(projectId)}/pilot-plans/${encodeURIComponent(documentId)}`);
+}
+
+export function saveDmaicControlHandoff(projectId: string, payload: {
+  expected_storage_version: number;
+  monitoring_plan: string;
+  review_frequency: string;
+  effectiveness_criteria: string[];
+  reaction_plans: Array<{
+    trigger: string;
+    action: string;
+    owner_ref: string;
+    escalation_ref: string | null;
+    response_time: string;
+  }>;
+  fmea_study_id: string;
+  fmea_control_ids: string[];
+  analysis_run_ids: string[];
+  actor: string;
+  occurred_at: string;
+}): Promise<StoredDmaicProject> {
+  return request(`/v1/dmaic-projects/${encodeURIComponent(projectId)}/control-handoffs`, {
+    method: "POST", body: JSON.stringify(payload),
+  });
+}
+
+export function getDmaicControlHandoff(projectId: string, documentId: string): Promise<StoredDmaicControlHandoff> {
+  return request(`/v1/dmaic-projects/${encodeURIComponent(projectId)}/control-handoffs/${encodeURIComponent(documentId)}`);
 }
 
 export type DoeReportTemplate = "standard" | "customer_review" | "regulatory_review";
