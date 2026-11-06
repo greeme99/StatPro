@@ -2,6 +2,14 @@ import type { ActionPriorityPolicyPage, ApiError, CellValue, DefectAnalysisPage,
 
 const API_BASE = import.meta.env.VITE_STATPRO_API_URL ?? "/api";
 
+export type CopilotGuidanceResponse = {
+  answer: string;
+  provider: string;
+  sources: Array<{ title: string; reference: string; evidence_kind: string }>;
+  limitations: string[];
+  action: { label: string; href: string } | null;
+};
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
     ...init,
@@ -34,6 +42,27 @@ export function listRuns(limit = 20): Promise<RunPage> {
 
 export function getHealth(): Promise<{ status: string; engine_version: string }> {
   return request("/health");
+}
+
+export async function getCopilotGuidance(payload: {
+  question: string;
+  pathname: string;
+  workspace: string;
+  evidence_context?: string | null;
+}): Promise<CopilotGuidanceResponse> {
+  const guidance = await request<CopilotGuidanceResponse>("/v1/copilot/guidance", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  if (
+    typeof guidance.answer !== "string"
+    || typeof guidance.provider !== "string"
+    || !Array.isArray(guidance.sources)
+    || !Array.isArray(guidance.limitations)
+  ) {
+    throw new Error("Copilot 응답 계약이 올바르지 않습니다.");
+  }
+  return guidance;
 }
 
 export function getRun(runId: string): Promise<StoredRun> {

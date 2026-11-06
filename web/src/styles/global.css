@@ -86,6 +86,12 @@ svg { width: var(--icon-size); height: var(--icon-size); stroke-width: 1.8; }
 .copilot-message.is-user { align-self: flex-end; color: var(--color-text-onbrand); background: var(--color-action); }
 .copilot-message strong { display: block; margin-bottom: var(--space-1); font-size: var(--font-caption-size); }
 .copilot-message p { margin: var(--space-0); color: inherit; }
+.copilot-provider { display: block; margin-top: var(--space-2); color: var(--color-text-secondary); font-size: var(--font-caption-size); }
+.copilot-sources { margin-top: var(--space-3); padding-top: var(--space-3); border-top: var(--border-width) solid var(--color-border); }
+.copilot-sources summary { color: var(--color-action); font-weight: 700; cursor: pointer; }
+.copilot-sources ul { display: grid; gap: var(--space-2); margin: var(--space-2) var(--space-0) var(--space-0); padding-inline-start: var(--space-5); }
+.copilot-sources li { color: var(--color-text-secondary); font-size: var(--font-caption-size); }
+.copilot-sources li span, .copilot-sources li code { display: block; overflow-wrap: anywhere; }
 .copilot-action { display: inline-flex; align-items: center; gap: var(--space-1); margin-top: var(--space-3); padding-top: var(--space-3); border-top: var(--border-width) solid var(--color-border); color: var(--color-action); font-weight: 700; }
 .copilot-action svg { width: var(--space-4); height: var(--space-4); }
 .copilot-composer { display: grid; gap: var(--space-2); padding: var(--space-4) var(--space-5); border-top: var(--border-width) solid var(--color-border); }

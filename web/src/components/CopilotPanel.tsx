@@ -1,10 +1,17 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Bot, ChevronRight, Database, ExternalLink, FolderKanban, Send, X } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
-import { getRun, listDmaicProjects } from "../api";
+import { getCopilotGuidance, getRun, listDmaicProjects } from "../api";
 import { guideCopilotQuestion, type CopilotAction } from "../copilotGuidance";
 
-type CopilotMessage = { id: number; role: "assistant" | "user"; text: string; action?: CopilotAction };
+type CopilotMessage = {
+  id: number;
+  role: "assistant" | "user";
+  text: string;
+  action?: CopilotAction;
+  provider?: string;
+  sources?: Array<{ title: string; reference: string }>;
+};
 type CopilotEvidence = {
   kind: "run" | "project";
   title: string;
@@ -59,6 +66,7 @@ export function CopilotPanel() {
   const [question, setQuestion] = useState("");
   const [evidence, setEvidence] = useState<CopilotEvidence | null>(null);
   const [evidenceLoading, setEvidenceLoading] = useState(false);
+  const [answerLoading, setAnswerLoading] = useState(false);
   const [messages, setMessages] = useState<CopilotMessage[]>([
     { id: 1, role: "assistant", text: "현재 작업공간의 사용법, 업무절차, 분석 방법과 설정값을 질문하세요. 답변은 화면의 분석값을 직접 변경하지 않습니다." },
   ]);
@@ -122,26 +130,50 @@ export function CopilotPanel() {
     return () => { active = false; };
   }, [location.pathname, open]);
 
-  const ask = (value: string) => {
+  const ask = async (value: string) => {
     const text = value.trim();
-    if (!text) return;
-    const guidance = guideCopilotQuestion({
-      question: text,
-      contextName: context.name,
-      pathname: location.pathname,
-      evidenceContext: evidence?.answerContext,
-    });
-    setMessages((current) => [
-      ...current,
-      { id: Date.now(), role: "user", text },
-      { id: Date.now() + 1, role: "assistant", text: guidance.text, action: guidance.action },
-    ]);
+    if (!text || answerLoading) return;
+    const messageId = Date.now();
+    setMessages((current) => [...current, { id: messageId, role: "user", text }]);
     setQuestion("");
+    setAnswerLoading(true);
+    try {
+      const guidance = await getCopilotGuidance({
+        question: text,
+        pathname: location.pathname,
+        workspace: context.name,
+        evidence_context: evidence?.answerContext,
+      });
+      setMessages((current) => [...current, {
+        id: messageId + 1,
+        role: "assistant",
+        text: guidance.answer,
+        action: guidance.action ?? undefined,
+        provider: guidance.provider,
+        sources: guidance.sources,
+      }]);
+    } catch {
+      const guidance = guideCopilotQuestion({
+        question: text,
+        contextName: context.name,
+        pathname: location.pathname,
+        evidenceContext: evidence?.answerContext,
+      });
+      setMessages((current) => [...current, {
+        id: messageId + 1,
+        role: "assistant",
+        text: guidance.text,
+        action: guidance.action,
+        provider: "브라우저 로컬 폴백",
+      }]);
+    } finally {
+      setAnswerLoading(false);
+    }
   };
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    ask(question);
+    void ask(question);
   };
 
   return (
@@ -155,18 +187,19 @@ export function CopilotPanel() {
           <button className="icon-button" type="button" aria-label="AI Copilot 닫기" onClick={() => setOpen(false)}><X aria-hidden="true" /></button>
         </header>
         <div className="copilot-suggestions" aria-label="추천 질문">
-          {context.suggestions.map((suggestion) => <button type="button" key={suggestion} onClick={() => ask(suggestion)}>{suggestion}</button>)}
+          {context.suggestions.map((suggestion) => <button type="button" key={suggestion} disabled={answerLoading} onClick={() => void ask(suggestion)}>{suggestion}</button>)}
         </div>
         {(evidenceLoading || evidence) && <section className="copilot-evidence" aria-label="현재 근거">
           <header><span>{evidence?.kind === "project" ? <FolderKanban aria-hidden="true" /> : <Database aria-hidden="true" />}</span><div><strong>현재 근거</strong><small>저장된 실행·프로젝트 계약에서 읽음</small></div></header>
           {evidenceLoading && !evidence ? <p>근거를 확인하고 있습니다.</p> : evidence && <><div><strong>{evidence.title}</strong><span>{evidence.identifier}</span><small>{evidence.revision} · {evidence.detail}</small></div><Link to={evidence.href}>근거 열기 <ExternalLink aria-hidden="true" /></Link></>}
         </section>}
         <div className="copilot-messages" role="log" aria-live="polite" aria-relevant="additions">
-          {messages.map((message) => <div className={`copilot-message is-${message.role}`} key={message.id}><strong>{message.role === "assistant" ? "Copilot" : "사용자"}</strong><p>{message.text}</p>{message.action && <Link className="copilot-action" to={message.action.href}>{message.action.label}<ChevronRight aria-hidden="true" /></Link>}</div>)}
+          {messages.map((message) => <div className={`copilot-message is-${message.role}`} key={message.id}><strong>{message.role === "assistant" ? "Copilot" : "사용자"}</strong><p>{message.text}</p>{message.provider && <small className="copilot-provider">응답 출처: {message.provider}</small>}{message.sources && message.sources.length > 0 && <details className="copilot-sources"><summary>근거 {message.sources.length}건</summary><ul>{message.sources.map((source) => <li key={source.reference}><span>{source.title}</span><code>{source.reference}</code></li>)}</ul></details>}{message.action && <Link className="copilot-action" to={message.action.href}>{message.action.label}<ChevronRight aria-hidden="true" /></Link>}</div>)}
+          {answerLoading && <div className="copilot-message is-assistant"><strong>Copilot</strong><p>검토된 로컬 근거를 확인하고 있습니다.</p></div>}
         </div>
         <form className="copilot-composer" onSubmit={submit}>
           <label htmlFor="copilot-question">질문</label>
-          <div><input ref={inputRef} id="copilot-question" value={question} onChange={(event) => setQuestion(event.target.value)} placeholder="예: Xbar-R 설정값을 설명해줘" autoComplete="off" /><button className="icon-button" type="submit" aria-label="질문 보내기" disabled={!question.trim()}><Send aria-hidden="true" /></button></div>
+          <div><input ref={inputRef} id="copilot-question" value={question} onChange={(event) => setQuestion(event.target.value)} placeholder="예: Xbar-R 설정값을 설명해줘" autoComplete="off" disabled={answerLoading} /><button className="icon-button" type="submit" aria-label="질문 보내기" disabled={!question.trim() || answerLoading}><Send aria-hidden="true" /></button></div>
           <small>안내 답변입니다. 분석 설정 변경은 사용자가 검토 후 직접 실행합니다.</small>
         </form>
       </aside>

@@ -58,6 +58,7 @@ from statpro.application.approval import (
     ApprovalConfigurationError,
     LocalApprovalAuthenticator,
 )
+from statpro.application.copilot import CopilotProvider, LocalKnowledgeCopilotProvider
 from statpro.application.documents import (
     AtomicJsonDocumentRepository,
     DocumentConflictError,
@@ -181,6 +182,32 @@ RunId = Annotated[str, Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")]
 
 class ApiModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
+
+
+class CopilotGuidanceRequest(ApiModel):
+    question: str = Field(min_length=1, max_length=2000)
+    pathname: str = Field(min_length=1, max_length=500)
+    workspace: str = Field(min_length=1, max_length=200)
+    evidence_context: str | None = Field(default=None, max_length=2000)
+
+
+class CopilotSourceResponse(ApiModel):
+    title: str
+    reference: str
+    evidence_kind: str
+
+
+class CopilotActionResponse(ApiModel):
+    label: str
+    href: str
+
+
+class CopilotGuidanceResponse(ApiModel):
+    answer: str
+    provider: str
+    sources: list[CopilotSourceResponse]
+    limitations: list[str]
+    action: CopilotActionResponse | None = None
 
 
 class ImrRunRequest(ApiModel):
@@ -1757,9 +1784,11 @@ def create_app(
     repository: DocumentRepository,
     approval_authenticator: LocalApprovalAuthenticator | None = None,
     enterprise_approval_authenticator: EnterpriseApprovalAuthenticator | None = None,
+    copilot_provider: CopilotProvider | None = None,
 ) -> FastAPI:
     """Create a testable local API with an injected persistence adapter."""
 
+    active_copilot_provider = copilot_provider or LocalKnowledgeCopilotProvider()
     app = FastAPI(
         title="StatPro Local API",
         version=ENGINE_VERSION,
@@ -1870,6 +1899,33 @@ def create_app(
     @app.get("/v1/schemas/result-bundle")
     def get_result_bundle_schema() -> dict[str, Any]:
         return result_bundle_schema()
+
+    @app.post("/v1/copilot/guidance", response_model=CopilotGuidanceResponse)
+    def get_copilot_guidance(request: CopilotGuidanceRequest) -> CopilotGuidanceResponse:
+        guidance = active_copilot_provider.answer(
+            question=request.question,
+            pathname=request.pathname,
+            workspace=request.workspace,
+            evidence_context=request.evidence_context,
+        )
+        return CopilotGuidanceResponse(
+            answer=guidance.answer,
+            provider=guidance.provider,
+            sources=[
+                CopilotSourceResponse(
+                    title=source.title,
+                    reference=source.reference,
+                    evidence_kind=source.evidence_kind,
+                )
+                for source in guidance.sources
+            ],
+            limitations=list(guidance.limitations),
+            action=(
+                CopilotActionResponse(label=guidance.action.label, href=guidance.action.href)
+                if guidance.action
+                else None
+            ),
+        )
 
     @app.post("/v1/analysis-runs/imr", status_code=201, response_model=StoredRunResponse)
     def run_imr(request: ImrRunRequest, response: Response) -> StoredRunResponse:

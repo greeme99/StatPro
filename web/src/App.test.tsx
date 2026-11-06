@@ -311,6 +311,38 @@ describe("StatPro UI", () => {
     expect(await screen.findByText(/현재 근거: 실행 copilot-run-001, spc.imr, 엔진 0.6.0, 경고 1개/)).toBeInTheDocument();
   });
 
+  it("uses the server-owned Copilot contract and exposes its evidence source", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.endsWith("/health")) {
+        return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      }
+      if (url.endsWith("/v1/copilot/guidance")) {
+        return new Response(JSON.stringify({
+          answer: "서버에서 검토된 Xbar-R 안내입니다.",
+          provider: "statpro-local-knowledge-v1",
+          sources: [{ title: "SPC 통계 근거", reference: "docs/evidence/spc.md", evidence_kind: "product_documentation" }],
+          limitations: ["설정을 자동으로 변경하지 않습니다."],
+          action: { label: "Xbar-R 작업공간 열기", href: "/analyses/spc/xbar-r" },
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      return new Response(JSON.stringify({ items: [], next_after: null }), { status: 200 });
+    });
+    const user = userEvent.setup();
+    render(<MemoryRouter initialEntries={["/analyses/spc/xbar-r"]}><App /></MemoryRouter>);
+
+    await user.click(screen.getByRole("button", { name: "AI Copilot 보이기" }));
+    await user.click(screen.getByRole("button", { name: "관리한계 설정값을 설명해줘" }));
+
+    const panel = screen.getByRole("complementary", { name: "AI Copilot" });
+    expect(await within(panel).findByText("서버에서 검토된 Xbar-R 안내입니다.")).toBeInTheDocument();
+    expect(within(panel).getByText("응답 출처: statpro-local-knowledge-v1")).toBeInTheDocument();
+    await user.click(within(panel).getByText("근거 1건"));
+    expect(within(panel).getByText("SPC 통계 근거")).toBeInTheDocument();
+    expect(within(panel).getByText("docs/evidence/spc.md")).toBeInTheDocument();
+    expect(within(panel).getByRole("link", { name: "Xbar-R 작업공간 열기" })).toHaveAttribute("href", "/analyses/spc/xbar-r");
+  });
+
   it("redirects the retired preview URL to the fixed home URL", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 }));
     render(<MemoryRouter initialEntries={["/ui-preview"]}><App /></MemoryRouter>);

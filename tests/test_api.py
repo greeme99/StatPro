@@ -63,6 +63,57 @@ class LocalApiContractTests(unittest.TestCase):
             "/v1/dmaic-projects/{project_id}/control-handoffs",
             openapi.json()["paths"],
         )
+        self.assertIn("/v1/copilot/guidance", openapi.json()["paths"])
+
+    def test_copilot_returns_local_evidence_aware_guidance(self) -> None:
+        response = self.client.post(
+            "/v1/copilot/guidance",
+            json={
+                "question": "Xbar-R 설정값과 관리한계를 설명해줘",
+                "pathname": "/analyses/spc/xbar-r",
+                "workspace": "통계적 공정관리 (SPC)",
+                "evidence_context": "실행 SPC-001, spc.xbar_r, 엔진 0.6.0",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        guidance = response.json()
+        self.assertEqual(guidance["provider"], "statpro-local-knowledge-v1")
+        self.assertIn("실행 SPC-001", guidance["answer"])
+        self.assertIn("Xbar-R 관리도", guidance["answer"])
+        self.assertEqual(guidance["action"]["href"], "/analyses/spc/xbar-r")
+        self.assertEqual(guidance["sources"][0]["evidence_kind"], "product_documentation")
+        self.assertTrue(guidance["sources"][0]["reference"].startswith("docs/evidence/"))
+        self.assertIn("외부 AI 모델", " ".join(guidance["limitations"]))
+
+    def test_copilot_does_not_invent_an_unsupported_answer(self) -> None:
+        response = self.client.post(
+            "/v1/copilot/guidance",
+            json={
+                "question": "알 수 없는 사내 장비의 비공개 보정값은?",
+                "pathname": "/home",
+                "workspace": "홈 (Home)",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        guidance = response.json()
+        self.assertIn("근거가 충분하지 않습니다", guidance["answer"])
+        self.assertIn("직접 대응하는 검토된 지식 규칙", guidance["limitations"][-1])
+
+    def test_copilot_rejects_undeclared_or_empty_input(self) -> None:
+        response = self.client.post(
+            "/v1/copilot/guidance",
+            json={
+                "question": "",
+                "pathname": "/home",
+                "workspace": "홈 (Home)",
+                "ambient_secret": "must-not-be-accepted",
+            },
+        )
+
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.json()["error"]["code"], "invalid_request")
 
     def test_quality_metric_snapshot_preserves_the_stored_run_evidence(self) -> None:
         run = self.client.post(
