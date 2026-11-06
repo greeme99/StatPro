@@ -2,8 +2,9 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Bot, ChevronRight, Database, ExternalLink, FolderKanban, Send, X } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { getRun, listDmaicProjects } from "../api";
+import { guideCopilotQuestion, type CopilotAction } from "../copilotGuidance";
 
-type CopilotMessage = { id: number; role: "assistant" | "user"; text: string };
+type CopilotMessage = { id: number; role: "assistant" | "user"; text: string; action?: CopilotAction };
 type CopilotEvidence = {
   kind: "run" | "project";
   title: string;
@@ -50,27 +51,6 @@ const workspaceContext = (pathname: string) => {
     suggestions: ["현장 문제에 맞는 작업공간을 추천해줘", "DOE, SPC, FMEA의 차이는?", "DMAIC 프로젝트는 어디서 시작하나요?"],
   };
 };
-
-function guideAnswer(question: string, contextName: string, evidence: CopilotEvidence | null) {
-  const normalized = question.replace(/\s+/g, " ").trim();
-  const grounded = evidence ? ` 현재 근거: ${evidence.answerContext}` : "";
-  if (/설정|한계|파라미터|k|h|람다|lambda/i.test(normalized)) {
-    return `${contextName}의 설정값은 데이터 구조와 탐지 목적에 따라 달라집니다. 기본값을 먼저 실행한 뒤 가정, 표본 크기, 관리한계와 경고를 함께 검토하세요. 값을 변경할 때는 변경 이유와 기대 효과를 기록하고, 새 분석 실행으로 비교하는 것이 안전합니다.${grounded}`;
-  }
-  if (/언제|선택|추천|차이|유형/i.test(normalized)) {
-    return `${contextName}에서는 먼저 데이터 유형, 표본 구성, 확인하려는 질문을 구분합니다. 계량값인지 계수값인지, 부분군이 있는지, 원인 탐색인지 효과 검증인지 확인한 뒤 도구를 선택하세요. 현재 화면의 선택 가이드와 입력 검증을 우선 기준으로 사용합니다.`;
-  }
-  if (/이상|신호|조치|다음|절차|완료/i.test(normalized)) {
-    return `${contextName} 결과는 신호 확인 → 데이터·측정 오류 배제 → 현장 원인 확인 → 책임자와 조치 기록 → 재분석 및 관리계획 반영 순으로 사용하세요. 결과 화면의 분석 실행 ID와 데이터 개정을 보존하면 조치 전후 근거를 추적할 수 있습니다.${grounded}`;
-  }
-  if (/근거|연결|프로젝트|개정|실행/i.test(normalized)) {
-    return `${contextName}의 결과는 분석 실행 ID, 입력 데이터 개정, 설정값, 엔진 버전과 함께 보존해야 합니다. DMAIC 문서나 FMEA 관리계획에는 해당 실행을 링크하고, 재분석 시 기존 근거를 덮어쓰지 말고 새 개정으로 남기세요.${grounded}`;
-  }
-  if (/사용|방법|어떻게|도움/i.test(normalized)) {
-    return `${contextName}에서 작업 대상을 선택하고 필수 입력을 확인한 다음 분석을 실행하세요. 결과의 가정·경고·관리한계·이상 신호를 검토한 뒤 보고서 또는 프로젝트 근거로 연결합니다. 구체적인 데이터 유형이나 목표를 알려주면 다음 단계를 좁혀 안내할 수 있습니다.`;
-  }
-  return `${contextName} 문맥에서 질문을 확인했습니다. 데이터 유형, 현재 단계, 기대하는 판단을 함께 알려주면 사용 절차·분석 방법·설정값·후속 조치 중 필요한 내용을 구체적으로 안내하겠습니다.`;
-}
 
 export function CopilotPanel() {
   const location = useLocation();
@@ -145,10 +125,16 @@ export function CopilotPanel() {
   const ask = (value: string) => {
     const text = value.trim();
     if (!text) return;
+    const guidance = guideCopilotQuestion({
+      question: text,
+      contextName: context.name,
+      pathname: location.pathname,
+      evidenceContext: evidence?.answerContext,
+    });
     setMessages((current) => [
       ...current,
       { id: Date.now(), role: "user", text },
-      { id: Date.now() + 1, role: "assistant", text: guideAnswer(text, context.name, evidence) },
+      { id: Date.now() + 1, role: "assistant", text: guidance.text, action: guidance.action },
     ]);
     setQuestion("");
   };
@@ -176,7 +162,7 @@ export function CopilotPanel() {
           {evidenceLoading && !evidence ? <p>근거를 확인하고 있습니다.</p> : evidence && <><div><strong>{evidence.title}</strong><span>{evidence.identifier}</span><small>{evidence.revision} · {evidence.detail}</small></div><Link to={evidence.href}>근거 열기 <ExternalLink aria-hidden="true" /></Link></>}
         </section>}
         <div className="copilot-messages" role="log" aria-live="polite" aria-relevant="additions">
-          {messages.map((message) => <div className={`copilot-message is-${message.role}`} key={message.id}><strong>{message.role === "assistant" ? "Copilot" : "사용자"}</strong><p>{message.text}</p></div>)}
+          {messages.map((message) => <div className={`copilot-message is-${message.role}`} key={message.id}><strong>{message.role === "assistant" ? "Copilot" : "사용자"}</strong><p>{message.text}</p>{message.action && <Link className="copilot-action" to={message.action.href}>{message.action.label}<ChevronRight aria-hidden="true" /></Link>}</div>)}
         </div>
         <form className="copilot-composer" onSubmit={submit}>
           <label htmlFor="copilot-question">질문</label>

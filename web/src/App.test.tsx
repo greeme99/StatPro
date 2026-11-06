@@ -237,11 +237,26 @@ describe("StatPro UI", () => {
     expect(within(panel).getByText("통계적 공정관리 (SPC)")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "관리한계 설정값을 설명해줘" }));
-    expect(await screen.findByText(/설정값은 데이터 구조와 탐지 목적에 따라 달라집니다/)).toBeInTheDocument();
+    expect(await screen.findByText(/Xbar-R 관리도는 연속형 측정값을 합리적 부분군으로 묶고/)).toBeInTheDocument();
+    expect(within(panel).getByRole("link", { name: "Xbar-R 분석 설정 열기" })).toHaveAttribute("href", "/analyses/spc/xbar-r");
     expect(localStorage.getItem("statpro-copilot-open")).toBe("true");
 
     await user.click(screen.getByRole("button", { name: "AI Copilot 닫기" }));
     expect(localStorage.getItem("statpro-copilot-open")).toBe("false");
+  });
+
+  it("recommends a concrete SPC method and opens its workspace from Copilot", async () => {
+    localStorage.clear();
+    const user = userEvent.setup();
+    render(<MemoryRouter initialEntries={["/home"]}><App /></MemoryRouter>);
+
+    await user.click(await screen.findByRole("button", { name: "AI Copilot 보이기" }));
+    const panel = screen.getByRole("complementary", { name: "AI Copilot" });
+    await user.type(within(panel).getByLabelText("질문"), "검사 수가 매번 다른 불량률은 어떤 관리도를 쓰나요?");
+    await user.click(within(panel).getByRole("button", { name: "질문 보내기" }));
+
+    expect(await within(panel).findByText(/p 관리도는 검사 수가 달라질 수 있는 각 표본의 부적합품 비율/)).toBeInTheDocument();
+    expect(within(panel).getByRole("link", { name: "p 관리도 설정 열기" })).toHaveAttribute("href", "/analyses/spc/attribute?chart=p");
   });
 
   it("grounds Copilot answers in the immutable analysis run contract", async () => {
