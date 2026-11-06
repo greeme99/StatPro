@@ -3,6 +3,7 @@ import { Activity, BarChart3, Bug, Calculator, Database, FileText, FileWarning, 
 import { NavLink } from "react-router-dom";
 import { getHealth } from "../api";
 import { CopilotPanel } from "./CopilotPanel";
+import { ProjectContextMenu } from "./ProjectContextMenu";
 
 const navigation = [
   { to: "/home", label: "홈 (Home)", icon: Home },
@@ -55,6 +56,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <span>StatPro</span>
           <span className="environment-badge">LOCAL</span>
         </div>
+        <ProjectContextMenu />
         <div className="header-meta">
           <span className={`connection-state${engine.state === "error" ? " is-error" : ""}`}><span aria-hidden="true">●</span> {engine.state === "ready" ? "엔진 연결됨" : engine.state === "error" ? "엔진 연결 오류" : "엔진 확인 중"}</span>
           <button

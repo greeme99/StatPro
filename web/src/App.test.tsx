@@ -93,6 +93,34 @@ describe("StatPro UI", () => {
     expect(localStorage.getItem("statpro-sidebar-collapsed")).toBe("true");
   });
 
+  it("keeps the selected DMAIC project as global workspace context", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const payload = String(input).endsWith("/health")
+        ? { ok: true, engine_version: "0.6.0", local_only: true }
+        : { items: [{
+          project_id: "DMAIC-LINE-01", storage_version: 2, etag: "project-etag",
+          project: {
+            project_id: "DMAIC-LINE-01", title: "조립 1라인 수율 개선", owner_ref: "quality.lead",
+            sponsor_ref: null, champion_ref: null, department: "품질", start_date: null, target_end_date: null,
+            status: "active", revision: 2, parent_digest: null, digest: "project-digest",
+            charter: null, voice_of_customer: null, sipoc: null, stakeholder_assessment: null,
+            problem_definition: null, measurement_plan: null, root_cause_analysis: null,
+            solution_selection: null, pilot_plan: null, control_handoff: null,
+          },
+        }], next_after: null };
+      return new Response(JSON.stringify(payload), { status: 200, headers: { "Content-Type": "application/json" } });
+    });
+    const user = userEvent.setup();
+    render(<MemoryRouter initialEntries={["/home"]}><App /></MemoryRouter>);
+
+    await user.click(await screen.findByRole("button", { name: /현재 프로젝트.*프로젝트 선택/ }));
+    const menu = await screen.findByRole("region", { name: "현재 프로젝트 선택" });
+    await user.click(await within(menu).findByRole("option", { name: /조립 1라인 수율 개선/ }));
+
+    expect(localStorage.getItem("statpro-active-project-id")).toBe("DMAIC-LINE-01");
+    expect(screen.getByRole("button", { name: /현재 프로젝트.*조립 1라인 수율 개선/ })).toBeInTheDocument();
+  });
+
   it("opens the contextual AI Copilot and answers without changing analysis settings", async () => {
     localStorage.clear();
     const user = userEvent.setup();
