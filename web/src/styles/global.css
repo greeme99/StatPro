@@ -288,6 +288,7 @@ svg { width: var(--icon-size); height: var(--icon-size); stroke-width: 1.8; }
 .delivery-status.status-부분-구현 { color: var(--color-status-warning); background: var(--color-status-warning-bg); }
 .delivery-status.status-개발-예정, .delivery-status.status-외부-정책-필요 { color: var(--color-text-secondary); background: var(--color-bg-subtle); }
 .catalog-note { margin-top: auto; padding-top: var(--space-5); }
+.route-loading { display: grid; min-height: calc(var(--space-16) * 4); place-items: center; color: var(--color-text-secondary); }
 .breadcrumb { display: flex; gap: var(--space-2); margin-bottom: var(--space-4); color: var(--color-text-secondary); font-weight: 600; }
 .doe-workspace .page-heading { margin-bottom: var(--space-5); }
 .doe-overview { display: grid; grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr); gap: var(--space-6); padding: var(--card-pad); margin-bottom: var(--space-5); }

@@ -1,55 +1,62 @@
+import { lazy, Suspense, type ComponentType } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { AppShell } from "./components/AppShell";
+import { ControlChartWorkspacePage } from "./pages/ControlChartWorkspacePage";
 import { DashboardPage } from "./pages/DashboardPage";
-import { ImrSetupPage } from "./pages/ImrSetupPage";
-import { ResultPage } from "./pages/ResultPage";
-import { FmeaListPage } from "./pages/FmeaListPage";
-import { FmeaStudyPage } from "./pages/FmeaStudyPage";
-import { DataPage } from "./pages/DataPage";
-import { WorksheetPage } from "./pages/WorksheetPage";
-import { DoeSetupPage } from "./pages/DoeSetupPage";
-import { DoeOptimizerPage } from "./pages/DoeOptimizerPage";
-import { DoeFractionalSetupPage } from "./pages/DoeFractionalSetupPage";
-import { DoePlackettBurmanSetupPage } from "./pages/DoePlackettBurmanSetupPage";
-import { DoeCentralCompositeSetupPage } from "./pages/DoeCentralCompositeSetupPage";
-import { DoeBoxBehnkenSetupPage } from "./pages/DoeBoxBehnkenSetupPage";
-import { AttributeChartSetupPage } from "./pages/AttributeChartSetupPage";
-import { XbarSSetupPage } from "./pages/XbarSSetupPage";
-import { XbarRSetupPage } from "./pages/XbarRSetupPage";
-import { EwmaSetupPage } from "./pages/EwmaSetupPage";
-import { CusumSetupPage } from "./pages/CusumSetupPage";
-import { FeatureCatalogPage } from "./pages/FeatureCatalogPage";
-import { DoeWorkspacePage } from "./pages/DoeWorkspacePage";
-import { RareEventChartSetupPage } from "./pages/RareEventChartSetupPage";
-import { MenuPreviewPage } from "./pages/MenuPreviewPage";
-import { DmaicGuidePreviewPage } from "./pages/DmaicGuidePreviewPage";
-import { DmaicDefineWorkspacePage } from "./pages/DmaicDefineWorkspacePage";
-import { DmaicVoiceOfCustomerWorkspacePage } from "./pages/DmaicVoiceOfCustomerWorkspacePage";
-import { DmaicSipocWorkspacePage } from "./pages/DmaicSipocWorkspacePage";
-import { DmaicStakeholderWorkspacePage } from "./pages/DmaicStakeholderWorkspacePage";
-import { DmaicProblemDefinitionWorkspacePage } from "./pages/DmaicProblemDefinitionWorkspacePage";
-import { DmaicMeasureWorkspacePage } from "./pages/DmaicMeasureWorkspacePage";
-import { DmaicRootCauseWorkspacePage } from "./pages/DmaicRootCauseWorkspacePage";
-import { DmaicSolutionSelectionWorkspacePage } from "./pages/DmaicSolutionSelectionWorkspacePage";
-import { DmaicPilotPlanWorkspacePage } from "./pages/DmaicPilotPlanWorkspacePage";
 import { DmaicControlWorkspacePage } from "./pages/DmaicControlWorkspacePage";
 import { DmaicProjectOverviewPage } from "./pages/DmaicProjectOverviewPage";
-import { LearningResourcesPreviewPage } from "./pages/LearningResourcesPreviewPage";
-import { SpcWorkspacePage } from "./pages/SpcWorkspacePage";
-import { ControlChartWorkspacePage } from "./pages/ControlChartWorkspacePage";
-import { SpcQualityToolPage } from "./pages/SpcQualityToolPage";
-import { CheckSheetWorkspacePage } from "./pages/CheckSheetWorkspacePage";
-import { ParetoWorkspacePage } from "./pages/ParetoWorkspacePage";
-import { FishboneWorkspacePage } from "./pages/FishboneWorkspacePage";
-import { QualityDashboardPage } from "./pages/QualityDashboardPage";
-import { DefectAnalysisPage } from "./pages/DefectAnalysisPage";
+import { DmaicSipocWorkspacePage } from "./pages/DmaicSipocWorkspacePage";
+import { DmaicVoiceOfCustomerWorkspacePage } from "./pages/DmaicVoiceOfCustomerWorkspacePage";
+
+function lazyNamed(loader: () => Promise<Record<string, unknown>>, exportName: string) {
+  return lazy(async () => ({ default: (await loader())[exportName] as ComponentType }));
+}
+
+const ImrSetupPage = lazyNamed(() => import("./pages/ImrSetupPage"), "ImrSetupPage");
+const ResultPage = lazyNamed(() => import("./pages/ResultPage"), "ResultPage");
+const FmeaListPage = lazyNamed(() => import("./pages/FmeaListPage"), "FmeaListPage");
+const FmeaStudyPage = lazyNamed(() => import("./pages/FmeaStudyPage"), "FmeaStudyPage");
+const DataPage = lazyNamed(() => import("./pages/DataPage"), "DataPage");
+const WorksheetPage = lazyNamed(() => import("./pages/WorksheetPage"), "WorksheetPage");
+const DoeSetupPage = lazyNamed(() => import("./pages/DoeSetupPage"), "DoeSetupPage");
+const DoeOptimizerPage = lazyNamed(() => import("./pages/DoeOptimizerPage"), "DoeOptimizerPage");
+const DoeFractionalSetupPage = lazyNamed(() => import("./pages/DoeFractionalSetupPage"), "DoeFractionalSetupPage");
+const DoePlackettBurmanSetupPage = lazyNamed(() => import("./pages/DoePlackettBurmanSetupPage"), "DoePlackettBurmanSetupPage");
+const DoeCentralCompositeSetupPage = lazyNamed(() => import("./pages/DoeCentralCompositeSetupPage"), "DoeCentralCompositeSetupPage");
+const DoeBoxBehnkenSetupPage = lazyNamed(() => import("./pages/DoeBoxBehnkenSetupPage"), "DoeBoxBehnkenSetupPage");
+const AttributeChartSetupPage = lazyNamed(() => import("./pages/AttributeChartSetupPage"), "AttributeChartSetupPage");
+const XbarSSetupPage = lazyNamed(() => import("./pages/XbarSSetupPage"), "XbarSSetupPage");
+const XbarRSetupPage = lazyNamed(() => import("./pages/XbarRSetupPage"), "XbarRSetupPage");
+const EwmaSetupPage = lazyNamed(() => import("./pages/EwmaSetupPage"), "EwmaSetupPage");
+const CusumSetupPage = lazyNamed(() => import("./pages/CusumSetupPage"), "CusumSetupPage");
+const FeatureCatalogPage = lazyNamed(() => import("./pages/FeatureCatalogPage"), "FeatureCatalogPage");
+const DoeWorkspacePage = lazyNamed(() => import("./pages/DoeWorkspacePage"), "DoeWorkspacePage");
+const RareEventChartSetupPage = lazyNamed(() => import("./pages/RareEventChartSetupPage"), "RareEventChartSetupPage");
+const MenuPreviewPage = lazyNamed(() => import("./pages/MenuPreviewPage"), "MenuPreviewPage");
+const DmaicGuidePreviewPage = lazyNamed(() => import("./pages/DmaicGuidePreviewPage"), "DmaicGuidePreviewPage");
+const DmaicDefineWorkspacePage = lazyNamed(() => import("./pages/DmaicDefineWorkspacePage"), "DmaicDefineWorkspacePage");
+const DmaicStakeholderWorkspacePage = lazyNamed(() => import("./pages/DmaicStakeholderWorkspacePage"), "DmaicStakeholderWorkspacePage");
+const DmaicProblemDefinitionWorkspacePage = lazyNamed(() => import("./pages/DmaicProblemDefinitionWorkspacePage"), "DmaicProblemDefinitionWorkspacePage");
+const DmaicMeasureWorkspacePage = lazyNamed(() => import("./pages/DmaicMeasureWorkspacePage"), "DmaicMeasureWorkspacePage");
+const DmaicRootCauseWorkspacePage = lazyNamed(() => import("./pages/DmaicRootCauseWorkspacePage"), "DmaicRootCauseWorkspacePage");
+const DmaicSolutionSelectionWorkspacePage = lazyNamed(() => import("./pages/DmaicSolutionSelectionWorkspacePage"), "DmaicSolutionSelectionWorkspacePage");
+const DmaicPilotPlanWorkspacePage = lazyNamed(() => import("./pages/DmaicPilotPlanWorkspacePage"), "DmaicPilotPlanWorkspacePage");
+const LearningResourcesPreviewPage = lazyNamed(() => import("./pages/LearningResourcesPreviewPage"), "LearningResourcesPreviewPage");
+const SpcWorkspacePage = lazyNamed(() => import("./pages/SpcWorkspacePage"), "SpcWorkspacePage");
+const SpcQualityToolPage = lazyNamed(() => import("./pages/SpcQualityToolPage"), "SpcQualityToolPage");
+const CheckSheetWorkspacePage = lazyNamed(() => import("./pages/CheckSheetWorkspacePage"), "CheckSheetWorkspacePage");
+const ParetoWorkspacePage = lazyNamed(() => import("./pages/ParetoWorkspacePage"), "ParetoWorkspacePage");
+const FishboneWorkspacePage = lazyNamed(() => import("./pages/FishboneWorkspacePage"), "FishboneWorkspacePage");
+const QualityDashboardPage = lazyNamed(() => import("./pages/QualityDashboardPage"), "QualityDashboardPage");
+const DefectAnalysisPage = lazyNamed(() => import("./pages/DefectAnalysisPage"), "DefectAnalysisPage");
 
 export default function App() {
   return (
     <AppShell>
-      <Routes>
-        <Route path="/" element={<DashboardPage />} />
-        <Route path="/analyses/imr/new" element={<ImrSetupPage />} />
+      <Suspense fallback={<div className="route-loading" role="status">화면을 불러오는 중입니다.</div>}>
+        <Routes>
+          <Route path="/" element={<DashboardPage />} />
+          <Route path="/analyses/imr/new" element={<ImrSetupPage />} />
         <Route path="/analyses/spc/attribute" element={<AttributeChartSetupPage />} />
         <Route path="/analyses/spc/xbar-s" element={<XbarSSetupPage />} />
         <Route path="/analyses/spc/xbar-r" element={<XbarRSetupPage />} />
@@ -93,9 +100,10 @@ export default function App() {
         <Route path="/ui-preview" element={<Navigate to="/home" replace />} />
         <Route path="/ui-preview/dmaic" element={<Navigate to="/home/dmaic" replace />} />
         <Route path="/ui-preview/learning" element={<Navigate to="/home/learning" replace />} />
-        <Route path="/catalog/:section" element={<FeatureCatalogPage />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+          <Route path="/catalog/:section" element={<FeatureCatalogPage />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Suspense>
     </AppShell>
   );
 }
