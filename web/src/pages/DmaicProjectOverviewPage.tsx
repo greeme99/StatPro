@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowRight, CheckCircle2, CircleDashed, Database, FileCheck2, FolderKanban, Link2, ShieldCheck } from "lucide-react";
+import { ArrowRight, CheckCircle2, CircleAlert, CircleDashed, Database, FileCheck2, FolderKanban, Link2, ShieldCheck } from "lucide-react";
 import { Link } from "react-router-dom";
 import {
   getDmaicControlHandoff,
@@ -28,6 +28,17 @@ type EvidenceDetail = {
   decision: string;
   runs: AnalysisReference[];
   fmea: { study_id: string; control_ids: string[] } | null;
+  checks: { decision: boolean; management: boolean };
+};
+
+type GateStatus = "ready" | "pending" | "unknown";
+type ReadinessCheck = { label: string; status: GateStatus };
+type ReadinessGate = {
+  phase: string;
+  to: string;
+  checks: ReadinessCheck[];
+  status: GateStatus;
+  nextAction: string;
 };
 
 const phaseActions = [
@@ -62,6 +73,7 @@ export function DmaicProjectOverviewPage() {
   const [details, setDetails] = useState<EvidenceDetail[]>([]);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [detailsError, setDetailsError] = useState("");
+  const [detailFailures, setDetailFailures] = useState<string[]>([]);
 
   useEffect(() => {
     let active = true;
@@ -81,53 +93,63 @@ export function DmaicProjectOverviewPage() {
     let active = true;
     setDetails([]);
     setDetailsError("");
+    setDetailFailures([]);
     if (!selected) return () => { active = false; };
 
     const projectId = selected.project_id;
     const project = selected.project;
-    const requests: Array<Promise<EvidenceDetail>> = [];
+    const requests: Array<{ key: string; promise: Promise<EvidenceDetail> }> = [];
     if (project.measurement_plan) requests.push(
-      getDmaicMeasurementPlan(projectId, project.measurement_plan.document_id).then(({ measurement_plan: item }) => ({
+      { key: project.measurement_plan.document_id, promise: getDmaicMeasurementPlan(projectId, project.measurement_plan.document_id).then(({ measurement_plan: item }) => ({
         key: item.document_id, phase: "측정", label: "측정 계획",
         decision: `${item.primary_metric} 기준선과 수집·측정 조건`, runs: item.analysis_evidence, fmea: null,
-      })),
+        checks: { decision: item.primary_metric.trim().length > 0, management: false },
+      })) },
     );
     if (project.root_cause_analysis) requests.push(
-      getDmaicRootCauseAnalysis(projectId, project.root_cause_analysis.document_id).then(({ root_cause_analysis: item }) => ({
+      { key: project.root_cause_analysis.document_id, promise: getDmaicRootCauseAnalysis(projectId, project.root_cause_analysis.document_id).then(({ root_cause_analysis: item }) => ({
         key: item.document_id, phase: "분석", label: "근본원인 분석",
         decision: item.verified_causes.length > 0 ? `검증 원인: ${item.verified_causes.join(", ")}` : "검증된 원인이 아직 기록되지 않음",
         runs: item.analysis_evidence, fmea: null,
-      })),
+        checks: { decision: item.verified_causes.length > 0, management: false },
+      })) },
     );
     if (project.solution_selection) requests.push(
-      getDmaicSolutionSelection(projectId, project.solution_selection.document_id).then(({ solution_selection: item }) => ({
+      { key: project.solution_selection.document_id, promise: getDmaicSolutionSelection(projectId, project.solution_selection.document_id).then(({ solution_selection: item }) => ({
         key: item.document_id, phase: "개선", label: "개선안 선정",
         decision: item.selected_solution || "선정된 개선안이 아직 기록되지 않음", runs: item.analysis_evidence, fmea: null,
-      })),
+        checks: { decision: [item.selected_solution, item.decision_rationale, item.validation_plan].every((value) => value.trim().length > 0), management: false },
+      })) },
     );
     if (project.pilot_plan) requests.push(
-      getDmaicPilotPlan(projectId, project.pilot_plan.document_id).then(({ pilot_plan: item }) => ({
+      { key: project.pilot_plan.document_id, promise: getDmaicPilotPlan(projectId, project.pilot_plan.document_id).then(({ pilot_plan: item }) => ({
         key: item.document_id, phase: "개선", label: "파일럿 계획",
         decision: `${item.study_design} · 성공지표 ${item.success_metrics.length}개`, runs: item.analysis_evidence, fmea: null,
-      })),
+        checks: { decision: item.success_metrics.length > 0 && item.stop_criteria.length > 0, management: false },
+      })) },
     );
     if (project.control_handoff) requests.push(
-      getDmaicControlHandoff(projectId, project.control_handoff.document_id).then(({ control_handoff: item }) => ({
+      { key: project.control_handoff.document_id, promise: getDmaicControlHandoff(projectId, project.control_handoff.document_id).then(({ control_handoff: item }) => ({
         key: item.document_id, phase: "관리", label: "관리 인수인계",
         decision: `${item.monitoring_plan} · 반응계획 ${item.reaction_plans.length}개`, runs: item.analysis_evidence,
         fmea: { study_id: item.fmea_control_plan.study_id, control_ids: item.fmea_control_plan.control_ids },
-      })),
+        checks: {
+          decision: item.monitoring_plan.trim().length > 0 && item.reaction_plans.length > 0 && item.effectiveness_criteria.length > 0,
+          management: item.fmea_control_plan.control_ids.length > 0,
+        },
+      })) },
     );
 
     if (requests.length === 0) return () => { active = false; };
     setDetailsLoading(true);
-    Promise.allSettled(requests)
+    Promise.allSettled(requests.map((request) => request.promise))
       .then((results) => {
         if (!active) return;
         const loaded = results.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
-        const failed = results.length - loaded.length;
+        const failedKeys = results.flatMap((result, index) => result.status === "rejected" ? [requests[index].key] : []);
         setDetails(loaded);
-        if (failed > 0) setDetailsError(`저장된 산출물 ${failed}건의 상세 근거를 불러오지 못했습니다. 문서 참조는 아래 타임라인에 그대로 보존됩니다.`);
+        setDetailFailures(failedKeys);
+        if (failedKeys.length > 0) setDetailsError(`저장된 산출물 ${failedKeys.length}건의 상세 근거를 불러오지 못했습니다. 문서 참조는 아래 타임라인에 그대로 보존됩니다.`);
       })
       .finally(() => { if (active) setDetailsLoading(false); });
     return () => { active = false; };
@@ -139,6 +161,53 @@ export function DmaicProjectOverviewPage() {
   const nextEvidence = evidence.find((item) => item.reference === null) ?? null;
   const linkedRuns = useMemo(() => new Set(details.flatMap((item) => item.runs.map((run) => run.run_id))), [details]);
   const linkedControls = useMemo(() => new Set(details.flatMap((item) => item.fmea?.control_ids ?? [])), [details]);
+  const readinessGates = useMemo<ReadinessGate[]>(() => {
+    if (!selected) return [];
+    const project = selected.project;
+    const documentStatus = (reference: DmaicDocumentReference | null): GateStatus => reference ? "ready" : "pending";
+    const detailStatus = (reference: DmaicDocumentReference | null, predicate: (detail: EvidenceDetail) => boolean): GateStatus => {
+      if (!reference) return "pending";
+      if (detailFailures.includes(reference.document_id)) return "unknown";
+      const detail = details.find((item) => item.key === reference.document_id);
+      if (!detail) return "unknown";
+      return predicate(detail) ? "ready" : "pending";
+    };
+    const gate = (phase: string, to: string, checks: ReadinessCheck[], nextAction: string): ReadinessGate => ({
+      phase, to, checks, nextAction,
+      status: checks.some((check) => check.status === "unknown") ? "unknown" : checks.every((check) => check.status === "ready") ? "ready" : "pending",
+    });
+    const definitionReferences = [project.charter, project.voice_of_customer, project.sipoc, project.stakeholder_assessment, project.problem_definition];
+    return [
+      gate("정의 (Define)", "/home/dmaic/define", [
+        { label: "헌장·VOC·SIPOC·이해관계자·문제 정의", status: definitionReferences.every(Boolean) ? "ready" : "pending" },
+      ], "현장 범위와 고객 요구를 빠짐없이 합의합니다."),
+      gate("측정 (Measure)", "/home/dmaic/measure", [
+        { label: "측정 계획 문서", status: documentStatus(project.measurement_plan) },
+        { label: "측정지표·기준선", status: detailStatus(project.measurement_plan, (detail) => detail.checks.decision) },
+        { label: "연결된 분석 실행", status: detailStatus(project.measurement_plan, (detail) => detail.runs.length > 0) },
+      ], "측정지표와 기준선 분석 실행을 고정합니다."),
+      gate("분석 (Analyze)", "/home/dmaic/analyze/root-causes", [
+        { label: "근본원인 문서", status: documentStatus(project.root_cause_analysis) },
+        { label: "검증된 원인", status: detailStatus(project.root_cause_analysis, (detail) => detail.checks.decision) },
+        { label: "연결된 분석 실행", status: detailStatus(project.root_cause_analysis, (detail) => detail.runs.length > 0) },
+      ], "데이터로 검증된 핵심 원인과 실행 근거를 남깁니다."),
+      gate("개선 (Improve)", "/home/dmaic/improve/solution-selection", [
+        { label: "개선안 선정·파일럿 문서", status: project.solution_selection && project.pilot_plan ? "ready" : "pending" },
+        { label: "선정 근거·검증 기준", status: detailStatus(project.solution_selection, (detail) => detail.checks.decision) },
+        { label: "성공지표·중단 기준", status: detailStatus(project.pilot_plan, (detail) => detail.checks.decision) },
+        { label: "DOE·파일럿 분석 실행", status: project.solution_selection && project.pilot_plan
+          ? (detailFailures.includes(project.solution_selection.document_id) || detailFailures.includes(project.pilot_plan.document_id) || detailsLoading) ? "unknown"
+            : details.filter((detail) => [project.solution_selection?.document_id, project.pilot_plan?.document_id].includes(detail.key)).some((detail) => detail.runs.length > 0) ? "ready" : "pending"
+          : "pending" },
+      ], "선정 근거와 성공·중단 기준을 분석 실행으로 검증합니다."),
+      gate("관리 (Control)", "/home/dmaic/control", [
+        { label: "관리 인수인계 문서", status: documentStatus(project.control_handoff) },
+        { label: "모니터링·반응·효과 기준", status: detailStatus(project.control_handoff, (detail) => detail.checks.decision) },
+        { label: "SPC·공정능력 분석 실행", status: detailStatus(project.control_handoff, (detail) => detail.runs.length > 0) },
+        { label: "FMEA 관리항목", status: detailStatus(project.control_handoff, (detail) => detail.checks.management) },
+      ], "관리 기준과 반응계획을 SPC·FMEA 근거로 인계합니다."),
+    ];
+  }, [selected, details, detailsLoading, detailFailures]);
 
   function changeProject(projectId: string) {
     const project = projects.find((item) => item.project_id === projectId) ?? null;
@@ -165,6 +234,17 @@ export function DmaicProjectOverviewPage() {
       <section className="dmaic-project-phases" aria-labelledby="phase-progress-title"><header><span className="eyebrow">WORKFLOW</span><h2 id="phase-progress-title">단계별 실행 경로</h2><p>단계 카드는 다음 업무 판단을 위한 진입점이며, 저장된 근거는 아래 증거 레일에서 확인합니다.</p></header><ol>{phaseActions.map((item, index) => { const phaseComplete = evidence.filter((entry) => entry.phase === item.phase.split(" ")[0]).every((entry) => entry.reference !== null); return <li key={item.phase} className={phaseComplete ? "is-complete" : ""}><span>{phaseComplete ? <CheckCircle2 aria-label="완료" /> : index + 1}</span><div><strong>{item.phase}</strong><p>{item.description}</p><Link className="text-link" to={item.to}>작업공간 열기 <ArrowRight aria-hidden="true" /></Link></div></li>; })}</ol></section>
 
       <section className="dmaic-evidence-panel" aria-labelledby="evidence-title"><header><div><span className="eyebrow">IMMUTABLE EVIDENCE RAIL</span><h2 id="evidence-title">프로젝트 증거 타임라인</h2><p>문서 ID·개정·해시는 저장된 API 계약을 그대로 표시합니다.</p></div>{nextEvidence && <Link className="button button-primary" to={nextEvidence.to}>다음 작업: {nextEvidence.label} <ArrowRight aria-hidden="true" /></Link>}</header><div className="dmaic-evidence-table" role="table" aria-label="DMAIC 프로젝트 증거"><div className="dmaic-evidence-row is-header" role="row"><span role="columnheader">단계</span><span role="columnheader">산출물</span><span role="columnheader">상태</span><span role="columnheader">문서 ID / 개정</span><span role="columnheader">무결성 해시</span><span role="columnheader">작업</span></div>{evidence.map((item) => <div className={`dmaic-evidence-row ${item.reference ? "is-recorded" : "is-pending"}`} role="row" key={item.key}><span role="cell" data-label="단계">{item.phase}</span><strong role="cell" data-label="산출물">{item.label}</strong><span role="cell" data-label="상태" className="evidence-status">{item.reference ? <><FileCheck2 aria-hidden="true" /> 저장됨</> : <><CircleDashed aria-hidden="true" /> 미작성</>}</span><code role="cell" data-label="문서 ID / 개정">{item.reference ? `${item.reference.document_id} / r${item.reference.revision}` : "—"}</code><code role="cell" data-label="무결성 해시">{item.reference ? `${item.reference.digest.slice(0, 12)}…` : "—"}</code><Link role="cell" className="text-link" to={item.to}>{item.reference ? "검토·개정" : "작성"} <ArrowRight aria-hidden="true" /></Link></div>)}</div></section>
+
+      <section className="dmaic-readiness-panel" aria-labelledby="readiness-title">
+        <header><div><span className="eyebrow">FIELD READINESS</span><h2 id="readiness-title">현장 단계 게이트</h2><p>문서 존재만으로 완료 처리하지 않고, 의사결정 내용과 분석·관리 근거까지 확인합니다.</p></div></header>
+        <ol className="dmaic-readiness-grid" aria-label="DMAIC 현장 단계 게이트">
+          {readinessGates.map((gate) => <li key={gate.phase} className={`is-${gate.status}`} aria-label={`${gate.phase} · ${gate.status === "ready" ? "완료" : gate.status === "unknown" ? "확인 필요" : "미완료"}`}>
+            <header><strong>{gate.phase}</strong><span className="readiness-status">{gate.status === "ready" ? <><CheckCircle2 aria-hidden="true" /> 완료</> : gate.status === "unknown" ? <><CircleAlert aria-hidden="true" /> 확인 필요</> : <><CircleDashed aria-hidden="true" /> 미완료</>}</span></header>
+            <ul>{gate.checks.map((check) => <li key={check.label} className={`is-${check.status}`}>{check.status === "ready" ? <CheckCircle2 aria-hidden="true" /> : check.status === "unknown" ? <CircleAlert aria-hidden="true" /> : <CircleDashed aria-hidden="true" />}<span>{check.label}</span></li>)}</ul>
+            <p>{gate.nextAction}</p><Link className="text-link" to={gate.to}>다음 현장 작업 <ArrowRight aria-hidden="true" /></Link>
+          </li>)}
+        </ol>
+      </section>
 
       <section className="dmaic-result-utilization" aria-labelledby="result-utilization-title">
         <header><div><span className="eyebrow">DECISION EVIDENCE</span><h2 id="result-utilization-title">판단 근거 활용 현황</h2><p>작성된 산출물 안에 고정된 분석 실행과 FMEA 관리항목을 프로젝트 의사결정 단위로 펼쳐봅니다.</p></div></header>

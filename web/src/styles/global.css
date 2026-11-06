@@ -196,7 +196,7 @@ svg { width: var(--icon-size); height: var(--icon-size); stroke-width: 1.8; }
 .dmaic-phase-card small { margin-top: auto; padding-top: var(--space-5); color: var(--color-text-secondary); font-size: var(--font-caption-size); }
 .dmaic-project-overview { display: grid; gap: var(--space-5); }
 .dmaic-project-overview > .breadcrumb { margin-bottom: calc(var(--space-5) * -1); }
-.dmaic-project-summary, .dmaic-project-phases, .dmaic-evidence-panel, .dmaic-result-utilization, .dmaic-project-integrations, .dmaic-project-empty { padding: var(--card-pad); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-bg-surface); box-shadow: var(--shadow-sm); }
+.dmaic-project-summary, .dmaic-project-phases, .dmaic-evidence-panel, .dmaic-readiness-panel, .dmaic-result-utilization, .dmaic-project-integrations, .dmaic-project-empty { padding: var(--card-pad); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-bg-surface); box-shadow: var(--shadow-sm); }
 .dmaic-project-summary { display: grid; grid-template-columns: minmax(0, 1fr) minmax(16rem, 22rem); gap: var(--space-5); align-items: end; }
 .dmaic-project-summary h2 { margin: var(--space-1) var(--space-0); }
 .dmaic-project-summary label { display: grid; gap: var(--space-2); color: var(--color-text-secondary); font-weight: 600; }
@@ -207,8 +207,8 @@ svg { width: var(--icon-size); height: var(--icon-size); stroke-width: 1.8; }
 .dmaic-project-summary dd { margin: var(--space-1) var(--space-0) var(--space-0); font-weight: 700; }
 .dmaic-project-progress { grid-column: 1 / -1; height: var(--space-2); overflow: hidden; border-radius: var(--radius-pill); background: var(--color-bg-subtle); }
 .dmaic-project-progress span { display: block; height: 100%; border-radius: inherit; background: var(--color-fill-brand); transition: width var(--dur-base) var(--ease-standard); }
-.dmaic-project-phases > header, .dmaic-evidence-panel > header, .dmaic-result-utilization > header { display: flex; align-items: end; justify-content: space-between; gap: var(--space-6); margin-bottom: var(--space-5); }
-.dmaic-project-phases h2, .dmaic-evidence-panel h2, .dmaic-result-utilization h2, .dmaic-project-integrations h2, .dmaic-project-empty h2 { margin: var(--space-1) var(--space-0); }
+.dmaic-project-phases > header, .dmaic-evidence-panel > header, .dmaic-readiness-panel > header, .dmaic-result-utilization > header { display: flex; align-items: end; justify-content: space-between; gap: var(--space-6); margin-bottom: var(--space-5); }
+.dmaic-project-phases h2, .dmaic-evidence-panel h2, .dmaic-readiness-panel h2, .dmaic-result-utilization h2, .dmaic-project-integrations h2, .dmaic-project-empty h2 { margin: var(--space-1) var(--space-0); }
 .dmaic-project-phases ol { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--space-3); margin: var(--space-0); padding: var(--space-0); list-style: none; }
 .dmaic-project-phases li { display: grid; grid-template-columns: var(--touch-target) minmax(0, 1fr); gap: var(--space-3); padding: var(--space-4); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-md); }
 .dmaic-project-phases li > span { display: grid; place-items: center; width: var(--touch-target); height: var(--touch-target); border-radius: var(--radius-pill); color: var(--color-action); background: var(--color-bg-selected); font-weight: 700; }
@@ -224,6 +224,20 @@ svg { width: var(--icon-size); height: var(--icon-size); stroke-width: 1.8; }
 .dmaic-evidence-row code { overflow: hidden; color: inherit; font-family: var(--font-mono); font-size: var(--font-caption-size); text-overflow: ellipsis; white-space: nowrap; }
 .evidence-status { display: inline-flex; align-items: center; gap: var(--space-2); font-weight: 600; }
 .is-recorded .evidence-status { color: var(--color-status-success); }
+.dmaic-readiness-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--space-3); margin: var(--space-0); padding: var(--space-0); list-style: none; }
+.dmaic-readiness-grid > li { display: flex; flex-direction: column; min-width: 0; padding: var(--space-4); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-md); }
+.dmaic-readiness-grid > li.is-ready { border-color: var(--color-status-success); }
+.dmaic-readiness-grid > li.is-unknown { border-color: var(--color-status-warning); }
+.dmaic-readiness-grid > li > header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-2); }
+.readiness-status { display: inline-flex; align-items: center; gap: var(--space-1); flex: 0 0 auto; font-size: var(--font-caption-size); font-weight: 700; }
+.is-ready > header .readiness-status { color: var(--color-status-success); }
+.is-unknown > header .readiness-status { color: var(--color-status-warning); }
+.dmaic-readiness-grid ul { display: grid; gap: var(--space-2); margin: var(--space-4) var(--space-0); padding: var(--space-0); list-style: none; }
+.dmaic-readiness-grid ul li { display: flex; align-items: flex-start; gap: var(--space-2); color: var(--color-text-secondary); font-size: var(--font-caption-size); }
+.dmaic-readiness-grid ul li svg, .readiness-status svg { flex: 0 0 auto; width: var(--space-4); height: var(--space-4); }
+.dmaic-readiness-grid ul li.is-ready svg { color: var(--color-status-success); }
+.dmaic-readiness-grid ul li.is-unknown svg { color: var(--color-status-warning); }
+.dmaic-readiness-grid > li > p { margin: auto var(--space-0) var(--space-2); color: var(--color-text-secondary); font-size: var(--font-caption-size); }
 .dmaic-result-utilization > dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); margin: var(--space-0) var(--space-0) var(--space-5); }
 .dmaic-result-utilization > dl div { padding: var(--space-3); border-radius: var(--radius-md); background: var(--color-bg-subtle); }
 .dmaic-result-utilization dt { color: var(--color-text-secondary); font-size: var(--font-caption-size); }
@@ -692,6 +706,7 @@ dd { margin: var(--space-0); }
   .spc-process-rail { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .spc-tool-grid, .control-chart-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .dmaic-project-phases ol { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .dmaic-readiness-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .fmea-list-layout, .data-list-layout { grid-template-columns: minmax(0, 3fr) minmax(300px, 2fr); }
 }
 @media (max-width: 1023px) {
@@ -715,8 +730,9 @@ dd { margin: var(--space-0); }
   .quality-metric-grid { grid-template-columns: 1fr; }
   .dmaic-project-summary { grid-template-columns: 1fr; }
   .dmaic-project-summary dl { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .dmaic-project-phases > header, .dmaic-evidence-panel > header, .dmaic-result-utilization > header { align-items: flex-start; flex-direction: column; }
+  .dmaic-project-phases > header, .dmaic-evidence-panel > header, .dmaic-readiness-panel > header, .dmaic-result-utilization > header { align-items: flex-start; flex-direction: column; }
   .dmaic-project-phases ol { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dmaic-readiness-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 767px) {
   .seven-step-list { grid-template-columns: 1fr; }

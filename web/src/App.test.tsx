@@ -173,7 +173,7 @@ describe("StatPro UI", () => {
           document_id: "control-001", storage_version: 3, etag: "control-etag",
           control_handoff: {
             document_id: "control-001", project_id: "DMAIC-LINE-03", revision: 1, parent_digest: null, digest: "control-digest",
-            monitoring_plan: "Xbar-S 주간 검토", review_frequency: "weekly", effectiveness_criteria: [],
+            monitoring_plan: "Xbar-S 주간 검토", review_frequency: "weekly", effectiveness_criteria: ["4주간 관리한계 이탈 없음"],
             reaction_plans: [{ trigger: "관리한계 이탈", action: "라인 정지 및 원인 확인", owner_ref: "quality.lead", escalation_ref: null, response_time: "30분" }],
             source_documents: [],
             fmea_control_plan: { study_id: "PFMEA-PLATING", study_etag: "fmea-etag", study_digest: "fmea-digest", control_ids: ["CP-THICKNESS"] },
@@ -205,6 +205,10 @@ describe("StatPro UI", () => {
     expect(within(decisionEvidence).getByRole("link", { name: /spc\.xbar_s.*SPC-BASE-01/ })).toHaveAttribute("href", "/runs/SPC-BASE-01");
     expect(within(decisionEvidence).getByRole("link", { name: /PFMEA-PLATING.*CP-THICKNESS/ })).toHaveAttribute("href", "/fmea/PFMEA-PLATING");
     expect(screen.getByText("분석 실행", { selector: "dt" }).parentElement).toHaveTextContent("2건");
+    const readiness = screen.getByRole("list", { name: "DMAIC 현장 단계 게이트" });
+    expect(within(readiness).getByRole("listitem", { name: /측정 \(Measure\).*완료/ })).toBeInTheDocument();
+    expect(within(readiness).getByRole("listitem", { name: /관리 \(Control\).*완료/ })).toBeInTheDocument();
+    expect(within(readiness).getByRole("listitem", { name: /정의 \(Define\).*미완료/ })).toBeInTheDocument();
   });
 
   it("opens the contextual AI Copilot and answers without changing analysis settings", async () => {
