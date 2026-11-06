@@ -95,6 +95,27 @@ describe("StatPro UI", () => {
     expect(await screen.findByRole("heading", { name: "공정 문제에서 검증된 조치까지" })).toBeInTheDocument();
   });
 
+  it("recommends only executable analysis workspaces from field data structure", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 }));
+    render(<MemoryRouter initialEntries={["/analyses"]}><App /></MemoryRouter>);
+
+    expect(await screen.findByRole("heading", { name: "분석 선택 도우미 (Analysis Selection Assistant)" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Xbar-R 관리도" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Xbar-R 분석 설정 열기/ })).toHaveAttribute("href", "/analyses/spc/xbar-r");
+
+    await userEvent.click(screen.getByRole("button", { name: /부적합품/ }));
+    expect(screen.getByRole("heading", { name: "p 관리도" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /p 관리도 설정 열기/ })).toHaveAttribute("href", "/analyses/spc/attribute?chart=p");
+
+    await userEvent.click(screen.getByRole("button", { name: /검사 수가 일정함/ }));
+    expect(screen.getByRole("heading", { name: "np 관리도" })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /중요 인자 선별/ }));
+    expect(screen.getByRole("heading", { name: "Plackett–Burman 선별 설계" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /선별 설계 설정 열기/ })).toHaveAttribute("href", "/analyses/doe/plackett-burman");
+    expect(screen.getByRole("link", { name: "분석 선택 (Analysis Selection)" })).toHaveAttribute("href", "/analyses");
+  });
+
   it("collapses the sidebar to icons and remembers the user choice", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 }));
     const { container } = render(<MemoryRouter initialEntries={["/home"]}><App /></MemoryRouter>);

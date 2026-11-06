@@ -183,7 +183,7 @@ export function guideCopilotQuestion({ question, contextName, pathname, evidence
   if (/언제|선택|추천|차이|유형|방법/i.test(normalized)) {
     return response(
       `${contextName}에서는 먼저 판단 목적, 데이터 유형, 표본 구성과 시간 순서를 구분합니다. 공정 안정성은 SPC, 원인·효과 검증과 최적화는 DOE, 위험과 관리 추적은 FMEA, 여러 산출물을 하나의 개선 과제로 묶을 때는 DMAIC를 선택하세요. 데이터 구조를 알려주면 분석법까지 좁힐 수 있습니다.`,
-      { label: "핵심 작업공간 보기", href: "/home" },
+      { label: "분석 선택 도우미 열기", href: "/analyses" },
     );
   }
 

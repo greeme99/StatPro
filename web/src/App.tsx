@@ -49,6 +49,7 @@ const ParetoWorkspacePage = lazyNamed(() => import("./pages/ParetoWorkspacePage"
 const FishboneWorkspacePage = lazyNamed(() => import("./pages/FishboneWorkspacePage"), "FishboneWorkspacePage");
 const QualityDashboardPage = lazyNamed(() => import("./pages/QualityDashboardPage"), "QualityDashboardPage");
 const DefectAnalysisPage = lazyNamed(() => import("./pages/DefectAnalysisPage"), "DefectAnalysisPage");
+const AnalysisSelectionPage = lazyNamed(() => import("./pages/AnalysisSelectionPage"), "AnalysisSelectionPage");
 
 export default function App() {
   return (
@@ -56,6 +57,7 @@ export default function App() {
       <Suspense fallback={<div className="route-loading" role="status">화면을 불러오는 중입니다.</div>}>
         <Routes>
           <Route path="/" element={<DashboardPage />} />
+          <Route path="/analyses" element={<AnalysisSelectionPage />} />
           <Route path="/analyses/imr/new" element={<ImrSetupPage />} />
         <Route path="/analyses/spc/attribute" element={<AttributeChartSetupPage />} />
         <Route path="/analyses/spc/xbar-s" element={<XbarSSetupPage />} />

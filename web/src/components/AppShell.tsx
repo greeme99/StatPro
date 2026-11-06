@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Activity, BarChart3, Bug, Calculator, Database, FileText, FileWarning, FlaskConical, Gauge, HelpCircle, Home, Moon, PanelLeftClose, PanelLeftOpen, Sun } from "lucide-react";
+import { Activity, BarChart3, Bug, Calculator, Database, FileText, FileWarning, FlaskConical, Gauge, HelpCircle, Home, ListChecks, Moon, PanelLeftClose, PanelLeftOpen, Sun } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { getHealth } from "../api";
 import { CopilotPanel } from "./CopilotPanel";
@@ -7,6 +7,7 @@ import { ProjectContextMenu } from "./ProjectContextMenu";
 
 const navigation = [
   { to: "/home", label: "홈 (Home)", icon: Home },
+  { to: "/analyses", label: "분석 선택 (Analysis Selection)", icon: ListChecks },
   { to: "/data", label: "작업표 및 데이터 (Worksheet & Data)", icon: Database },
   { to: "/doe", label: "실험계획법 (DOE)", icon: FlaskConical },
   { to: "/spc", label: "통계적 공정관리 (SPC)", icon: BarChart3 },
