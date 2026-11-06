@@ -53,6 +53,7 @@ export function ProjectContextMenu() {
             {stored.project_id === activeId && <Check aria-hidden="true" />}
           </button>)}
         </div>
+        {activeId && <Link className="button button-primary" to="/home/dmaic/project" onClick={() => setOpen(false)}><FolderKanban aria-hidden="true" /> 현재 프로젝트 현황 열기</Link>}
         <Link className="button button-secondary" to="/home/dmaic/define" onClick={() => setOpen(false)}><Plus aria-hidden="true" /> 프로젝트 만들기·정의 열기</Link>
       </section>}
     </div>

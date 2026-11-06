@@ -121,6 +121,36 @@ describe("StatPro UI", () => {
     expect(screen.getByRole("button", { name: /현재 프로젝트.*조립 1라인 수율 개선/ })).toBeInTheDocument();
   });
 
+  it("shows immutable DMAIC evidence and the next project action", async () => {
+    localStorage.setItem("statpro-active-project-id", "DMAIC-LINE-02");
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const payload = String(input).endsWith("/health")
+        ? { ok: true, engine_version: "0.6.0", local_only: true }
+        : { items: [{
+          project_id: "DMAIC-LINE-02", storage_version: 4, etag: "project-etag",
+          project: {
+            project_id: "DMAIC-LINE-02", title: "도금 두께 산포 개선", owner_ref: "quality.lead",
+            sponsor_ref: null, champion_ref: null, department: "품질보증", start_date: "2026-10-01", target_end_date: "2027-01-31",
+            status: "active", revision: 4, parent_digest: null, digest: "project-digest",
+            charter: { document_type: "charter", document_id: "charter-001", revision: 2, digest: "1234567890abcdef" },
+            voice_of_customer: null, sipoc: null, stakeholder_assessment: null, problem_definition: null,
+            measurement_plan: null, root_cause_analysis: null, solution_selection: null, pilot_plan: null, control_handoff: null,
+          },
+        }], next_after: null };
+      return new Response(JSON.stringify(payload), { status: 200, headers: { "Content-Type": "application/json" } });
+    });
+
+    render(<MemoryRouter initialEntries={["/home/dmaic/project"]}><App /></MemoryRouter>);
+
+    expect(await screen.findByRole("heading", { name: "현재 프로젝트 현황" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "도금 두께 산포 개선" })).toBeInTheDocument();
+    expect(screen.getByRole("progressbar", { name: "프로젝트 근거 완성도" })).toHaveAttribute("aria-valuenow", "10");
+    const evidence = screen.getByRole("table", { name: "DMAIC 프로젝트 증거" });
+    expect(within(evidence).getByText("charter-001 / r2")).toBeInTheDocument();
+    expect(within(evidence).getAllByText("저장됨")).toHaveLength(1);
+    expect(screen.getByRole("link", { name: /다음 작업: 고객의 소리/ })).toHaveAttribute("href", "/home/dmaic/voc");
+  });
+
   it("opens the contextual AI Copilot and answers without changing analysis settings", async () => {
     localStorage.clear();
     const user = userEvent.setup();

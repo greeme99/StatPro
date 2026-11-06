@@ -33,6 +33,7 @@ import { DmaicRootCauseWorkspacePage } from "./pages/DmaicRootCauseWorkspacePage
 import { DmaicSolutionSelectionWorkspacePage } from "./pages/DmaicSolutionSelectionWorkspacePage";
 import { DmaicPilotPlanWorkspacePage } from "./pages/DmaicPilotPlanWorkspacePage";
 import { DmaicControlWorkspacePage } from "./pages/DmaicControlWorkspacePage";
+import { DmaicProjectOverviewPage } from "./pages/DmaicProjectOverviewPage";
 import { LearningResourcesPreviewPage } from "./pages/LearningResourcesPreviewPage";
 import { SpcWorkspacePage } from "./pages/SpcWorkspacePage";
 import { ControlChartWorkspacePage } from "./pages/ControlChartWorkspacePage";
@@ -77,6 +78,7 @@ export default function App() {
         <Route path="/defects" element={<DefectAnalysisPage />} />
         <Route path="/home" element={<MenuPreviewPage />} />
         <Route path="/home/dmaic" element={<DmaicGuidePreviewPage />} />
+        <Route path="/home/dmaic/project" element={<DmaicProjectOverviewPage />} />
         <Route path="/home/dmaic/define" element={<DmaicDefineWorkspacePage />} />
         <Route path="/home/dmaic/voc" element={<DmaicVoiceOfCustomerWorkspacePage />} />
         <Route path="/home/dmaic/sipoc" element={<DmaicSipocWorkspacePage />} />
