@@ -8,6 +8,12 @@ export type CopilotGuidanceResponse = {
   sources: Array<{ title: string; reference: string; evidence_kind: string }>;
   limitations: string[];
   action: { label: string; href: string } | null;
+  guidance_mode: "rulebase" | "llm_fallback" | "unmatched";
+  rule_id: string | null;
+  recommended_tool: string | null;
+  menu_path: string[];
+  checklist: string[];
+  workflow_steps: string[];
 };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -59,6 +65,10 @@ export async function getCopilotGuidance(payload: {
     || typeof guidance.provider !== "string"
     || !Array.isArray(guidance.sources)
     || !Array.isArray(guidance.limitations)
+    || !["rulebase", "llm_fallback", "unmatched"].includes(guidance.guidance_mode)
+    || !Array.isArray(guidance.menu_path)
+    || !Array.isArray(guidance.checklist)
+    || !Array.isArray(guidance.workflow_steps)
   ) {
     throw new Error("Copilot 응답 계약이 올바르지 않습니다.");
   }

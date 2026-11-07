@@ -78,13 +78,54 @@ class LocalApiContractTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         guidance = response.json()
-        self.assertEqual(guidance["provider"], "statpro-local-knowledge-v1")
+        self.assertEqual(guidance["provider"], "statpro-rulebase-v2")
         self.assertIn("실행 SPC-001", guidance["answer"])
         self.assertIn("Xbar-R 관리도", guidance["answer"])
         self.assertEqual(guidance["action"]["href"], "/analyses/spc/xbar-r")
         self.assertEqual(guidance["sources"][0]["evidence_kind"], "product_documentation")
         self.assertTrue(guidance["sources"][0]["reference"].startswith("docs/evidence/"))
         self.assertIn("외부 AI 모델", " ".join(guidance["limitations"]))
+
+    def test_copilot_returns_a_reviewable_nelson_rule_draft(self) -> None:
+        response = self.client.post(
+            "/v1/copilot/guidance",
+            json={
+                "question": "Xbar-R Nelson 규칙으로 조정해줘",
+                "pathname": "/analyses/spc/xbar-r",
+                "workspace": "통계적 공정관리 (SPC)",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        guidance = response.json()
+        self.assertIn("자동으로 변경하지", " ".join(guidance["limitations"]))
+        self.assertEqual(guidance["action"]["label"], "Nelson 규칙 초안 검토")
+        self.assertEqual(
+            guidance["action"]["href"],
+            "/analyses/spc/xbar-r?draft=nelson",
+        )
+
+    def test_copilot_returns_rulebase_workflow_and_checklist_for_yield_doe(self) -> None:
+        response = self.client.post(
+            "/v1/copilot/guidance",
+            json={
+                "question": "품질 수율 Y를 높이기 위해 온도, 압력, 시간 설정값을 실험하고 싶어요",
+                "pathname": "/home",
+                "workspace": "홈 (Home)",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        guidance = response.json()
+        self.assertEqual(guidance["guidance_mode"], "rulebase")
+        self.assertEqual(guidance["rule_id"], "doe-yield-optimization")
+        self.assertEqual(guidance["recommended_tool"], "실험계획법 (DOE)")
+        self.assertEqual(
+            guidance["menu_path"],
+            ["홈 (Home)", "실험계획법 (DOE)", "설계 및 생성"],
+        )
+        self.assertGreaterEqual(len(guidance["checklist"]), 4)
+        self.assertGreaterEqual(len(guidance["workflow_steps"]), 5)
 
     def test_copilot_does_not_invent_an_unsupported_answer(self) -> None:
         response = self.client.post(

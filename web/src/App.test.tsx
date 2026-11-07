@@ -324,6 +324,12 @@ describe("StatPro UI", () => {
           sources: [{ title: "SPC 통계 근거", reference: "docs/evidence/spc.md", evidence_kind: "product_documentation" }],
           limitations: ["설정을 자동으로 변경하지 않습니다."],
           action: { label: "Xbar-R 작업공간 열기", href: "/analyses/spc/xbar-r" },
+          guidance_mode: "rulebase",
+          rule_id: "spc-xbar-r-selection",
+          recommended_tool: "Xbar-R 관리도",
+          menu_path: [],
+          checklist: [],
+          workflow_steps: [],
         }), { status: 200, headers: { "Content-Type": "application/json" } });
       }
       return new Response(JSON.stringify({ items: [], next_after: null }), { status: 200 });
@@ -336,11 +342,51 @@ describe("StatPro UI", () => {
 
     const panel = screen.getByRole("complementary", { name: "AI Copilot" });
     expect(await within(panel).findByText("서버에서 검토된 Xbar-R 안내입니다.")).toBeInTheDocument();
-    expect(within(panel).getByText("응답 출처: statpro-local-knowledge-v1")).toBeInTheDocument();
+    expect(within(panel).getByText(/응답 출처: statpro-local-knowledge-v1/)).toBeInTheDocument();
     await user.click(within(panel).getByText("근거 1건"));
     expect(within(panel).getByText("SPC 통계 근거")).toBeInTheDocument();
     expect(within(panel).getByText("docs/evidence/spc.md")).toBeInTheDocument();
     expect(within(panel).getByRole("link", { name: "Xbar-R 작업공간 열기" })).toHaveAttribute("href", "/analyses/spc/xbar-r");
+  });
+
+  it("presents the rulebase tool path, checklist, and workflow in the Copilot panel", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.endsWith("/health")) {
+        return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      }
+      if (url.endsWith("/v1/copilot/guidance")) {
+        return new Response(JSON.stringify({
+          answer: "수율 최적화에는 DOE가 적합합니다.",
+          provider: "statpro-rulebase-v2",
+          guidance_mode: "rulebase",
+          rule_id: "doe-yield-optimization",
+          recommended_tool: "실험계획법 (DOE)",
+          menu_path: ["홈 (Home)", "실험계획법 (DOE)", "설계 및 생성"],
+          checklist: ["반응값 Y와 목표를 정의", "온도·압력·시간 범위를 확인"],
+          workflow_steps: ["목표와 반응 정의", "인자와 범위 정의", "설계 생성", "실험 실행", "분석과 확인 실험"],
+          sources: [],
+          limitations: ["사용자 검토 후 실행합니다."],
+          action: { label: "DOE 절차 시작", href: "/doe" },
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      return new Response(JSON.stringify({ items: [], next_after: null }), { status: 200 });
+    });
+    const user = userEvent.setup();
+    render(<MemoryRouter initialEntries={["/home"]}><App /></MemoryRouter>);
+
+    await user.click(screen.getByRole("button", { name: "AI Copilot 보이기" }));
+    await user.click(screen.getByRole("button", { name: "현장 문제에 맞는 작업공간을 추천해줘" }));
+
+    const panel = screen.getByRole("complementary", { name: "AI Copilot" });
+    expect(await within(panel).findByRole("heading", { name: "추천 도구" })).toBeInTheDocument();
+    const recommendation = within(panel).getByRole("heading", { name: "추천 도구" }).parentElement;
+    expect(recommendation).not.toBeNull();
+    expect(within(recommendation!).getByText("실험계획법 (DOE)")).toBeInTheDocument();
+    expect(within(panel).getByLabelText("추천 메뉴 경로")).toHaveTextContent("홈 (Home)실험계획법 (DOE)설계 및 생성");
+    expect(within(panel).getByRole("heading", { name: "실행 전 체크리스트" })).toBeInTheDocument();
+    expect(within(panel).getByRole("heading", { name: "업무절차 (Workflow)" })).toBeInTheDocument();
+    expect(within(panel).getByText("분석과 확인 실험")).toBeInTheDocument();
   });
 
   it("redirects the retired preview URL to the fixed home URL", async () => {
@@ -694,6 +740,27 @@ describe("StatPro UI", () => {
     expect(body.subgroups).toHaveLength(3);
     expect(body.subgroups[0]).toHaveLength(5);
     expect(body.rules).toBe("basic");
+  });
+
+  it("requires explicit confirmation before applying a Copilot Nelson-rule draft", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input).endsWith("/health")) {
+        return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      }
+      return new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } });
+    });
+    const user = userEvent.setup();
+    render(<MemoryRouter initialEntries={["/analyses/spc/xbar-r?draft=nelson"]}><App /></MemoryRouter>);
+
+    expect(await screen.findByRole("heading", { name: "Copilot 설정 초안" })).toBeInTheDocument();
+    expect(screen.getByText("아직 분석 설정에 적용되지 않았습니다.")).toBeInTheDocument();
+    expect(screen.getByLabelText("규칙 세트")).toHaveValue("basic");
+
+    await user.click(screen.getByRole("button", { name: "Nelson 규칙 적용" }));
+
+    expect(screen.getByLabelText("규칙 세트")).toHaveValue("nelson");
+    expect(screen.getByRole("status")).toHaveTextContent("Nelson 규칙을 적용했습니다");
+    expect(screen.queryByRole("heading", { name: "Copilot 설정 초안" })).not.toBeInTheDocument();
   });
 
   it("renders Xbar-S mean and standard-deviation charts with an accessible table", async () => {

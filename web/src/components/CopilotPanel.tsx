@@ -11,6 +11,11 @@ type CopilotMessage = {
   action?: CopilotAction;
   provider?: string;
   sources?: Array<{ title: string; reference: string }>;
+  guidanceMode?: "rulebase" | "llm_fallback" | "unmatched";
+  recommendedTool?: string;
+  menuPath?: string[];
+  checklist?: string[];
+  workflowSteps?: string[];
 };
 type CopilotEvidence = {
   kind: "run" | "project";
@@ -151,6 +156,11 @@ export function CopilotPanel() {
         action: guidance.action ?? undefined,
         provider: guidance.provider,
         sources: guidance.sources,
+        guidanceMode: guidance.guidance_mode,
+        recommendedTool: guidance.recommended_tool ?? undefined,
+        menuPath: guidance.menu_path,
+        checklist: guidance.checklist,
+        workflowSteps: guidance.workflow_steps,
       }]);
     } catch {
       const guidance = guideCopilotQuestion({
@@ -165,6 +175,11 @@ export function CopilotPanel() {
         text: guidance.text,
         action: guidance.action,
         provider: "브라우저 로컬 폴백",
+        guidanceMode: guidance.guidanceMode,
+        recommendedTool: guidance.recommendedTool,
+        menuPath: guidance.menuPath,
+        checklist: guidance.checklist,
+        workflowSteps: guidance.workflowSteps,
       }]);
     } finally {
       setAnswerLoading(false);
@@ -194,7 +209,7 @@ export function CopilotPanel() {
           {evidenceLoading && !evidence ? <p>근거를 확인하고 있습니다.</p> : evidence && <><div><strong>{evidence.title}</strong><span>{evidence.identifier}</span><small>{evidence.revision} · {evidence.detail}</small></div><Link to={evidence.href}>근거 열기 <ExternalLink aria-hidden="true" /></Link></>}
         </section>}
         <div className="copilot-messages" role="log" aria-live="polite" aria-relevant="additions">
-          {messages.map((message) => <div className={`copilot-message is-${message.role}`} key={message.id}><strong>{message.role === "assistant" ? "Copilot" : "사용자"}</strong><p>{message.text}</p>{message.provider && <small className="copilot-provider">응답 출처: {message.provider}</small>}{message.sources && message.sources.length > 0 && <details className="copilot-sources"><summary>근거 {message.sources.length}건</summary><ul>{message.sources.map((source) => <li key={source.reference}><span>{source.title}</span><code>{source.reference}</code></li>)}</ul></details>}{message.action && <Link className="copilot-action" to={message.action.href}>{message.action.label}<ChevronRight aria-hidden="true" /></Link>}</div>)}
+          {messages.map((message) => <div className={`copilot-message is-${message.role}`} key={message.id}><strong>{message.role === "assistant" ? "Copilot" : "사용자"}</strong><p>{message.text}</p>{message.recommendedTool && <section className="copilot-guidance-block"><h3>추천 도구</h3><strong>{message.recommendedTool}</strong></section>}{message.menuPath && message.menuPath.length > 0 && <nav className="copilot-guidance-block" aria-label="추천 메뉴 경로"><h3>메뉴 경로</h3><ol>{message.menuPath.map((item) => <li key={item}>{item}</li>)}</ol></nav>}{message.checklist && message.checklist.length > 0 && <section className="copilot-guidance-block"><h3>실행 전 체크리스트</h3><ul>{message.checklist.map((item) => <li key={item}>{item}</li>)}</ul></section>}{message.workflowSteps && message.workflowSteps.length > 0 && <section className="copilot-guidance-block"><h3>업무절차 (Workflow)</h3><ol>{message.workflowSteps.map((item) => <li key={item}>{item}</li>)}</ol></section>}{message.provider && <small className="copilot-provider">응답 출처: {message.provider}{message.guidanceMode === "llm_fallback" ? " · 생성형 AI 보완" : message.guidanceMode === "rulebase" ? " · 검토된 Rulebase" : ""}</small>}{message.sources && message.sources.length > 0 && <details className="copilot-sources"><summary>근거 {message.sources.length}건</summary><ul>{message.sources.map((source) => <li key={source.reference}><span>{source.title}</span><code>{source.reference}</code></li>)}</ul></details>}{message.action && <Link className="copilot-action" to={message.action.href}>{message.action.label}<ChevronRight aria-hidden="true" /></Link>}</div>)}
           {answerLoading && <div className="copilot-message is-assistant"><strong>Copilot</strong><p>검토된 로컬 근거를 확인하고 있습니다.</p></div>}
         </div>
         <form className="copilot-composer" onSubmit={submit}>

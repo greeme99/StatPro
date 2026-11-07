@@ -12,7 +12,7 @@
 - **품질 도구와 DMAIC 연결**: 체크 시트, 일반 파레토, 특성요인도, 홈 기반 DMAIC 작업 흐름과 학습 리소스
 - **품질 대시보드**: 저장된 ResultBundle의 수치 경로를 불변 지표 스냅샷으로 연결하고 상태·담당·검토 주기·원본 Run 증거를 함께 표시
 - **결함 분석**: 체크 시트 개정 근거 또는 수동 입력에서 범주별 결함·검사 기회·단위 손실·심각도를 기록하고 DPMO·손실·위험 우선순위를 불변 개정으로 보존
-- **AI Copilot**: 오른쪽 보이기·감추기 패널에서 현재 작업공간과 저장된 분석 실행·DMAIC 프로젝트 근거를 읽고, 분석 선택·설정값·업무 절차·후속 조치를 안내하며 해당 작업공간으로 연결. 서버 소유의 로컬 지식 공급자와 근거 출처를 우선 사용하고, 서버 연결 실패 시 브라우저 로컬 규칙으로 안전하게 폴백하며 설정은 자동 변경하지 않음
+- **AI Copilot**: 오른쪽 보이기·감추기 패널에서 현재 작업공간과 저장된 분석 실행·DMAIC 프로젝트 근거를 읽고, 검토된 Rulebase로 추천 도구·메뉴 경로·체크리스트·업무절차를 우선 안내. 일치 규칙이 없고 관리자가 명시적으로 허용한 경우에만 Gemini 2.5 Flash를 호출하며, 실패 시 로컬 안내로 닫히고 분석 설정은 자동 변경하지 않음
 - **분석 선택 도우미**: 판단 목적, 데이터 유형, 표본·기회 구조를 단계적으로 선택해 현재 실행 가능한 SPC·DOE·FMEA·DMAIC 작업공간과 필수 입력·사전 점검 항목을 제안
 
 제품 웹 UI의 표준 흐름은 `홈(Home) → 작업공간(Workspace) → 작업 흐름(Workflow) → 데이터 입력(Input) → 분석 실행(Run) → 결과 검토(Review) → 결과 출력(Export)`입니다. 메뉴와 화면 표기는 한국어를 우선하고 필요한 경우 영어를 괄호로 병기합니다.
@@ -46,6 +46,21 @@ npm ci
 npm run dev -- --host 127.0.0.1
 ```
 
+### AI Copilot의 선택적 Gemini 연결
+
+기본 상태는 외부 호출이 비활성화되어 Rulebase만 사용합니다. 저장소 루트의 `.env.example`을 `.env`로 복사한 뒤, 키를 **채팅이나 Git에 올리지 말고 로컬 `.env`에만** 입력합니다.
+
+```powershell
+Copy-Item .env.example .env
+```
+
+```dotenv
+STATPRO_COPILOT_LLM_ENABLED=true
+GEMINI_API_KEY=여기에_발급받은_키를_입력
+```
+
+API는 `statpro-api` 실행 시 저장소 루트의 `.env`를 읽습니다. 다른 파일을 쓰려면 `statpro-api --env-file "D:\secure\statpro.env" ...`처럼 지정합니다. `.env`는 `.gitignore`로 제외되며, 이미 설정된 프로세스 환경 변수는 파일 값으로 덮어쓰지 않습니다. Gemini에는 Rulebase로 답하지 못한 질문과 현재 작업공간 문맥만 전달되므로 조직 정책과 개인정보 기준을 확인한 뒤 활성화하십시오.
+
 API 문서: <http://127.0.0.1:8765/docs> · 웹 UI: <http://127.0.0.1:5173>
 
 주요 화면 경로는 `/home`, `/data`, `/doe`, `/spc`, `/fmea`, `/quality`, `/defects`, `/home/dmaic`, `/home/learning`입니다. `/api` 요청은 loopback API로 프록시됩니다.
@@ -66,7 +81,7 @@ cd ..
 python tools\oss_gate.py --check
 ```
 
-현재 기준 검증 결과는 Python 254개와 웹 97개 테스트 통과, 웹 빌드 통과, OSS 게이트 통과입니다. 전체 Ruff 실행에는 기존 코드의 15개 비관련 lint 항목이 남아 있으므로 새 변경은 대상 파일에 대해 별도 검사하고 기존 부채는 후속 정리 항목으로 추적합니다.
+현재 기준 검증 결과는 Python 267개와 웹 99개 테스트 통과, 웹 빌드 통과, OSS 게이트 통과입니다. 전체 Ruff 실행에는 기존 코드의 비관련 lint 항목이 남아 있으므로 새 변경은 대상 파일에 대해 별도 검사하고 기존 부채는 후속 정리 항목으로 추적합니다.
 
 차트 엔진은 제품 런타임에서 Recharts를 사용합니다. ECharts 6.1.0은 `web/benchmarks/chart-engines/`의 격리된 성능 비교에만 존재하며 제품 코드로 가져오지 않습니다. 근거는 [브라우저 벤치마크](docs/evidence/chart-engine-browser-benchmark.json), [번들 벤치마크](docs/evidence/chart-engine-bundle-benchmark.json)에 보존합니다.
 

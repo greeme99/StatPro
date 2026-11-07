@@ -1,6 +1,6 @@
-import { AlertTriangle, ArrowLeft, Play } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Check, Play, Sparkles, X } from "lucide-react";
 import { type FormEvent, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { createXbarRRun } from "../api";
 import { Button } from "../components/Button";
 
@@ -16,11 +16,26 @@ function parseSubgroups(text: string) {
 
 export function XbarRSetupPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [runId, setRunId] = useState(defaultRunId);
   const [subgroupsText, setSubgroupsText] = useState("10.1 10.3 10.2 10.0 10.2\n10.2 10.1 10.3 10.2 10.1\n10.0 10.2 10.1 10.3 10.2");
   const [rules, setRules] = useState<"basic" | "nelson">("basic");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [draftStatus, setDraftStatus] = useState("");
+  const showNelsonDraft = searchParams.get("draft") === "nelson";
+
+  function closeDraft() {
+    const next = new URLSearchParams(searchParams);
+    next.delete("draft");
+    setSearchParams(next, { replace: true });
+  }
+
+  function applyNelsonDraft() {
+    setRules("nelson");
+    setDraftStatus("Nelson 규칙을 적용했습니다. 분석 실행 전 입력값과 경보 목적을 다시 확인하세요.");
+    closeDraft();
+  }
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -45,6 +60,21 @@ export function XbarRSetupPage() {
   return <div className="page form-page" data-density="comfortable">
     <Link className="back-link" to="/spc/control-charts"><ArrowLeft aria-hidden="true" /> 관리도 작업공간</Link>
     <section className="page-heading"><div><span className="eyebrow">SPC / VARIABLES CHART</span><h1>Xbar-R 관리도</h1><p>소집단의 평균과 범위를 함께 감시합니다. 부분군 크기 2–10에 적합합니다.</p></div></section>
+    {showNelsonDraft && <section className="copilot-setting-draft" aria-labelledby="copilot-draft-title">
+      <div className="copilot-setting-draft-icon"><Sparkles aria-hidden="true" /></div>
+      <div className="copilot-setting-draft-copy">
+        <span className="eyebrow">AI COPILOT / REVIEW REQUIRED</span>
+        <h2 id="copilot-draft-title">Copilot 설정 초안</h2>
+        <p><strong>제안값:</strong> Nelson 규칙 · Xbar 1–8, R 1–4</p>
+        <p>3σ 이탈 외에 연속·추세·교대 패턴을 검토합니다. 경보 수가 늘 수 있으므로 Phase 1 탐색 목적과 조사 절차를 확인하세요.</p>
+        <p className="copilot-setting-draft-warning">아직 분석 설정에 적용되지 않았습니다.</p>
+      </div>
+      <div className="copilot-setting-draft-actions">
+        <Button type="button" variant="ghost" icon={<X />} onClick={closeDraft}>초안 닫기</Button>
+        <Button type="button" variant="primary" icon={<Check />} onClick={applyNelsonDraft}>Nelson 규칙 적용</Button>
+      </div>
+    </section>}
+    {draftStatus && <div className="copilot-draft-status" role="status"><Check aria-hidden="true" /><span>{draftStatus}</span></div>}
     {error && <div className="error-banner" role="alert"><AlertTriangle aria-hidden="true" /><div><strong>입력을 확인하세요</strong><p>{error}</p></div></div>}
     <form className="analysis-form" onSubmit={submit}>
       <section className="form-panel"><header><span className="step-index">01</span><div><h2>실행 식별자</h2><p>불변 Analysis Run ID를 지정합니다.</p></div></header><label className="field"><span>Run ID</span><input value={runId} onChange={(event) => setRunId(event.target.value)} required pattern="[A-Za-z0-9][A-Za-z0-9._-]{0,127}" /></label></section>

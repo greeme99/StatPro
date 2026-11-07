@@ -58,7 +58,7 @@ from statpro.application.approval import (
     ApprovalConfigurationError,
     LocalApprovalAuthenticator,
 )
-from statpro.application.copilot import CopilotProvider, LocalKnowledgeCopilotProvider
+from statpro.application.copilot import CopilotProvider, build_default_copilot_provider
 from statpro.application.documents import (
     AtomicJsonDocumentRepository,
     DocumentConflictError,
@@ -208,6 +208,12 @@ class CopilotGuidanceResponse(ApiModel):
     sources: list[CopilotSourceResponse]
     limitations: list[str]
     action: CopilotActionResponse | None = None
+    guidance_mode: Literal["rulebase", "llm_fallback", "unmatched"]
+    rule_id: str | None = None
+    recommended_tool: str | None = None
+    menu_path: list[str]
+    checklist: list[str]
+    workflow_steps: list[str]
 
 
 class ImrRunRequest(ApiModel):
@@ -1788,7 +1794,7 @@ def create_app(
 ) -> FastAPI:
     """Create a testable local API with an injected persistence adapter."""
 
-    active_copilot_provider = copilot_provider or LocalKnowledgeCopilotProvider()
+    active_copilot_provider = copilot_provider or build_default_copilot_provider()
     app = FastAPI(
         title="StatPro Local API",
         version=ENGINE_VERSION,
@@ -1925,6 +1931,12 @@ def create_app(
                 if guidance.action
                 else None
             ),
+            guidance_mode=guidance.guidance_mode,
+            rule_id=guidance.rule_id,
+            recommended_tool=guidance.recommended_tool,
+            menu_path=list(guidance.menu_path),
+            checklist=list(guidance.checklist),
+            workflow_steps=list(guidance.workflow_steps),
         )
 
     @app.post("/v1/analysis-runs/imr", status_code=201, response_model=StoredRunResponse)

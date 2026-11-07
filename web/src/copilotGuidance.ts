@@ -6,6 +6,11 @@ export type CopilotAction = {
 export type CopilotGuidance = {
   text: string;
   action?: CopilotAction;
+  recommendedTool?: string;
+  menuPath?: string[];
+  checklist?: string[];
+  workflowSteps?: string[];
+  guidanceMode?: "rulebase" | "unmatched";
 };
 
 type GuidanceInput = {
@@ -18,9 +23,16 @@ type GuidanceInput = {
 const withEvidence = (text: string, evidenceContext?: string) =>
   evidenceContext ? `${text} 현재 근거: ${evidenceContext}` : text;
 
-const response = (text: string, action?: CopilotAction, evidenceContext?: string): CopilotGuidance => ({
+const response = (
+  text: string,
+  action?: CopilotAction,
+  evidenceContext?: string,
+  structured: Omit<CopilotGuidance, "text" | "action"> = {},
+): CopilotGuidance => ({
   text: withEvidence(text, evidenceContext),
   action,
+  guidanceMode: "rulebase",
+  ...structured,
 });
 
 /**
@@ -30,6 +42,42 @@ const response = (text: string, action?: CopilotAction, evidenceContext?: string
  */
 export function guideCopilotQuestion({ question, contextName, pathname, evidenceContext }: GuidanceInput): CopilotGuidance {
   const normalized = question.replace(/\s+/g, " ").trim();
+
+  if (/(수율|yield|반응값|y값)/i.test(normalized) && /(온도|압력|시간|인자|요인|xs)/i.test(normalized) && /(실험|최적|개선|조건)/i.test(normalized)) {
+    return response(
+      "수율(Y)에 영향을 주는 인자(Xs)를 동시에 검증하고 최적 조건을 찾는 문제이므로 실험계획법(DOE)이 적합합니다. 설계된 실행표로 주효과와 상호작용을 추정하고 최적 조건은 확인 실험으로 검증하세요.",
+      { label: "DOE 절차 시작", href: "/doe" },
+      evidenceContext,
+      {
+        recommendedTool: "실험계획법 (DOE)",
+        menuPath: ["홈 (Home)", "실험계획법 (DOE)", "설계 및 생성"],
+        checklist: ["반응값(Y)과 목표 수율 정의", "인자(Xs)와 안전 범위 확인", "측정시스템과 잡음 요인 점검", "확인 실험 자원 확보"],
+        workflowSteps: ["목표와 반응 정의", "인자·수준·제약조건 정의", "실험설계 생성", "무작위 순서로 실행", "모형 분석과 확인 실험"],
+      },
+    );
+  }
+
+  if (/(설비|장비|기계)/i.test(normalized) && /(비가동|다운타임|정지|고장시간)/i.test(normalized) && /(원인|개선|감소|줄)/i.test(normalized)) {
+    return response(
+      "설비 비가동은 손실 범위와 데이터 기준을 먼저 고정하고 원인을 검증해야 하므로 DMAIC 개선 프로젝트가 적합합니다.",
+      { label: "DMAIC 정의 단계 시작", href: "/home/dmaic/define" },
+      evidenceContext,
+      {
+        recommendedTool: "개선 프로젝트 (DMAIC)",
+        menuPath: ["홈 (Home)", "개선 프로젝트 (DMAIC)", "정의 (Define)"],
+        checklist: ["비가동 정의 합의", "고장·정비 이력 확보", "MTBF·MTTR 기준선 확인", "목표·범위·책임자 지정"],
+        workflowSteps: ["정의: 손실과 범위 확정", "측정: 기준선 확보", "분석: 원인 검증", "개선: 대책 파일럿", "관리: SPC·FMEA·관리계획 연결"],
+      },
+    );
+  }
+
+  if (/nelson|넬슨/i.test(normalized) && (/x[ -]?bar.?r|xbar.?r|평균.?범위/i.test(normalized) || pathname.endsWith("/xbar-r"))) {
+    return response(
+      "Nelson 규칙은 3σ 한계 밖 점뿐 아니라 연속, 추세, 교대와 중심선 주변의 비무작위 패턴을 검토합니다. Xbar-R에서는 Xbar 규칙 1–8과 R 규칙 1–4를 평가하므로 경보가 늘 수 있습니다. 링크는 검토용 초안만 열며 사용자가 확인해야 적용됩니다.",
+      { label: "Nelson 규칙 초안 검토", href: "/analyses/spc/xbar-r?draft=nelson" },
+      evidenceContext,
+    );
+  }
 
   if (/x[ -]?bar.?r|xbar.?r|평균.?범위/i.test(normalized) || (pathname.endsWith("/xbar-r") && /설정|관리한계|파라미터/i.test(normalized))) {
     return response(
