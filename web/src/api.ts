@@ -514,6 +514,16 @@ export function createAttributeAgreementRun(payload: {
   });
 }
 
+export function createGageBiasLinearityRun(payload: {
+  run_id: string;
+  records: Array<{ reference: number; measurement: number }>;
+}): Promise<StoredRun> {
+  return request("/v1/analysis-runs/gage-bias-linearity", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function createDoeAnalysisRun(payload: {
   run_id: string;
   factors: Array<{ name: string; low: number; high: number }>;

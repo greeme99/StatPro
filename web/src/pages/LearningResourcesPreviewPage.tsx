@@ -16,6 +16,7 @@ const resources: Resource[] = [
   { title: "실험계획법(DOE) 설계하기", description: "인자와 반응을 정의하고 실행표와 분석 결과를 연결하는 방법을 안내합니다.", status: "구현됨", to: "/doe", icon: FlaskConical },
   { title: "고장 형태 및 영향 분석(FMEA) 활용하기", description: "공정 흐름, 위험 기록, 관리계획서와 승인 근거의 연결을 다룹니다.", status: "구현됨", to: "/fmea", icon: ShieldCheck },
   { title: "측정시스템 분석(MSA) 시작하기", description: "연속값은 교차 Gage R&R, 합격·불합격 판정은 Attribute Agreement로 신뢰성을 확인합니다.", status: "구현됨", to: "/analyses/msa/attribute-agreement", icon: Wrench },
+  { title: "Gage 편의·선형성 확인하기", description: "기준값 범위에서 측정기의 정확도와 편의 변화 추세를 검토합니다.", status: "구현됨", to: "/analyses/msa/bias-linearity", icon: Wrench },
   { title: "근본원인 분석 실습", description: "파레토와 특성요인도를 사용해 조사 범위를 좁히고 검증 원인을 연결합니다.", status: "구현됨", to: "/home/dmaic/analyze/root-causes", icon: Search },
   { title: "개선 프로젝트 운영", description: "DMAIC 단계별 산출물과 분석 실행 근거를 하나의 개선 과제로 연결합니다.", status: "구현됨", to: "/home/dmaic", icon: ClipboardList },
 ];

@@ -51,6 +51,22 @@ ATTRIBUTE_KAPPA_SOURCE = ProvenanceSource(
         "attribute-agreement-analysis/methods-and-formulas/kappa-statistics/"
     ),
 )
+GAGE_BIAS_SOURCE = ProvenanceSource(
+    title="Minitab: Methods and formulas for Gage Bias",
+    url=(
+        "https://support.minitab.com/en-us/minitab/help-and-how-to/quality-and-process-"
+        "improvement/measurement-system-analysis/how-to/gage-study/gage-linearity-and-"
+        "bias-study/methods-and-formulas/gage-bias/"
+    ),
+)
+GAGE_LINEARITY_SOURCE = ProvenanceSource(
+    title="Minitab: Methods and formulas for Gage Linearity",
+    url=(
+        "https://support.minitab.com/en-us/minitab/help-and-how-to/quality-and-process-"
+        "improvement/measurement-system-analysis/how-to/gage-study/gage-linearity-and-"
+        "bias-study/methods-and-formulas/gage-linearity/"
+    ),
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,6 +83,12 @@ class AttributeAssessmentRecord:
     trial: int
     rating: str
     standard: str
+
+
+@dataclass(frozen=True, slots=True)
+class BiasLinearityRecord:
+    reference: float
+    measurement: float
 
 
 def _normalize_records(records: Sequence[MeasurementRecord]) -> list[MeasurementRecord]:
@@ -525,3 +547,137 @@ def _cohen_kappa(ratings: Sequence[str], standards: Sequence[str]) -> float | No
         for category in set(rating_counts) | set(standard_counts)
     )
     return None if expected == 1.0 else (observed - expected) / (1.0 - expected)
+
+
+def gage_bias_linearity(records: Sequence[BiasLinearityRecord]) -> ResultBundle:
+    """Estimate gage bias and its linear change across known reference values."""
+
+    if len(records) > 100_000:
+        raise AnalysisInputError(
+            "study_too_large",
+            "Gage bias and linearity supports at most 100,000 measurements.",
+            "records",
+        )
+    normalized = [
+        BiasLinearityRecord(
+            finite_values([record.reference], f"records[{index}].reference")[0],
+            finite_values([record.measurement], f"records[{index}].measurement")[0],
+        )
+        for index, record in enumerate(records)
+    ]
+    by_reference: dict[float, list[float]] = defaultdict(list)
+    for record in normalized:
+        by_reference[record.reference].append(record.measurement)
+    if len(by_reference) < 2:
+        raise AnalysisInputError(
+            "insufficient_reference_levels",
+            "Gage bias and linearity requires at least two distinct reference values.",
+            "records",
+        )
+    if any(len(values) < 2 for values in by_reference.values()):
+        raise AnalysisInputError(
+            "insufficient_reference_replicates",
+            "Each reference value needs at least two repeated measurements.",
+            "records",
+        )
+
+    references = [record.reference for record in normalized]
+    biases = [record.measurement - record.reference for record in normalized]
+    reference_mean = fmean(references)
+    bias_mean = fmean(biases)
+    reference_ss = sum((reference - reference_mean) ** 2 for reference in references)
+    if reference_ss == 0.0:
+        raise AnalysisInputError(
+            "zero_reference_variation",
+            "Reference values must vary to estimate gage linearity.",
+            "records",
+        )
+    slope = sum(
+        (reference - reference_mean) * (bias - bias_mean)
+        for reference, bias in zip(references, biases)
+    ) / reference_ss
+    intercept = bias_mean - slope * reference_mean
+    fitted = [intercept + slope * reference for reference in references]
+    residual_ss = sum((bias - prediction) ** 2 for bias, prediction in zip(biases, fitted))
+    total_ss = sum((bias - bias_mean) ** 2 for bias in biases)
+    r_squared = None if total_ss == 0.0 else 1.0 - residual_ss / total_ss
+    residual_sigma = (
+        math.sqrt(residual_ss / (len(normalized) - 2))
+        if len(normalized) > 2
+        else None
+    )
+    level_rows = []
+    for reference in sorted(by_reference):
+        measurements = by_reference[reference]
+        mean_measurement = fmean(measurements)
+        level_rows.append(
+            {
+                "reference": reference,
+                "measurement_count": len(measurements),
+                "mean_measurement": mean_measurement,
+                "mean_bias": mean_measurement - reference,
+                "measurement_standard_deviation": (
+                    math.sqrt(
+                        sum((value - mean_measurement) ** 2 for value in measurements)
+                        / (len(measurements) - 1)
+                    )
+                ),
+            }
+        )
+
+    payload = {"records": [asdict(record) for record in normalized]}
+    warnings = [
+        "Bias is defined here as observed measurement minus known reference value; positive values indicate the gage reads high.",
+        "This implementation reports descriptive least-squares fit only and does not calculate confidence intervals or hypothesis-test p-values.",
+    ]
+    if r_squared is None:
+        warnings.append(
+            "R-squared is undefined because all observed bias values are identical."
+        )
+    return ResultBundle(
+        analysis_type="msa.gage_bias_linearity",
+        engine_version=ENGINE_VERSION,
+        input_digest=input_digest(payload),
+        parameters={"bias_definition": "measurement_minus_reference"},
+        tables={
+            "study": {
+                "measurement_count": len(normalized),
+                "reference_level_count": len(by_reference),
+                "mean_bias": bias_mean,
+            },
+            "bias_by_reference": level_rows,
+            "linearity_fit": {
+                "slope": slope,
+                "intercept": intercept,
+                "r_squared": r_squared,
+                "residual_standard_deviation": residual_sigma,
+            },
+        },
+        plots={
+            "bias_vs_reference": {
+                "points": [
+                    {
+                        "reference": record.reference,
+                        "measurement": record.measurement,
+                        "bias": record.measurement - record.reference,
+                        "fitted_bias": prediction,
+                    }
+                    for record, prediction in zip(normalized, fitted)
+                ],
+                "slope": slope,
+                "intercept": intercept,
+            }
+        },
+        diagnostics={
+            "reference_variation_sum_of_squares": reference_ss,
+            "residual_sum_of_squares": residual_ss,
+            "degrees_of_freedom": len(normalized) - 2,
+        },
+        assumptions=(
+            "Reference values are traceable known standards that span the intended operating range.",
+            "Repeated measurements are representative of normal gage use and independent of each other.",
+            "A straight-line relationship is an appropriate descriptive approximation for bias across the reference range.",
+        ),
+        warnings=tuple(warnings),
+        provenance=(GAGE_BIAS_SOURCE, GAGE_LINEARITY_SOURCE),
+    )

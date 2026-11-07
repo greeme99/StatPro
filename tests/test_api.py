@@ -1121,6 +1121,19 @@ class LocalApiContractTests(unittest.TestCase):
                 },
                 "msa.attribute_agreement",
             ),
+            (
+                "/v1/analysis-runs/gage-bias-linearity",
+                {
+                    "run_id": "gage-bias-linearity",
+                    "records": [
+                        {"reference": 10, "measurement": 11},
+                        {"reference": 10, "measurement": 11},
+                        {"reference": 20, "measurement": 22},
+                        {"reference": 20, "measurement": 22},
+                    ],
+                },
+                "msa.gage_bias_linearity",
+            ),
         ]
         for path, payload, analysis_type in requests:
             with self.subTest(path=path):

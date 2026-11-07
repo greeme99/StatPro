@@ -20,8 +20,10 @@ from statpro.analyses.doe import (
 )
 from statpro.analyses.msa import (
     AttributeAssessmentRecord,
+    BiasLinearityRecord,
     MeasurementRecord,
     attribute_agreement,
+    gage_bias_linearity,
     gage_rr_crossed,
 )
 from statpro.analyses.spc import (
@@ -37,6 +39,7 @@ __all__ = [
     "FactorDefinition",
     "GeneratorDefinition",
     "AttributeAssessmentRecord",
+    "BiasLinearityRecord",
     "MeasurementRecord",
     "analyze_automatic_fractional_factorial_2level",
     "analyze_box_behnken",
@@ -53,6 +56,7 @@ __all__ = [
     "fractional_factorial_2level",
     "full_factorial_2level",
     "gage_rr_crossed",
+    "gage_bias_linearity",
     "individuals_moving_range",
     "nonnormal_process_capability",
     "normal_process_capability",

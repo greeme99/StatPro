@@ -46,6 +46,34 @@ export type AttributeAgreementView = {
   overall: { all_appraisers_match_standard: number; all_appraisers_standard_percent: number; all_appraisers_agree: number; all_appraisers_agree_percent: number };
 };
 
+export type GageBiasLinearityView = {
+  study: { measurement_count: number; reference_level_count: number; mean_bias: number };
+  levels: Array<{ reference: number; measurement_count: number; mean_measurement: number; mean_bias: number; measurement_standard_deviation: number }>;
+  fit: { slope: number; intercept: number; r_squared: number | null; residual_standard_deviation: number | null };
+};
+
+export function toGageBiasLinearityView(result: ResultBundle | undefined): GageBiasLinearityView | null {
+  if (!result || result.analysis_type !== "msa.gage_bias_linearity") return null;
+  const study = result.tables.study;
+  const levels = result.tables.bias_by_reference;
+  const fit = result.tables.linearity_fit;
+  if (!study || !Array.isArray(levels) || !fit || typeof study !== "object" || typeof fit !== "object") return null;
+  return {
+    study: {
+      measurement_count: Number(study.measurement_count),
+      reference_level_count: Number(study.reference_level_count),
+      mean_bias: Number(study.mean_bias),
+    },
+    levels: levels as GageBiasLinearityView["levels"],
+    fit: {
+      slope: Number(fit.slope),
+      intercept: Number(fit.intercept),
+      r_squared: typeof fit.r_squared === "number" ? fit.r_squared : null,
+      residual_standard_deviation: typeof fit.residual_standard_deviation === "number" ? fit.residual_standard_deviation : null,
+    },
+  };
+}
+
 export function toAttributeAgreementView(result: ResultBundle | undefined): AttributeAgreementView | null {
   if (!result || result.analysis_type !== "msa.attribute_agreement") return null;
   const study = result.tables.study;
