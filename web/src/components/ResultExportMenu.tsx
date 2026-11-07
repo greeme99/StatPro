@@ -65,6 +65,23 @@ function downloadJson(filename: string, result: ResultBundle) {
   downloadText(filename, `${JSON.stringify(result, null, 2)}\n`, "application/json");
 }
 
+function escapeHtml(value: unknown) {
+  return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;");
+}
+
+export function resultBundlePrintHtml(runId: string, result: ResultBundle) {
+  const rows = resultBundleCsv(result).replace(/^\ufeff/, "").trim().split("\r\n").slice(1).map((line) => line.match(/"((?:[^"]|"")*)","((?:[^"]|"")*)","((?:[^"]|"")*)"/)?.slice(1).map((cell) => cell.replaceAll('""', '"')) ?? []);
+  const tableRows = rows.map(([section, path, value]) => `<tr><td>${escapeHtml(section)}</td><td>${escapeHtml(path)}</td><td>${escapeHtml(value)}</td></tr>`).join("");
+  const sources = result.provenance.map((source) => `<li><a href="${escapeHtml(source.url)}">${escapeHtml(source.title)}</a> · ${escapeHtml(source.authority)}</li>`).join("");
+  return `<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>${escapeHtml(runId)} 분석 결과 보고서</title><style>body{font:14px/1.6 sans-serif;color:#172033;margin:32px}h1{margin-bottom:0}.meta{color:#64748b;word-break:break-all}table{border-collapse:collapse;width:100%;margin-top:20px;table-layout:fixed}th,td{border:1px solid #d6dbe3;padding:7px;text-align:left;vertical-align:top;word-break:break-word}th{background:#f4f7fb}@media print{body{margin:12mm}.no-print{display:none}}</style></head><body><button class="no-print" onclick="window.print()">PDF로 저장 또는 인쇄</button><h1>분석 결과 보고서</h1><p class="meta">Run ID ${escapeHtml(runId)} · 분석 유형 ${escapeHtml(result.analysis_type)} · 엔진 ${escapeHtml(result.engine_version)} · 입력 SHA-256 ${escapeHtml(result.input_digest)}</p><h2>결과 데이터</h2><table><thead><tr><th>구분</th><th>경로</th><th>값</th></tr></thead><tbody>${tableRows}</tbody></table><h2>계산 근거</h2><ul>${sources || "<li>ResultBundle에 등록된 공개 근거 없음</li>"}</ul><p class="meta">이 문서는 저장된 분석 실행을 변경하지 않는 인쇄용 투영입니다. 차트 이미지는 해당 분석에 별도 렌더러가 있을 때만 제공됩니다.</p></body></html>`;
+}
+
+function printResultBundle(runId: string, result: ResultBundle) {
+  const report = window.open("", "_blank", "popup");
+  if (!report) return false;
+  report.document.write(resultBundlePrintHtml(runId, result)); report.document.close(); return true;
+}
+
 export function ResultExportMenu({ runId, result }: { runId: string; result: ResultBundle }) {
   const [open, setOpen] = useState(false);
   const menu = useRef<HTMLDivElement>(null);
@@ -110,8 +127,8 @@ export function ResultExportMenu({ runId, result }: { runId: string; result: Res
           <button role="menuitem" onClick={() => { downloadImrPng(runId, imr); setOpen(false); }}><ImageDown aria-hidden="true" />차트를 PNG로 저장</button>
           <button role="menuitem" onClick={() => { downloadArtifact(`${runId}-imr.svg`, imrReportSvg(runId, imr), "image/svg+xml;charset=utf-8"); setOpen(false); }}><ImageUp aria-hidden="true" />차트를 SVG로 저장</button>
         </> : <>
-          <span role="menuitem" aria-disabled="true" title="개발 예정"><FileText aria-hidden="true" />PDF 보고서 <small>개발 예정</small></span>
-          <span role="menuitem" aria-disabled="true" title="개발 예정"><FileSpreadsheet aria-hidden="true" />Excel로 저장 <small>개발 예정</small></span>
+          <button role="menuitem" onClick={() => { if (!printResultBundle(runId, result)) window.alert("보고서 창을 열 수 없습니다. 브라우저의 팝업 차단 설정을 확인하세요."); setOpen(false); }}><FileText aria-hidden="true" />PDF 보고서 저장·인쇄</button>
+          <span role="menuitem" aria-disabled="true" title="CSV 출력은 현재 제공됩니다. 다중 시트 Excel 형식은 개발 예정입니다."><FileSpreadsheet aria-hidden="true" />Excel 통합문서 <small>개발 예정</small></span>
           <span role="menuitem" aria-disabled="true" title="개발 예정"><ImageDown aria-hidden="true" />차트를 PNG로 저장 <small>개발 예정</small></span>
           <span role="menuitem" aria-disabled="true" title="개발 예정"><ImageUp aria-hidden="true" />차트를 SVG로 저장 <small>개발 예정</small></span>
         </>}

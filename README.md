@@ -9,6 +9,7 @@
 - **측정시스템분석(MSA)**: 균형 교차·중첩 Gage R&R, Attribute Agreement, Gage 편의·선형성
 - **고장 형태 및 영향 분석(FMEA)**: 불변 개정, AIAG/VDA 7단계, 조치·재평가·검토·승인, 외부 Action Priority 정책, PFMEA–Control Plan 추적, SPC/MSA Run 연결
 - **데이터·실행 관리**: CSV Dataset snapshot, revision Worksheet, Analysis Run, ETag/낙관적 동시성, cursor paging, ResultBundle
+- **결과 출력**: 모든 Analysis Run의 읽기 전용 인쇄 보고서·JSON·CSV, I-MR/Xbar-R/Xbar-S의 Excel·PNG·SVG 차트 출력
 - **품질 도구와 DMAIC 연결**: 체크 시트, 일반 파레토, 특성요인도, 홈 기반 DMAIC 작업 흐름과 학습 리소스
 - **품질 대시보드**: 저장된 ResultBundle의 수치 경로를 불변 지표 스냅샷으로 연결하고 상태·담당·검토 주기·원본 Run 증거를 함께 표시
 - **결함 분석**: 체크 시트 개정 근거 또는 수동 입력에서 범주별 결함·검사 기회·단위 손실·심각도를 기록하고 DPMO·손실·위험 우선순위를 불변 개정으로 보존
