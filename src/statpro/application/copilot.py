@@ -89,6 +89,18 @@ _SELECTION_SOURCE = CopilotSource(
     "분석 선택 도우미 규칙",
     "docs/evidence/2026-11-07-analysis-selection-assistant.md",
 )
+_SCOPE_SOURCE = CopilotSource(
+    "StatPro 지원 범위 및 후속 연계 항목",
+    "docs/10.StatPro_AI_Copilot_Rule_Catalog.md",
+)
+
+_OUT_OF_SCOPE_GUIDANCE: tuple[tuple[tuple[str, ...], str, str], ...] = (
+    (("ppap", "8d", "capa"), "고객 품질·시정조치 관리", "고객 포털·QMS·CAPA/8D 시스템"),
+    (("fdc", "apc", "r2r"), "설비 데이터 수집·제어", "MES·FDC·APC/R2R 플랫폼"),
+    (("mes", "erp", "생산실행"), "생산·자원 관리", "MES·ERP"),
+    (("dmadv", "dfss"), "신제품 설계 품질", "DFSS/DMADV 전용 설계·품질 시스템"),
+    (("임상", "clinical", "의료통계"), "임상·의료 연구 통계", "임상시험·의료통계 전용 도구"),
+)
 
 
 def _catalog_source(rule: CopilotRule) -> CopilotSource:
@@ -324,6 +336,25 @@ class LocalKnowledgeCopilotProvider:
                 action=CopilotAction("분석 선택 시작", "/analyses"),
                 rule_id="analysis-selection-guidance",
             )
+
+        for terms, capability, suggested_tool in _OUT_OF_SCOPE_GUIDANCE:
+            if any(term in normalized for term in terms):
+                return CopilotGuidance(
+                    answer=(
+                        f"요청하신 {capability}은 현재 StatPro의 제공 기능 및 확정된 Rulebase 범위 밖입니다. "
+                        f"StatPro의 DOE·SPC·FMEA·DMAIC로 대신 처리한다고 단정하지 않으며, "
+                        f"적합한 연계 도구는 {suggested_tool}입니다. "
+                        "필요하면 해당 시스템의 결과를 StatPro의 분석 입력·근거로 가져오는 연계 요구사항을 별도로 정의하세요."
+                    ),
+                    provider=self.provider_name,
+                    sources=(_SCOPE_SOURCE,),
+                    limitations=limitations + (
+                        "범위 밖 기능은 StatPro에서 계산·승인·자동 실행하지 않습니다.",
+                        "연계 도구의 계약·권한·데이터 형식은 별도 확인이 필요합니다.",
+                    ),
+                    action=CopilotAction("지원 분석 범위 확인", "/analyses"),
+                    guidance_mode="unmatched",
+                )
 
         return CopilotGuidance(
             answer=(

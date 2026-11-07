@@ -208,6 +208,19 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
         self.assertEqual(guidance.rule_id, "spc-rule-response-plan")
         self.assertIn("반응", guidance.workflow_steps[3])
 
+    def test_out_of_scope_business_case_declares_boundary_and_suggests_tool(self) -> None:
+        guidance = LocalKnowledgeCopilotProvider().answer(
+            question="FDC와 APC R2R로 설비를 자동 제어하는 업무를 하고 싶어요",
+            pathname="/home",
+            workspace="홈 (Home)",
+            evidence_context=None,
+        )
+
+        self.assertEqual(guidance.guidance_mode, "unmatched")
+        self.assertIn("범위 밖", guidance.answer)
+        self.assertIn("MES·FDC·APC/R2R", guidance.answer)
+        self.assertIn("자동 실행하지 않습니다", guidance.limitations[2])
+
     def test_gemini_fallback_uses_structured_contract(self) -> None:
         client = FakeGeminiClient()
         provider = GeminiCopilotProvider("test-key", client=client)
