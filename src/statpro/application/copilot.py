@@ -15,6 +15,8 @@ from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from typing import Any, Protocol
 
+from statpro.application.copilot_rules import CopilotRule, match_catalog_rule
+
 
 @dataclass(frozen=True)
 class CopilotSource:
@@ -87,6 +89,13 @@ _SELECTION_SOURCE = CopilotSource(
     "분석 선택 도우미 규칙",
     "docs/evidence/2026-11-07-analysis-selection-assistant.md",
 )
+
+
+def _catalog_source(rule: CopilotRule) -> CopilotSource:
+    return CopilotSource(
+        title=f"AI Copilot 현장 Rule: {rule.recommended_tool}",
+        reference=rule.source_reference,
+    )
 
 
 class LocalKnowledgeCopilotProvider:
@@ -222,6 +231,28 @@ class LocalKnowledgeCopilotProvider:
                 rule_id="spc-xbar-r-selection",
                 recommended_tool="Xbar-R 관리도",
                 menu_path=("홈 (Home)", "통계적 공정관리 (SPC)", "Xbar-R 관리도"),
+            )
+
+        catalog_rule = match_catalog_rule(question)
+        if catalog_rule is not None:
+            return CopilotGuidance(
+                answer=(
+                    evidence_prefix
+                    + f"{catalog_rule.situation} 적합한 작업공간은 {catalog_rule.recommended_tool}입니다. "
+                    "아래 점검표를 확인한 뒤 단계별 업무 절차에 따라 분석을 진행하세요."
+                ),
+                provider=self.provider_name,
+                sources=(_catalog_source(catalog_rule),),
+                limitations=limitations,
+                action=CopilotAction(
+                    catalog_rule.action_label,
+                    catalog_rule.action_href,
+                ),
+                rule_id=catalog_rule.rule_id,
+                recommended_tool=catalog_rule.recommended_tool,
+                menu_path=catalog_rule.menu_path,
+                checklist=catalog_rule.checklist,
+                workflow_steps=catalog_rule.workflow_steps,
             )
 
         if any(token in normalized for token in ("관리한계", "ucl", "lcl", "이상 신호", "관리도")):

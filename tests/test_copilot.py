@@ -18,6 +18,7 @@ from statpro.application.copilot import (
     LocalKnowledgeCopilotProvider,
     RuleFirstCopilotProvider,
 )
+from statpro.application.copilot_rules import COPILOT_RULE_CATALOG
 
 
 class FakeGeminiClient:
@@ -67,6 +68,21 @@ class RecordingFallbackProvider:
 
 
 class RuleFirstCopilotProviderTests(unittest.TestCase):
+    def test_catalog_covers_every_supported_field_domain_with_complete_rules(self) -> None:
+        rule_ids = [rule.rule_id for rule in COPILOT_RULE_CATALOG]
+
+        self.assertEqual(len(rule_ids), len(set(rule_ids)))
+        self.assertTrue({"데이터", "SPC", "DOE", "FMEA", "DMAIC", "7대 품질 도구"} <= {
+            rule.domain for rule in COPILOT_RULE_CATALOG
+        })
+        for rule in COPILOT_RULE_CATALOG:
+            self.assertTrue(rule.situation)
+            self.assertTrue(rule.recommended_tool)
+            self.assertTrue(rule.action_href.startswith("/"))
+            self.assertGreaterEqual(len(rule.checklist), 2)
+            self.assertGreaterEqual(len(rule.workflow_steps), 4)
+            self.assertTrue(rule.source_reference.startswith("docs/"))
+
     def test_env_file_loads_only_copilot_settings_without_overriding_process(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             env_file = Path(directory) / ".env"
@@ -139,6 +155,36 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
         self.assertEqual(guidance.recommended_tool, "개선 프로젝트 (DMAIC)")
         self.assertEqual(guidance.action.href, "/home/dmaic/define")
         self.assertEqual(len(guidance.workflow_steps), 5)
+
+    def test_catalog_rule_routes_p_chart_without_calling_llm(self) -> None:
+        fallback = RecordingFallbackProvider()
+        provider = RuleFirstCopilotProvider(LocalKnowledgeCopilotProvider(), fallback)
+
+        guidance = provider.answer(
+            question="표본 수가 다른 공정의 불량률을 p 관리도로 보고 싶어요",
+            pathname="/spc",
+            workspace="통계적 공정관리 (SPC)",
+            evidence_context=None,
+        )
+
+        self.assertEqual(fallback.questions, [])
+        self.assertEqual(guidance.rule_id, "spc-p-variable-sample")
+        self.assertEqual(guidance.action.href, "/analyses/spc/attribute?chart=p")
+        self.assertGreaterEqual(len(guidance.checklist), 2)
+        self.assertGreaterEqual(len(guidance.workflow_steps), 4)
+
+    def test_catalog_rule_exposes_external_policy_dependency_for_fmea_approval(self) -> None:
+        provider = LocalKnowledgeCopilotProvider()
+
+        guidance = provider.answer(
+            question="기업 승인에 IdP와 직무분리를 적용하려면 어떻게 하나요?",
+            pathname="/fmea",
+            workspace="고장 형태 및 영향 분석 (FMEA)",
+            evidence_context=None,
+        )
+
+        self.assertEqual(guidance.rule_id, "fmea-enterprise-approval")
+        self.assertIn("Entra OIDC claims", guidance.checklist[0])
 
     def test_gemini_fallback_uses_structured_contract(self) -> None:
         client = FakeGeminiClient()

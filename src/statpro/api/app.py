@@ -59,6 +59,7 @@ from statpro.application.approval import (
     LocalApprovalAuthenticator,
 )
 from statpro.application.copilot import CopilotProvider, build_default_copilot_provider
+from statpro.application.copilot_rules import COPILOT_RULE_CATALOG
 from statpro.application.documents import (
     AtomicJsonDocumentRepository,
     DocumentConflictError,
@@ -214,6 +215,18 @@ class CopilotGuidanceResponse(ApiModel):
     menu_path: list[str]
     checklist: list[str]
     workflow_steps: list[str]
+
+
+class CopilotRuleResponse(ApiModel):
+    rule_id: str
+    domain: str
+    situation: str
+    recommended_tool: str
+    menu_path: list[str]
+    action: CopilotActionResponse
+    checklist: list[str]
+    workflow_steps: list[str]
+    source_reference: str
 
 
 class ImrRunRequest(ApiModel):
@@ -1938,6 +1951,28 @@ def create_app(
             checklist=list(guidance.checklist),
             workflow_steps=list(guidance.workflow_steps),
         )
+
+    @app.get("/v1/copilot/rules", response_model=list[CopilotRuleResponse])
+    def list_copilot_rules() -> list[CopilotRuleResponse]:
+        """List the reviewed, local-only field-situation guidance catalog."""
+
+        return [
+            CopilotRuleResponse(
+                rule_id=rule.rule_id,
+                domain=rule.domain,
+                situation=rule.situation,
+                recommended_tool=rule.recommended_tool,
+                menu_path=list(rule.menu_path),
+                action=CopilotActionResponse(
+                    label=rule.action_label,
+                    href=rule.action_href,
+                ),
+                checklist=list(rule.checklist),
+                workflow_steps=list(rule.workflow_steps),
+                source_reference=rule.source_reference,
+            )
+            for rule in COPILOT_RULE_CATALOG
+        ]
 
     @app.post("/v1/analysis-runs/imr", status_code=201, response_model=StoredRunResponse)
     def run_imr(request: ImrRunRequest, response: Response) -> StoredRunResponse:

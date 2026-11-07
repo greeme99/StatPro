@@ -64,6 +64,7 @@ class LocalApiContractTests(unittest.TestCase):
             openapi.json()["paths"],
         )
         self.assertIn("/v1/copilot/guidance", openapi.json()["paths"])
+        self.assertIn("/v1/copilot/rules", openapi.json()["paths"])
 
     def test_copilot_returns_local_evidence_aware_guidance(self) -> None:
         response = self.client.post(
@@ -126,6 +127,35 @@ class LocalApiContractTests(unittest.TestCase):
         )
         self.assertGreaterEqual(len(guidance["checklist"]), 4)
         self.assertGreaterEqual(len(guidance["workflow_steps"]), 5)
+
+    def test_copilot_rule_catalog_is_available_to_the_ui(self) -> None:
+        response = self.client.get("/v1/copilot/rules")
+
+        self.assertEqual(response.status_code, 200)
+        rules = {rule["rule_id"]: rule for rule in response.json()}
+        self.assertIn("spc-p-variable-sample", rules)
+        self.assertEqual(rules["spc-p-variable-sample"]["domain"], "SPC")
+        self.assertEqual(
+            rules["spc-p-variable-sample"]["action"]["href"],
+            "/analyses/spc/attribute?chart=p",
+        )
+        self.assertGreaterEqual(len(rules["spc-p-variable-sample"]["workflow_steps"]), 4)
+
+    def test_copilot_catalog_rule_routes_attribute_chart_question(self) -> None:
+        response = self.client.post(
+            "/v1/copilot/guidance",
+            json={
+                "question": "표본 수가 다른 공정의 불량률을 p 관리도로 보고 싶어요",
+                "pathname": "/spc",
+                "workspace": "통계적 공정관리 (SPC)",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        guidance = response.json()
+        self.assertEqual(guidance["rule_id"], "spc-p-variable-sample")
+        self.assertEqual(guidance["recommended_tool"], "p 관리도")
+        self.assertEqual(guidance["action"]["href"], "/analyses/spc/attribute?chart=p")
 
     def test_copilot_does_not_invent_an_unsupported_answer(self) -> None:
         response = self.client.post(
