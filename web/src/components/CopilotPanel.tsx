@@ -213,7 +213,7 @@ export function CopilotPanel() {
         </div>
         {catalogRules.length > 0 && <section className="copilot-catalog" aria-label="현재 작업공간 Rulebase">
           <header><strong>현장 상황별 시작점</strong><small>검토된 Rulebase</small></header>
-          <div>{catalogRules.map((rule) => <button type="button" key={rule.rule_id} disabled={answerLoading} onClick={() => void ask(rule.situation)}>{rule.situation}</button>)}</div>
+          <div>{catalogRules.map((rule) => <button type="button" key={rule.rule_id} disabled={answerLoading} onClick={() => void ask(rule.situation)}><strong>{rule.situation}</strong><small>{rule.recommended_tool} · {rule.menu_path.join(" › ")}</small></button>)}</div>
         </section>}
         {(evidenceLoading || evidence) && <section className="copilot-evidence" aria-label="현재 근거">
           <header><span>{evidence?.kind === "project" ? <FolderKanban aria-hidden="true" /> : <Database aria-hidden="true" />}</span><div><strong>현재 근거</strong><small>저장된 실행·프로젝트 계약에서 읽음</small></div></header>
