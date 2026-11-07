@@ -8,7 +8,7 @@ from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 from statistics import fmean
 
-from statpro.analyses.common import finite_values
+from statpro.analyses.common import f_survival, finite_values
 from statpro.domain.errors import AnalysisInputError
 from statpro.domain.identity import input_digest
 from statpro.domain.models import ProvenanceSource, ResultBundle
@@ -126,6 +126,42 @@ def _normalize_records(records: Sequence[MeasurementRecord]) -> list[Measurement
             MeasurementRecord(part=part, operator=operator, measurement=measurement)
         )
     return normalized
+
+
+def _anova_f_row(
+    source: str,
+    degrees_of_freedom: int,
+    sum_of_squares: float,
+    mean_square: float | None,
+    *,
+    denominator_source: str | None = None,
+    denominator_degrees_of_freedom: int | None = None,
+    denominator_mean_square: float | None = None,
+    significance_level: float = 0.05,
+) -> dict[str, object]:
+    """Build an ANOVA row with an explicitly named unpooled F denominator."""
+
+    f_value = (
+        None
+        if mean_square is None or denominator_mean_square in (None, 0.0)
+        else mean_square / denominator_mean_square
+    )
+    p_value = (
+        None
+        if f_value is None or denominator_degrees_of_freedom is None
+        else f_survival(f_value, degrees_of_freedom, denominator_degrees_of_freedom)
+    )
+    return {
+        "source": source,
+        "df": degrees_of_freedom,
+        "ss": sum_of_squares,
+        "ms": mean_square,
+        "denominator_source": denominator_source,
+        "denominator_df": denominator_degrees_of_freedom,
+        "f_value": f_value,
+        "p_value": p_value,
+        "significant": None if p_value is None else p_value < significance_level,
+    }
 
 
 def gage_rr_crossed(
@@ -296,7 +332,7 @@ def gage_rr_crossed(
         if value < 0.0
     ]
     warnings.append(
-        "This method-of-moments result does not perform significance tests, interaction pooling, or REML estimation."
+        "F tests use unpooled balanced random-effects ANOVA denominators; interaction pooling and REML estimation are not performed."
     )
     if ndc is None:
         warnings.append(
@@ -315,6 +351,7 @@ def gage_rr_crossed(
             "study_variation_multiplier": multiplier,
             "variance_estimation": "balanced_crossed_anova_method_of_moments",
             "negative_variance_policy": "truncate_to_zero",
+            "significance_level": 0.05,
         },
         tables={
             "study": {
@@ -325,26 +362,11 @@ def gage_rr_crossed(
                 "grand_mean": grand_mean,
             },
             "anova": [
-                {"source": "part", "df": df_part, "ss": ss_part, "ms": ms_part},
-                {
-                    "source": "operator",
-                    "df": df_operator,
-                    "ss": ss_operator,
-                    "ms": ms_operator,
-                },
-                {
-                    "source": "part_operator_interaction",
-                    "df": df_interaction,
-                    "ss": ss_interaction,
-                    "ms": ms_interaction,
-                },
-                {
-                    "source": "repeatability",
-                    "df": df_repeatability,
-                    "ss": ss_repeatability,
-                    "ms": ms_repeatability,
-                },
-                {"source": "total", "df": df_total, "ss": ss_total, "ms": None},
+                _anova_f_row("part", df_part, ss_part, ms_part, denominator_source="part_operator_interaction", denominator_degrees_of_freedom=df_interaction, denominator_mean_square=ms_interaction),
+                _anova_f_row("operator", df_operator, ss_operator, ms_operator, denominator_source="part_operator_interaction", denominator_degrees_of_freedom=df_interaction, denominator_mean_square=ms_interaction),
+                _anova_f_row("part_operator_interaction", df_interaction, ss_interaction, ms_interaction, denominator_source="repeatability", denominator_degrees_of_freedom=df_repeatability, denominator_mean_square=ms_repeatability),
+                _anova_f_row("repeatability", df_repeatability, ss_repeatability, ms_repeatability),
+                _anova_f_row("total", df_total, ss_total, None),
             ],
             "variance_components": variance_rows,
         },
@@ -819,7 +841,7 @@ def gage_rr_nested(
         if value < 0.0
     ]
     warnings.append(
-        "This balanced nested method-of-moments result does not perform confidence intervals, significance tests, or mixed-effects estimation."
+        "F tests use unpooled balanced nested-ANOVA denominators; confidence intervals and mixed-effects estimation are not performed."
     )
     payload = {
         "records": [asdict(record) for record in normalized],
@@ -833,6 +855,7 @@ def gage_rr_nested(
             "study_variation_multiplier": multiplier,
             "variance_estimation": "balanced_nested_anova_method_of_moments",
             "negative_variance_policy": "truncate_to_zero",
+            "significance_level": 0.05,
         },
         tables={
             "study": {
@@ -843,20 +866,10 @@ def gage_rr_nested(
                 "grand_mean": grand_mean,
             },
             "anova": [
-                {"source": "operator", "df": df_operator, "ss": ss_operator, "ms": ms_operator},
-                {
-                    "source": "part_operator",
-                    "df": df_part_operator,
-                    "ss": ss_part_operator,
-                    "ms": ms_part_operator,
-                },
-                {
-                    "source": "repeatability",
-                    "df": df_repeatability,
-                    "ss": ss_repeatability,
-                    "ms": ms_repeatability,
-                },
-                {"source": "total", "df": len(normalized) - 1, "ss": ss_total, "ms": None},
+                _anova_f_row("operator", df_operator, ss_operator, ms_operator, denominator_source="part_operator", denominator_degrees_of_freedom=df_part_operator, denominator_mean_square=ms_part_operator),
+                _anova_f_row("part_operator", df_part_operator, ss_part_operator, ms_part_operator, denominator_source="repeatability", denominator_degrees_of_freedom=df_repeatability, denominator_mean_square=ms_repeatability),
+                _anova_f_row("repeatability", df_repeatability, ss_repeatability, ms_repeatability),
+                _anova_f_row("total", len(normalized) - 1, ss_total, None),
             ],
             "variance_components": variance_rows,
         },

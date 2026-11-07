@@ -103,7 +103,7 @@ describe("StatPro UI", () => {
     expect(await screen.findByRole("heading", { name: "현장 분석 흐름의 목표 대비 진척도" })).toBeInTheDocument();
     expect(screen.getByRole("progressbar", { name: "현재 릴리스 목표 가중 진척도" })).toHaveAttribute("value", "81");
     expect(screen.getByRole("heading", { name: "측정시스템 분석(MSA)" })).toBeInTheDocument();
-    expect(screen.getByText(/신뢰구간·유의성 검정, REML·비균형 설계/)).toBeInTheDocument();
+    expect(screen.getByText(/신뢰구간, REML·비균형 설계/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "통계적 공정관리(SPC)·공정능력 작업공간 열기" })).toHaveAttribute("href", "/spc");
   });
 

@@ -137,6 +137,10 @@ function CapabilityResult({ view }: { view: CapabilityView }) {
   </>;
 }
 
+function MsaAnovaTable({ rows }: { rows: GageRrView["anova"] }) {
+  return <div className="table-scroll"><table><thead><tr><th scope="col">변동원</th><th scope="col">DF</th><th scope="col">SS</th><th scope="col">MS</th><th scope="col">검정 분모</th><th scope="col">F</th><th scope="col">p</th><th scope="col">판정 (α=0.05)</th></tr></thead><tbody>{rows.map((row) => <tr key={row.source}><td>{row.source.replaceAll("_", " ")}</td><td>{row.df}</td><td>{statistic(row.ss)}</td><td>{statistic(row.ms)}</td><td>{row.denominator_source?.replaceAll("_", " ") ?? "—"}</td><td>{statistic(row.f_value ?? null)}</td><td>{statistic(row.p_value ?? null)}</td><td>{row.significant === true ? <span className="status-text is-success"><CheckCircle2 aria-hidden="true" /> 유의</span> : row.significant === false ? "비유의" : "해당없음"}</td></tr>)}</tbody></table></div>;
+}
+
 function GageRrResult({ view }: { view: GageRrView }) {
   return <>
     <section className="metric-grid result-metrics" aria-label="교차 Gage R&R 요약">
@@ -147,7 +151,7 @@ function GageRrResult({ view }: { view: GageRrView }) {
       <article className="metric-card"><span>구별 범주 수</span><strong>{view.ndc === null ? "∞" : view.ndc}</strong><small>NDC</small></article>
     </section>
     <section className="panel table-panel"><header className="panel-heading"><div><span className="eyebrow">VARIANCE COMPONENTS</span><h2>분산성분과 Study variation</h2></div></header><div className="table-scroll"><table><thead><tr><th scope="col">변동원</th><th scope="col">분산</th><th scope="col">Study variation</th><th scope="col">% Contribution</th><th scope="col">% Study variation</th></tr></thead><tbody>{view.components.map((row) => <tr key={row.source}><td>{row.source.replaceAll("_", " ")}</td><td>{statistic(row.variance)}</td><td>{statistic(row.study_variation)}</td><td>{statistic(row.percent_contribution, 2)}</td><td>{statistic(row.percent_study_variation, 2)}</td></tr>)}</tbody></table></div></section>
-    <section className="panel table-panel"><header className="panel-heading"><div><span className="eyebrow">ANOVA</span><h2>균형 교차 ANOVA</h2></div><span>전체 평균 {statistic(view.study.grand_mean)}</span></header><div className="table-scroll"><table><thead><tr><th scope="col">변동원</th><th scope="col">DF</th><th scope="col">SS</th><th scope="col">MS</th></tr></thead><tbody>{view.anova.map((row) => <tr key={row.source}><td>{row.source.replaceAll("_", " ")}</td><td>{row.df}</td><td>{statistic(row.ss)}</td><td>{statistic(row.ms)}</td></tr>)}</tbody></table></div></section>
+    <section className="panel table-panel"><header className="panel-heading"><div><span className="eyebrow">ANOVA</span><h2>균형 교차 ANOVA</h2></div><span>전체 평균 {statistic(view.study.grand_mean)} · 비풀링 F 검정</span></header><MsaAnovaTable rows={view.anova} /></section>
   </>;
 }
 
@@ -160,7 +164,7 @@ function NestedGageRrResult({ view }: { view: NestedGageRrView }) {
       <article className="metric-card"><span>부품당 반복</span><strong>{view.study.replicates_per_part}</strong><small>모든 셀 동일</small></article>
     </section>
     <section className="panel table-panel"><header className="panel-heading"><div><span className="eyebrow">VARIANCE COMPONENTS</span><h2>중첩 설계 분산성분</h2></div></header><div className="table-scroll"><table><thead><tr><th scope="col">변동원</th><th scope="col">분산</th><th scope="col">Study variation</th><th scope="col">% Contribution</th><th scope="col">% Study variation</th></tr></thead><tbody>{view.components.map((row) => <tr key={row.source}><td>{row.source.replaceAll("_", " ")}</td><td>{statistic(row.variance)}</td><td>{statistic(row.study_variation)}</td><td>{statistic(row.percent_contribution, 2)}</td><td>{statistic(row.percent_study_variation, 2)}</td></tr>)}</tbody></table></div></section>
-    <section className="panel table-panel"><header className="panel-heading"><div><span className="eyebrow">NESTED ANOVA</span><h2>작업자 내 부품 ANOVA</h2></div><span>전체 평균 {statistic(view.study.grand_mean)}</span></header><div className="table-scroll"><table><thead><tr><th scope="col">변동원</th><th scope="col">DF</th><th scope="col">SS</th><th scope="col">MS</th></tr></thead><tbody>{view.anova.map((row) => <tr key={row.source}><td>{row.source.replaceAll("_", " ")}</td><td>{row.df}</td><td>{statistic(row.ss)}</td><td>{statistic(row.ms)}</td></tr>)}</tbody></table></div></section>
+    <section className="panel table-panel"><header className="panel-heading"><div><span className="eyebrow">NESTED ANOVA</span><h2>작업자 내 부품 ANOVA</h2></div><span>전체 평균 {statistic(view.study.grand_mean)} · 비풀링 F 검정</span></header><MsaAnovaTable rows={view.anova} /></section>
   </>;
 }
 

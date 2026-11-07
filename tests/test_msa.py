@@ -41,6 +41,13 @@ class CrossedGageRrTests(unittest.TestCase):
         self.assertAlmostEqual(components["part_to_part"]["variance"], 40.0)
         self.assertAlmostEqual(components["total_variation"]["variance"], 42.0)
         self.assertEqual(result.diagnostics["number_of_distinct_categories"], 6)
+        self.assertEqual(anova["part"]["denominator_source"], "part_operator_interaction")
+        self.assertAlmostEqual(anova["part"]["f_value"], 81.0)
+        self.assertGreater(anova["part"]["p_value"], 0.05)
+        self.assertEqual(anova["part_operator_interaction"]["denominator_source"], "repeatability")
+        self.assertAlmostEqual(anova["part_operator_interaction"]["f_value"], 1.0)
+        self.assertAlmostEqual(anova["part_operator_interaction"]["p_value"], 0.3739009663)
+        self.assertFalse(anova["part"]["significant"])
 
     def test_negative_component_is_truncated_but_raw_estimate_is_preserved(self) -> None:
         result = gage_rr_crossed(fixture_records())
@@ -78,6 +85,7 @@ class NestedGageRrTests(unittest.TestCase):
             MeasurementRecord("B2", "B", 18), MeasurementRecord("B2", "B", 20),
         ]
         result = gage_rr_nested(records)
+        anova = {row["source"]: row for row in result.tables["anova"]}
         components = {row["source"]: row for row in result.tables["variance_components"]}
 
         self.assertEqual(result.analysis_type, "msa.gage_rr_nested")
@@ -86,6 +94,13 @@ class NestedGageRrTests(unittest.TestCase):
         self.assertEqual(components["repeatability"]["variance"], 2.0)
         self.assertEqual(components["operator"]["variance"], 0.0)
         self.assertEqual(components["part_to_part"]["variance"], 33.0)
+        self.assertEqual(anova["operator"]["denominator_source"], "part_operator")
+        self.assertAlmostEqual(anova["operator"]["f_value"], 0.0)
+        self.assertAlmostEqual(anova["operator"]["p_value"], 1.0)
+        self.assertEqual(anova["part_operator"]["denominator_source"], "repeatability")
+        self.assertAlmostEqual(anova["part_operator"]["f_value"], 34.0)
+        self.assertLess(anova["part_operator"]["p_value"], 0.05)
+        self.assertTrue(anova["part_operator"]["significant"])
 
     def test_rejects_part_shared_between_operators(self) -> None:
         records = [

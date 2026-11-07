@@ -9,7 +9,7 @@ from itertools import combinations, product
 from math import atan2, cos, exp, isfinite, lgamma, log, log1p, sin, sqrt
 from statistics import NormalDist, median
 
-from statpro.analyses.common import finite_values
+from statpro.analyses.common import f_survival, finite_values
 from statpro.domain.errors import AnalysisInputError
 from statpro.domain.identity import input_digest
 from statpro.domain.models import ProvenanceSource, ResultBundle
@@ -565,7 +565,7 @@ def analyze_plackett_burman(
         )
         standardized_effect = effect / effect_standard_error if effect_standard_error else None
         p_value = (
-            _f_survival(standardized_effect * standardized_effect, 1, residual_df)
+            f_survival(standardized_effect * standardized_effect, 1, residual_df)
             if standardized_effect is not None
             else None
         )
@@ -629,7 +629,7 @@ def analyze_plackett_burman(
             model_ss,
             model_ms,
             model_f,
-            _f_survival(model_f, model_df, residual_df) if model_f is not None else None,
+            f_survival(model_f, model_df, residual_df) if model_f is not None else None,
         ),
         _anova_row("Residual Error", residual_df, residual_ss, residual_ms, None, None),
         _anova_row("Total", len(values) - 1, total_ss, None, None, None),
@@ -1980,90 +1980,12 @@ def analyze_automatic_fractional_factorial_2level(
     return _with_automatic_generator_metadata(result, selection)
 
 
-def _beta_continued_fraction(a: float, b: float, x: float) -> float:
-    """Evaluate the incomplete-beta continued fraction with bounded iteration."""
-
-    maximum_iterations = 200
-    epsilon = 3e-14
-    floor = 1e-300
-    qab = a + b
-    qap = a + 1.0
-    qam = a - 1.0
-    c = 1.0
-    d = 1.0 - qab * x / qap
-    if abs(d) < floor:
-        d = floor
-    d = 1.0 / d
-    value = d
-    for iteration in range(1, maximum_iterations + 1):
-        even = 2 * iteration
-        numerator = iteration * (b - iteration) * x / ((qam + even) * (a + even))
-        d = 1.0 + numerator * d
-        if abs(d) < floor:
-            d = floor
-        c = 1.0 + numerator / c
-        if abs(c) < floor:
-            c = floor
-        d = 1.0 / d
-        value *= d * c
-        numerator = -(a + iteration) * (qab + iteration) * x / (
-            (a + even) * (qap + even)
-        )
-        d = 1.0 + numerator * d
-        if abs(d) < floor:
-            d = floor
-        c = 1.0 + numerator / c
-        if abs(c) < floor:
-            c = floor
-        d = 1.0 / d
-        delta = d * c
-        value *= delta
-        if abs(delta - 1.0) <= epsilon:
-            return value
-    raise AnalysisInputError(
-        "distribution_not_converged",
-        "The F-distribution probability calculation did not converge.",
-        "responses",
-    )
-
-
-def _regularized_beta(x: float, a: float, b: float) -> float:
-    if x <= 0.0:
-        return 0.0
-    if x >= 1.0:
-        return 1.0
-    front = exp(
-        lgamma(a + b)
-        - lgamma(a)
-        - lgamma(b)
-        + a * log(x)
-        + b * log1p(-x)
-    )
-    if x < (a + 1.0) / (a + b + 2.0):
-        return front * _beta_continued_fraction(a, b, x) / a
-    return 1.0 - front * _beta_continued_fraction(b, a, 1.0 - x) / b
-
-
-def _f_survival(value: float, numerator_df: float, denominator_df: float) -> float | None:
-    if numerator_df <= 0 or denominator_df <= 0:
-        return None
-    if value <= 0.0:
-        return 1.0
-    if not isfinite(value):
-        return 0.0
-    transformed = denominator_df / (denominator_df + numerator_df * value)
-    probability = _regularized_beta(
-        transformed, denominator_df / 2.0, numerator_df / 2.0
-    )
-    return min(1.0, max(0.0, probability))
-
-
 def _two_sided_t_critical(alpha: float, degrees_of_freedom: float) -> float:
     """Invert the two-sided t tail through the F(1, df) relationship."""
 
     lower = 0.0
     upper = 1.0
-    while (_f_survival(upper * upper, 1.0, degrees_of_freedom) or 0.0) > alpha:
+    while (f_survival(upper * upper, 1.0, degrees_of_freedom) or 0.0) > alpha:
         upper *= 2.0
         if upper > 1_000_000.0:
             raise AnalysisInputError(
@@ -2073,7 +1995,7 @@ def _two_sided_t_critical(alpha: float, degrees_of_freedom: float) -> float:
             )
     for _ in range(100):
         midpoint = (lower + upper) / 2.0
-        tail = _f_survival(midpoint * midpoint, 1.0, degrees_of_freedom)
+        tail = f_survival(midpoint * midpoint, 1.0, degrees_of_freedom)
         if tail is None or tail > alpha:
             lower = midpoint
         else:
@@ -2285,7 +2207,7 @@ def analyze_fractional_factorial_2level(
         )
         standardized_effect = effect / standard_error if standard_error else None
         p_value = (
-            _f_survival(standardized_effect * standardized_effect, 1, residual_df)
+            f_survival(standardized_effect * standardized_effect, 1, residual_df)
             if standardized_effect is not None
             else None
         )
@@ -2975,7 +2897,7 @@ def _analyze_quadratic_design(
         )
         t_value = coefficient / standard_error if standard_error else None
         p_value = (
-            _f_survival(t_value * t_value, 1, residual_df)
+            f_survival(t_value * t_value, 1, residual_df)
             if t_value is not None
             else None
         )
@@ -3011,7 +2933,7 @@ def _analyze_quadratic_design(
             "sum_of_squares": model_ss,
             "mean_square": model_ms,
             "f_value": model_f,
-            "p_value": _f_survival(model_f, model_df, residual_df) if model_f is not None else None,
+            "p_value": f_survival(model_f, model_df, residual_df) if model_f is not None else None,
         },
         {
             "source": "Error",
@@ -3028,7 +2950,7 @@ def _analyze_quadratic_design(
             "mean_square": lack_of_fit_ms,
             "f_value": lack_of_fit_f,
             "p_value": (
-                _f_survival(lack_of_fit_f, lack_of_fit_df, pure_error_df)
+                f_survival(lack_of_fit_f, lack_of_fit_df, pure_error_df)
                 if lack_of_fit_f is not None
                 else None
             ),
@@ -3942,7 +3864,7 @@ def analyze_full_factorial_2level(
                 "sum_of_squares": term_sums_of_squares[term],
                 "f_value": term_f,
                 "p_value": (
-                    _f_survival(term_f, 1, residual_df)
+                    f_survival(term_f, 1, residual_df)
                     if term_f is not None
                     else None
                 ),
@@ -3950,17 +3872,17 @@ def analyze_full_factorial_2level(
         )
 
     model_p = (
-        _f_survival(model_f, model_df, residual_df) if model_f is not None else None
+        f_survival(model_f, model_df, residual_df) if model_f is not None else None
     )
     lack_of_fit_p = (
-        _f_survival(lack_of_fit_f, lack_of_fit_df, pure_error_df)
+        f_survival(lack_of_fit_f, lack_of_fit_df, pure_error_df)
         if lack_of_fit_f is not None
         else None
     )
     block_ms = block_ss / block_df if block_df > 0 else None
     block_f = _f_statistic(block_ms, residual_ms)
     block_p = (
-        _f_survival(block_f, block_df, residual_df)
+        f_survival(block_f, block_df, residual_df)
         if block_f is not None
         else None
     )

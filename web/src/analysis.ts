@@ -33,9 +33,20 @@ export type CapabilityView = {
   nonconformance: Record<string, number | null>;
 };
 
+export type MsaAnovaRow = {
+  source: string;
+  df: number;
+  ss: number;
+  ms: number | null;
+  denominator_source?: string | null;
+  f_value?: number | null;
+  p_value?: number | null;
+  significant?: boolean | null;
+};
+
 export type GageRrView = {
   study: { measurement_count: number; part_count: number; operator_count: number; replicates_per_cell: number; grand_mean: number };
-  anova: Array<{ source: string; df: number; ss: number; ms: number | null }>;
+  anova: MsaAnovaRow[];
   components: Array<{ source: string; variance: number; study_variation: number; percent_contribution: number | null; percent_study_variation: number | null }>;
   ndc: number | null;
 };
