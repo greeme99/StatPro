@@ -36,7 +36,7 @@ from statpro.analyses.doe import (
     optimize_full_factorial_desirability,
     plackett_burman_design,
 )
-from statpro.analyses.msa import MeasurementRecord, gage_rr_crossed
+from statpro.analyses.msa import AttributeAssessmentRecord, MeasurementRecord, attribute_agreement, gage_rr_crossed
 from statpro.analyses.spc import (
     c_chart,
     cusum_chart,
@@ -467,6 +467,19 @@ class GageRrRunRequest(ApiModel):
     run_id: RunId
     records: list[MeasurementRequest]
     study_variation_multiplier: float = 6.0
+
+
+class AttributeAssessmentRequest(ApiModel):
+    item: str
+    appraiser: str
+    trial: StrictInt
+    rating: str
+    standard: str
+
+
+class AttributeAgreementRunRequest(ApiModel):
+    run_id: RunId
+    records: list[AttributeAssessmentRequest]
 
 
 class CreateQualityMetricRequest(ApiModel):
@@ -2644,6 +2657,17 @@ def create_app(
                 records, study_variation_multiplier=request.study_variation_multiplier
             ),
         )
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _response(stored)
+
+    @app.post(
+        "/v1/analysis-runs/attribute-agreement",
+        status_code=201,
+        response_model=StoredRunResponse,
+    )
+    def run_attribute_agreement(request: AttributeAgreementRunRequest, response: Response) -> StoredRunResponse:
+        records = [AttributeAssessmentRecord(**record.model_dump()) for record in request.records]
+        stored = _save_run(repository, request.run_id, attribute_agreement(records))
         response.headers["ETag"] = f'"{stored.etag}"'
         return _response(stored)
 

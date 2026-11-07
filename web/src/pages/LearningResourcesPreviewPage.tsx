@@ -15,7 +15,7 @@ const resources: Resource[] = [
   { title: "통계적 공정관리(SPC) 시작하기", description: "관리도 선택, 데이터 입력, 신호 해석의 기본 흐름을 학습합니다.", status: "구현됨", to: "/spc", icon: BarChart3 },
   { title: "실험계획법(DOE) 설계하기", description: "인자와 반응을 정의하고 실행표와 분석 결과를 연결하는 방법을 안내합니다.", status: "구현됨", to: "/doe", icon: FlaskConical },
   { title: "고장 형태 및 영향 분석(FMEA) 활용하기", description: "공정 흐름, 위험 기록, 관리계획서와 승인 근거의 연결을 다룹니다.", status: "구현됨", to: "/fmea", icon: ShieldCheck },
-  { title: "교차 Gage R&R 시작하기", description: "균형 교차 측정 설계로 반복성·재현성 및 부품 간 변동을 확인합니다.", status: "구현됨", to: "/analyses/msa/gage-rr", icon: Wrench },
+  { title: "측정시스템 분석(MSA) 시작하기", description: "연속값은 교차 Gage R&R, 합격·불합격 판정은 Attribute Agreement로 신뢰성을 확인합니다.", status: "구현됨", to: "/analyses/msa/attribute-agreement", icon: Wrench },
   { title: "근본원인 분석 실습", description: "파레토와 특성요인도를 사용해 조사 범위를 좁히고 검증 원인을 연결합니다.", status: "구현됨", to: "/home/dmaic/analyze/root-causes", icon: Search },
   { title: "개선 프로젝트 운영", description: "DMAIC 단계별 산출물과 분석 실행 근거를 하나의 개선 과제로 연결합니다.", status: "구현됨", to: "/home/dmaic", icon: ClipboardList },
 ];

@@ -84,9 +84,9 @@ describe("StatPro UI", () => {
     render(<MemoryRouter initialEntries={["/home/progress"]}><App /></MemoryRouter>);
 
     expect(await screen.findByRole("heading", { name: "현장 분석 흐름의 목표 대비 진척도" })).toBeInTheDocument();
-    expect(screen.getByRole("progressbar", { name: "현재 릴리스 목표 가중 진척도" })).toHaveAttribute("value", "75");
+    expect(screen.getByRole("progressbar", { name: "현재 릴리스 목표 가중 진척도" })).toHaveAttribute("value", "77");
     expect(screen.getByRole("heading", { name: "측정시스템 분석(MSA)" })).toBeInTheDocument();
-    expect(screen.getByText(/Attribute Agreement, 편의·선형성/)).toBeInTheDocument();
+    expect(screen.getByText(/편의·선형성, 중첩 설계/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "통계적 공정관리(SPC)·공정능력 작업공간 열기" })).toHaveAttribute("href", "/spc");
   });
 
@@ -148,6 +148,15 @@ describe("StatPro UI", () => {
     expect(await screen.findByRole("heading", { name: "교차 Gage R&R 분석 설정" })).toBeInTheDocument();
     expect(screen.getByText(/모든 작업자가 모든 부품을 같은 횟수/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Gage R&R 분석 실행" })).toBeInTheDocument();
+  });
+
+  it("opens the Attribute Agreement workspace with its known-standard contract", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 }));
+    render(<MemoryRouter initialEntries={["/analyses/msa/attribute-agreement"]}><App /></MemoryRouter>);
+
+    expect(await screen.findByRole("heading", { name: "Attribute Agreement 분석 설정" })).toBeInTheDocument();
+    expect(screen.getByText(/품목별 표준 판정은 하나/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "일치도 분석 실행" })).toBeInTheDocument();
   });
 
   it("collapses the sidebar to icons and remembers the user choice", async () => {

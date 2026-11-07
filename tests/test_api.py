@@ -1104,6 +1104,23 @@ class LocalApiContractTests(unittest.TestCase):
                 },
                 "msa.gage_rr_crossed",
             ),
+            (
+                "/v1/analysis-runs/attribute-agreement",
+                {
+                    "run_id": "attribute-agreement",
+                    "records": [
+                        {"item": "I1", "appraiser": "A", "trial": 1, "rating": "good", "standard": "good"},
+                        {"item": "I1", "appraiser": "A", "trial": 2, "rating": "good", "standard": "good"},
+                        {"item": "I1", "appraiser": "B", "trial": 1, "rating": "good", "standard": "good"},
+                        {"item": "I1", "appraiser": "B", "trial": 2, "rating": "bad", "standard": "good"},
+                        {"item": "I2", "appraiser": "A", "trial": 1, "rating": "bad", "standard": "bad"},
+                        {"item": "I2", "appraiser": "A", "trial": 2, "rating": "bad", "standard": "bad"},
+                        {"item": "I2", "appraiser": "B", "trial": 1, "rating": "bad", "standard": "bad"},
+                        {"item": "I2", "appraiser": "B", "trial": 2, "rating": "bad", "standard": "bad"},
+                    ],
+                },
+                "msa.attribute_agreement",
+            ),
         ]
         for path, payload, analysis_type in requests:
             with self.subTest(path=path):

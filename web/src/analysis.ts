@@ -40,6 +40,31 @@ export type GageRrView = {
   ndc: number | null;
 };
 
+export type AttributeAgreementView = {
+  study: { item_count: number; appraiser_count: number; trials_per_item: number; assessment_count: number; categories: string[] };
+  appraisers: Array<{ appraiser: string; items_inspected: number; trials_per_item: number; within_percent: number; standard_percent: number; cohen_kappa_vs_standard: number | null }>;
+  overall: { all_appraisers_match_standard: number; all_appraisers_standard_percent: number; all_appraisers_agree: number; all_appraisers_agree_percent: number };
+};
+
+export function toAttributeAgreementView(result: ResultBundle | undefined): AttributeAgreementView | null {
+  if (!result || result.analysis_type !== "msa.attribute_agreement") return null;
+  const study = result.tables.study;
+  const appraisers = result.tables.appraiser_agreement;
+  const overall = result.tables.overall_agreement;
+  if (!study || !Array.isArray(appraisers) || !overall || typeof study !== "object" || typeof overall !== "object") return null;
+  return {
+    study: {
+      item_count: Number(study.item_count),
+      appraiser_count: Number(study.appraiser_count),
+      trials_per_item: Number(study.trials_per_item),
+      assessment_count: Number(study.assessment_count),
+      categories: Array.isArray(study.categories) ? study.categories.map(String) : [],
+    },
+    appraisers: appraisers as AttributeAgreementView["appraisers"],
+    overall: overall as AttributeAgreementView["overall"],
+  };
+}
+
 export function toGageRrView(result: ResultBundle | undefined): GageRrView | null {
   if (!result || result.analysis_type !== "msa.gage_rr_crossed") return null;
   const study = result.tables.study;

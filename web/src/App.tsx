@@ -15,6 +15,7 @@ function lazyNamed(loader: () => Promise<Record<string, unknown>>, exportName: s
 const ImrSetupPage = lazyNamed(() => import("./pages/ImrSetupPage"), "ImrSetupPage");
 const CapabilitySetupPage = lazyNamed(() => import("./pages/CapabilitySetupPage"), "CapabilitySetupPage");
 const GageRrSetupPage = lazyNamed(() => import("./pages/GageRrSetupPage"), "GageRrSetupPage");
+const AttributeAgreementSetupPage = lazyNamed(() => import("./pages/AttributeAgreementSetupPage"), "AttributeAgreementSetupPage");
 const ResultPage = lazyNamed(() => import("./pages/ResultPage"), "ResultPage");
 const FmeaListPage = lazyNamed(() => import("./pages/FmeaListPage"), "FmeaListPage");
 const FmeaStudyPage = lazyNamed(() => import("./pages/FmeaStudyPage"), "FmeaStudyPage");
@@ -64,6 +65,7 @@ export default function App() {
           <Route path="/analyses/imr/new" element={<ImrSetupPage />} />
         <Route path="/analyses/capability" element={<CapabilitySetupPage />} />
         <Route path="/analyses/msa/gage-rr" element={<GageRrSetupPage />} />
+        <Route path="/analyses/msa/attribute-agreement" element={<AttributeAgreementSetupPage />} />
         <Route path="/analyses/spc/attribute" element={<AttributeChartSetupPage />} />
         <Route path="/analyses/spc/xbar-s" element={<XbarSSetupPage />} />
         <Route path="/analyses/spc/xbar-r" element={<XbarRSetupPage />} />

@@ -504,6 +504,16 @@ export function createGageRrRun(payload: {
   });
 }
 
+export function createAttributeAgreementRun(payload: {
+  run_id: string;
+  records: Array<{ item: string; appraiser: string; trial: number; rating: string; standard: string }>;
+}): Promise<StoredRun> {
+  return request("/v1/analysis-runs/attribute-agreement", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function createDoeAnalysisRun(payload: {
   run_id: string;
   factors: Array<{ name: string; low: number; high: number }>;

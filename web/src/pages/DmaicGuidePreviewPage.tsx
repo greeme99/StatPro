@@ -16,7 +16,7 @@ const phases: PhaseCard[] = [
 const tools: ToolCard[] = [
   { title: "공정 변동 이해", description: "통계적 공정관리(SPC) 관리도로 공정을 모니터링하고 이상 신호를 확인합니다.", status: "구현됨", to: "/spc", icon: BarChart3 },
   { title: "공정능력 평가", description: "규격 한계와 측정값으로 정규 또는 경험적 비정규 능력지수와 불량 PPM을 확인합니다.", status: "구현됨", to: "/analyses/capability", icon: Gauge },
-  { title: "측정 품질 확인", description: "균형 교차 설계의 Gage R&R으로 반복성·재현성과 측정시스템 변동을 검토합니다.", status: "구현됨", to: "/analyses/msa/gage-rr", icon: Wrench },
+  { title: "측정 품질 확인", description: "연속 측정값은 교차 Gage R&R, 표준 판정 검사는 Attribute Agreement로 측정시스템 신뢰성을 검토합니다.", status: "구현됨", to: "/analyses/msa/attribute-agreement", icon: Wrench },
   { title: "근본원인 조사", description: "특성요인도와 파레토 결과를 개선 프로젝트의 검증된 원인 및 후속 조치로 연결합니다.", status: "구현됨", to: "/home/dmaic/analyze/root-causes", icon: Search },
   { title: "개선 실험 설계", description: "실험계획법(DOE)으로 공정 반응에 영향을 주는 인자를 설계하고 분석합니다.", status: "구현됨", to: "/doe", icon: FlaskConical },
   { title: "결과를 조치로 전환", description: "고장 형태 및 영향 분석(FMEA)에서 관리계획서와 조치·승인 이력을 연결합니다.", status: "구현됨", to: "/fmea", icon: ShieldCheck },

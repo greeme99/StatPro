@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 from statistics import fmean
@@ -34,6 +34,23 @@ NDC_SOURCE = ProvenanceSource(
         "emp-studies/using-the-number-of-distinct-categories-in-a-gage-r-r-study/"
     ),
 )
+ATTRIBUTE_AGREEMENT_SOURCE = ProvenanceSource(
+    title="Minitab: Assessment agreement for Attribute Agreement Analysis",
+    url=(
+        "https://support.minitab.com/en-us/minitab/help-and-how-to/quality-and-process-"
+        "improvement/measurement-system-analysis/how-to/attribute-agreement-analysis/"
+        "attribute-agreement-analysis/interpret-the-results/all-statistics-and-graphs/"
+        "assessment-agreement/"
+    ),
+)
+ATTRIBUTE_KAPPA_SOURCE = ProvenanceSource(
+    title="Minitab: Methods and formulas for kappa statistics for Attribute Agreement Analysis",
+    url=(
+        "https://support.minitab.com/en-us/minitab/help-and-how-to/quality-and-process-"
+        "improvement/measurement-system-analysis/how-to/attribute-agreement-analysis/"
+        "attribute-agreement-analysis/methods-and-formulas/kappa-statistics/"
+    ),
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -41,6 +58,15 @@ class MeasurementRecord:
     part: str
     operator: str
     measurement: float
+
+
+@dataclass(frozen=True, slots=True)
+class AttributeAssessmentRecord:
+    item: str
+    appraiser: str
+    trial: int
+    rating: str
+    standard: str
 
 
 def _normalize_records(records: Sequence[MeasurementRecord]) -> list[MeasurementRecord]:
@@ -326,3 +352,176 @@ def gage_rr_crossed(
             NDC_SOURCE,
         ),
     )
+
+
+def attribute_agreement(records: Sequence[AttributeAssessmentRecord]) -> ResultBundle:
+    """Summarize nominal inspection agreement against a known reference standard."""
+
+    if not records:
+        raise AnalysisInputError(
+            "insufficient_assessments",
+            "Provide at least one attribute assessment.",
+            "records",
+        )
+    if len(records) > 100_000:
+        raise AnalysisInputError(
+            "study_too_large",
+            "Attribute agreement supports at most 100,000 assessments.",
+            "records",
+        )
+    normalized: list[AttributeAssessmentRecord] = []
+    for index, record in enumerate(records):
+        item = record.item.strip()
+        appraiser = record.appraiser.strip()
+        rating = record.rating.strip()
+        standard = record.standard.strip()
+        if not item or not appraiser or not rating or not standard:
+            raise AnalysisInputError(
+                "empty_attribute_value",
+                f"Record {index + 1} needs item, appraiser, rating, and standard.",
+                "records",
+            )
+        if isinstance(record.trial, bool) or not isinstance(record.trial, int) or record.trial < 1:
+            raise AnalysisInputError(
+                "invalid_trial",
+                f"Record {index + 1} needs a positive integer trial.",
+                "records",
+            )
+        normalized.append(
+            AttributeAssessmentRecord(item, appraiser, record.trial, rating, standard)
+        )
+
+    item_standards: dict[str, str] = {}
+    by_item_appraiser: dict[tuple[str, str], list[AttributeAssessmentRecord]] = defaultdict(list)
+    seen: set[tuple[str, str, int]] = set()
+    for record in normalized:
+        if record.item in item_standards and item_standards[record.item] != record.standard:
+            raise AnalysisInputError("inconsistent_standard", "Each item must have one known reference standard.", "records")
+        key = (record.item, record.appraiser, record.trial)
+        if key in seen:
+            raise AnalysisInputError("duplicate_assessment", "Each item, appraiser, and trial combination must be unique.", "records")
+        seen.add(key)
+        item_standards[record.item] = record.standard
+        by_item_appraiser[(record.item, record.appraiser)].append(record)
+    items, appraisers = sorted(item_standards), sorted({record.appraiser for record in normalized})
+    if len(items) < 2 or len(appraisers) < 2:
+        raise AnalysisInputError(
+            "insufficient_attribute_design",
+            "Attribute agreement requires at least two items and two appraisers.",
+            "records",
+        )
+    if set(by_item_appraiser) != {(item, appraiser) for item in items for appraiser in appraisers}:
+        raise AnalysisInputError(
+            "incomplete_attribute_design",
+            "Every appraiser must assess every item.",
+            "records",
+        )
+
+    cells_by_appraiser = {
+        appraiser: [
+            sorted(by_item_appraiser[(item, appraiser)], key=lambda row: row.trial)
+            for item in items
+        ]
+        for appraiser in appraisers
+    }
+    trial_counts = {
+        len(cell) for cells in cells_by_appraiser.values() for cell in cells
+    }
+    if len(trial_counts) != 1:
+        raise AnalysisInputError(
+            "unbalanced_attribute_trials",
+            "Every appraiser must assess every item the same number of trials.",
+            "records",
+        )
+    trials_per_item = next(iter(trial_counts))
+    rows = []
+    for appraiser in appraisers:
+        cells = cells_by_appraiser[appraiser]
+        within = sum(len({row.rating for row in cell}) == 1 for cell in cells)
+        standard = sum(all(row.rating == row.standard for row in cell) for cell in cells)
+        flat = [row for cell in cells for row in cell]
+        rows.append(
+            {
+                "appraiser": appraiser,
+                "items_inspected": len(items),
+                "trials_per_item": trials_per_item,
+                "within_matched": within,
+                "within_percent": within / len(items) * 100.0,
+                "standard_matched": standard,
+                "standard_percent": standard / len(items) * 100.0,
+                "cohen_kappa_vs_standard": _cohen_kappa(
+                    [row.rating for row in flat], [row.standard for row in flat]
+                ),
+            }
+        )
+
+    all_standard = sum(
+        all(
+            row.rating == row.standard
+            for appraiser in appraisers
+            for row in by_item_appraiser[(item, appraiser)]
+        )
+        for item in items
+    )
+    all_agree = sum(
+        len(
+            {
+                row.rating
+                for appraiser in appraisers
+                for row in by_item_appraiser[(item, appraiser)]
+            }
+        )
+        == 1
+        for item in items
+    )
+    payload = {"records": [asdict(record) for record in normalized]}
+    return ResultBundle(
+        analysis_type="msa.attribute_agreement",
+        engine_version=ENGINE_VERSION,
+        input_digest=input_digest(payload),
+        parameters={"known_standard": True, "rating_scale": "nominal"},
+        tables={
+            "study": {
+                "item_count": len(items),
+                "appraiser_count": len(appraisers),
+                "trials_per_item": trials_per_item,
+                "assessment_count": len(normalized),
+                "categories": sorted(
+                    {row.rating for row in normalized} | set(item_standards.values())
+                ),
+            },
+            "appraiser_agreement": rows,
+            "overall_agreement": {
+                "items_inspected": len(items),
+                "all_appraisers_match_standard": all_standard,
+                "all_appraisers_standard_percent": all_standard / len(items) * 100.0,
+                "all_appraisers_agree": all_agree,
+                "all_appraisers_agree_percent": all_agree / len(items) * 100.0,
+            },
+        },
+        plots={"agreement_by_appraiser": rows},
+        diagnostics={"balanced_complete_design": True, "known_standard_provided": True, "kappa_method": "pooled_cohen_kappa_vs_known_standard"},
+        assumptions=(
+            "Ratings are nominal categories and the provided standard is the known correct classification.",
+            "Each appraiser assesses every item the same number of trials.",
+            "The study samples represent the inspection decisions that the measurement system will make.",
+        ),
+        warnings=(
+            "Percent agreement includes agreement that can occur by chance; Cohen's kappa is shown as a complementary chance-corrected measure.",
+            "This implementation does not calculate confidence intervals, Fleiss' kappa, or ordinal Kendall concordance.",
+        ),
+        provenance=(ATTRIBUTE_AGREEMENT_SOURCE, ATTRIBUTE_KAPPA_SOURCE),
+    )
+
+
+def _cohen_kappa(ratings: Sequence[str], standards: Sequence[str]) -> float | None:
+    total = len(ratings)
+    if total == 0 or total != len(standards):
+        return None
+    observed = sum(rating == standard for rating, standard in zip(ratings, standards)) / total
+    rating_counts, standard_counts = Counter(ratings), Counter(standards)
+    expected = sum(
+        rating_counts[category] / total * standard_counts[category] / total
+        for category in set(rating_counts) | set(standard_counts)
+    )
+    return None if expected == 1.0 else (observed - expected) / (1.0 - expected)
