@@ -23,6 +23,7 @@ const catalogs: Record<string, Catalog> = {
     items: [
       { name: "공정능력 분석", detail: "정규 및 경험적 비정규 공정능력 분석을 실행하고 능력지수·불량 PPM·가정을 함께 확인합니다.", status: "구현됨", to: "/analyses/capability" },
       { name: "교차 Gage R&R", detail: "균형 교차 측정 설계에서 반복성·재현성, 분산성분, NDC와 ANOVA를 확인합니다.", status: "구현됨", to: "/analyses/msa/gage-rr" },
+      { name: "중첩 Gage R&R", detail: "파괴검사처럼 작업자마다 다른 부품을 반복 측정하는 균형 중첩 설계에서 작업자·부품·반복성 분산성분을 확인합니다.", status: "구현됨", to: "/analyses/msa/gage-rr-nested" },
       { name: "Attribute Agreement", detail: "표준 판정이 있는 명목형 검사에서 검사자 내·표준 대비·검사자 간 일치와 Cohen’s κ를 확인합니다.", status: "구현됨", to: "/analyses/msa/attribute-agreement" },
       { name: "Gage 편의·선형성", detail: "추적 가능한 기준값 범위에서 관측 편의와 편의 변화의 선형 추세를 확인합니다.", status: "구현됨", to: "/analyses/msa/bias-linearity" },
       { name: "실험 실행 수·설계 선택", detail: "DOE 설계 화면에서 실행 수와 설계 조건을 확인합니다.", status: "구현됨", to: "/analyses/doe/full-factorial" },
