@@ -141,6 +141,20 @@ class LocalApiContractTests(unittest.TestCase):
         )
         self.assertGreaterEqual(len(rules["spc-p-variable-sample"]["workflow_steps"]), 4)
 
+    def test_copilot_catalog_can_be_narrowed_by_domain_and_search(self) -> None:
+        response = self.client.get("/v1/copilot/rules?domain=SPC&q=반응계획&limit=5")
+
+        self.assertEqual(response.status_code, 200)
+        rules = response.json()
+        self.assertEqual(len(rules), 1)
+        self.assertEqual(rules[0]["rule_id"], "spc-rule-response-plan")
+
+    def test_copilot_catalog_limit_is_bounded(self) -> None:
+        response = self.client.get("/v1/copilot/rules?limit=1")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.json()), 1)
+
     def test_copilot_catalog_rule_routes_attribute_chart_question(self) -> None:
         response = self.client.post(
             "/v1/copilot/guidance",

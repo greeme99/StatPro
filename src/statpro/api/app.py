@@ -1953,8 +1953,30 @@ def create_app(
         )
 
     @app.get("/v1/copilot/rules", response_model=list[CopilotRuleResponse])
-    def list_copilot_rules() -> list[CopilotRuleResponse]:
-        """List the reviewed, local-only field-situation guidance catalog."""
+    def list_copilot_rules(
+        domain: str | None = Query(default=None, min_length=1, max_length=80),
+        q: str | None = Query(default=None, min_length=1, max_length=160),
+        limit: int = Query(default=200, ge=1, le=200),
+    ) -> list[CopilotRuleResponse]:
+        """List reviewed local rules, optionally narrowed for a workspace."""
+
+        normalized_domain = domain.casefold().strip() if domain else None
+        normalized_query = q.casefold().strip() if q else None
+
+        def matches(rule: Any) -> bool:
+            if normalized_domain and rule.domain.casefold() != normalized_domain:
+                return False
+            if normalized_query:
+                searchable = " ".join((
+                    rule.rule_id,
+                    rule.domain,
+                    rule.situation,
+                    rule.recommended_tool,
+                    " ".join(rule.menu_path),
+                )).casefold()
+                if normalized_query not in searchable:
+                    return False
+            return True
 
         return [
             CopilotRuleResponse(
@@ -1972,7 +1994,8 @@ def create_app(
                 source_reference=rule.source_reference,
             )
             for rule in COPILOT_RULE_CATALOG
-        ]
+            if matches(rule)
+        ][:limit]
 
     @app.post("/v1/analysis-runs/imr", status_code=201, response_model=StoredRunResponse)
     def run_imr(request: ImrRunRequest, response: Response) -> StoredRunResponse:
