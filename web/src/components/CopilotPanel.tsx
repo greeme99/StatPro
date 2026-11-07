@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Bot, ChevronRight, Database, ExternalLink, FolderKanban, Send, X } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
-import { getCopilotGuidance, getRun, listDmaicProjects } from "../api";
+import { getCopilotGuidance, getRun, listCopilotRules, listDmaicProjects, type CopilotRule } from "../api";
 import { guideCopilotQuestion, type CopilotAction } from "../copilotGuidance";
 
 type CopilotMessage = {
@@ -72,6 +72,7 @@ export function CopilotPanel() {
   const [evidence, setEvidence] = useState<CopilotEvidence | null>(null);
   const [evidenceLoading, setEvidenceLoading] = useState(false);
   const [answerLoading, setAnswerLoading] = useState(false);
+  const [catalogRules, setCatalogRules] = useState<CopilotRule[]>([]);
   const [messages, setMessages] = useState<CopilotMessage[]>([
     { id: 1, role: "assistant", text: "현재 작업공간의 사용법, 업무절차, 분석 방법과 설정값을 질문하세요. 답변은 화면의 분석값을 직접 변경하지 않습니다." },
   ]);
@@ -134,6 +135,12 @@ export function CopilotPanel() {
     }
     return () => { active = false; };
   }, [location.pathname, open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const domain = context.name.includes("SPC") ? "SPC" : context.name.includes("DOE") ? "DOE" : context.name.includes("FMEA") ? "FMEA" : context.name.includes("DMAIC") ? "DMAIC" : undefined;
+    listCopilotRules({ domain, limit: 4 }).then(setCatalogRules).catch(() => setCatalogRules([]));
+  }, [context.name, open]);
 
   const ask = async (value: string) => {
     const text = value.trim();
@@ -204,6 +211,10 @@ export function CopilotPanel() {
         <div className="copilot-suggestions" aria-label="추천 질문">
           {context.suggestions.map((suggestion) => <button type="button" key={suggestion} disabled={answerLoading} onClick={() => void ask(suggestion)}>{suggestion}</button>)}
         </div>
+        {catalogRules.length > 0 && <section className="copilot-catalog" aria-label="현재 작업공간 Rulebase">
+          <header><strong>현장 상황별 시작점</strong><small>검토된 Rulebase</small></header>
+          <div>{catalogRules.map((rule) => <button type="button" key={rule.rule_id} disabled={answerLoading} onClick={() => void ask(rule.situation)}>{rule.situation}</button>)}</div>
+        </section>}
         {(evidenceLoading || evidence) && <section className="copilot-evidence" aria-label="현재 근거">
           <header><span>{evidence?.kind === "project" ? <FolderKanban aria-hidden="true" /> : <Database aria-hidden="true" />}</span><div><strong>현재 근거</strong><small>저장된 실행·프로젝트 계약에서 읽음</small></div></header>
           {evidenceLoading && !evidence ? <p>근거를 확인하고 있습니다.</p> : evidence && <><div><strong>{evidence.title}</strong><span>{evidence.identifier}</span><small>{evidence.revision} · {evidence.detail}</small></div><Link to={evidence.href}>근거 열기 <ExternalLink aria-hidden="true" /></Link></>}

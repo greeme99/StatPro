@@ -16,6 +16,18 @@ export type CopilotGuidanceResponse = {
   workflow_steps: string[];
 };
 
+export type CopilotRule = {
+  rule_id: string;
+  domain: string;
+  situation: string;
+  recommended_tool: string;
+  menu_path: string[];
+  action: { label: string; href: string };
+  checklist: string[];
+  workflow_steps: string[];
+  source_reference: string;
+};
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
     ...init,
@@ -73,6 +85,14 @@ export async function getCopilotGuidance(payload: {
     throw new Error("Copilot 응답 계약이 올바르지 않습니다.");
   }
   return guidance;
+}
+
+export function listCopilotRules(filters: { domain?: string; limit?: number } = {}): Promise<CopilotRule[]> {
+  const params = new URLSearchParams();
+  if (filters.domain) params.set("domain", filters.domain);
+  if (filters.limit) params.set("limit", String(filters.limit));
+  const suffix = params.toString() ? `?${params.toString()}` : "";
+  return request(`/v1/copilot/rules${suffix}`);
 }
 
 export function getRun(runId: string): Promise<StoredRun> {

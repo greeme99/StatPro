@@ -72,6 +72,12 @@ svg { width: var(--icon-size); height: var(--icon-size); stroke-width: 1.8; }
 .copilot-suggestions { display: flex; flex-wrap: wrap; gap: var(--space-2); padding: var(--space-4) var(--space-5); border-bottom: var(--border-width) solid var(--color-border); }
 .copilot-suggestions button { min-height: var(--control-height); padding: var(--space-2) var(--space-3); border: var(--border-width) solid var(--color-border-strong); border-radius: var(--radius-pill); color: var(--color-action); background: var(--color-bg-surface); cursor: pointer; text-align: start; }
 .copilot-suggestions button:hover { background: var(--color-bg-hover); }
+.copilot-catalog { display: grid; gap: var(--space-2); padding: var(--space-3) var(--space-5); border-bottom: var(--border-width) solid var(--color-border); background: var(--color-bg-subtle); }
+.copilot-catalog header { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-2); }
+.copilot-catalog header small { color: var(--color-text-secondary); font-size: var(--font-caption-size); }
+.copilot-catalog > div { display: grid; gap: var(--space-2); }
+.copilot-catalog button { padding: var(--space-2) var(--space-3); border: var(--border-width) solid var(--color-border-strong); border-radius: var(--radius-md); color: var(--color-text-primary); background: var(--color-bg-surface); cursor: pointer; text-align: start; }
+.copilot-catalog button:hover { border-color: var(--color-action); color: var(--color-action); background: var(--color-bg-hover); }
 .copilot-evidence { display: grid; gap: var(--space-3); padding: var(--space-4) var(--space-5); border-bottom: var(--border-width) solid var(--color-border); background: var(--color-bg-selected); }
 .copilot-evidence header { display: flex; align-items: center; gap: var(--space-3); }
 .copilot-evidence header > span { display: grid; place-items: center; width: var(--space-8); height: var(--space-8); border-radius: var(--radius-md); color: var(--color-action); background: var(--color-bg-surface); }
