@@ -79,6 +79,17 @@ describe("StatPro UI", () => {
     expect(screen.queryByText("개발 예정")).not.toBeInTheDocument();
   });
 
+  it("renders a truthful goal-progress artifact with remaining scope", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 }));
+    render(<MemoryRouter initialEntries={["/home/progress"]}><App /></MemoryRouter>);
+
+    expect(await screen.findByRole("heading", { name: "현장 분석 흐름의 목표 대비 진척도" })).toBeInTheDocument();
+    expect(screen.getByRole("progressbar", { name: "현재 릴리스 목표 가중 진척도" })).toHaveAttribute("value", "75");
+    expect(screen.getByRole("heading", { name: "측정시스템 분석(MSA)" })).toBeInTheDocument();
+    expect(screen.getByText(/Attribute Agreement, 편의·선형성/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "통계적 공정관리(SPC)·공정능력 작업공간 열기" })).toHaveAttribute("href", "/spc");
+  });
+
   it("opens the UI-preview home from the sidebar home navigation", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       const payload = String(input).endsWith("/health")

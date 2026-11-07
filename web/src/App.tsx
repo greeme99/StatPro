@@ -35,6 +35,7 @@ const FeatureCatalogPage = lazyNamed(() => import("./pages/FeatureCatalogPage"),
 const DoeWorkspacePage = lazyNamed(() => import("./pages/DoeWorkspacePage"), "DoeWorkspacePage");
 const RareEventChartSetupPage = lazyNamed(() => import("./pages/RareEventChartSetupPage"), "RareEventChartSetupPage");
 const MenuPreviewPage = lazyNamed(() => import("./pages/MenuPreviewPage"), "MenuPreviewPage");
+const DeliveryProgressPage = lazyNamed(() => import("./pages/DeliveryProgressPage"), "DeliveryProgressPage");
 const DmaicGuidePreviewPage = lazyNamed(() => import("./pages/DmaicGuidePreviewPage"), "DmaicGuidePreviewPage");
 const DmaicDefineWorkspacePage = lazyNamed(() => import("./pages/DmaicDefineWorkspacePage"), "DmaicDefineWorkspacePage");
 const DmaicStakeholderWorkspacePage = lazyNamed(() => import("./pages/DmaicStakeholderWorkspacePage"), "DmaicStakeholderWorkspacePage");
@@ -90,6 +91,7 @@ export default function App() {
         <Route path="/quality" element={<QualityDashboardPage />} />
         <Route path="/defects" element={<DefectAnalysisPage />} />
         <Route path="/home" element={<MenuPreviewPage />} />
+        <Route path="/home/progress" element={<DeliveryProgressPage />} />
         <Route path="/home/dmaic" element={<DmaicGuidePreviewPage />} />
         <Route path="/home/dmaic/project" element={<DmaicProjectOverviewPage />} />
         <Route path="/home/dmaic/define" element={<DmaicDefineWorkspacePage />} />

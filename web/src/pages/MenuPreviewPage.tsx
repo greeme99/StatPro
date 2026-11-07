@@ -93,7 +93,7 @@ export function MenuPreviewPage() {
       <section className="home-dmaic-panel" aria-labelledby="dmaic-title">
         <header className="home-dmaic-heading">
           <div><span className="eyebrow">개선 프로젝트 (Improvement Project)</span><h2 id="dmaic-title">DMAIC로 분석 결과를 개선 과제로 운영합니다</h2><p>개별 분석을 프로젝트 목표·근거·조치·관리 상태와 연결해 정의부터 관리까지 일관되게 추적합니다.</p></div>
-          <Link className="text-link" to="/home/dmaic">설명 및 작업공간 열기 <ArrowRight aria-hidden="true" /></Link>
+          <div className="home-dmaic-actions"><Link className="text-link" to="/home/dmaic">설명 및 작업공간 열기 <ArrowRight aria-hidden="true" /></Link><Link className="text-link" to="/home/progress">개발 목표 현황 <ArrowRight aria-hidden="true" /></Link></div>
         </header>
         <ol className="home-dmaic-list" aria-label="DMAIC 단계">
           {dmaic.map((item, index) => <li key={item.title}><span>{index + 1}</span><div><strong>{item.title}</strong><p>{item.description}</p><small>{item.tools}</small></div></li>)}

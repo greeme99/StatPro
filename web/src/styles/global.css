@@ -230,6 +230,27 @@ svg { width: var(--icon-size); height: var(--icon-size); stroke-width: 1.8; }
 .workspace-flow { display: grid; gap: var(--space-2); margin: var(--space-5) var(--space-0) var(--space-0); padding: var(--space-4); border-radius: var(--radius-md); background: var(--color-bg-subtle); list-style: none; counter-reset: workspace-step; }
 .workspace-flow li { display: grid; grid-template-columns: var(--space-6) minmax(0, 1fr); align-items: start; gap: var(--space-2); color: var(--color-text-secondary); font-size: var(--font-caption-size); counter-increment: workspace-step; }
 .workspace-flow li::before { content: counter(workspace-step, decimal-leading-zero); color: var(--color-action); font: 600 var(--font-caption-size)/1.4 var(--font-mono); }
+.home-dmaic-actions { display: grid; gap: var(--space-3); justify-items: start; }
+.delivery-progress { display: grid; gap: var(--space-8); }
+.delivery-overall { display: grid; min-width: min(100%, var(--space-44)); gap: var(--space-2); padding: var(--card-pad); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-bg-surface); }
+.delivery-overall strong { color: var(--color-action); font-size: var(--font-display-size); line-height: 1; }
+.delivery-overall span { font-weight: 700; }
+.delivery-overall small { color: var(--color-text-secondary); }
+.delivery-rubric-list, .delivery-next ol { display: grid; gap: var(--space-4); margin: var(--space-0); padding: var(--space-0); list-style: none; }
+.delivery-rubric-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.delivery-rubric-list li, .delivery-next li { display: grid; gap: var(--space-1); padding: var(--space-4); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-md); }
+.delivery-rubric-list span, .delivery-next span { color: var(--color-text-secondary); }
+.delivery-goal-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--grid-gap); }
+.delivery-goal-card { display: grid; gap: var(--space-4); padding: var(--card-pad); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-bg-surface); box-shadow: var(--shadow-sm); }
+.delivery-goal-card > header { display: flex; justify-content: space-between; gap: var(--space-3); }
+.delivery-goal-card h2 { margin: var(--space-0); font-size: var(--font-h3-size); }
+.delivery-goal-card dl { display: grid; gap: var(--space-3); margin: var(--space-0); }
+.delivery-goal-card dl div { display: grid; gap: var(--space-1); }
+.delivery-goal-card dt { color: var(--color-text-muted); font-size: var(--font-caption-size); font-weight: 700; }
+.delivery-goal-card dd { margin: var(--space-0); color: var(--color-text-secondary); }
+.delivery-goal-progress { display: grid; grid-template-columns: max-content minmax(0, 1fr); align-items: center; gap: var(--space-3); }
+.delivery-goal-progress strong { color: var(--color-action); font: 700 var(--font-h3-size)/1 var(--font-mono); }
+.delivery-goal-progress progress, .delivery-overall progress { inline-size: 100%; accent-color: var(--color-action); }
 .home-dmaic-panel { padding: var(--space-8); background: var(--color-bg-selected); }
 .preview-hero-actions { display: flex; flex-wrap: wrap; gap: var(--space-3); }
 .home-dmaic-panel h2, .home-menu-summary h2 { margin: var(--space-2) var(--space-0); }
@@ -773,6 +794,7 @@ dd { margin: var(--space-0); }
   .doe-design-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .spc-process-rail { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .spc-tool-grid, .control-chart-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .delivery-goal-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .dmaic-project-phases ol { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .dmaic-readiness-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .fmea-list-layout, .data-list-layout { grid-template-columns: minmax(0, 3fr) minmax(300px, 2fr); }
@@ -791,6 +813,7 @@ dd { margin: var(--space-0); }
   .action-complete-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .inline-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .preview-grid, .dmaic-phase-grid, .dmaic-tool-grid, .learning-phase-grid, .learning-resource-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .delivery-rubric-list, .delivery-goal-grid { grid-template-columns: 1fr; }
   .home-operations-hero { grid-template-columns: 1fr; }
   .home-operating-flow { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .home-dmaic-heading { align-items: flex-start; flex-direction: column; gap: var(--space-4); }
