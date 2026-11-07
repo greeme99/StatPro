@@ -72,7 +72,7 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
         rule_ids = [rule.rule_id for rule in COPILOT_RULE_CATALOG]
 
         self.assertEqual(len(rule_ids), len(set(rule_ids)))
-        self.assertTrue({"데이터", "SPC", "DOE", "FMEA", "DMAIC", "7대 품질 도구"} <= {
+        self.assertTrue({"데이터", "SPC", "DOE", "측정시스템 분석", "FMEA", "DMAIC", "7대 품질 도구"} <= {
             rule.domain for rule in COPILOT_RULE_CATALOG
         })
         for rule in COPILOT_RULE_CATALOG:
@@ -82,6 +82,10 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
             self.assertGreaterEqual(len(rule.checklist), 2)
             self.assertGreaterEqual(len(rule.workflow_steps), 4)
             self.assertTrue(rule.source_reference.startswith("docs/"))
+            self.assertTrue(
+                (Path(__file__).resolve().parents[1] / rule.source_reference).is_file(),
+                f"missing Rulebase evidence: {rule.source_reference}",
+            )
 
     def test_env_file_loads_only_copilot_settings_without_overriding_process(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -172,6 +176,23 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
         self.assertEqual(guidance.action.href, "/analyses/spc/attribute?chart=p")
         self.assertGreaterEqual(len(guidance.checklist), 2)
         self.assertGreaterEqual(len(guidance.workflow_steps), 4)
+
+    def test_catalog_rule_routes_nested_gage_rr_without_calling_llm(self) -> None:
+        fallback = RecordingFallbackProvider()
+        provider = RuleFirstCopilotProvider(LocalKnowledgeCopilotProvider(), fallback)
+
+        guidance = provider.answer(
+            question="파괴검사에서 작업자별 다른 부품의 측정 변동을 중첩 Gage R&R으로 확인하고 싶어요",
+            pathname="/home",
+            workspace="홈 (Home)",
+            evidence_context=None,
+        )
+
+        self.assertEqual(fallback.questions, [])
+        self.assertEqual(guidance.guidance_mode, "rulebase")
+        self.assertEqual(guidance.rule_id, "msa-nested-gage-rr")
+        self.assertEqual(guidance.action.href, "/analyses/msa/gage-rr-nested")
+        self.assertIn("부품", guidance.checklist[0])
 
     def test_catalog_rule_exposes_external_policy_dependency_for_fmea_approval(self) -> None:
         provider = LocalKnowledgeCopilotProvider()
