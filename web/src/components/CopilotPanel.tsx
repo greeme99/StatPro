@@ -73,6 +73,7 @@ export function CopilotPanel() {
   const [evidenceLoading, setEvidenceLoading] = useState(false);
   const [answerLoading, setAnswerLoading] = useState(false);
   const [catalogRules, setCatalogRules] = useState<CopilotRule[]>([]);
+  const [catalogLoading, setCatalogLoading] = useState(false);
   const [messages, setMessages] = useState<CopilotMessage[]>([
     { id: 1, role: "assistant", text: "현재 작업공간의 사용법, 업무절차, 분석 방법과 설정값을 질문하세요. 답변은 화면의 분석값을 직접 변경하지 않습니다." },
   ]);
@@ -139,7 +140,8 @@ export function CopilotPanel() {
   useEffect(() => {
     if (!open) return;
     const domain = context.name.includes("SPC") ? "SPC" : context.name.includes("DOE") ? "DOE" : context.name.includes("FMEA") ? "FMEA" : context.name.includes("DMAIC") ? "DMAIC" : undefined;
-    listCopilotRules({ domain, limit: 4 }).then(setCatalogRules).catch(() => setCatalogRules([]));
+    setCatalogLoading(true);
+    listCopilotRules({ domain, limit: 4 }).then(setCatalogRules).catch(() => setCatalogRules([])).finally(() => setCatalogLoading(false));
   }, [context.name, open]);
 
   const ask = async (value: string) => {
@@ -211,9 +213,9 @@ export function CopilotPanel() {
         <div className="copilot-suggestions" aria-label="추천 질문">
           {context.suggestions.map((suggestion) => <button type="button" key={suggestion} disabled={answerLoading} onClick={() => void ask(suggestion)}>{suggestion}</button>)}
         </div>
-        {catalogRules.length > 0 && <section className="copilot-catalog" aria-label="현재 작업공간 Rulebase">
+        {(catalogLoading || catalogRules.length > 0) && <section className="copilot-catalog" aria-label="현재 작업공간 Rulebase">
           <header><strong>현장 상황별 시작점</strong><small>검토된 Rulebase</small></header>
-          <div>{catalogRules.map((rule) => <article className="copilot-catalog-item" key={rule.rule_id}><button type="button" disabled={answerLoading} onClick={() => void ask(rule.situation)}><strong>{rule.situation}</strong><small>{rule.recommended_tool} · {rule.menu_path.join(" › ")}</small></button><details><summary>체크리스트·업무절차 보기</summary><strong>체크리스트</strong><ul>{rule.checklist.map((item) => <li key={item}>{item}</li>)}</ul><strong>업무절차</strong><ol>{rule.workflow_steps.map((item) => <li key={item}>{item}</li>)}</ol></details><Link className="copilot-catalog-action" to={rule.action.href}>{rule.action.label}<ChevronRight aria-hidden="true" /></Link></article>)}</div>
+          {catalogLoading ? <p className="copilot-catalog-status">현재 작업공간의 Rulebase를 확인하고 있습니다.</p> : <div>{catalogRules.map((rule) => <article className="copilot-catalog-item" key={rule.rule_id}><button type="button" disabled={answerLoading} onClick={() => void ask(rule.situation)}><strong>{rule.situation}</strong><small>{rule.recommended_tool} · {rule.menu_path.join(" › ")}</small></button><details><summary>체크리스트·업무절차 보기</summary><strong>체크리스트</strong><ul>{rule.checklist.map((item) => <li key={item}>{item}</li>)}</ul><strong>업무절차</strong><ol>{rule.workflow_steps.map((item) => <li key={item}>{item}</li>)}</ol></details><Link className="copilot-catalog-action" to={rule.action.href}>{rule.action.label}<ChevronRight aria-hidden="true" /></Link></article>)}</div>}
         </section>}
         {(evidenceLoading || evidence) && <section className="copilot-evidence" aria-label="현재 근거">
           <header><span>{evidence?.kind === "project" ? <FolderKanban aria-hidden="true" /> : <Database aria-hidden="true" />}</span><div><strong>현재 근거</strong><small>저장된 실행·프로젝트 계약에서 읽음</small></div></header>
