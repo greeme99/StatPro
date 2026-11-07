@@ -15,8 +15,10 @@ from statpro.application.copilot import (
     CopilotGuidance,
     CopilotSource,
     GeminiCopilotProvider,
+    LocalLlmCopilotProvider,
     LocalKnowledgeCopilotProvider,
     RuleFirstCopilotProvider,
+    build_default_copilot_provider,
 )
 from statpro.application.copilot_rules import COPILOT_RULE_CATALOG
 
@@ -39,6 +41,27 @@ class FakeGeminiClient:
                             '"workflow_steps":["코드 발생 시점 확인"]}'
                         )
                     }]
+                }
+            }]
+        }
+
+
+class FakeLocalLlmClient:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, str, str]] = []
+
+    def complete(self, *, endpoint: str, model: str, prompt: str) -> dict[str, object]:
+        self.calls.append((endpoint, model, prompt))
+        return {
+            "choices": [{
+                "message": {
+                    "content": (
+                        '{"answer":"로컬 모델 안내입니다.",'
+                        '"recommended_tool":"분석 선택",'
+                        '"menu_path":["홈 (Home)"],'
+                        '"checklist":["입력 구조 확인"],'
+                        '"workflow_steps":["질문 검토"]}'
+                    )
                 }
             }]
         }
@@ -93,6 +116,9 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
             env_file.write_text(
                 "STATPRO_COPILOT_LLM_ENABLED=true\n"
                 "GEMINI_API_KEY=local-secret\n"
+                "STATPRO_COPILOT_LOCAL_LLM_ENABLED=true\n"
+                "STATPRO_COPILOT_LOCAL_LLM_URL=http://127.0.0.1:11434/v1/chat/completions\n"
+                "STATPRO_COPILOT_LOCAL_LLM_MODEL=quality-model\n"
                 "UNRELATED_SECRET=must-not-load\n",
                 encoding="utf-8",
             )
@@ -105,6 +131,7 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
 
                 self.assertEqual(os.environ["STATPRO_COPILOT_LLM_ENABLED"], "true")
                 self.assertEqual(os.environ["GEMINI_API_KEY"], "process-secret")
+                self.assertEqual(os.environ["STATPRO_COPILOT_LOCAL_LLM_MODEL"], "quality-model")
                 self.assertNotIn("UNRELATED_SECRET", os.environ)
     def test_rule_match_never_calls_the_llm_fallback(self) -> None:
         fallback = RecordingFallbackProvider()
@@ -260,6 +287,52 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
         self.assertEqual(guidance.guidance_mode, "llm_fallback")
         self.assertEqual(guidance.checklist, ("설비 매뉴얼 확보",))
         self.assertEqual(guidance.workflow_steps, ("코드 발생 시점 확인",))
+
+    def test_local_llm_fallback_requires_loopback_and_returns_the_same_contract(self) -> None:
+        client = FakeLocalLlmClient()
+        provider = LocalLlmCopilotProvider(
+            "http://127.0.0.1:11434/v1/chat/completions",
+            "quality-model",
+            client=client,
+        )
+
+        guidance = provider.answer(
+            question="사내 장비의 새로운 코드가 무엇인가요?",
+            pathname="/home",
+            workspace="홈 (Home)",
+            evidence_context=None,
+        )
+
+        self.assertEqual(client.calls[0][0:2], ("http://127.0.0.1:11434/v1/chat/completions", "quality-model"))
+        self.assertIn("JSON만 반환", client.calls[0][2])
+        self.assertEqual(guidance.provider, "local:quality-model")
+        self.assertEqual(guidance.guidance_mode, "llm_fallback")
+        self.assertIn("loopback", guidance.limitations[0])
+        with self.assertRaisesRegex(ValueError, "loopback"):
+            LocalLlmCopilotProvider("https://example.invalid/v1/chat/completions", "quality-model")
+
+    def test_invalid_local_llm_configuration_fails_closed_without_gemini_fallback(self) -> None:
+        with patch.dict(
+            os.environ,
+            {
+                "STATPRO_COPILOT_LOCAL_LLM_ENABLED": "true",
+                "STATPRO_COPILOT_LOCAL_LLM_URL": "https://example.invalid/v1/chat/completions",
+                "STATPRO_COPILOT_LOCAL_LLM_MODEL": "quality-model",
+                "STATPRO_COPILOT_LLM_ENABLED": "true",
+                "GEMINI_API_KEY": "must-not-be-used",
+            },
+            clear=True,
+        ):
+            guidance = build_default_copilot_provider().answer(
+                question="사내 장비의 새로운 코드가 무엇인가요?",
+                pathname="/home",
+                workspace="홈 (Home)",
+                evidence_context=None,
+            )
+
+        self.assertEqual(guidance.provider, "statpro-rulebase-v2")
+        self.assertEqual(guidance.guidance_mode, "unmatched")
+        self.assertIn("직접 대응하는 검토된 지식 규칙", guidance.limitations[-1])
 
 
 if __name__ == "__main__":

@@ -7,7 +7,13 @@ import os
 from collections.abc import Sequence
 from pathlib import Path
 
-_COPILOT_ENV_KEYS = {"STATPRO_COPILOT_LLM_ENABLED", "GEMINI_API_KEY"}
+_COPILOT_ENV_KEYS = {
+    "STATPRO_COPILOT_LLM_ENABLED",
+    "GEMINI_API_KEY",
+    "STATPRO_COPILOT_LOCAL_LLM_ENABLED",
+    "STATPRO_COPILOT_LOCAL_LLM_URL",
+    "STATPRO_COPILOT_LOCAL_LLM_MODEL",
+}
 
 
 def load_copilot_env(path: Path) -> None:

@@ -447,7 +447,12 @@ describe("StatPro UI", () => {
     expect(within(panel).getByLabelText("추천 메뉴 경로")).toHaveTextContent("홈 (Home)실험계획법 (DOE)설계 및 생성");
     expect(within(panel).getByRole("heading", { name: "실행 전 체크리스트" })).toBeInTheDocument();
     expect(within(panel).getByRole("heading", { name: "업무절차 (Workflow)" })).toBeInTheDocument();
-    expect(within(panel).getByText("분석과 확인 실험")).toBeInTheDocument();
+    expect(within(panel).getAllByText("분석과 확인 실험")).toHaveLength(2);
+    const activeWorkflow = within(panel).getByRole("region", { name: "현재 대화 워크플로" });
+    expect(within(activeWorkflow).getByText("실험계획법 (DOE)")).toBeInTheDocument();
+    expect(within(activeWorkflow).getByRole("link", { name: "작업공간 열기" })).toHaveAttribute("href", "/doe");
+    await user.click(within(panel).getByRole("button", { name: "대화 초기화" }));
+    expect(within(panel).queryByRole("region", { name: "현재 대화 워크플로" })).not.toBeInTheDocument();
   });
 
   it("marks out-of-scope guidance and shows the suggested integration tool", async () => {

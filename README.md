@@ -62,6 +62,14 @@ GEMINI_API_KEY=여기에_발급받은_키를_입력
 
 API는 `statpro-api` 실행 시 저장소 루트의 `.env`를 읽습니다. 다른 파일을 쓰려면 `statpro-api --env-file "D:\secure\statpro.env" ...`처럼 지정합니다. `.env`는 `.gitignore`로 제외되며, 이미 설정된 프로세스 환경 변수는 파일 값으로 덮어쓰지 않습니다. Gemini에는 Rulebase로 답하지 못한 질문과 현재 작업공간 문맥만 전달되므로 조직 정책과 개인정보 기준을 확인한 뒤 활성화하십시오.
 
+로컬 모델을 사용할 때는 Gemini 설정 대신 아래처럼 OpenAI 호환 `chat/completions` endpoint를 지정합니다. `http://127.0.0.1`, `http://localhost`, `http://[::1]` 같은 loopback HTTP 주소만 허용하며, Rulebase가 일치한 질의는 모델로 전송하지 않습니다. endpoint·model이 비어 있거나 유효하지 않으면 생성형 폴백을 끄고 로컬 Rulebase 안내만 제공합니다.
+
+```dotenv
+STATPRO_COPILOT_LOCAL_LLM_ENABLED=true
+STATPRO_COPILOT_LOCAL_LLM_URL=http://127.0.0.1:11434/v1/chat/completions
+STATPRO_COPILOT_LOCAL_LLM_MODEL=설치한_모델_ID
+```
+
 API 문서: <http://127.0.0.1:8765/docs> · 웹 UI: <http://127.0.0.1:5173>
 
 주요 화면 경로는 `/home`, `/data`, `/doe`, `/spc`, `/fmea`, `/quality`, `/defects`, `/home/dmaic`, `/home/learning`입니다. `/api` 요청은 loopback API로 프록시됩니다.

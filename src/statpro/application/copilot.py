@@ -14,6 +14,7 @@ import urllib.request
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from typing import Any, Protocol
+from urllib.parse import urlparse
 
 from statpro.application.copilot_rules import CopilotRule, match_catalog_rule
 
@@ -64,6 +65,16 @@ class GeminiContentClient(Protocol):
         self,
         *,
         api_key: str,
+        model: str,
+        prompt: str,
+    ) -> Mapping[str, Any]: ...
+
+
+class LocalChatCompletionClient(Protocol):
+    def complete(
+        self,
+        *,
+        endpoint: str,
         model: str,
         prompt: str,
     ) -> Mapping[str, Any]: ...
@@ -404,8 +415,49 @@ class RuleFirstCopilotProvider:
             return replace(
                 rule_guidance,
                 limitations=rule_guidance.limitations
-                + ("외부 생성형 AI를 사용할 수 없어 로컬 안내만 제공합니다.",),
+                + ("생성형 AI 보완을 사용할 수 없어 검토된 로컬 안내만 제공합니다.",),
             )
+
+
+def _guidance_from_llm_payload(
+    payload: Mapping[str, Any],
+    *,
+    provider: str,
+    source: CopilotSource,
+    local_only: bool,
+) -> CopilotGuidance:
+    answer = payload["answer"]
+    menu_path = payload["menu_path"]
+    checklist = payload["checklist"]
+    workflow_steps = payload["workflow_steps"]
+    if not isinstance(answer, str) or not answer.strip():
+        raise ValueError("LLM returned an empty answer")
+    if not all(isinstance(values, list) for values in (menu_path, checklist, workflow_steps)):
+        raise ValueError("LLM returned an invalid guidance contract")
+    if not all(
+        isinstance(item, str)
+        for values in (menu_path, checklist, workflow_steps)
+        for item in values
+    ):
+        raise ValueError("LLM returned a non-string guidance item")
+    recommended_tool = payload["recommended_tool"]
+    if recommended_tool is not None and not isinstance(recommended_tool, str):
+        raise ValueError("LLM returned an invalid recommended tool")
+    locality = "로컬 loopback 모델" if local_only else "생성형 AI 보완"
+    return CopilotGuidance(
+        answer=answer.strip(),
+        provider=provider,
+        sources=(source,),
+        limitations=(
+            f"{locality} 응답이며 정확성과 현장 적용 가능성을 사용자가 검토해야 합니다.",
+            "분석 설정이나 저장 문서를 자동으로 변경하지 않습니다.",
+        ),
+        guidance_mode="llm_fallback",
+        recommended_tool=recommended_tool,
+        menu_path=tuple(menu_path[:8]),
+        checklist=tuple(checklist[:12]),
+        workflow_steps=tuple(workflow_steps[:12]),
+    )
 
 
 class UrlLibGeminiContentClient:
@@ -501,43 +553,126 @@ class GeminiCopilotProvider:
         candidates = raw["candidates"]
         text = candidates[0]["content"]["parts"][0]["text"]
         payload = json.loads(text)
-        answer = payload["answer"]
-        menu_path = payload["menu_path"]
-        checklist = payload["checklist"]
-        workflow_steps = payload["workflow_steps"]
-        if not isinstance(answer, str) or not answer.strip():
-            raise ValueError("Gemini returned an empty answer")
-        if not all(isinstance(values, list) for values in (menu_path, checklist, workflow_steps)):
-            raise ValueError("Gemini returned an invalid guidance contract")
-        if not all(
-            isinstance(item, str)
-            for values in (menu_path, checklist, workflow_steps)
-            for item in values
-        ):
-            raise ValueError("Gemini returned a non-string guidance item")
-        recommended_tool = payload["recommended_tool"]
-        if recommended_tool is not None and not isinstance(recommended_tool, str):
-            raise ValueError("Gemini returned an invalid recommended tool")
-        return CopilotGuidance(
-            answer=answer.strip(),
+        return _guidance_from_llm_payload(
+            payload,
             provider=self._model,
-            sources=(CopilotSource("사용자 질문과 선택 문맥", "copilot://question", "user_context"),),
-            limitations=(
-                "생성형 AI 보완 응답이며 정확성과 현장 적용 가능성을 사용자가 검토해야 합니다.",
-                "분석 설정이나 저장 문서를 자동으로 변경하지 않습니다.",
-            ),
-            guidance_mode="llm_fallback",
-            recommended_tool=recommended_tool,
-            menu_path=tuple(menu_path[:8]),
-            checklist=tuple(checklist[:12]),
-            workflow_steps=tuple(workflow_steps[:12]),
+            source=CopilotSource("사용자 질문과 선택 문맥", "copilot://question", "user_context"),
+            local_only=False,
+        )
+
+
+def _is_loopback_llm_endpoint(endpoint: str) -> bool:
+    parsed = urlparse(endpoint)
+    return (
+        parsed.scheme == "http"
+        and parsed.hostname is not None
+        and parsed.hostname.casefold() in {"127.0.0.1", "::1", "localhost"}
+        and not parsed.username
+        and not parsed.password
+        and not parsed.query
+        and not parsed.fragment
+    )
+
+
+class UrlLibLocalChatCompletionClient:
+    """Dependency-free OpenAI-compatible client restricted by the provider to loopback."""
+
+    def complete(
+        self,
+        *,
+        endpoint: str,
+        model: str,
+        prompt: str,
+    ) -> Mapping[str, Any]:
+        body = json.dumps(
+            {
+                "model": model,
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": "Return only one JSON object matching the requested fields. Do not execute tools or change settings.",
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                "temperature": 0.2,
+            }
+        ).encode("utf-8")
+        request = urllib.request.Request(
+            endpoint,
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=20) as response:
+                return json.loads(response.read().decode("utf-8"))
+        except urllib.error.HTTPError as error:
+            raise OSError(f"Local LLM request failed with HTTP {error.code}") from error
+
+
+class LocalLlmCopilotProvider:
+    """Constrained local OpenAI-compatible fallback for unmatched Rulebase questions."""
+
+    def __init__(
+        self,
+        endpoint: str,
+        model: str,
+        *,
+        client: LocalChatCompletionClient | None = None,
+    ) -> None:
+        if not _is_loopback_llm_endpoint(endpoint):
+            raise ValueError("Local LLM endpoint must use a loopback http URL")
+        if not model.strip():
+            raise ValueError("Local LLM model is required")
+        self._endpoint = endpoint
+        self._model = model
+        self._client = client or UrlLibLocalChatCompletionClient()
+
+    def answer(
+        self,
+        *,
+        question: str,
+        pathname: str,
+        workspace: str,
+        evidence_context: str | None,
+    ) -> CopilotGuidance:
+        prompt = (
+            "당신은 제조·품질 통계 소프트웨어 StatPro의 한국어 업무 가이드입니다. "
+            "검증되지 않은 수치나 기능을 만들지 말고, 초보자가 검토 후 실행할 수 있도록 설명하세요. "
+            "분석 설정을 자동 변경했다고 말하지 마세요. 다음 JSON만 반환하세요: "
+            '{"answer":string,"recommended_tool":string|null,"menu_path":string[],"checklist":string[],"workflow_steps":string[]}.\n'
+            f"현재 작업공간: {workspace}\n현재 경로: {pathname}\n"
+            f"사용자 질문: {question}\n"
+            f"사용자가 선택한 근거 문맥: {evidence_context or '없음'}"
+        )
+        raw = self._client.complete(endpoint=self._endpoint, model=self._model, prompt=prompt)
+        text = raw["choices"][0]["message"]["content"]
+        if not isinstance(text, str):
+            raise ValueError("Local LLM returned non-string content")
+        payload = json.loads(text)
+        if not isinstance(payload, Mapping):
+            raise ValueError("Local LLM returned a non-object JSON response")
+        return _guidance_from_llm_payload(
+            payload,
+            provider=f"local:{self._model}",
+            source=CopilotSource("로컬 LLM의 사용자 질문과 선택 문맥", "copilot://local-question", "user_context"),
+            local_only=True,
         )
 
 
 def build_default_copilot_provider() -> CopilotProvider:
-    """Build the opt-in Rulebase → Gemini provider chain without exposing credentials."""
+    """Build the Rulebase-first chain with an explicitly enabled fallback only."""
 
     rule_provider = LocalKnowledgeCopilotProvider()
+    local_enabled = os.getenv("STATPRO_COPILOT_LOCAL_LLM_ENABLED", "").casefold() == "true"
+    if local_enabled:
+        endpoint = os.getenv("STATPRO_COPILOT_LOCAL_LLM_URL", "")
+        model = os.getenv("STATPRO_COPILOT_LOCAL_LLM_MODEL", "")
+        try:
+            fallback = LocalLlmCopilotProvider(endpoint, model)
+        except ValueError:
+            fallback = None
+        return RuleFirstCopilotProvider(rule_provider, fallback)
     enabled = os.getenv("STATPRO_COPILOT_LLM_ENABLED", "").casefold() == "true"
     api_key = os.getenv("GEMINI_API_KEY", "")
     fallback = GeminiCopilotProvider(api_key) if enabled and api_key else None
