@@ -186,6 +186,28 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
         self.assertEqual(guidance.rule_id, "fmea-enterprise-approval")
         self.assertIn("Entra OIDC claims", guidance.checklist[0])
 
+    def test_business_case_seven_routes_high_ap_to_fmea_evidence(self) -> None:
+        guidance = LocalKnowledgeCopilotProvider().answer(
+            question="High AP 고장모드의 예방조치와 탐지조치 검증 근거를 기록하고 싶어요",
+            pathname="/fmea",
+            workspace="고장 형태 및 영향 분석 (FMEA)",
+            evidence_context=None,
+        )
+
+        self.assertEqual(guidance.rule_id, "fmea-high-ap-evidence")
+        self.assertIn("예방·탐지", guidance.checklist[1])
+
+    def test_business_case_seven_routes_spc_rules_to_response_plan(self) -> None:
+        guidance = LocalKnowledgeCopilotProvider().answer(
+            question="SPC Western Electric 규칙 신호를 반응계획과 CAPA로 연결하고 싶어요",
+            pathname="/spc",
+            workspace="통계적 공정관리 (SPC)",
+            evidence_context=None,
+        )
+
+        self.assertEqual(guidance.rule_id, "spc-rule-response-plan")
+        self.assertIn("반응", guidance.workflow_steps[3])
+
     def test_gemini_fallback_uses_structured_contract(self) -> None:
         client = FakeGeminiClient()
         provider = GeminiCopilotProvider("test-key", client=client)
