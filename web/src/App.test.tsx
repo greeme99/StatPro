@@ -130,6 +130,15 @@ describe("StatPro UI", () => {
     expect(screen.getByText("LSL 또는 USL을 하나 이상 입력하고, 규격·목표값은 유한한 숫자로 입력하세요.")).toBeInTheDocument();
   });
 
+  it("opens the crossed Gage R&R workspace with its balanced-design contract", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 }));
+    render(<MemoryRouter initialEntries={["/analyses/msa/gage-rr"]}><App /></MemoryRouter>);
+
+    expect(await screen.findByRole("heading", { name: "교차 Gage R&R 분석 설정" })).toBeInTheDocument();
+    expect(screen.getByText(/모든 작업자가 모든 부품을 같은 횟수/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Gage R&R 분석 실행" })).toBeInTheDocument();
+  });
+
   it("collapses the sidebar to icons and remembers the user choice", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 }));
     const { container } = render(<MemoryRouter initialEntries={["/home"]}><App /></MemoryRouter>);

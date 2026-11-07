@@ -493,6 +493,17 @@ export function createCapabilityRun(payload: {
   });
 }
 
+export function createGageRrRun(payload: {
+  run_id: string;
+  records: Array<{ part: string; operator: string; measurement: number }>;
+  study_variation_multiplier: number;
+}): Promise<StoredRun> {
+  return request("/v1/analysis-runs/gage-rr-crossed", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function createDoeAnalysisRun(payload: {
   run_id: string;
   factors: Array<{ name: string; low: number; high: number }>;

@@ -33,6 +33,33 @@ export type CapabilityView = {
   nonconformance: Record<string, number | null>;
 };
 
+export type GageRrView = {
+  study: { measurement_count: number; part_count: number; operator_count: number; replicates_per_cell: number; grand_mean: number };
+  anova: Array<{ source: string; df: number; ss: number; ms: number | null }>;
+  components: Array<{ source: string; variance: number; study_variation: number; percent_contribution: number | null; percent_study_variation: number | null }>;
+  ndc: number | null;
+};
+
+export function toGageRrView(result: ResultBundle | undefined): GageRrView | null {
+  if (!result || result.analysis_type !== "msa.gage_rr_crossed") return null;
+  const study = result.tables.study;
+  const anova = result.tables.anova;
+  const components = result.tables.variance_components;
+  if (!study || !Array.isArray(anova) || !Array.isArray(components)) return null;
+  return {
+    study: {
+      measurement_count: Number(study.measurement_count),
+      part_count: Number(study.part_count),
+      operator_count: Number(study.operator_count),
+      replicates_per_cell: Number(study.replicates_per_cell),
+      grand_mean: Number(study.grand_mean),
+    },
+    anova: anova as GageRrView["anova"],
+    components: components as GageRrView["components"],
+    ndc: typeof result.diagnostics.number_of_distinct_categories === "number" ? result.diagnostics.number_of_distinct_categories : null,
+  };
+}
+
 export function toCapabilityView(result: ResultBundle | undefined): CapabilityView | null {
   if (!result || !["capability.normal_individuals", "capability.nonnormal_empirical"].includes(result.analysis_type)) return null;
   const summary = result.tables.summary;
