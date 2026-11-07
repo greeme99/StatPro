@@ -213,7 +213,7 @@ export function CopilotPanel() {
         </div>
         {catalogRules.length > 0 && <section className="copilot-catalog" aria-label="현재 작업공간 Rulebase">
           <header><strong>현장 상황별 시작점</strong><small>검토된 Rulebase</small></header>
-          <div>{catalogRules.map((rule) => <button type="button" key={rule.rule_id} disabled={answerLoading} onClick={() => void ask(rule.situation)}><strong>{rule.situation}</strong><small>{rule.recommended_tool} · {rule.menu_path.join(" › ")}</small></button>)}</div>
+          <div>{catalogRules.map((rule) => <article className="copilot-catalog-item" key={rule.rule_id}><button type="button" disabled={answerLoading} onClick={() => void ask(rule.situation)}><strong>{rule.situation}</strong><small>{rule.recommended_tool} · {rule.menu_path.join(" › ")}</small></button><details><summary>체크리스트·업무절차 보기</summary><strong>체크리스트</strong><ul>{rule.checklist.map((item) => <li key={item}>{item}</li>)}</ul><strong>업무절차</strong><ol>{rule.workflow_steps.map((item) => <li key={item}>{item}</li>)}</ol></details></article>)}</div>
         </section>}
         {(evidenceLoading || evidence) && <section className="copilot-evidence" aria-label="현재 근거">
           <header><span>{evidence?.kind === "project" ? <FolderKanban aria-hidden="true" /> : <Database aria-hidden="true" />}</span><div><strong>현재 근거</strong><small>저장된 실행·프로젝트 계약에서 읽음</small></div></header>
