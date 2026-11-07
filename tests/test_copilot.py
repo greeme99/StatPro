@@ -219,6 +219,7 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
         self.assertEqual(guidance.guidance_mode, "unmatched")
         self.assertIn("범위 밖", guidance.answer)
         self.assertIn("MES·FDC·APC/R2R", guidance.answer)
+        self.assertEqual(guidance.recommended_tool, "MES·FDC·APC/R2R 플랫폼")
         self.assertIn("자동 실행하지 않습니다", guidance.limitations[2])
 
     def test_gemini_fallback_uses_structured_contract(self) -> None:

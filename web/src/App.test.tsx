@@ -389,6 +389,42 @@ describe("StatPro UI", () => {
     expect(within(panel).getByText("분석과 확인 실험")).toBeInTheDocument();
   });
 
+  it("marks out-of-scope guidance and shows the suggested integration tool", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.endsWith("/health")) {
+        return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      }
+      if (url.endsWith("/v1/copilot/guidance")) {
+        return new Response(JSON.stringify({
+          answer: "요청하신 설비 데이터 수집·제어는 현재 StatPro의 제공 기능 및 확정된 Rulebase 범위 밖입니다.",
+          provider: "statpro-rulebase-v2",
+          guidance_mode: "unmatched",
+          rule_id: null,
+          recommended_tool: "MES·FDC·APC/R2R 플랫폼",
+          menu_path: [],
+          checklist: [],
+          workflow_steps: [],
+          sources: [],
+          limitations: ["범위 밖 기능은 StatPro에서 자동 실행하지 않습니다."],
+          action: { label: "지원 분석 범위 확인", href: "/analyses" },
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
+      return new Response(JSON.stringify({ items: [], next_after: null }), { status: 200 });
+    });
+    const user = userEvent.setup();
+    render(<MemoryRouter initialEntries={["/home"]}><App /></MemoryRouter>);
+
+    await user.click(screen.getByRole("button", { name: "AI Copilot 보이기" }));
+    const panel = screen.getByRole("complementary", { name: "AI Copilot" });
+    await user.type(within(panel).getByLabelText("질문"), "FDC로 설비를 자동 제어하고 싶어요");
+    await user.click(within(panel).getByRole("button", { name: "질문 보내기" }));
+
+    expect(await within(panel).findByLabelText("StatPro 제공 범위 안내")).toHaveTextContent("StatPro 제공 범위 밖");
+    expect(within(panel).getByRole("heading", { name: "권장 연계 도구" })).toBeInTheDocument();
+    expect(within(panel).getByText("MES·FDC·APC/R2R 플랫폼")).toBeInTheDocument();
+  });
+
   it("redirects the retired preview URL to the fixed home URL", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 }));
     render(<MemoryRouter initialEntries={["/ui-preview"]}><App /></MemoryRouter>);

@@ -354,6 +354,7 @@ class LocalKnowledgeCopilotProvider:
                     ),
                     action=CopilotAction("지원 분석 범위 확인", "/analyses"),
                     guidance_mode="unmatched",
+                    recommended_tool=suggested_tool,
                 )
 
         return CopilotGuidance(
