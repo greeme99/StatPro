@@ -116,6 +116,20 @@ describe("StatPro UI", () => {
     expect(screen.getByRole("link", { name: "분석 선택 (Analysis Selection)" })).toHaveAttribute("href", "/analyses");
   });
 
+  it("opens an executable capability setup workspace with specification validation", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 }));
+    render(<MemoryRouter initialEntries={["/analyses/capability"]}><App /></MemoryRouter>);
+
+    expect(await screen.findByRole("heading", { name: "공정능력 분석 설정" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "분포 방식" })).toHaveValue("normal");
+    expect(screen.getByRole("button", { name: "공정능력 분석 실행" })).toBeInTheDocument();
+
+    await userEvent.clear(screen.getByRole("spinbutton", { name: "LSL (하한 규격)" }));
+    await userEvent.clear(screen.getByRole("spinbutton", { name: "USL (상한 규격)" }));
+    await userEvent.click(screen.getByRole("button", { name: "공정능력 분석 실행" }));
+    expect(screen.getByText("LSL 또는 USL을 하나 이상 입력하고, 규격·목표값은 유한한 숫자로 입력하세요.")).toBeInTheDocument();
+  });
+
   it("collapses the sidebar to icons and remembers the user choice", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 }));
     const { container } = render(<MemoryRouter initialEntries={["/home"]}><App /></MemoryRouter>);

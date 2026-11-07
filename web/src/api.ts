@@ -478,6 +478,21 @@ export function createRareEventChartRun(payload: {
   });
 }
 
+export function createCapabilityRun(payload: {
+  run_id: string;
+  values: number[];
+  lsl?: number;
+  usl?: number;
+  target?: number;
+  model: "normal" | "nonnormal";
+}): Promise<StoredRun> {
+  const { model, ...body } = payload;
+  return request(`/v1/analysis-runs/capability-${model}`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
 export function createDoeAnalysisRun(payload: {
   run_id: string;
   factors: Array<{ name: string; low: number; high: number }>;

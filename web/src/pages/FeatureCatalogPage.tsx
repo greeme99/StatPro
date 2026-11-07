@@ -21,7 +21,7 @@ const catalogs: Record<string, Catalog> = {
     title: "계산 및 도우미",
     description: "독립 계산도 분석 실행과 동일하게 입력, 가정, 결과 근거를 남기는 방식으로 확장합니다.",
     items: [
-      { name: "공정능력 분석", detail: "정규 및 경험적 비정규 공정능력 분석을 제공합니다.", status: "구현됨", to: "/spc" },
+      { name: "공정능력 분석", detail: "정규 및 경험적 비정규 공정능력 분석을 실행하고 능력지수·불량 PPM·가정을 함께 확인합니다.", status: "구현됨", to: "/analyses/capability" },
       { name: "실험 실행 수·설계 선택", detail: "DOE 설계 화면에서 실행 수와 설계 조건을 확인합니다.", status: "구현됨", to: "/analyses/doe/full-factorial" },
       { name: "SPC·DOE 선택 가이드", detail: "데이터 유형과 업무 목적에 따라 관리도와 실험설계를 선택하고 해당 작업공간으로 이동합니다.", status: "구현됨", to: "/spc" },
       { name: "통합 분석 추천", detail: "모든 통계 모듈을 아우르는 자동 방법 추천과 검정력 기반 비교는 후속 범위입니다.", status: "개발 예정" },

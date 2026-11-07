@@ -21,6 +21,38 @@ export type ParetoView = {
   sourceSheetId: string | null;
 };
 
+export type CapabilityView = {
+  model: "normal" | "nonnormal";
+  count: number;
+  location: number;
+  withinSigma: number | null;
+  overallSigma: number | null;
+  lowerQuantile: number | null;
+  upperQuantile: number | null;
+  indices: Record<string, number | null>;
+  nonconformance: Record<string, number | null>;
+};
+
+export function toCapabilityView(result: ResultBundle | undefined): CapabilityView | null {
+  if (!result || !["capability.normal_individuals", "capability.nonnormal_empirical"].includes(result.analysis_type)) return null;
+  const summary = result.tables.summary;
+  const indices = result.tables.indices;
+  const nonconformance = result.tables.nonconformance;
+  if (!summary || !indices || !nonconformance || typeof summary !== "object" || typeof indices !== "object" || typeof nonconformance !== "object") return null;
+  const normal = result.analysis_type === "capability.normal_individuals";
+  return {
+    model: normal ? "normal" : "nonnormal",
+    count: Number(summary.count ?? 0),
+    location: Number(normal ? summary.mean : summary.median),
+    withinSigma: normal ? Number(summary.within_sigma) : null,
+    overallSigma: normal ? Number(summary.overall_sigma) : Number(summary.equivalent_sigma),
+    lowerQuantile: normal ? null : Number(summary.lower_quantile),
+    upperQuantile: normal ? null : Number(summary.upper_quantile),
+    indices: Object.fromEntries(Object.entries(indices).map(([key, value]) => [key, typeof value === "number" ? value : null])),
+    nonconformance: Object.fromEntries(Object.entries(nonconformance).map(([key, value]) => [key, typeof value === "number" ? value : null])),
+  };
+}
+
 export function toParetoView(result: ResultBundle | undefined): ParetoView | null {
   if (!result || result.analysis_type !== "quality.pareto") return null;
   const rows = result.tables.pareto;
