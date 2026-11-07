@@ -15,6 +15,7 @@ function lazyNamed(loader: () => Promise<Record<string, unknown>>, exportName: s
 const ImrSetupPage = lazyNamed(() => import("./pages/ImrSetupPage"), "ImrSetupPage");
 const CapabilitySetupPage = lazyNamed(() => import("./pages/CapabilitySetupPage"), "CapabilitySetupPage");
 const GageRrSetupPage = lazyNamed(() => import("./pages/GageRrSetupPage"), "GageRrSetupPage");
+const NestedGageRrSetupPage = lazyNamed(() => import("./pages/NestedGageRrSetupPage"), "NestedGageRrSetupPage");
 const AttributeAgreementSetupPage = lazyNamed(() => import("./pages/AttributeAgreementSetupPage"), "AttributeAgreementSetupPage");
 const GageBiasLinearitySetupPage = lazyNamed(() => import("./pages/GageBiasLinearitySetupPage"), "GageBiasLinearitySetupPage");
 const ResultPage = lazyNamed(() => import("./pages/ResultPage"), "ResultPage");
@@ -66,6 +67,7 @@ export default function App() {
           <Route path="/analyses/imr/new" element={<ImrSetupPage />} />
         <Route path="/analyses/capability" element={<CapabilitySetupPage />} />
         <Route path="/analyses/msa/gage-rr" element={<GageRrSetupPage />} />
+        <Route path="/analyses/msa/gage-rr-nested" element={<NestedGageRrSetupPage />} />
         <Route path="/analyses/msa/attribute-agreement" element={<AttributeAgreementSetupPage />} />
         <Route path="/analyses/msa/bias-linearity" element={<GageBiasLinearitySetupPage />} />
         <Route path="/analyses/spc/attribute" element={<AttributeChartSetupPage />} />

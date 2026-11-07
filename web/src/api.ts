@@ -504,6 +504,17 @@ export function createGageRrRun(payload: {
   });
 }
 
+export function createNestedGageRrRun(payload: {
+  run_id: string;
+  records: Array<{ part: string; operator: string; measurement: number }>;
+  study_variation_multiplier: number;
+}): Promise<StoredRun> {
+  return request("/v1/analysis-runs/gage-rr-nested", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function createAttributeAgreementRun(payload: {
   run_id: string;
   records: Array<{ item: string; appraiser: string; trial: number; rating: string; standard: string }>;

@@ -25,6 +25,7 @@ from statpro.analyses.msa import (
     attribute_agreement,
     gage_bias_linearity,
     gage_rr_crossed,
+    gage_rr_nested,
 )
 from statpro.analyses.spc import (
     c_chart,
@@ -56,6 +57,7 @@ __all__ = [
     "fractional_factorial_2level",
     "full_factorial_2level",
     "gage_rr_crossed",
+    "gage_rr_nested",
     "gage_bias_linearity",
     "individuals_moving_range",
     "nonnormal_process_capability",

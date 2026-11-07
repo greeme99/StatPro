@@ -1105,6 +1105,19 @@ class LocalApiContractTests(unittest.TestCase):
                 "msa.gage_rr_crossed",
             ),
             (
+                "/v1/analysis-runs/gage-rr-nested",
+                {
+                    "run_id": "gage-nested",
+                    "records": [
+                        {"part": "A1", "operator": "A", "measurement": 10}, {"part": "A1", "operator": "A", "measurement": 12},
+                        {"part": "A2", "operator": "A", "measurement": 20}, {"part": "A2", "operator": "A", "measurement": 22},
+                        {"part": "B1", "operator": "B", "measurement": 12}, {"part": "B1", "operator": "B", "measurement": 14},
+                        {"part": "B2", "operator": "B", "measurement": 18}, {"part": "B2", "operator": "B", "measurement": 20},
+                    ],
+                },
+                "msa.gage_rr_nested",
+            ),
+            (
                 "/v1/analysis-runs/attribute-agreement",
                 {
                     "run_id": "attribute-agreement",

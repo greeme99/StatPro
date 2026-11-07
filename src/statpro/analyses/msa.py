@@ -18,6 +18,14 @@ NIST_GAGE_SOURCE = ProvenanceSource(
     title="NIST/SEMATECH 2.4 Gauge R&R studies",
     url="https://www.itl.nist.gov/div898/handbook/mpc/section4/mpc4.htm",
 )
+NESTED_GAGE_SOURCE = ProvenanceSource(
+    title="Minitab: Nested Gage R&R variance components",
+    url=(
+        "https://support.minitab.com/en-us/minitab/help-and-how-to/quality-and-process-"
+        "improvement/measurement-system-analysis/how-to/gage-study/nested-gage-r-r-study/"
+        "methods-and-formulas/gage-r-r-table/"
+    ),
+)
 NIST_TWO_WAY_ANOVA_SOURCE = ProvenanceSource(
     title="NIST/SEMATECH 7.4.3.2 Two-way crossed ANOVA",
     url="https://www.itl.nist.gov/div898/handbook/ppc/section2/ppc232.htm",
@@ -680,4 +688,197 @@ def gage_bias_linearity(records: Sequence[BiasLinearityRecord]) -> ResultBundle:
         ),
         warnings=tuple(warnings),
         provenance=(GAGE_BIAS_SOURCE, GAGE_LINEARITY_SOURCE),
+    )
+
+
+def gage_rr_nested(
+    records: Sequence[MeasurementRecord], *, study_variation_multiplier: float = 6.0
+) -> ResultBundle:
+    """Estimate balanced nested Gage R&R components for parts unique to operators."""
+
+    normalized = _normalize_records(records)
+    multiplier = finite_values([study_variation_multiplier], "study_variation_multiplier")[0]
+    if multiplier <= 0.0:
+        raise AnalysisInputError(
+            "invalid_study_variation_multiplier",
+            "Study variation multiplier must be greater than zero.",
+            "study_variation_multiplier",
+        )
+    operators = sorted({record.operator for record in normalized})
+    if len(operators) < 2:
+        raise AnalysisInputError(
+            "insufficient_operators", "Nested Gage R&R requires at least two operators.", "records"
+        )
+    part_operators: dict[str, set[str]] = defaultdict(set)
+    cells: dict[tuple[str, str], list[float]] = defaultdict(list)
+    for record in normalized:
+        part_operators[record.part].add(record.operator)
+        cells[(record.operator, record.part)].append(record.measurement)
+    if any(len(part_operators[part]) != 1 for part in part_operators):
+        raise AnalysisInputError(
+            "part_not_nested",
+            "Each part label must belong to exactly one operator in a nested study.",
+            "records",
+        )
+    parts_by_operator = {
+        operator: sorted(part for part, owners in part_operators.items() if operator in owners)
+        for operator in operators
+    }
+    parts_per_operator = {len(parts) for parts in parts_by_operator.values()}
+    if len(parts_per_operator) != 1 or next(iter(parts_per_operator)) < 2:
+        raise AnalysisInputError(
+            "unbalanced_nested_parts",
+            "Every operator needs the same number of at least two unique parts.",
+            "records",
+        )
+    replicates = {len(values) for values in cells.values()}
+    if len(replicates) != 1 or next(iter(replicates)) < 2:
+        raise AnalysisInputError(
+            "unbalanced_nested_replicates",
+            "Every operator-part cell needs the same number of at least two measurements.",
+            "records",
+        )
+    part_count = next(iter(parts_per_operator))
+    replicate_count = next(iter(replicates))
+    grand_mean = fmean(record.measurement for record in normalized)
+    operator_means = {
+        operator: fmean(
+            measurement
+            for part in parts_by_operator[operator]
+            for measurement in cells[(operator, part)]
+        )
+        for operator in operators
+    }
+    part_means = {
+        (operator, part): fmean(cells[(operator, part)])
+        for operator in operators
+        for part in parts_by_operator[operator]
+    }
+    ss_operator = part_count * replicate_count * sum(
+        (operator_means[operator] - grand_mean) ** 2 for operator in operators
+    )
+    ss_part_operator = replicate_count * sum(
+        (part_means[(operator, part)] - operator_means[operator]) ** 2
+        for operator in operators
+        for part in parts_by_operator[operator]
+    )
+    ss_repeatability = sum(
+        (measurement - part_means[(operator, part)]) ** 2
+        for operator in operators
+        for part in parts_by_operator[operator]
+        for measurement in cells[(operator, part)]
+    )
+    ss_total = sum((record.measurement - grand_mean) ** 2 for record in normalized)
+    df_operator = len(operators) - 1
+    df_part_operator = len(operators) * (part_count - 1)
+    df_repeatability = len(operators) * part_count * (replicate_count - 1)
+    ms_operator = ss_operator / df_operator
+    ms_part_operator = ss_part_operator / df_part_operator
+    ms_repeatability = ss_repeatability / df_repeatability
+    raw_variances = {
+        "repeatability": ms_repeatability,
+        "operator": (ms_operator - ms_part_operator) / (part_count * replicate_count),
+        "part_to_part": (ms_part_operator - ms_repeatability) / replicate_count,
+    }
+    components = {name: max(value, 0.0) for name, value in raw_variances.items()}
+    components["reproducibility"] = components["operator"]
+    components["total_gage_rr"] = components["repeatability"] + components["reproducibility"]
+    components["total_variation"] = components["total_gage_rr"] + components["part_to_part"]
+    total_variance = components["total_variation"]
+    if total_variance == 0.0:
+        raise AnalysisInputError(
+            "zero_total_variation",
+            "Nested Gage R&R is undefined when all estimated variation is zero.",
+            "records",
+        )
+    total_standard_deviation = math.sqrt(total_variance)
+    variance_rows = []
+    for name in (
+        "repeatability",
+        "operator",
+        "reproducibility",
+        "total_gage_rr",
+        "part_to_part",
+        "total_variation",
+    ):
+        variance = components[name]
+        standard_deviation = math.sqrt(variance)
+        variance_rows.append(
+            {
+                "source": name,
+                "variance": variance,
+                "standard_deviation": standard_deviation,
+                "study_variation": multiplier * standard_deviation,
+                "contribution_percent": variance / total_variance * 100.0,
+                "study_variation_percent": standard_deviation / total_standard_deviation * 100.0,
+            }
+        )
+    warnings = [
+        f"Negative {name} variance estimate was truncated to zero."
+        for name, value in raw_variances.items()
+        if value < 0.0
+    ]
+    warnings.append(
+        "This balanced nested method-of-moments result does not perform confidence intervals, significance tests, or mixed-effects estimation."
+    )
+    payload = {
+        "records": [asdict(record) for record in normalized],
+        "study_variation_multiplier": multiplier,
+    }
+    return ResultBundle(
+        analysis_type="msa.gage_rr_nested",
+        engine_version=ENGINE_VERSION,
+        input_digest=input_digest(payload),
+        parameters={
+            "study_variation_multiplier": multiplier,
+            "variance_estimation": "balanced_nested_anova_method_of_moments",
+            "negative_variance_policy": "truncate_to_zero",
+        },
+        tables={
+            "study": {
+                "measurement_count": len(normalized),
+                "operator_count": len(operators),
+                "parts_per_operator": part_count,
+                "replicates_per_part": replicate_count,
+                "grand_mean": grand_mean,
+            },
+            "anova": [
+                {"source": "operator", "df": df_operator, "ss": ss_operator, "ms": ms_operator},
+                {
+                    "source": "part_operator",
+                    "df": df_part_operator,
+                    "ss": ss_part_operator,
+                    "ms": ms_part_operator,
+                },
+                {
+                    "source": "repeatability",
+                    "df": df_repeatability,
+                    "ss": ss_repeatability,
+                    "ms": ms_repeatability,
+                },
+                {"source": "total", "df": len(normalized) - 1, "ss": ss_total, "ms": None},
+            ],
+            "variance_components": variance_rows,
+        },
+        plots={
+            "measurement_variation": {
+                "records": [asdict(record) for record in normalized],
+                "operator_means": operator_means,
+                "part_means": {f"{operator}:{part}": mean for (operator, part), mean in part_means.items()},
+            }
+        },
+        diagnostics={
+            "balanced": True,
+            "nested": True,
+            "raw_variance_estimates": raw_variances,
+            "anova_decomposition_error": ss_total - ss_operator - ss_part_operator - ss_repeatability,
+            "negative_variance_policy": "truncate_to_zero",
+        },
+        assumptions=(
+            "Each part belongs to one operator and cannot be measured by every operator.",
+            "Parts are representative within each operator and the nested design is balanced.",
+            "Residuals are independent, approximately normal, and have constant variance.",
+        ),
+        warnings=tuple(warnings),
+        provenance=(NESTED_GAGE_SOURCE, NIST_VARIANCE_COMPONENTS_SOURCE),
     )

@@ -40,6 +40,27 @@ export type GageRrView = {
   ndc: number | null;
 };
 
+export type NestedGageRrView = {
+  study: { measurement_count: number; operator_count: number; parts_per_operator: number; replicates_per_part: number; grand_mean: number };
+  anova: GageRrView["anova"];
+  components: GageRrView["components"];
+};
+
+export function toNestedGageRrView(result: ResultBundle | undefined): NestedGageRrView | null {
+  if (!result || result.analysis_type !== "msa.gage_rr_nested") return null;
+  const study = result.tables.study;
+  const anova = result.tables.anova;
+  const components = result.tables.variance_components;
+  if (!study || !Array.isArray(anova) || !Array.isArray(components)) return null;
+  return {
+    study: {
+      measurement_count: Number(study.measurement_count), operator_count: Number(study.operator_count),
+      parts_per_operator: Number(study.parts_per_operator), replicates_per_part: Number(study.replicates_per_part), grand_mean: Number(study.grand_mean),
+    },
+    anova: anova as NestedGageRrView["anova"], components: components as NestedGageRrView["components"],
+  };
+}
+
 export type AttributeAgreementView = {
   study: { item_count: number; appraiser_count: number; trials_per_item: number; assessment_count: number; categories: string[] };
   appraisers: Array<{ appraiser: string; items_inspected: number; trials_per_item: number; within_percent: number; standard_percent: number; cohen_kappa_vs_standard: number | null }>;

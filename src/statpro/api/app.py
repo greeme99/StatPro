@@ -43,6 +43,7 @@ from statpro.analyses.msa import (
     attribute_agreement,
     gage_bias_linearity,
     gage_rr_crossed,
+    gage_rr_nested,
 )
 from statpro.analyses.spc import (
     c_chart,
@@ -471,6 +472,12 @@ class MeasurementRequest(ApiModel):
 
 
 class GageRrRunRequest(ApiModel):
+    run_id: RunId
+    records: list[MeasurementRequest]
+    study_variation_multiplier: float = 6.0
+
+
+class NestedGageRrRunRequest(ApiModel):
     run_id: RunId
     records: list[MeasurementRequest]
     study_variation_multiplier: float = 6.0
@@ -2671,6 +2678,25 @@ def create_app(
             repository,
             request.run_id,
             gage_rr_crossed(
+                records, study_variation_multiplier=request.study_variation_multiplier
+            ),
+        )
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _response(stored)
+
+    @app.post(
+        "/v1/analysis-runs/gage-rr-nested",
+        status_code=201,
+        response_model=StoredRunResponse,
+    )
+    def run_nested_gage_rr(
+        request: NestedGageRrRunRequest, response: Response
+    ) -> StoredRunResponse:
+        records = [MeasurementRecord(**record.model_dump()) for record in request.records]
+        stored = _save_run(
+            repository,
+            request.run_id,
+            gage_rr_nested(
                 records, study_variation_multiplier=request.study_variation_multiplier
             ),
         )
