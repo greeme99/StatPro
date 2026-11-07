@@ -1,5 +1,6 @@
-import { ArrowRight, BarChart3, FileWarning, FlaskConical, type LucideIcon } from "lucide-react";
+import { ArrowRight, BarChart3, FileWarning, FlaskConical, Star, type LucideIcon } from "lucide-react";
 import { Link } from "react-router-dom";
+import { isFavorite, toggleFavorite, useFavoriteWorkspaces } from "../favorites";
 
 type Workspace = {
   title: string;
@@ -55,9 +56,10 @@ const dmaic = [
 
 function WorkspaceCard({ workspace }: { workspace: Workspace }) {
   const Icon = workspace.icon;
+  const favorite = isFavorite(workspace.to);
   return (
     <article className="preview-card home-workspace-card">
-      <header><span className="preview-icon"><Icon aria-hidden="true" /></span><span className="utility-label">작업공간 (Workspace)</span></header>
+      <header><span className="preview-icon"><Icon aria-hidden="true" /></span><span className="utility-label">작업공간 (Workspace)</span><button className={`workspace-favorite${favorite ? " is-saved" : ""}`} type="button" aria-pressed={favorite} onClick={() => toggleFavorite({ title: workspace.title, to: workspace.to })}><Star aria-hidden="true" />{favorite ? "저장됨" : "즐겨찾기 추가"}</button></header>
       <h3>{workspace.title}</h3>
       <p>{workspace.description}</p>
       <ol className="workspace-flow" aria-label={`${workspace.title} 업무 흐름`}>
@@ -69,6 +71,7 @@ function WorkspaceCard({ workspace }: { workspace: Workspace }) {
 }
 
 export function MenuPreviewPage() {
+  const favorites = useFavoriteWorkspaces();
   return (
     <div className="page menu-preview home-preview" data-density="comfortable">
       <nav className="breadcrumb" aria-label="경로"><Link to="/home">홈 (Home)</Link></nav>
@@ -82,6 +85,10 @@ export function MenuPreviewPage() {
           {operatingFlow.map((step, index) => <li key={step.title}><span>{index + 1}</span><div><strong>{step.title}</strong><p>{step.description}</p></div></li>)}
         </ol>
       </section>
+      {favorites.length > 0 && <section className="home-favorites-panel" aria-labelledby="favorite-title">
+        <header className="preview-section-heading"><span className="eyebrow">FAVORITE WORKSPACES</span><h2 id="favorite-title">즐겨찾는 작업공간</h2><p>저장한 작업공간을 바로 열어 현재 업무를 이어갑니다.</p></header>
+        <nav className="home-favorite-links" aria-label="즐겨찾는 작업공간 바로가기">{favorites.map((favorite) => <Link key={favorite.to} to={favorite.to}><Star aria-hidden="true" />{favorite.title}<ArrowRight aria-hidden="true" /></Link>)}</nav>
+      </section>}
       <section className="home-core-panel" aria-labelledby="core-title">
         <header className="preview-section-heading">
           <span className="eyebrow">전문 작업공간 (Core Workspaces)</span>

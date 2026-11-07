@@ -79,6 +79,23 @@ describe("StatPro UI", () => {
     expect(screen.queryByText("개발 예정")).not.toBeInTheDocument();
   });
 
+  it("saves a home workspace as a favorite and opens it from the header menu", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 }));
+    const user = userEvent.setup();
+    render(<MemoryRouter initialEntries={["/home"]}><App /></MemoryRouter>);
+
+    await screen.findByRole("heading", { name: "공정 문제에서 검증된 조치까지" });
+    await user.click(screen.getAllByRole("button", { name: "즐겨찾기 추가" })[0]);
+    expect(screen.getByRole("heading", { name: "즐겨찾는 작업공간" })).toBeInTheDocument();
+    expect(localStorage.getItem("statpro-favorite-workspaces")).toContain("/doe");
+
+    await user.click(screen.getByRole("button", { name: "즐겨찾기 메뉴 1개" }));
+    const menu = screen.getByRole("region", { name: "즐겨찾기 작업공간" });
+    expect(within(menu).getByRole("link", { name: "실험계획법(DOE)" })).toHaveAttribute("href", "/doe");
+    await user.click(within(menu).getByRole("link", { name: "실험계획법(DOE)" }));
+    expect(await screen.findByRole("heading", { name: "실험계획법(DOE) 작업공간" })).toBeInTheDocument();
+  });
+
   it("renders a truthful goal-progress artifact with remaining scope", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 }));
     render(<MemoryRouter initialEntries={["/home/progress"]}><App /></MemoryRouter>);
