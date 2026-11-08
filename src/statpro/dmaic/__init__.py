@@ -20,6 +20,7 @@ from statpro.dmaic.models import (
     DmaicStakeholderAssessment,
     DmaicVoiceOfCustomerStudy,
 )
+from statpro.dmaic.cost_benefit import CostBenefitItem, summarize_cost_benefit
 from statpro.dmaic.workflow import (
     create_project,
     save_charter,
@@ -53,6 +54,8 @@ __all__ = [
     "DmaicStakeholder",
     "DmaicStakeholderAssessment",
     "DmaicVoiceOfCustomerStudy",
+    "CostBenefitItem",
+    "summarize_cost_benefit",
     "create_project",
     "save_charter",
     "save_control_handoff",
