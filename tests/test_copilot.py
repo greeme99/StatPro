@@ -110,6 +110,37 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
                 f"missing Rulebase evidence: {rule.source_reference}",
             )
 
+    def test_catalog_exposes_core_workspace_entry_rules(self) -> None:
+        rules = {rule.rule_id: rule for rule in COPILOT_RULE_CATALOG}
+        expected_routes = {
+            "spc-xbar-r-small-subgroup": "/analyses/spc/xbar-r",
+            "spc-xbar-s-large-subgroup": "/analyses/spc/xbar-s",
+            "spc-imr-single-observation": "/analyses/imr/new",
+            "spc-p-variable-sample": "/analyses/spc/attribute?chart=p",
+            "spc-rare-event": "/analyses/spc/rare-events",
+            "msa-crossed-gage-rr": "/analyses/msa/gage-rr",
+            "msa-nested-gage-rr": "/analyses/msa/gage-rr-nested",
+            "msa-attribute-agreement": "/analyses/msa/attribute-agreement",
+            "msa-bias-linearity": "/analyses/msa/bias-linearity",
+            "doe-screening": "/doe",
+            "doe-response-surface": "/doe",
+            "fmea-pfmea-start": "/fmea",
+            "dmaic-root-cause": "/home/dmaic/analyze/root-causes",
+        }
+        self.assertEqual({rule_id: rules[rule_id].action_href for rule_id in expected_routes}, expected_routes)
+
+    def test_xbar_r_guidance_has_a_complete_text_to_workflow_contract(self) -> None:
+        guidance = LocalKnowledgeCopilotProvider().answer(
+            question="Xbar-R 소집단 관리도를 설정하고 싶어요",
+            pathname="/analyses/spc/xbar-r",
+            workspace="통계적 공정관리 (SPC)",
+            evidence_context=None,
+        )
+
+        self.assertEqual(guidance.rule_id, "spc-xbar-r-selection")
+        self.assertGreaterEqual(len(guidance.checklist), 3)
+        self.assertGreaterEqual(len(guidance.workflow_steps), 5)
+
     def test_env_file_loads_only_copilot_settings_without_overriding_process(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             env_file = Path(directory) / ".env"

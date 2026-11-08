@@ -254,6 +254,18 @@ class LocalKnowledgeCopilotProvider:
                 rule_id="spc-xbar-r-selection",
                 recommended_tool="Xbar-R 관리도",
                 menu_path=("홈 (Home)", "통계적 공정관리 (SPC)", "Xbar-R 관리도"),
+                checklist=(
+                    "합리적 소집단과 실제 시간 순서를 고정합니다.",
+                    "부분군 크기가 일정한지와 측정시스템의 적합성을 확인합니다.",
+                    "R 관리도의 산포 안정성을 먼저 검토합니다.",
+                ),
+                workflow_steps=(
+                    "부분군·기준 구간을 정의합니다.",
+                    "Xbar-R 입력과 검증을 실행합니다.",
+                    "R 관리도의 산포를 먼저 검토합니다.",
+                    "Xbar 신호와 반응계획을 검토합니다.",
+                    "안정된 기준을 다음 실행의 근거로 보존합니다.",
+                ),
             )
 
         catalog_rule = match_catalog_rule(question)
