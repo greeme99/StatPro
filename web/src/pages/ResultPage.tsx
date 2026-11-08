@@ -150,7 +150,7 @@ function GageRrResult({ view }: { view: GageRrView }) {
       <article className="metric-card"><span>셀당 반복</span><strong>{view.study.replicates_per_cell}</strong><small>모든 셀 동일</small></article>
       <article className="metric-card"><span>구별 범주 수</span><strong>{view.ndc === null ? "∞" : view.ndc}</strong><small>NDC</small></article>
     </section>
-    <section className="panel table-panel"><header className="panel-heading"><div><span className="eyebrow">VARIANCE COMPONENTS</span><h2>분산성분과 Study variation</h2></div></header><div className="table-scroll"><table><thead><tr><th scope="col">변동원</th><th scope="col">분산</th><th scope="col">Study variation</th><th scope="col">% Contribution</th><th scope="col">% Study variation</th></tr></thead><tbody>{view.components.map((row) => <tr key={row.source}><td>{row.source.replaceAll("_", " ")}</td><td>{statistic(row.variance)}</td><td>{statistic(row.study_variation)}</td><td>{statistic(row.percent_contribution, 2)}</td><td>{statistic(row.percent_study_variation, 2)}</td></tr>)}</tbody></table></div></section>
+    <VarianceComponentTable components={view.components} title="분산성분과 Study variation" />
     <section className="panel table-panel"><header className="panel-heading"><div><span className="eyebrow">ANOVA</span><h2>균형 교차 ANOVA</h2></div><span>전체 평균 {statistic(view.study.grand_mean)} · 비풀링 F 검정</span></header><MsaAnovaTable rows={view.anova} /></section>
   </>;
 }
@@ -163,9 +163,14 @@ function NestedGageRrResult({ view }: { view: NestedGageRrView }) {
       <article className="metric-card"><span>작업자당 부품</span><strong>{view.study.parts_per_operator}</strong><small>모든 작업자 동일</small></article>
       <article className="metric-card"><span>부품당 반복</span><strong>{view.study.replicates_per_part}</strong><small>모든 셀 동일</small></article>
     </section>
-    <section className="panel table-panel"><header className="panel-heading"><div><span className="eyebrow">VARIANCE COMPONENTS</span><h2>중첩 설계 분산성분</h2></div></header><div className="table-scroll"><table><thead><tr><th scope="col">변동원</th><th scope="col">분산</th><th scope="col">Study variation</th><th scope="col">% Contribution</th><th scope="col">% Study variation</th></tr></thead><tbody>{view.components.map((row) => <tr key={row.source}><td>{row.source.replaceAll("_", " ")}</td><td>{statistic(row.variance)}</td><td>{statistic(row.study_variation)}</td><td>{statistic(row.percent_contribution, 2)}</td><td>{statistic(row.percent_study_variation, 2)}</td></tr>)}</tbody></table></div></section>
+    <VarianceComponentTable components={view.components} title="중첩 설계 분산성분" />
     <section className="panel table-panel"><header className="panel-heading"><div><span className="eyebrow">NESTED ANOVA</span><h2>작업자 내 부품 ANOVA</h2></div><span>전체 평균 {statistic(view.study.grand_mean)} · 비풀링 F 검정</span></header><MsaAnovaTable rows={view.anova} /></section>
   </>;
+}
+
+function VarianceComponentTable({ components, title }: { components: GageRrView["components"]; title: string }) {
+  const hasConfidenceInterval = components.some((row) => row.variance_confidence_interval);
+  return <section className="panel table-panel"><header className="panel-heading"><div><span className="eyebrow">VARIANCE COMPONENTS</span><h2>{title}</h2></div>{hasConfidenceInterval && <span>반복성 분산 95% 신뢰구간 포함</span>}</header><div className="table-scroll"><table><thead><tr><th scope="col">변동원</th><th scope="col">분산</th>{hasConfidenceInterval && <th scope="col">분산 신뢰구간</th>}<th scope="col">Study variation</th><th scope="col">% Contribution</th><th scope="col">% Study variation</th></tr></thead><tbody>{components.map((row) => <tr key={row.source}><td>{row.source.replaceAll("_", " ")}</td><td>{statistic(row.variance)}</td>{hasConfidenceInterval && <td>{row.variance_confidence_interval ? `${Math.round(row.variance_confidence_interval.confidence_level * 100)}% · ${statistic(row.variance_confidence_interval.lower)} ~ ${statistic(row.variance_confidence_interval.upper)}` : "—"}</td>}<td>{statistic(row.study_variation)}</td><td>{statistic(row.percent_contribution, 2)}</td><td>{statistic(row.percent_study_variation, 2)}</td></tr>)}</tbody></table></div></section>;
 }
 
 function AttributeAgreementResult({ view }: { view: AttributeAgreementView }) {

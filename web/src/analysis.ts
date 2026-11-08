@@ -47,7 +47,7 @@ export type MsaAnovaRow = {
 export type GageRrView = {
   study: { measurement_count: number; part_count: number; operator_count: number; replicates_per_cell: number; grand_mean: number };
   anova: MsaAnovaRow[];
-  components: Array<{ source: string; variance: number; study_variation: number; percent_contribution: number | null; percent_study_variation: number | null }>;
+  components: Array<{ source: string; variance: number; study_variation: number; percent_contribution: number | null; percent_study_variation: number | null; variance_confidence_interval?: { confidence_level: number; lower: number; upper: number } }>;
   ndc: number | null;
 };
 
