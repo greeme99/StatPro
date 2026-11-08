@@ -142,6 +142,29 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
         }
         self.assertEqual({rule_id: rules[rule_id].action_href for rule_id in expected_routes}, expected_routes)
 
+    def test_catalog_covers_general_workspace_routes_not_covered_by_industry_cases(self) -> None:
+        rules = {rule.rule_id: rule for rule in COPILOT_RULE_CATALOG}
+        expected_routes = {
+            "analysis-guided-selection": "/analyses",
+            "data-worksheet-transformation": "/data",
+            "spc-check-sheet": "/spc/tools/check-sheet",
+            "quality-dashboard": "/quality",
+            "defect-dpmo-analysis": "/defects",
+            "doe-full-factorial": "/analyses/doe/full-factorial",
+            "doe-fractional-factorial": "/analyses/doe/fractional-factorial",
+            "doe-desirability-optimizer": "/analyses/doe/response-optimizer",
+            "dmaic-define-project": "/home/dmaic/define",
+            "dmaic-measure-plan": "/home/dmaic/measure",
+            "dmaic-cost-benefit": "/home/dmaic/improve/cost-benefit",
+            "learning-resources": "/home/learning",
+        }
+        self.assertEqual({rule_id: rules[rule_id].action_href for rule_id in expected_routes}, expected_routes)
+
+        for rule_id in expected_routes:
+            rule = rules[rule_id]
+            self.assertGreaterEqual(len(rule.checklist), 2)
+            self.assertGreaterEqual(len(rule.workflow_steps), 4)
+
     def test_xbar_r_guidance_has_a_complete_text_to_workflow_contract(self) -> None:
         guidance = LocalKnowledgeCopilotProvider().answer(
             question="Xbar-R 소집단 관리도를 설정하고 싶어요",
