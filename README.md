@@ -6,7 +6,7 @@
 
 - **실험계획법(DOE)**: 완전·일부 요인, 자동 생성식, 블록·foldover, Box–Behnken·중심합성·Plackett–Burman, 반응 분석, 제약 다중응답 최적화
 - **통계적 공정관리(SPC)**: I-MR, Xbar-R, Xbar-S, EWMA, CUSUM, p/np/c/u, Laney P′/U′, 희귀사건 G/T, 정규·경험적 비정규 공정능력
-- **측정시스템분석(MSA)**: 균형 교차·중첩 Gage R&R(비풀링 ANOVA F·p 판정), Attribute Agreement, Gage 편의·선형성
+- **측정시스템분석(MSA)**: 균형 교차·중첩 Gage R&R(비풀링 ANOVA F·p 판정, 반복성 분산의 정확 95% 신뢰구간), Attribute Agreement, Gage 편의·선형성
 - **고장 형태 및 영향 분석(FMEA)**: 불변 개정, AIAG/VDA 7단계, 조치·재평가·검토·승인, 외부 Action Priority 정책, PFMEA–Control Plan 추적, SPC/MSA Run 연결
 - **데이터·실행 관리**: CSV Dataset snapshot, revision Worksheet, Analysis Run, ETag/낙관적 동시성, cursor paging, ResultBundle
 - **결과 출력**: 모든 Analysis Run의 읽기 전용 인쇄 보고서·JSON·CSV·Excel 호환 표, SPC 관리도의 PNG·SVG 차트 출력
