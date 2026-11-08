@@ -294,6 +294,7 @@ export function saveDmaicRootCauseAnalysis(projectId: string, payload: {
   analysis_run_ids: string[];
   actor: string;
   occurred_at: string;
+  why_chain?: string[];
 }): Promise<StoredDmaicProject> {
   return request(`/v1/dmaic-projects/${encodeURIComponent(projectId)}/root-cause-analyses`, {
     method: "POST", body: JSON.stringify(payload),

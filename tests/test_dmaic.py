@@ -206,6 +206,35 @@ class DmaicProjectTests(unittest.TestCase):
         self.assertEqual(analysis.analysis_evidence[0].run_id, "pareto-001")
         self.assertEqual(type(analysis).from_dict(analysis.to_dict()), analysis)
 
+    def test_five_whys_requires_exactly_five_steps_and_preserves_the_chain(self) -> None:
+        project = create_project(
+            project_id="DMAIC-5WHY", title="Connector yield", owner_ref="quality.engineer"
+        )
+        steps = (
+            "Why 1: Torque was low — setup was not verified.",
+            "Why 2: Setup was not verified — checklist was skipped.",
+            "Why 3: Checklist was skipped — handoff was incomplete.",
+            "Why 4: Handoff was incomplete — ownership was unclear.",
+            "Why 5: Ownership was unclear — standard work was missing.",
+        )
+        revised, analysis = save_root_cause_analysis(
+            project, problem_statement="Connector defect rate increased", method="five_whys",
+            candidate_causes=("Torque variation",), verified_causes=("Torque variation",),
+            next_actions=("Verify standard work",), analysis_evidence=(), actor="quality.engineer",
+            occurred_at="2026-11-08T10:05:00+09:00", why_chain=steps,
+        )
+        self.assertEqual(analysis.why_chain, steps)
+        self.assertEqual(revised.root_cause_analysis.document_id, analysis.document_id)
+        self.assertEqual(type(analysis).from_dict(analysis.to_dict()), analysis)
+        with self.assertRaises(DmaicInputError) as context:
+            save_root_cause_analysis(
+                project, problem_statement="Connector defect rate increased", method="five_whys",
+                candidate_causes=("Torque variation",), verified_causes=("Torque variation",),
+                next_actions=("Verify standard work",), analysis_evidence=(), actor="quality.engineer",
+                occurred_at="2026-11-08T10:05:00+09:00", why_chain=steps[:4],
+            )
+        self.assertEqual(context.exception.detail.code, "five_whys_requires_five_steps")
+
     def test_measurement_plan_revisions_keep_analysis_evidence_identity(self) -> None:
         project = create_project(
             project_id="DMAIC-004", title="Connector yield", owner_ref="quality.engineer"

@@ -851,6 +851,7 @@ class SaveDmaicRootCauseAnalysisRequest(ApiModel):
     analysis_run_ids: list[RunId] = Field(default_factory=list)
     actor: str
     occurred_at: str
+    why_chain: list[str] = Field(default_factory=list, max_length=5)
 
 
 class SaveDmaicSolutionSelectionRequest(ApiModel):
@@ -3618,6 +3619,7 @@ def create_app(
             analysis_evidence=evidence,
             actor=request.actor,
             occurred_at=request.occurred_at,
+            why_chain=tuple(request.why_chain),
         )
         _save_dmaic_root_cause_analysis(repository, analysis)
         saved = _save_dmaic_project(

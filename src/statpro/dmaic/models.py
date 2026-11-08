@@ -542,6 +542,7 @@ class DmaicRootCauseAnalysis:
     analysis_evidence: tuple[DmaicAnalysisEvidenceReference, ...]
     actor: str
     occurred_at: str
+    why_chain: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -549,6 +550,7 @@ class DmaicRootCauseAnalysis:
             "candidate_causes": list(self.candidate_causes),
             "verified_causes": list(self.verified_causes),
             "next_actions": list(self.next_actions),
+            **({"why_chain": list(self.why_chain)} if self.why_chain else {}),
             "source_documents": [item.to_dict() for item in self.source_documents],
             "analysis_evidence": [item.to_dict() for item in self.analysis_evidence],
         }
@@ -564,6 +566,7 @@ class DmaicRootCauseAnalysis:
             source_documents=tuple(DmaicDocumentReference(**item) for item in payload.get("source_documents", [])),
             analysis_evidence=tuple(DmaicAnalysisEvidenceReference(**item) for item in payload.get("analysis_evidence", [])),
             actor=payload["actor"], occurred_at=payload["occurred_at"],
+            why_chain=tuple(payload.get("why_chain", [])),
         )
         if analysis.digest != _root_cause_analysis_digest(analysis):
             raise DmaicInputError("root_cause_analysis_digest_mismatch", "Stored root cause analysis digest does not match.", "digest")

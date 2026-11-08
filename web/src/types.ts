@@ -239,6 +239,7 @@ export type DmaicRootCauseAnalysis = {
   analysis_evidence: Array<{ run_id: string; analysis_type: string; run_etag: string; input_digest: string }>;
   actor: string;
   occurred_at: string;
+  why_chain?: string[];
 };
 
 export type StoredDmaicRootCauseAnalysis = {
