@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resultBundleCsv, resultBundlePrintHtml } from "./ResultExportMenu";
+import { resultBundleCsv, resultBundlePrintHtml, resultBundleSpreadsheetXml } from "./ResultExportMenu";
 
 describe("resultBundleCsv", () => {
   it("serializes result tables and chart source data in deterministic path-value rows", () => {
@@ -43,5 +43,19 @@ describe("resultBundleCsv", () => {
     expect(report).toContain("variance_components.repeatability");
     expect(report).toContain("Minitab nested Gage R&amp;R");
     expect(report).toContain("PDF로 저장 또는 인쇄");
+  });
+
+  it("projects every stored result into a single-sheet Excel-compatible table", () => {
+    const workbook = resultBundleSpreadsheetXml("capability-001", {
+      analysis_type: "capability.normal_individuals",
+      engine_version: "0.6.0",
+      input_digest: "digest-3",
+      parameters: { upper_specification_limit: 12 }, diagnostics: {}, tables: { indices: { cpk: 1.42 } }, plots: {}, warnings: [], assumptions: [], provenance: [],
+    });
+
+    expect(workbook).toContain("<?mso-application progid=\"Excel.Sheet\"?>");
+    expect(workbook).toContain("<Worksheet ss:Name=\"결과 데이터\">");
+    expect(workbook).toContain("capability.normal_individuals");
+    expect(workbook).toContain("indices.cpk");
   });
 });

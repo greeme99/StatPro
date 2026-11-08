@@ -5,7 +5,7 @@ type Delivery = "구현됨" | "개발 예정" | "외부 정책 필요";
 type Goal = { title: string; progress: number; delivery: Delivery; available: string; remaining: string; to?: string };
 
 const goals: Goal[] = [
-  { title: "통계적 공정관리(SPC)·공정능력", progress: 86, delivery: "구현됨", available: "계량형·계수형·희귀사건·EWMA·CUSUM 관리도와 정규/경험적 비정규 공정능력 분석을 실행하고, 모든 결과를 식별값·근거 포함 인쇄 보고서로 출력합니다.", remaining: "EWMA·CUSUM·계수형·희귀사건·공정능력의 Excel·PNG·SVG 차트 출력 일관화가 남아 있습니다.", to: "/spc" },
+  { title: "통계적 공정관리(SPC)·공정능력", progress: 88, delivery: "구현됨", available: "계량형·계수형·희귀사건·EWMA·CUSUM 관리도와 정규/경험적 비정규 공정능력 분석을 실행하고, 모든 결과를 식별값·근거 포함 인쇄·JSON·CSV·Excel 호환 표로 출력합니다.", remaining: "EWMA·CUSUM·계수형·희귀사건·공정능력의 PNG·SVG 차트 출력 일관화가 남아 있습니다.", to: "/spc" },
   { title: "실험계획법(DOE)", progress: 90, delivery: "구현됨", available: "완전·일부요인, Plackett–Burman, 중심합성, Box–Behnken, 반응표면과 다중응답 최적화를 실행합니다.", remaining: "고급 split-plot·공변량 설계와 PDF 생성형 보고서는 후속 범위입니다.", to: "/doe" },
   { title: "측정시스템 분석(MSA)", progress: 84, delivery: "구현됨", available: "연속 측정은 교차·중첩 Gage R&R과 편의·선형성, 표준 판정 검사는 Attribute Agreement로 실행합니다. 균형 Gage R&R은 ANOVA 분모·F·p 판정을 실행 근거와 함께 보존합니다.", remaining: "신뢰구간, REML·비균형 설계와 측정계획 연계는 아직 시작할 수 없습니다.", to: "/analyses/msa/gage-rr-nested" },
   { title: "FMEA·관리계획 인수인계", progress: 80, delivery: "외부 정책 필요", available: "PFMEA 개정·조치·재평가·승인과 SPC/MSA 실행 근거를 Control Plan에 연결합니다.", remaining: "운영 tenant, SCIM 계정 수명주기, 조건부 접근과 조직별 전자서명 정책은 조직 제공 정책과 실환경 검증이 필요합니다.", to: "/fmea" },

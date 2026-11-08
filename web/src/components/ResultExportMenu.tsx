@@ -51,6 +51,17 @@ export function resultBundleCsv(result: ResultBundle) {
   return `\ufeff구분,경로,값\r\n${rows.map((row) => row.map(escapeCsvCell).join(",")).join("\r\n")}\r\n`;
 }
 
+function escapeXml(value: unknown) {
+  return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&apos;");
+}
+
+export function resultBundleSpreadsheetXml(runId: string, result: ResultBundle) {
+  const csvRows = resultBundleCsv(result).replace(/^\ufeff/, "").trim().split("\r\n").slice(1);
+  const rows = csvRows.map((line) => line.match(/"((?:[^"]|"")*)","((?:[^"]|"")*)","((?:[^"]|"")*)"/)?.slice(1).map((cell) => cell.replaceAll('""', '"')) ?? []);
+  const cells = [["구분", "경로", "값"], ...rows].map((row) => `<Row>${row.map((value) => `<Cell><Data ss:Type="String">${escapeXml(value)}</Data></Cell>`).join("")}</Row>`).join("");
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<?mso-application progid="Excel.Sheet"?>\n<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"><DocumentProperties xmlns="urn:schemas-microsoft-com:office:office"><Title>${escapeXml(`${runId} 분석 결과`)}</Title><Subject>${escapeXml(result.analysis_type)}</Subject><Author>StatPro</Author></DocumentProperties><Worksheet ss:Name="결과 데이터"><Table>${cells}</Table></Worksheet></Workbook>\n`;
+}
+
 function downloadText(filename: string, text: string, type: string) {
   const blob = new Blob([text], { type });
   const url = URL.createObjectURL(blob);
@@ -128,7 +139,7 @@ export function ResultExportMenu({ runId, result }: { runId: string; result: Res
           <button role="menuitem" onClick={() => { downloadArtifact(`${runId}-imr.svg`, imrReportSvg(runId, imr), "image/svg+xml;charset=utf-8"); setOpen(false); }}><ImageUp aria-hidden="true" />차트를 SVG로 저장</button>
         </> : <>
           <button role="menuitem" onClick={() => { if (!printResultBundle(runId, result)) window.alert("보고서 창을 열 수 없습니다. 브라우저의 팝업 차단 설정을 확인하세요."); setOpen(false); }}><FileText aria-hidden="true" />PDF 보고서 저장·인쇄</button>
-          <span role="menuitem" aria-disabled="true" title="CSV 출력은 현재 제공됩니다. 다중 시트 Excel 형식은 개발 예정입니다."><FileSpreadsheet aria-hidden="true" />Excel 통합문서 <small>개발 예정</small></span>
+          <button role="menuitem" title="모든 ResultBundle 필드를 단일 시트 경로·값 표로 저장합니다. 원래 계층 구조는 JSON으로 확인하세요." onClick={() => { downloadArtifact(`${runId}-result.xls`, resultBundleSpreadsheetXml(runId, result), "application/vnd.ms-excel;charset=utf-8"); setOpen(false); }}><FileSpreadsheet aria-hidden="true" />Excel 호환 표로 저장</button>
           <span role="menuitem" aria-disabled="true" title="개발 예정"><ImageDown aria-hidden="true" />차트를 PNG로 저장 <small>개발 예정</small></span>
           <span role="menuitem" aria-disabled="true" title="개발 예정"><ImageUp aria-hidden="true" />차트를 SVG로 저장 <small>개발 예정</small></span>
         </>}
