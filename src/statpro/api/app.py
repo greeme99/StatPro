@@ -893,7 +893,7 @@ class DmaicCostBenefitItemRequest(ApiModel):
 
 class SaveDmaicCostBenefitAnalysisRequest(ApiModel):
     expected_storage_version: int = Field(ge=1)
-    currency: str = Field(min_length=3, max_length=8)
+    currency: str = Field(pattern=r"^[A-Za-z]{3}$")
     analysis_months: int = Field(ge=1, le=600)
     costs: list[DmaicCostBenefitItemRequest] = Field(min_length=1)
     benefits: list[DmaicCostBenefitItemRequest] = Field(min_length=1)

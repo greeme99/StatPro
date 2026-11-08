@@ -67,6 +67,22 @@ class DmaicProjectTests(unittest.TestCase):
         self.assertEqual(DmaicProject.from_dict(revised.to_dict()), revised)
         self.assertEqual(type(analysis).from_dict(analysis.to_dict()), analysis)
 
+    def test_cost_benefit_analysis_rejects_non_iso_style_currency(self) -> None:
+        project = create_project(
+            project_id="DMAIC-CURRENCY", title="Currency validation", owner_ref="quality.engineer"
+        )
+        with self.assertRaisesRegex(DmaicInputError, "three-letter ISO-style"):
+            save_cost_benefit_analysis(
+                project,
+                currency="KR-W",
+                analysis_months=12,
+                costs=(CostBenefitItem("Fixture", 1, "one_time"),),
+                benefits=(CostBenefitItem("Savings", 2, "monthly"),),
+                assumptions=("Scenario only",),
+                actor="quality.engineer",
+                occurred_at="2026-11-08T10:00:00+09:00",
+            )
+
     def test_control_handoff_snapshots_fmea_and_control_run_evidence(self) -> None:
         project = create_project(
             project_id="DMAIC-CONTROL", title="Connector yield", owner_ref="quality.engineer"

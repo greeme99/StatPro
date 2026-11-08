@@ -540,6 +540,12 @@ def save_cost_benefit_analysis(
     previous = project.cost_benefit_analysis
     revision = 1 if previous is None else previous.revision + 1
     normalized_currency = _required(currency, "currency").upper()
+    if len(normalized_currency) != 3 or not normalized_currency.isalpha():
+        raise DmaicInputError(
+            "invalid_currency",
+            "Currency must be a three-letter ISO-style alphabetic code.",
+            "currency",
+        )
     normalized_assumptions = _items(assumptions, "assumptions")
     summary = summarize_cost_benefit(
         costs=costs,

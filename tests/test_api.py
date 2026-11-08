@@ -2298,6 +2298,26 @@ class LocalApiContractTests(unittest.TestCase):
         self.assertEqual(document["summary"]["net_benefit"], 1800000)
         self.assertIn("할인율", document["summary"]["limitations"][1])
 
+    def test_dmaic_cost_benefit_analysis_rejects_non_iso_currency_at_boundary(self) -> None:
+        created = self.client.post(
+            "/v1/dmaic-projects",
+            json={"project_id": "DMAIC-COST-CURRENCY", "title": "Currency", "owner_ref": "quality.engineer"},
+        )
+        response = self.client.post(
+            "/v1/dmaic-projects/DMAIC-COST-CURRENCY/cost-benefit-analyses",
+            json={
+                "expected_storage_version": created.json()["storage_version"],
+                "currency": "KR-W",
+                "analysis_months": 12,
+                "costs": [{"name": "Fixture", "amount": 1, "recurrence": "one_time"}],
+                "benefits": [{"name": "Savings", "amount": 2, "recurrence": "monthly"}],
+                "assumptions": ["Scenario only"],
+                "actor": "quality.engineer",
+                "occurred_at": "2026-11-08T10:00:00+09:00",
+            },
+        )
+        self.assertEqual(response.status_code, 422)
+
     def test_dmaic_control_handoff_links_fmea_controls_and_spc_evidence(self) -> None:
         project = self.client.post(
             "/v1/dmaic-projects",
