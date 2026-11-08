@@ -558,6 +558,28 @@ def _decode_llm_guidance_payload(text: object, *, provider_name: str) -> Mapping
     return payload
 
 
+def _guidance_from_provider_text(
+    text: object,
+    *,
+    provider_name: str,
+    provider: str,
+    source: CopilotSource,
+    local_only: bool,
+) -> CopilotGuidance:
+    """Own all generated-content validation at the provider boundary."""
+
+    payload = _decode_llm_guidance_payload(text, provider_name=provider_name)
+    try:
+        return _guidance_from_llm_payload(
+            payload,
+            provider=provider,
+            source=source,
+            local_only=local_only,
+        )
+    except (KeyError, TypeError, ValueError) as error:
+        raise ValueError(f"{provider_name} returned an invalid guidance contract") from error
+
+
 class UrlLibGeminiContentClient:
     """Small dependency-free client for the Gemini generateContent endpoint."""
 
@@ -652,9 +674,9 @@ class GeminiCopilotProvider:
             text = raw["candidates"][0]["content"]["parts"][0]["text"]
         except (KeyError, IndexError, TypeError) as error:
             raise ValueError("Gemini returned an invalid guidance response") from error
-        payload = _decode_llm_guidance_payload(text, provider_name="Gemini")
-        return _guidance_from_llm_payload(
-            payload,
+        return _guidance_from_provider_text(
+            text,
+            provider_name="Gemini",
             provider=self._model,
             source=CopilotSource("사용자 질문과 선택 문맥", "copilot://question", "user_context"),
             local_only=False,
@@ -750,9 +772,9 @@ class LocalLlmCopilotProvider:
             text = raw["choices"][0]["message"]["content"]
         except (KeyError, IndexError, TypeError) as error:
             raise ValueError("Local LLM returned an invalid guidance response") from error
-        payload = _decode_llm_guidance_payload(text, provider_name="Local LLM")
-        return _guidance_from_llm_payload(
-            payload,
+        return _guidance_from_provider_text(
+            text,
+            provider_name="Local LLM",
             provider=f"local:{self._model}",
             source=CopilotSource("로컬 LLM의 사용자 질문과 선택 문맥", "copilot://local-question", "user_context"),
             local_only=True,

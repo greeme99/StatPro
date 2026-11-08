@@ -78,6 +78,22 @@ class MalformedLocalLlmClient:
         return {"choices": []}
 
 
+class IncompleteGuidanceGeminiClient:
+    def generate(self, *, api_key: str, model: str, prompt: str) -> dict[str, object]:
+        return {
+            "candidates": [{
+                "content": {
+                    "parts": [{
+                        "text": (
+                            '{"answer":"필수 필드가 빠진 응답입니다.",'
+                            '"menu_path":[],"checklist":[],"workflow_steps":[]}'
+                        )
+                    }]
+                }
+            }]
+        }
+
+
 class RecordingFallbackProvider:
     def __init__(self) -> None:
         self.questions: list[str] = []
@@ -320,6 +336,33 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
                 "test-key",
                 model="gemini-test-lite",
                 client=MalformedGeminiClient(),
+            ),
+            gemini_complex=None,
+            ollama_workflow=LocalLlmCopilotProvider(
+                "http://127.0.0.1:11434/v1/chat/completions",
+                "qwen3:4b-q4_K_M",
+                client=local_client,
+            ),
+            ollama_code=None,
+        )
+
+        guidance = chain.answer(
+            question="현장 작업표 열 이름을 설명해줘",
+            pathname="/data",
+            workspace="작업표 및 데이터 (Worksheet & Data)",
+            evidence_context=None,
+        )
+
+        self.assertEqual(guidance.provider, "local:qwen3:4b-q4_K_M")
+        self.assertEqual(len(local_client.calls), 1)
+
+    def test_incomplete_gemini_contract_falls_through_to_workflow_ollama(self) -> None:
+        local_client = FakeLocalLlmClient()
+        chain = FallbackChainCopilotProvider(
+            gemini_simple=GeminiCopilotProvider(
+                "test-key",
+                model="gemini-test-lite",
+                client=IncompleteGuidanceGeminiClient(),
             ),
             gemini_complex=None,
             ollama_workflow=LocalLlmCopilotProvider(
