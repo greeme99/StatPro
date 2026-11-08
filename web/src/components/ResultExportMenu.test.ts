@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { resultBundleCsv, resultBundlePrintHtml, resultBundleSpreadsheetXml } from "./ResultExportMenu";
+import { spcChartReportSvg, toSpcChartExportView } from "../spcChartExport";
 
 describe("resultBundleCsv", () => {
   it("serializes result tables and chart source data in deterministic path-value rows", () => {
@@ -57,5 +58,17 @@ describe("resultBundleCsv", () => {
     expect(workbook).toContain("<Worksheet ss:Name=\"결과 데이터\">");
     expect(workbook).toContain("capability.normal_individuals");
     expect(workbook).toContain("indices.cpk");
+  });
+
+  it("renders a stored attribute control chart as a standalone SVG without reading live UI state", () => {
+    const result = {
+      analysis_type: "spc.p_chart", engine_version: "0.6.0", input_digest: "digest-4", parameters: {}, diagnostics: {},
+      tables: { chart_points: [{ index: 0, event_count: 3, opportunity: 100, statistic: 0.03, center: 0.02, ucl: 0.06, lcl: 0, signal: false }], summary: { pooled_proportion: 0.02, total_nonconforming: 3, total_inspected: 100 } },
+      plots: {}, warnings: [], assumptions: [], provenance: [],
+    };
+    const view = toSpcChartExportView(result);
+    expect(view?.title).toBe("p 관리도");
+    expect(spcChartReportSvg("p-001", view!)).toContain("p 관리도 결과");
+    expect(spcChartReportSvg("p-001", view!)).toContain("Run ID p-001");
   });
 });

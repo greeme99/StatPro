@@ -5,6 +5,7 @@ import type { ResultBundle } from "../types";
 import { downloadArtifact, downloadXbarRPng, printXbarRReport, xbarRExcelXml, xbarRReportSvg } from "../xbarRExport";
 import { downloadXbarSPng, printXbarSReport, xbarSExcelXml, xbarSReportSvg } from "../xbarSExport";
 import { downloadImrPng, imrExcelXml, imrPrintHtml, imrReportSvg, printImrReport } from "../imrExport";
+import { downloadSpcChartPng, spcChartReportSvg, toSpcChartExportView } from "../spcChartExport";
 import { Button } from "./Button";
 
 type CsvRow = [section: string, path: string, value: string];
@@ -99,6 +100,7 @@ export function ResultExportMenu({ runId, result }: { runId: string; result: Res
   const xbarR = toXbarRView(result);
   const xbarS = toXbarSView(result);
   const imr = toImrView(result);
+  const spcChart = toSpcChartExportView(result);
 
   useEffect(() => {
     if (!open) return;
@@ -137,6 +139,11 @@ export function ResultExportMenu({ runId, result }: { runId: string; result: Res
           <button role="menuitem" onClick={() => { downloadArtifact(`${runId}-imr.xls`, imrExcelXml(runId, result, imr), "application/vnd.ms-excel;charset=utf-8"); setOpen(false); }}><FileSpreadsheet aria-hidden="true" />Excel로 저장</button>
           <button role="menuitem" onClick={() => { downloadImrPng(runId, imr); setOpen(false); }}><ImageDown aria-hidden="true" />차트를 PNG로 저장</button>
           <button role="menuitem" onClick={() => { downloadArtifact(`${runId}-imr.svg`, imrReportSvg(runId, imr), "image/svg+xml;charset=utf-8"); setOpen(false); }}><ImageUp aria-hidden="true" />차트를 SVG로 저장</button>
+        </> : spcChart ? <>
+          <button role="menuitem" onClick={() => { if (!printResultBundle(runId, result)) window.alert("보고서 창을 열 수 없습니다. 브라우저의 팝업 차단 설정을 확인하세요."); setOpen(false); }}><FileText aria-hidden="true" />PDF 보고서 저장·인쇄</button>
+          <button role="menuitem" title="모든 ResultBundle 필드를 단일 시트 경로·값 표로 저장합니다. 원래 계층 구조는 JSON으로 확인하세요." onClick={() => { downloadArtifact(`${runId}-result.xls`, resultBundleSpreadsheetXml(runId, result), "application/vnd.ms-excel;charset=utf-8"); setOpen(false); }}><FileSpreadsheet aria-hidden="true" />Excel 호환 표로 저장</button>
+          <button role="menuitem" onClick={() => { downloadSpcChartPng(runId, spcChart); setOpen(false); }}><ImageDown aria-hidden="true" />차트를 PNG로 저장</button>
+          <button role="menuitem" onClick={() => { const svg = spcChartReportSvg(runId, spcChart); if (svg) downloadArtifact(`${runId}-spc-chart.svg`, svg, "image/svg+xml;charset=utf-8"); setOpen(false); }}><ImageUp aria-hidden="true" />차트를 SVG로 저장</button>
         </> : <>
           <button role="menuitem" onClick={() => { if (!printResultBundle(runId, result)) window.alert("보고서 창을 열 수 없습니다. 브라우저의 팝업 차단 설정을 확인하세요."); setOpen(false); }}><FileText aria-hidden="true" />PDF 보고서 저장·인쇄</button>
           <button role="menuitem" title="모든 ResultBundle 필드를 단일 시트 경로·값 표로 저장합니다. 원래 계층 구조는 JSON으로 확인하세요." onClick={() => { downloadArtifact(`${runId}-result.xls`, resultBundleSpreadsheetXml(runId, result), "application/vnd.ms-excel;charset=utf-8"); setOpen(false); }}><FileSpreadsheet aria-hidden="true" />Excel 호환 표로 저장</button>
