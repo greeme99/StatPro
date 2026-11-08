@@ -48,6 +48,10 @@ class CrossedGageRrTests(unittest.TestCase):
         self.assertAlmostEqual(anova["part_operator_interaction"]["f_value"], 1.0)
         self.assertAlmostEqual(anova["part_operator_interaction"]["p_value"], 0.3739009663)
         self.assertFalse(anova["part"]["significant"])
+        repeatability_ci = components["repeatability"]["variance_confidence_interval"]
+        self.assertEqual(repeatability_ci["confidence_level"], 0.95)
+        self.assertAlmostEqual(repeatability_ci["lower"], 0.7179, places=3)
+        self.assertAlmostEqual(repeatability_ci["upper"], 16.5146, places=3)
 
     def test_negative_component_is_truncated_but_raw_estimate_is_preserved(self) -> None:
         result = gage_rr_crossed(fixture_records())
@@ -101,6 +105,9 @@ class NestedGageRrTests(unittest.TestCase):
         self.assertAlmostEqual(anova["part_operator"]["f_value"], 34.0)
         self.assertLess(anova["part_operator"]["p_value"], 0.05)
         self.assertTrue(anova["part_operator"]["significant"])
+        repeatability_ci = components["repeatability"]["variance_confidence_interval"]
+        self.assertLess(repeatability_ci["lower"], 2.0)
+        self.assertGreater(repeatability_ci["upper"], 2.0)
 
     def test_rejects_part_shared_between_operators(self) -> None:
         records = [

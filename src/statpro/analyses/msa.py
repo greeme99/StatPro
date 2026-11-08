@@ -8,7 +8,7 @@ from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 from statistics import fmean
 
-from statpro.analyses.common import f_survival, finite_values
+from statpro.analyses.common import chi_square_quantile, f_survival, finite_values
 from statpro.domain.errors import AnalysisInputError
 from statpro.domain.identity import input_digest
 from statpro.domain.models import ProvenanceSource, ResultBundle
@@ -161,6 +161,17 @@ def _anova_f_row(
         "f_value": f_value,
         "p_value": p_value,
         "significant": None if p_value is None else p_value < significance_level,
+    }
+
+
+def _repeatability_variance_ci(variance: float, degrees_of_freedom: int, confidence_level: float = 0.95) -> dict[str, float]:
+    """Exact chi-square interval for a balanced-study residual variance."""
+
+    alpha = 1.0 - confidence_level
+    return {
+        "confidence_level": confidence_level,
+        "lower": degrees_of_freedom * variance / chi_square_quantile(1.0 - alpha / 2.0, degrees_of_freedom),
+        "upper": degrees_of_freedom * variance / chi_square_quantile(alpha / 2.0, degrees_of_freedom),
     }
 
 
@@ -318,6 +329,9 @@ def gage_rr_crossed(
                 ),
             }
         )
+    variance_rows[0]["variance_confidence_interval"] = _repeatability_variance_ci(
+        component_variances["repeatability"], df_repeatability
+    )
 
     gage_standard_deviation = math.sqrt(component_variances["total_gage_rr"])
     part_standard_deviation = math.sqrt(component_variances["part_to_part"])
@@ -835,6 +849,9 @@ def gage_rr_nested(
                 "study_variation_percent": standard_deviation / total_standard_deviation * 100.0,
             }
         )
+    variance_rows[0]["variance_confidence_interval"] = _repeatability_variance_ci(
+        components["repeatability"], df_repeatability
+    )
     warnings = [
         f"Negative {name} variance estimate was truncated to zero."
         for name, value in raw_variances.items()

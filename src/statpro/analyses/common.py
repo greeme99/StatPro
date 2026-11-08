@@ -82,6 +82,67 @@ def f_survival(value: float | None, numerator_df: float, denominator_df: float) 
     )))
 
 
+def _regularized_gamma_lower(shape: float, value: float) -> float:
+    """Evaluate the lower regularized gamma P(shape, value)."""
+
+    if value <= 0.0:
+        return 0.0
+    if shape <= 0.0:
+        raise AnalysisInputError("invalid_distribution_parameter", "Gamma shape must be positive.", "distribution")
+    epsilon = 3e-14
+    floor = 1e-300
+    log_front = -value + shape * math.log(value) - math.lgamma(shape)
+    if value < shape + 1.0:
+        term = 1.0 / shape
+        total = term
+        for iteration in range(1, 201):
+            term *= value / (shape + iteration)
+            total += term
+            if abs(term) <= abs(total) * epsilon:
+                return min(1.0, max(0.0, math.exp(log_front) * total))
+    else:
+        b = value + 1.0 - shape
+        c = 1.0 / floor
+        d = 1.0 / max(b, floor)
+        fraction = d
+        for iteration in range(1, 201):
+            numerator = -iteration * (iteration - shape)
+            b += 2.0
+            d = numerator * d + b
+            if abs(d) < floor:
+                d = floor
+            c = b + numerator / c
+            if abs(c) < floor:
+                c = floor
+            d = 1.0 / d
+            delta = d * c
+            fraction *= delta
+            if abs(delta - 1.0) <= epsilon:
+                return min(1.0, max(0.0, 1.0 - math.exp(log_front) * fraction))
+    raise AnalysisInputError("distribution_not_converged", "The chi-square probability calculation did not converge.", "distribution")
+
+
+def chi_square_quantile(probability: float, degrees_of_freedom: float) -> float:
+    """Return the lower-tail chi-square quantile using a bounded bisection."""
+
+    if not 0.0 < probability < 1.0 or degrees_of_freedom <= 0.0:
+        raise AnalysisInputError("invalid_distribution_parameter", "Chi-square probability must be in (0, 1) and degrees of freedom positive.", "distribution")
+    shape = degrees_of_freedom / 2.0
+    lower = 0.0
+    upper = max(1.0, degrees_of_freedom + 10.0 * math.sqrt(2.0 * degrees_of_freedom))
+    while _regularized_gamma_lower(shape, upper / 2.0) < probability:
+        upper *= 2.0
+        if upper > 1e12:
+            raise AnalysisInputError("distribution_not_converged", "The chi-square quantile search exceeded its bound.", "distribution")
+    for _ in range(100):
+        midpoint = (lower + upper) / 2.0
+        if _regularized_gamma_lower(shape, midpoint / 2.0) < probability:
+            lower = midpoint
+        else:
+            upper = midpoint
+    return (lower + upper) / 2.0
+
+
 def finite_values(values: Iterable[object], field: str) -> list[float]:
     converted: list[float] = []
     for index, value in enumerate(values):
