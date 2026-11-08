@@ -166,6 +166,7 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
             "dmaic-define-project": "/home/dmaic/define",
             "dmaic-measure-plan": "/home/dmaic/measure",
             "dmaic-cost-benefit": "/home/dmaic/improve/cost-benefit",
+            "dmaic-implementation-plan": "/home/dmaic/improve/implementation-plan",
             "learning-resources": "/home/learning",
         }
         self.assertEqual({rule_id: rules[rule_id].action_href for rule_id in expected_routes}, expected_routes)
