@@ -82,6 +82,7 @@ from statpro.application.reports import (
     build_doe_report,
     export_doe_report_zip,
     render_doe_report_html,
+    render_doe_report_xlsx,
 )
 from statpro.defect_analysis import (
     DefectAnalysisInputError,
@@ -2917,6 +2918,21 @@ def create_app(
             media_type="text/html",
             headers={
                 "Content-Disposition": f'attachment; filename="{run_id}-doe-report.html"',
+                "ETag": f'"{report["report_digest"]}"',
+            },
+        )
+
+    @app.get("/v1/analysis-runs/{run_id}/report.xlsx")
+    def get_doe_report_xlsx(
+        run_id: RunId,
+        template_id: Annotated[str, Query(pattern=r"^(standard|customer_review|regulatory_review)$")] = "standard",
+    ) -> Response:
+        report = build_doe_report(repository.load(ANALYSIS_RUNS, run_id), template_id=template_id)
+        return Response(
+            content=render_doe_report_xlsx(report),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition": f'attachment; filename="{run_id}-doe-report.xlsx"',
                 "ETag": f'"{report["report_digest"]}"',
             },
         )

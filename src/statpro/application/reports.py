@@ -106,6 +106,39 @@ def render_doe_report_html(report: Mapping[str, Any]) -> bytes:
     return "".join(parts).encode("utf-8")
 
 
+def render_doe_report_xlsx(report: Mapping[str, Any]) -> bytes:
+    """Render an immutable DOE report as a dependency-free OOXML workbook.
+
+    Every cell is an inline value rather than a formula, so exporting a report never
+    evaluates user-originated spreadsheet expressions.  The workbook is deliberately
+    limited to report metadata and ResultBundle tables; it does not represent an
+    approval, electronic signature, or regulatory record.
+    """
+
+    worksheets: list[tuple[str, list[list[object]]]] = [
+        ("Report", _xlsx_summary_rows(report))
+    ]
+    used_names = {"Report"}
+    for table in report["tables"]:
+        name = _xlsx_unique_sheet_name(str(table["name"]), used_names)
+        used_names.add(name)
+        rows: list[list[object]] = [list(table["columns"])]
+        rows.extend(
+            [[row.get(column) for column in table["columns"]] for row in table["rows"]]
+        )
+        worksheets.append((name, rows))
+
+    output = io.BytesIO()
+    with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        _write_zip_entry(archive, "[Content_Types].xml", _xlsx_content_types(len(worksheets)))
+        _write_zip_entry(archive, "_rels/.rels", _xlsx_root_relationships())
+        _write_zip_entry(archive, "xl/workbook.xml", _xlsx_workbook(worksheets))
+        _write_zip_entry(archive, "xl/_rels/workbook.xml.rels", _xlsx_workbook_relationships(len(worksheets)))
+        for index, (_, rows) in enumerate(worksheets, start=1):
+            _write_zip_entry(archive, f"xl/worksheets/sheet{index}.xml", _xlsx_worksheet(rows))
+    return output.getvalue()
+
+
 def render_doe_report_figures(report: Mapping[str, Any]) -> dict[str, bytes]:
     """Render deterministic SVG figures from supported, already-owned DOE plot data."""
 
@@ -121,7 +154,7 @@ def render_doe_report_figures(report: Mapping[str, Any]) -> dict[str, bytes]:
 
 
 def export_doe_report_zip(report: Mapping[str, Any]) -> bytes:
-    """Return a deterministic ZIP containing HTML, JSON, SVG figures, and CSV tables."""
+    """Return a deterministic ZIP containing report views, workbook, figures, and tables."""
 
     output = io.BytesIO()
     with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as archive:
@@ -131,6 +164,7 @@ def export_doe_report_zip(report: Mapping[str, Any]) -> bytes:
             "report.json",
             json.dumps(report, ensure_ascii=False, indent=2, allow_nan=False).encode("utf-8"),
         )
+        _write_zip_entry(archive, "report.xlsx", render_doe_report_xlsx(report))
         for name, figure in render_doe_report_figures(report).items():
             _write_zip_entry(archive, name, figure)
         for index, table in enumerate(report["tables"], start=1):
@@ -423,6 +457,125 @@ def _table_csv(table: Mapping[str, Any]) -> bytes:
     for row in table["rows"]:
         writer.writerow({column: _cell(row.get(column)) for column in table["columns"]})
     return stream.getvalue().encode("utf-8-sig")
+
+
+def _xlsx_summary_rows(report: Mapping[str, Any]) -> list[list[object]]:
+    run = report["run"]
+    analysis = report["analysis"]
+    template = report["template"]
+    rows: list[list[object]] = [
+        ["StatPro DOE Analysis Report"],
+        ["Template", template["name"]],
+        ["Run ID", run["run_id"]],
+        ["Analysis type", analysis["analysis_type"]],
+        ["Engine version", analysis["engine_version"]],
+        ["Input digest", analysis["input_digest"]],
+        ["Report digest", report["report_digest"]],
+        ["Intended use", template["intended_use"]],
+    ]
+    for field in template["review_fields"]:
+        rows.append(["Review field", field, "Organization input required"])
+    for section, values in (("Parameter", report["parameters"]), ("Diagnostic", report["diagnostics"])):
+        for key, value in sorted(values.items()):
+            rows.append([section, key, _cell(value)])
+    return rows
+
+
+def _xlsx_content_types(sheet_count: int) -> bytes:
+    overrides = "".join(
+        f'<Override PartName="/xl/worksheets/sheet{index}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+        for index in range(1, sheet_count + 1)
+    )
+    return (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+        '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+        '<Default Extension="xml" ContentType="application/xml"/>'
+        '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+        f"{overrides}</Types>"
+    ).encode("utf-8")
+
+
+def _xlsx_root_relationships() -> bytes:
+    return (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'
+        '</Relationships>'
+    ).encode("utf-8")
+
+
+def _xlsx_workbook(worksheets: Sequence[tuple[str, Sequence[Sequence[object]]]]) -> bytes:
+    sheets = "".join(
+        f'<sheet name="{_xml_text(name)}" sheetId="{index}" r:id="rId{index}"/>'
+        for index, (name, _) in enumerate(worksheets, start=1)
+    )
+    return (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
+        'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+        f'<sheets>{sheets}</sheets></workbook>'
+    ).encode("utf-8")
+
+
+def _xlsx_workbook_relationships(sheet_count: int) -> bytes:
+    relationships = "".join(
+        f'<Relationship Id="rId{index}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet{index}.xml"/>'
+        for index in range(1, sheet_count + 1)
+    )
+    return (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+        f"{relationships}</Relationships>"
+    ).encode("utf-8")
+
+
+def _xlsx_worksheet(rows: Sequence[Sequence[object]]) -> bytes:
+    body = "".join(
+        f'<row r="{row_index}">'
+        + "".join(_xlsx_cell(column_index, row_index, value) for column_index, value in enumerate(row, start=1))
+        + "</row>"
+        for row_index, row in enumerate(rows, start=1)
+    )
+    return (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+        f'<sheetData>{body}</sheetData></worksheet>'
+    ).encode("utf-8")
+
+
+def _xlsx_cell(column_index: int, row_index: int, value: object) -> str:
+    reference = f"{_xlsx_column_name(column_index)}{row_index}"
+    if isinstance(value, bool):
+        return f'<c r="{reference}" t="b"><v>{1 if value else 0}</v></c>'
+    if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(float(value)):
+        return f'<c r="{reference}"><v>{value}</v></c>'
+    return f'<c r="{reference}" t="inlineStr"><is><t xml:space="preserve">{_xml_text(_cell(value))}</t></is></c>'
+
+
+def _xlsx_column_name(index: int) -> str:
+    name = ""
+    while index:
+        index, remainder = divmod(index - 1, 26)
+        name = chr(65 + remainder) + name
+    return name
+
+
+def _xlsx_unique_sheet_name(value: str, used: set[str]) -> str:
+    base = re.sub(r"[\\[\\]:*?/\\\\]", "-", value).strip() or "Table"
+    base = base[:31]
+    candidate = base
+    suffix = 2
+    while candidate.casefold() in {name.casefold() for name in used}:
+        tail = f"-{suffix}"
+        candidate = f"{base[:31 - len(tail)]}{tail}"
+        suffix += 1
+    return candidate
+
+
+def _xml_text(value: object) -> str:
+    text = "".join(character for character in str(value) if character in "\t\n\r" or ord(character) >= 32)
+    return escape(text, quote=True)
 
 
 def _cell(value: object) -> str:

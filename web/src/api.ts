@@ -410,8 +410,8 @@ export function getDmaicControlHandoff(projectId: string, documentId: string): P
 
 export type DoeReportTemplate = "standard" | "customer_review" | "regulatory_review";
 
-export function doeRunArtifactUrl(runId: string, artifact: "html" | "zip", template: DoeReportTemplate = "standard"): string {
-  const suffix = artifact === "html" ? "report.html" : "export";
+export function doeRunArtifactUrl(runId: string, artifact: "html" | "xlsx" | "zip", template: DoeReportTemplate = "standard"): string {
+  const suffix = artifact === "html" ? "report.html" : artifact === "xlsx" ? "report.xlsx" : "export";
   const templateQuery = template === "standard" ? "" : `?template_id=${encodeURIComponent(template)}`;
   return `${API_BASE}/v1/analysis-runs/${encodeURIComponent(runId)}/${suffix}${templateQuery}`;
 }

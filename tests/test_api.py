@@ -590,15 +590,24 @@ class LocalApiContractTests(unittest.TestCase):
 
         report = self.client.get("/v1/analysis-runs/doe-report-001/report")
         html = self.client.get("/v1/analysis-runs/doe-report-001/report.html")
+        xlsx = self.client.get("/v1/analysis-runs/doe-report-001/report.xlsx")
         exported = self.client.get("/v1/analysis-runs/doe-report-001/export")
 
         self.assertEqual(report.status_code, 200)
         self.assertEqual(report.json()["report_type"], "statpro.doe.analysis_report.v2")
         self.assertEqual(report.json()["run"]["etag"], created.json()["etag"])
         self.assertEqual(report.headers["etag"], html.headers["etag"])
+        self.assertEqual(report.headers["etag"], xlsx.headers["etag"])
         self.assertEqual(report.headers["etag"], exported.headers["etag"])
         self.assertEqual(html.headers["content-type"], "text/html; charset=utf-8")
         self.assertIn("doe-report-001-doe-report.html", html.headers["content-disposition"])
+        self.assertEqual(
+            xlsx.headers["content-type"],
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        self.assertIn("doe-report-001-doe-report.xlsx", xlsx.headers["content-disposition"])
+        with zipfile.ZipFile(io.BytesIO(xlsx.content)) as workbook:
+            self.assertIn("xl/workbook.xml", workbook.namelist())
         self.assertEqual(exported.headers["content-type"], "application/zip")
         with zipfile.ZipFile(io.BytesIO(exported.content)) as archive:
             self.assertEqual(archive.namelist()[0:2], ["report.html", "report.json"])

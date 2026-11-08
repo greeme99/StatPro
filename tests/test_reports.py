@@ -17,6 +17,7 @@ from statpro.application.reports import (
     export_doe_report_zip,
     render_doe_report_figures,
     render_doe_report_html,
+    render_doe_report_xlsx,
 )
 
 
@@ -51,21 +52,34 @@ class DoeReportTests(unittest.TestCase):
     def test_html_and_zip_export_are_complete_and_deterministic(self) -> None:
         report = build_doe_report(self.stored)
         html = render_doe_report_html(report)
+        workbook = render_doe_report_xlsx(report)
         first = export_doe_report_zip(report)
         second = export_doe_report_zip(report)
 
         self.assertIn(b"StatPro \xec\x8b\xa4\xed\x97\x98\xea\xb3\x84\xed\x9a\x8d\xeb\xb2\x95(DOE) \xeb\xb6\x84\xec\x84\x9d \xeb\xb3\xb4\xea\xb3\xa0\xec\x84\x9c", html)
         self.assertIn(b"Plot \xeb\x8d\xb0\xec\x9d\xb4\xed\x84\xb0", html)
         self.assertEqual(first, second)
+        with zipfile.ZipFile(io.BytesIO(workbook)) as xlsx:
+            self.assertEqual(xlsx.namelist()[:5], [
+                "[Content_Types].xml",
+                "_rels/.rels",
+                "xl/workbook.xml",
+                "xl/_rels/workbook.xml.rels",
+                "xl/worksheets/sheet1.xml",
+            ])
+            self.assertEqual(len(xlsx.namelist()), len(report["tables"]) + 5)
+            self.assertIn(b"doe-report-001", xlsx.read("xl/worksheets/sheet1.xml"))
         with zipfile.ZipFile(io.BytesIO(first)) as archive:
             self.assertEqual(
                 archive.namelist(),
-                ["report.html", "report.json", "tables/01-design.csv"],
+                ["report.html", "report.json", "report.xlsx", "tables/01-design.csv"],
             )
             exported = json.loads(archive.read("report.json"))
             csv_text = archive.read("tables/01-design.csv").decode("utf-8-sig")
+            exported_workbook = archive.read("report.xlsx")
         self.assertEqual(exported["report_digest"], report["report_digest"])
         self.assertIn("run_order,standard_order", csv_text)
+        self.assertEqual(exported_workbook, workbook)
 
     def test_customer_review_template_and_svg_figures_are_deterministic(self) -> None:
         result = json.loads(json.dumps(self.stored.document["result"]))

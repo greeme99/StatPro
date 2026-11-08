@@ -22,7 +22,7 @@ describe("StatPro UI", () => {
     expect(screen.getByRole("tab", { name: "설계 및 계획", selected: true })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "2수준 완전요인 설계 시작" })).toHaveAttribute("href", "/analyses/doe/full-factorial");
     await userEvent.click(screen.getByRole("tab", { name: "근거" }));
-    expect(screen.getByText("SVG 그래프·검토용 양식 구현됨")).toBeInTheDocument();
+    expect(screen.getByText("XLSX·SVG 그래프·검토용 양식 구현됨")).toBeInTheDocument();
   });
 
   it("renders the Korean reports catalog with truthful delivery status", async () => {
@@ -34,7 +34,7 @@ describe("StatPro UI", () => {
     expect(await screen.findByRole("heading", { name: "결과 및 보고서" })).toBeInTheDocument();
     expect(screen.getAllByText("구현됨").length).toBeGreaterThan(3);
     expect(screen.getByRole("heading", { name: "DOE 그래프·검토 양식" })).toBeInTheDocument();
-    expect(screen.getByText(/지원 Plot의 SVG와 표 CSV·JSON/)).toBeInTheDocument();
+    expect(screen.getByText(/지원 Plot의 SVG와 표 XLSX·CSV·JSON/)).toBeInTheDocument();
     expect(screen.getByText("개발 예정")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "실험계획법 (DOE)" })).toBeInTheDocument();
   });
@@ -1363,11 +1363,13 @@ describe("StatPro UI", () => {
     render(<MemoryRouter initialEntries={["/runs/doe-001"]}><App /></MemoryRouter>);
     expect(await screen.findByRole("heading", { name: "효과 크기" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "HTML 보고서" })).toHaveAttribute("href", "/api/v1/analysis-runs/doe-001/report.html");
-    expect(screen.getByRole("link", { name: "그래프·CSV·JSON 묶음" })).toHaveAttribute("href", "/api/v1/analysis-runs/doe-001/export");
+    expect(screen.getByRole("link", { name: "Excel 보고서" })).toHaveAttribute("href", "/api/v1/analysis-runs/doe-001/report.xlsx");
+    expect(screen.getByRole("link", { name: "그래프·Excel·CSV·JSON 묶음" })).toHaveAttribute("href", "/api/v1/analysis-runs/doe-001/export");
     expect(screen.getByRole("combobox", { name: "DOE 보고서 양식" })).toHaveValue("standard");
     await userEvent.selectOptions(screen.getByRole("combobox", { name: "DOE 보고서 양식" }), "customer_review");
     expect(screen.getByRole("link", { name: "HTML 보고서" })).toHaveAttribute("href", "/api/v1/analysis-runs/doe-001/report.html?template_id=customer_review");
-    expect(screen.getByRole("link", { name: "그래프·CSV·JSON 묶음" })).toHaveAttribute("href", "/api/v1/analysis-runs/doe-001/export?template_id=customer_review");
+    expect(screen.getByRole("link", { name: "Excel 보고서" })).toHaveAttribute("href", "/api/v1/analysis-runs/doe-001/report.xlsx?template_id=customer_review");
+    expect(screen.getByRole("link", { name: "그래프·Excel·CSV·JSON 묶음" })).toHaveAttribute("href", "/api/v1/analysis-runs/doe-001/export?template_id=customer_review");
     expect(screen.getByRole("img", { name: /가장 큰 절대 효과는 A/ })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "ANOVA" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "적합값과 잔차" })).toBeInTheDocument();
