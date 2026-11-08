@@ -8,7 +8,7 @@
 - **통계적 공정관리(SPC)**: I-MR, Xbar-R, Xbar-S, EWMA, CUSUM, p/np/c/u, Laney P′/U′, 희귀사건 G/T, 정규·경험적 비정규 공정능력
 - **측정시스템분석(MSA)**: 균형 교차·중첩 Gage R&R(비풀링 ANOVA F·p 판정, 반복성 분산의 정확 95% 신뢰구간), Attribute Agreement, Gage 편의·선형성
 - **고장 형태 및 영향 분석(FMEA)**: 불변 개정, AIAG/VDA 7단계, 조치·재평가·검토·승인, 외부 Action Priority 정책, PFMEA–Control Plan 추적, SPC/MSA Run 연결
-- **데이터·실행 관리**: CSV Dataset snapshot, 필터·정렬·선택형 사칙연산 파생 열을 갖춘 revision Worksheet, Analysis Run, ETag/낙관적 동시성, cursor paging, ResultBundle
+- **데이터·실행 관리**: CSV Dataset snapshot, 필터·정렬·선택형 사칙연산 파생 열·현재 revision CSV 내보내기를 갖춘 Worksheet, Analysis Run, ETag/낙관적 동시성, cursor paging, ResultBundle
 - **결과 출력**: 모든 Analysis Run의 읽기 전용 인쇄 보고서·JSON·CSV·Excel 호환 표, SPC 관리도의 PNG·SVG 차트 출력
 - **품질 도구와 DMAIC 연결**: 체크 시트, 일반 파레토, 특성요인도, 홈 기반 DMAIC 작업 흐름과 학습 리소스
 - **품질 대시보드**: 저장된 ResultBundle의 수치 경로를 불변 지표 스냅샷으로 연결하고 상태·담당·검토 주기·원본 Run 증거를 함께 표시

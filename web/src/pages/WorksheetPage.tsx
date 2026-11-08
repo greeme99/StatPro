@@ -1,9 +1,10 @@
-import { AlertTriangle, ArrowLeft, Database, Filter, ListFilter, Pencil, Save, Sigma } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Database, Download, Filter, ListFilter, Pencil, Save, Sigma } from "lucide-react";
 import { type FormEvent, type MouseEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { addDerivedNumericColumn, filterWorksheetRows, getWorksheet, replaceWorksheetCell, sortWorksheetRows } from "../api";
 import { Button } from "../components/Button";
 import type { DataColumn, StoredWorksheet } from "../types";
+import { downloadWorksheetCsv } from "../worksheetExport";
 
 type SelectedCell = { rowIndex: number; column: DataColumn };
 
@@ -146,7 +147,7 @@ export function WorksheetPage() {
 
   return <div className="page worksheet-page" data-density="compact">
     <Link className="back-link" to="/data"><ArrowLeft aria-hidden="true" /> 워크시트 목록</Link>
-    <section className="result-header"><div><span className="eyebrow">WORKSHEET</span><h1>{worksheet.name}</h1><p>{worksheet.worksheet_id} · revision {worksheet.revision} · {worksheet.row_count}행 × {worksheet.columns.length}열</p></div><span className="status-badge status-approved">저장됨</span></section>
+    <section className="result-header"><div><span className="eyebrow">WORKSHEET</span><h1>{worksheet.name}</h1><p>{worksheet.worksheet_id} · revision {worksheet.revision} · {worksheet.row_count}행 × {worksheet.columns.length}열</p></div><div className="result-actions"><Button type="button" icon={<Download />} onClick={() => downloadWorksheetCsv(worksheet)}>현재 revision CSV 저장</Button><span className="status-badge status-approved">저장됨</span></div></section>
     {error && <div className="error-banner" role="alert"><AlertTriangle aria-hidden="true" /><p>{error}</p></div>}
     <section className="worksheet-layout">
       <aside className="panel column-profile"><header className="panel-heading"><div><span className="eyebrow">COLUMN PROFILE</span><h2>{profile?.name ?? "열 선택"}</h2></div><Database aria-hidden="true" /></header>{profile && <dl><div><dt>타입</dt><dd>{profile.data_type}</dd></div><div><dt>결측</dt><dd>{profile.missing_count}</dd></div>{numericRange && <><div><dt>최솟값</dt><dd>{numericRange.min}</dd></div><div><dt>최댓값</dt><dd>{numericRange.max}</dd></div></>}</dl>}</aside>
