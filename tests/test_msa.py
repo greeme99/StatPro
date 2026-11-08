@@ -6,7 +6,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from statpro.analyses.msa import MeasurementRecord, gage_rr_crossed, gage_rr_nested
+from statpro.analyses.msa import (
+    AttributeAssessmentRecord,
+    MeasurementRecord,
+    attribute_agreement,
+    gage_rr_crossed,
+    gage_rr_nested,
+)
 from statpro.domain.errors import AnalysisInputError
 
 

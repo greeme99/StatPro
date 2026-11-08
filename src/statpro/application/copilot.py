@@ -544,6 +544,20 @@ def _guidance_from_llm_payload(
     )
 
 
+def _decode_llm_guidance_payload(text: object, *, provider_name: str) -> Mapping[str, Any]:
+    """Normalize a model's JSON content once at the provider boundary."""
+
+    if not isinstance(text, str):
+        raise ValueError(f"{provider_name} returned non-string content")
+    try:
+        payload = json.loads(text)
+    except (TypeError, json.JSONDecodeError) as error:
+        raise ValueError(f"{provider_name} returned invalid JSON guidance") from error
+    if not isinstance(payload, Mapping):
+        raise ValueError(f"{provider_name} returned a non-object JSON response")
+    return payload
+
+
 class UrlLibGeminiContentClient:
     """Small dependency-free client for the Gemini generateContent endpoint."""
 
@@ -629,14 +643,16 @@ class GeminiCopilotProvider:
             f"사용자 질문: {question}\n"
             f"사용자가 선택한 근거 문맥: {evidence_context or '없음'}"
         )
-        raw = self._client.generate(
-            api_key=self._api_key,
-            model=self._model,
-            prompt=prompt,
-        )
-        candidates = raw["candidates"]
-        text = candidates[0]["content"]["parts"][0]["text"]
-        payload = json.loads(text)
+        try:
+            raw = self._client.generate(
+                api_key=self._api_key,
+                model=self._model,
+                prompt=prompt,
+            )
+            text = raw["candidates"][0]["content"]["parts"][0]["text"]
+        except (KeyError, IndexError, TypeError) as error:
+            raise ValueError("Gemini returned an invalid guidance response") from error
+        payload = _decode_llm_guidance_payload(text, provider_name="Gemini")
         return _guidance_from_llm_payload(
             payload,
             provider=self._model,
@@ -729,13 +745,12 @@ class LocalLlmCopilotProvider:
             f"사용자 질문: {question}\n"
             f"사용자가 선택한 근거 문맥: {evidence_context or '없음'}"
         )
-        raw = self._client.complete(endpoint=self._endpoint, model=self._model, prompt=prompt)
-        text = raw["choices"][0]["message"]["content"]
-        if not isinstance(text, str):
-            raise ValueError("Local LLM returned non-string content")
-        payload = json.loads(text)
-        if not isinstance(payload, Mapping):
-            raise ValueError("Local LLM returned a non-object JSON response")
+        try:
+            raw = self._client.complete(endpoint=self._endpoint, model=self._model, prompt=prompt)
+            text = raw["choices"][0]["message"]["content"]
+        except (KeyError, IndexError, TypeError) as error:
+            raise ValueError("Local LLM returned an invalid guidance response") from error
+        payload = _decode_llm_guidance_payload(text, provider_name="Local LLM")
         return _guidance_from_llm_payload(
             payload,
             provider=f"local:{self._model}",

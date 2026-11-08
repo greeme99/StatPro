@@ -68,6 +68,16 @@ class FakeLocalLlmClient:
         }
 
 
+class MalformedGeminiClient:
+    def generate(self, *, api_key: str, model: str, prompt: str) -> dict[str, object]:
+        return {"candidates": []}
+
+
+class MalformedLocalLlmClient:
+    def complete(self, *, endpoint: str, model: str, prompt: str) -> dict[str, object]:
+        return {"choices": []}
+
+
 class RecordingFallbackProvider:
     def __init__(self) -> None:
         self.questions: list[str] = []
@@ -283,6 +293,72 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
         )
 
         self.assertEqual(code_ollama.questions, ["SPC 이상 신호를 정리하는 Python 코드를 만들어줘"])
+
+    def test_fallback_chain_uses_workflow_ollama_after_simple_gemini_failure(self) -> None:
+        workflow_ollama = RecordingFallbackProvider()
+        chain = FallbackChainCopilotProvider(
+            gemini_simple=FailingFallbackProvider(),
+            gemini_complex=RecordingFallbackProvider(),
+            ollama_workflow=workflow_ollama,
+            ollama_code=RecordingFallbackProvider(),
+        )
+
+        chain.answer(
+            question="현장 작업표 열 이름을 설명해줘",
+            pathname="/data",
+            workspace="작업표 및 데이터 (Worksheet & Data)",
+            evidence_context=None,
+        )
+
+        self.assertEqual(workflow_ollama.questions, ["현장 작업표 열 이름을 설명해줘"])
+
+    def test_malformed_gemini_response_falls_through_to_workflow_ollama(self) -> None:
+        local_client = FakeLocalLlmClient()
+        chain = FallbackChainCopilotProvider(
+            gemini_simple=GeminiCopilotProvider(
+                "test-key",
+                model="gemini-test-lite",
+                client=MalformedGeminiClient(),
+            ),
+            gemini_complex=None,
+            ollama_workflow=LocalLlmCopilotProvider(
+                "http://127.0.0.1:11434/v1/chat/completions",
+                "qwen3:4b-q4_K_M",
+                client=local_client,
+            ),
+            ollama_code=None,
+        )
+
+        guidance = chain.answer(
+            question="현장 작업표 열 이름을 설명해줘",
+            pathname="/data",
+            workspace="작업표 및 데이터 (Worksheet & Data)",
+            evidence_context=None,
+        )
+
+        self.assertEqual(guidance.provider, "local:qwen3:4b-q4_K_M")
+        self.assertEqual(len(local_client.calls), 1)
+
+    def test_malformed_local_response_returns_manual_guidance(self) -> None:
+        chain = FallbackChainCopilotProvider(
+            gemini_simple=None,
+            gemini_complex=None,
+            ollama_workflow=LocalLlmCopilotProvider(
+                "http://127.0.0.1:11434/v1/chat/completions",
+                "qwen3:4b-q4_K_M",
+                client=MalformedLocalLlmClient(),
+            ),
+            ollama_code=None,
+        )
+
+        guidance = chain.answer(
+            question="현장 작업표 열 이름을 설명해줘",
+            pathname="/data",
+            workspace="작업표 및 데이터 (Worksheet & Data)",
+            evidence_context=None,
+        )
+
+        self.assertEqual(guidance.provider, "statpro-fallback-unavailable")
 
     def test_fallback_chain_requests_manual_input_after_all_models_fail(self) -> None:
         chain = FallbackChainCopilotProvider(

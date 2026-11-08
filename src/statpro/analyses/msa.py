@@ -6,7 +6,7 @@ import math
 from collections import Counter, defaultdict
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass
-from statistics import fmean
+from statistics import NormalDist, fmean
 
 from statpro.analyses.common import chi_square_quantile, f_survival, finite_values
 from statpro.domain.errors import AnalysisInputError
