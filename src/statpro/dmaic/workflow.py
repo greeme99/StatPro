@@ -4,6 +4,12 @@ from __future__ import annotations
 
 from dataclasses import replace
 
+from statpro.dmaic.cost_benefit import (
+    CostBenefitItem,
+    DmaicCostBenefitAnalysis,
+    _cost_benefit_digest,
+    summarize_cost_benefit,
+)
 from statpro.dmaic.models import (
     DmaicAnalysisEvidenceReference,
     DmaicCharter,
@@ -517,6 +523,65 @@ def save_pilot_plan(
     reference = DmaicDocumentReference("pilot_plan", plan.document_id, plan.revision, plan.digest)
     revised = replace(project, revision=project.revision + 1, parent_digest=project.digest, digest="", pilot_plan=reference)
     return replace(revised, digest=_project_digest(revised)), plan
+
+
+def save_cost_benefit_analysis(
+    project: DmaicProject,
+    *,
+    currency: str,
+    analysis_months: int,
+    costs: tuple[CostBenefitItem, ...],
+    benefits: tuple[CostBenefitItem, ...],
+    assumptions: tuple[str, ...],
+    actor: str,
+    occurred_at: str,
+) -> tuple[DmaicProject, DmaicCostBenefitAnalysis]:
+    """Record a transparent Improve-phase input scenario without financial approval claims."""
+    previous = project.cost_benefit_analysis
+    revision = 1 if previous is None else previous.revision + 1
+    normalized_currency = _required(currency, "currency").upper()
+    normalized_assumptions = _items(assumptions, "assumptions")
+    summary = summarize_cost_benefit(
+        costs=costs,
+        benefits=benefits,
+        analysis_months=analysis_months,
+    )
+    sources = tuple(item for item in (
+        project.pilot_plan,
+        project.solution_selection,
+        project.root_cause_analysis,
+        project.problem_definition,
+        project.measurement_plan,
+        project.charter,
+    ) if item is not None)
+    analysis = DmaicCostBenefitAnalysis(
+        document_id=f"{project.project_id}-cost-benefit-r{revision}",
+        project_id=project.project_id,
+        revision=revision,
+        parent_digest=None if previous is None else previous.digest,
+        digest="",
+        currency=normalized_currency,
+        analysis_months=analysis_months,
+        costs=costs,
+        benefits=benefits,
+        summary=summary,
+        assumptions=normalized_assumptions,
+        source_documents=sources,
+        actor=_required(actor, "actor"),
+        occurred_at=_required(occurred_at, "occurred_at"),
+    )
+    analysis = replace(analysis, digest=_cost_benefit_digest(analysis))
+    reference = DmaicDocumentReference(
+        "cost_benefit_analysis", analysis.document_id, analysis.revision, analysis.digest
+    )
+    revised = replace(
+        project,
+        revision=project.revision + 1,
+        parent_digest=project.digest,
+        digest="",
+        cost_benefit_analysis=reference,
+    )
+    return replace(revised, digest=_project_digest(revised)), analysis
 
 
 def save_control_handoff(

@@ -47,6 +47,7 @@ const DmaicMeasureWorkspacePage = lazyNamed(() => import("./pages/DmaicMeasureWo
 const DmaicRootCauseWorkspacePage = lazyNamed(() => import("./pages/DmaicRootCauseWorkspacePage"), "DmaicRootCauseWorkspacePage");
 const DmaicSolutionSelectionWorkspacePage = lazyNamed(() => import("./pages/DmaicSolutionSelectionWorkspacePage"), "DmaicSolutionSelectionWorkspacePage");
 const DmaicPilotPlanWorkspacePage = lazyNamed(() => import("./pages/DmaicPilotPlanWorkspacePage"), "DmaicPilotPlanWorkspacePage");
+const DmaicCostBenefitWorkspacePage = lazyNamed(() => import("./pages/DmaicCostBenefitWorkspacePage"), "DmaicCostBenefitWorkspacePage");
 const LearningResourcesPreviewPage = lazyNamed(() => import("./pages/LearningResourcesPreviewPage"), "LearningResourcesPreviewPage");
 const SpcWorkspacePage = lazyNamed(() => import("./pages/SpcWorkspacePage"), "SpcWorkspacePage");
 const SpcQualityToolPage = lazyNamed(() => import("./pages/SpcQualityToolPage"), "SpcQualityToolPage");
@@ -109,6 +110,7 @@ export default function App() {
         <Route path="/home/dmaic/analyze/root-causes" element={<DmaicRootCauseWorkspacePage />} />
         <Route path="/home/dmaic/improve/solution-selection" element={<DmaicSolutionSelectionWorkspacePage />} />
         <Route path="/home/dmaic/improve/pilot-plan" element={<DmaicPilotPlanWorkspacePage />} />
+        <Route path="/home/dmaic/improve/cost-benefit" element={<DmaicCostBenefitWorkspacePage />} />
         <Route path="/home/dmaic/control" element={<DmaicControlWorkspacePage />} />
         <Route path="/home/learning" element={<LearningResourcesPreviewPage />} />
         <Route path="/ui-preview" element={<Navigate to="/home" replace />} />

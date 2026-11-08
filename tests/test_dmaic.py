@@ -7,6 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from statpro.dmaic import (
+    CostBenefitItem,
     DmaicCharter,
     DmaicControlHandoff,
     DmaicInputError,
@@ -18,6 +19,7 @@ from statpro.dmaic import (
     DmaicVoiceOfCustomerStudy,
     create_project,
     save_charter,
+    save_cost_benefit_analysis,
     save_control_handoff,
     save_measurement_plan,
     save_pilot_plan,
@@ -31,6 +33,40 @@ from statpro.dmaic import (
 
 
 class DmaicProjectTests(unittest.TestCase):
+    def test_cost_benefit_analysis_is_revisioned_and_links_project_evidence(self) -> None:
+        project = create_project(
+            project_id="DMAIC-COST", title="Connector yield", owner_ref="quality.engineer"
+        )
+        project, selection = save_solution_selection(
+            project,
+            problem_statement="Connector defect rate increased",
+            candidate_solutions=("Set torque window",),
+            selected_solution="Set torque window",
+            decision_rationale="Lowest setup risk.",
+            validation_plan="Validate with a blocked DOE.",
+            analysis_evidence=(),
+            actor="quality.engineer",
+            occurred_at="2026-11-08T10:00:00+09:00",
+        )
+
+        revised, analysis = save_cost_benefit_analysis(
+            project,
+            currency="krw",
+            analysis_months=12,
+            costs=(CostBenefitItem("Torque fixture", 1_200_000, "one_time"),),
+            benefits=(CostBenefitItem("Reduced scrap", 250_000, "monthly"),),
+            assumptions=("Monthly scrap reduction stays constant.",),
+            actor="quality.engineer",
+            occurred_at="2026-11-08T10:10:00+09:00",
+        )
+
+        self.assertEqual(analysis.currency, "KRW")
+        self.assertEqual(analysis.summary["net_benefit"], 1_800_000)
+        self.assertEqual(analysis.source_documents[0].document_id, selection.document_id)
+        self.assertEqual(revised.cost_benefit_analysis.document_id, analysis.document_id)
+        self.assertEqual(DmaicProject.from_dict(revised.to_dict()), revised)
+        self.assertEqual(type(analysis).from_dict(analysis.to_dict()), analysis)
+
     def test_control_handoff_snapshots_fmea_and_control_run_evidence(self) -> None:
         project = create_project(
             project_id="DMAIC-CONTROL", title="Connector yield", owner_ref="quality.engineer"

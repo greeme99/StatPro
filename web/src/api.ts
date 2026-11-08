@@ -1,4 +1,4 @@
-import type { ActionPriorityPolicyPage, ApiError, CellValue, DefectAnalysisPage, DmaicProjectPage, FmeaStudyPage, FmeaStudyReport, QualityMetricPage, StoredActionPriorityPolicy, StoredCheckSheet, StoredDefectAnalysis, StoredDmaicCharter, StoredDmaicControlHandoff, StoredDmaicMeasurementPlan, StoredDmaicPilotPlan, StoredDmaicProject, StoredDmaicRootCauseAnalysis, StoredDmaicSolutionSelection, StoredFishbone, StoredFmeaStudy, StoredQualityMetric, RunPage, StoredRun, StoredWorksheet, WorksheetPage } from "./types";
+import type { ActionPriorityPolicyPage, ApiError, CellValue, DefectAnalysisPage, DmaicProjectPage, FmeaStudyPage, FmeaStudyReport, QualityMetricPage, StoredActionPriorityPolicy, StoredCheckSheet, StoredDefectAnalysis, StoredDmaicCharter, StoredDmaicControlHandoff, StoredDmaicCostBenefitAnalysis, StoredDmaicMeasurementPlan, StoredDmaicPilotPlan, StoredDmaicProject, StoredDmaicRootCauseAnalysis, StoredDmaicSolutionSelection, StoredFishbone, StoredFmeaStudy, StoredQualityMetric, RunPage, StoredRun, StoredWorksheet, WorksheetPage } from "./types";
 
 const API_BASE = import.meta.env.VITE_STATPRO_API_URL ?? "/api";
 
@@ -344,6 +344,23 @@ export function saveDmaicPilotPlan(projectId: string, payload: {
 
 export function getDmaicPilotPlan(projectId: string, documentId: string): Promise<StoredDmaicPilotPlan> {
   return request(`/v1/dmaic-projects/${encodeURIComponent(projectId)}/pilot-plans/${encodeURIComponent(documentId)}`);
+}
+
+export function saveDmaicCostBenefitAnalysis(projectId: string, payload: {
+  expected_storage_version: number;
+  currency: string;
+  analysis_months: number;
+  costs: Array<{ name: string; amount: number; recurrence: "one_time" | "monthly" | "annual" }>;
+  benefits: Array<{ name: string; amount: number; recurrence: "one_time" | "monthly" | "annual" }>;
+  assumptions: string[];
+  actor: string;
+  occurred_at: string;
+}): Promise<StoredDmaicProject> {
+  return request(`/v1/dmaic-projects/${encodeURIComponent(projectId)}/cost-benefit-analyses`, { method: "POST", body: JSON.stringify(payload) });
+}
+
+export function getDmaicCostBenefitAnalysis(projectId: string, documentId: string): Promise<StoredDmaicCostBenefitAnalysis> {
+  return request(`/v1/dmaic-projects/${encodeURIComponent(projectId)}/cost-benefit-analyses/${encodeURIComponent(documentId)}`);
 }
 
 export function saveDmaicControlHandoff(projectId: string, payload: {

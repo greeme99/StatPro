@@ -93,10 +93,11 @@ class DmaicProject:
     root_cause_analysis: DmaicDocumentReference | None = None
     solution_selection: DmaicDocumentReference | None = None
     pilot_plan: DmaicDocumentReference | None = None
+    cost_benefit_analysis: DmaicDocumentReference | None = None
     control_handoff: DmaicDocumentReference | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload = {
             "project_id": self.project_id,
             "title": self.title,
             "owner_ref": self.owner_ref,
@@ -138,6 +139,10 @@ class DmaicProject:
                 None if self.control_handoff is None else self.control_handoff.to_dict()
             ),
         }
+        # Omit a later-added document reference for historical digest compatibility.
+        if self.cost_benefit_analysis is not None:
+            payload["cost_benefit_analysis"] = self.cost_benefit_analysis.to_dict()
+        return payload
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> DmaicProject:
@@ -150,6 +155,7 @@ class DmaicProject:
         root_cause_analysis = payload.get("root_cause_analysis")
         solution_selection = payload.get("solution_selection")
         pilot_plan = payload.get("pilot_plan")
+        cost_benefit_analysis = payload.get("cost_benefit_analysis")
         control_handoff = payload.get("control_handoff")
         project = cls(
             project_id=payload["project_id"], title=payload["title"], owner_ref=payload["owner_ref"],
@@ -190,6 +196,11 @@ class DmaicProject:
                 else DmaicDocumentReference(**solution_selection)
             ),
             pilot_plan=None if pilot_plan is None else DmaicDocumentReference(**pilot_plan),
+            cost_benefit_analysis=(
+                None
+                if cost_benefit_analysis is None
+                else DmaicDocumentReference(**cost_benefit_analysis)
+            ),
             control_handoff=(
                 None
                 if control_handoff is None

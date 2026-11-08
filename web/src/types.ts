@@ -192,6 +192,7 @@ export type DmaicProject = {
   root_cause_analysis: DmaicDocumentReference | null;
   solution_selection: DmaicDocumentReference | null;
   pilot_plan: DmaicDocumentReference | null;
+  cost_benefit_analysis: DmaicDocumentReference | null;
   control_handoff: DmaicDocumentReference | null;
 };
 
@@ -298,6 +299,26 @@ export type StoredDmaicPilotPlan = {
   storage_version: number;
   etag: string;
   pilot_plan: DmaicPilotPlan;
+};
+
+export type DmaicCostBenefitAnalysis = {
+  document_id: string;
+  project_id: string;
+  revision: number;
+  currency: string;
+  analysis_months: number;
+  costs: Array<{ name: string; amount: number; recurrence: "one_time" | "monthly" | "annual" }>;
+  benefits: Array<{ name: string; amount: number; recurrence: "one_time" | "monthly" | "annual" }>;
+  summary: { cost_total: number; benefit_total: number; net_benefit: number; roi_percent: number | null; estimated_payback_months: number | null; limitations: string[] };
+  assumptions: string[];
+  source_documents: DmaicDocumentReference[];
+};
+
+export type StoredDmaicCostBenefitAnalysis = {
+  document_id: string;
+  storage_version: number;
+  etag: string;
+  cost_benefit_analysis: DmaicCostBenefitAnalysis;
 };
 
 export type DmaicAnalysisEvidenceReference = {

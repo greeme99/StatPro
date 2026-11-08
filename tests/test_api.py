@@ -2263,6 +2263,41 @@ class LocalApiContractTests(unittest.TestCase):
         self.assertEqual(document["pilot_type"], "before_after")
         self.assertEqual(document["analysis_evidence"][0]["run_id"], "spc-imr-pilot")
 
+    def test_dmaic_cost_benefit_analysis_is_versioned_and_retrievable(self) -> None:
+        created = self.client.post(
+            "/v1/dmaic-projects",
+            json={
+                "project_id": "DMAIC-COST-API",
+                "title": "Connector yield",
+                "owner_ref": "quality.engineer",
+            },
+        )
+        self.assertEqual(created.status_code, 201)
+        revised = self.client.post(
+            "/v1/dmaic-projects/DMAIC-COST-API/cost-benefit-analyses",
+            json={
+                "expected_storage_version": 1,
+                "currency": "KRW",
+                "analysis_months": 12,
+                "costs": [{"name": "Torque fixture", "amount": 1200000, "recurrence": "one_time"}],
+                "benefits": [{"name": "Reduced scrap", "amount": 250000, "recurrence": "monthly"}],
+                "assumptions": ["Monthly scrap reduction remains constant."],
+                "actor": "quality.engineer",
+                "occurred_at": "2026-11-08T10:10:00+09:00",
+            },
+        )
+        self.assertEqual(revised.status_code, 201)
+        reference = revised.json()["project"]["cost_benefit_analysis"]
+        self.assertEqual(reference["revision"], 1)
+        stored = self.client.get(
+            "/v1/dmaic-projects/DMAIC-COST-API/cost-benefit-analyses/"
+            f"{reference['document_id']}"
+        )
+        self.assertEqual(stored.status_code, 200)
+        document = stored.json()["cost_benefit_analysis"]
+        self.assertEqual(document["summary"]["net_benefit"], 1800000)
+        self.assertIn("할인율", document["summary"]["limitations"][1])
+
     def test_dmaic_control_handoff_links_fmea_controls_and_spc_evidence(self) -> None:
         project = self.client.post(
             "/v1/dmaic-projects",

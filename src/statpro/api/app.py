@@ -93,7 +93,9 @@ from statpro.defect_analysis import (
     summarize_defect_analysis,
 )
 from statpro.dmaic import (
+    CostBenefitItem,
     DmaicCharter,
+    DmaicCostBenefitAnalysis,
     DmaicControlHandoff,
     DmaicInputError,
     DmaicMeasurementPlan,
@@ -107,6 +109,7 @@ from statpro.dmaic import (
     DmaicVoiceOfCustomerStudy,
     create_project,
     save_charter,
+    save_cost_benefit_analysis,
     save_control_handoff,
     save_measurement_plan,
     save_pilot_plan,
@@ -184,6 +187,7 @@ DMAIC_MEASUREMENT_PLANS = "dmaic-measurement-plans"
 DMAIC_ROOT_CAUSE_ANALYSES = "dmaic-root-cause-analyses"
 DMAIC_SOLUTION_SELECTIONS = "dmaic-solution-selections"
 DMAIC_PILOT_PLANS = "dmaic-pilot-plans"
+DMAIC_COST_BENEFIT_ANALYSES = "dmaic-cost-benefit-analyses"
 DMAIC_CONTROL_HANDOFFS = "dmaic-control-handoffs"
 SPC_CHECK_SHEETS = "spc-check-sheets"
 SPC_FISHBONE_DIAGRAMS = "spc-fishbone-diagrams"
@@ -881,6 +885,23 @@ class SaveDmaicPilotPlanRequest(ApiModel):
     occurred_at: str
 
 
+class DmaicCostBenefitItemRequest(ApiModel):
+    name: str = Field(min_length=1)
+    amount: float = Field(ge=0)
+    recurrence: Literal["one_time", "monthly", "annual"]
+
+
+class SaveDmaicCostBenefitAnalysisRequest(ApiModel):
+    expected_storage_version: int = Field(ge=1)
+    currency: str = Field(min_length=3, max_length=8)
+    analysis_months: int = Field(ge=1, le=600)
+    costs: list[DmaicCostBenefitItemRequest] = Field(min_length=1)
+    benefits: list[DmaicCostBenefitItemRequest] = Field(min_length=1)
+    assumptions: list[str] = Field(min_length=1)
+    actor: str
+    occurred_at: str
+
+
 class DmaicReactionPlanRequest(ApiModel):
     trigger: str
     action: str
@@ -970,6 +991,13 @@ class StoredDmaicPilotPlanResponse(ApiModel):
     storage_version: int
     etag: str
     pilot_plan: dict[str, Any]
+
+
+class StoredDmaicCostBenefitAnalysisResponse(ApiModel):
+    document_id: str
+    storage_version: int
+    etag: str
+    cost_benefit_analysis: dict[str, Any]
 
 
 class StoredDmaicControlHandoffResponse(ApiModel):
@@ -1310,6 +1338,17 @@ def _deserialize_dmaic_pilot_plan(stored: StoredDocument) -> DmaicPilotPlan:
         ) from error
 
 
+def _deserialize_dmaic_cost_benefit_analysis(
+    stored: StoredDocument,
+) -> DmaicCostBenefitAnalysis:
+    try:
+        return DmaicCostBenefitAnalysis.from_dict(stored.document["cost_benefit_analysis"])
+    except (KeyError, TypeError, ValueError, DmaicInputError) as error:
+        raise DocumentStoreError(
+            f"Stored DMAIC cost-benefit analysis {stored.key} does not match its owned format."
+        ) from error
+
+
 def _deserialize_dmaic_control_handoff(stored: StoredDocument) -> DmaicControlHandoff:
     try:
         return DmaicControlHandoff.from_dict(stored.document["control_handoff"])
@@ -1422,6 +1461,18 @@ def _dmaic_pilot_plan_response(stored: StoredDocument) -> StoredDmaicPilotPlanRe
     return StoredDmaicPilotPlanResponse(
         document_id=stored.key, storage_version=stored.storage_version, etag=stored.etag,
         pilot_plan=plan.to_dict(),
+    )
+
+
+def _dmaic_cost_benefit_analysis_response(
+    stored: StoredDocument,
+) -> StoredDmaicCostBenefitAnalysisResponse:
+    analysis = _deserialize_dmaic_cost_benefit_analysis(stored)
+    return StoredDmaicCostBenefitAnalysisResponse(
+        document_id=stored.key,
+        storage_version=stored.storage_version,
+        etag=stored.etag,
+        cost_benefit_analysis=analysis.to_dict(),
     )
 
 
@@ -1568,6 +1619,21 @@ def _save_dmaic_pilot_plan(
         DMAIC_PILOT_PLANS,
         plan.document_id,
         {"kind": "dmaic_pilot_plan", "document_id": plan.document_id, "pilot_plan": plan.to_dict()},
+        expected_version=0,
+    )
+
+
+def _save_dmaic_cost_benefit_analysis(
+    repository: DocumentRepository, analysis: DmaicCostBenefitAnalysis
+) -> StoredDocument:
+    return repository.save(
+        DMAIC_COST_BENEFIT_ANALYSES,
+        analysis.document_id,
+        {
+            "kind": "dmaic_cost_benefit_analysis",
+            "document_id": analysis.document_id,
+            "cost_benefit_analysis": analysis.to_dict(),
+        },
         expected_version=0,
     )
 
@@ -3755,6 +3821,55 @@ def create_app(
             )
         response.headers["ETag"] = f'"{stored.etag}"'
         return _dmaic_pilot_plan_response(stored)
+
+    @app.post(
+        "/v1/dmaic-projects/{project_id}/cost-benefit-analyses",
+        status_code=201,
+        response_model=StoredDmaicProjectResponse,
+    )
+    def create_dmaic_cost_benefit_analysis(
+        project_id: RunId,
+        request: SaveDmaicCostBenefitAnalysisRequest,
+        response: Response,
+    ) -> StoredDmaicProjectResponse:
+        stored, project = _load_dmaic_project(repository, project_id)
+        if stored.storage_version != request.expected_storage_version:
+            raise DocumentConflictError(
+                f"Expected storage version {request.expected_storage_version}; found {stored.storage_version}."
+            )
+        revised, analysis = save_cost_benefit_analysis(
+            project,
+            currency=request.currency,
+            analysis_months=request.analysis_months,
+            costs=tuple(CostBenefitItem(**item.model_dump()) for item in request.costs),
+            benefits=tuple(CostBenefitItem(**item.model_dump()) for item in request.benefits),
+            assumptions=tuple(request.assumptions),
+            actor=request.actor,
+            occurred_at=request.occurred_at,
+        )
+        _save_dmaic_cost_benefit_analysis(repository, analysis)
+        saved = _save_dmaic_project(
+            repository, revised, expected_version=request.expected_storage_version
+        )
+        response.headers["ETag"] = f'"{saved.etag}"'
+        return _dmaic_project_response(saved)
+
+    @app.get(
+        "/v1/dmaic-projects/{project_id}/cost-benefit-analyses/{document_id}",
+        response_model=StoredDmaicCostBenefitAnalysisResponse,
+    )
+    def get_dmaic_cost_benefit_analysis(
+        project_id: RunId, document_id: RunId, response: Response
+    ) -> StoredDmaicCostBenefitAnalysisResponse:
+        _stored_project, project = _load_dmaic_project(repository, project_id)
+        stored = repository.load(DMAIC_COST_BENEFIT_ANALYSES, document_id)
+        analysis = _deserialize_dmaic_cost_benefit_analysis(stored)
+        if analysis.project_id != project.project_id:
+            raise DocumentNotFoundError(
+                f"Document {DMAIC_COST_BENEFIT_ANALYSES}/{document_id} does not exist."
+            )
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _dmaic_cost_benefit_analysis_response(stored)
 
     @app.post(
         "/v1/dmaic-projects/{project_id}/control-handoffs",

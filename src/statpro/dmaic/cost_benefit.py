@@ -5,7 +5,8 @@ from __future__ import annotations
 import math
 from dataclasses import asdict, dataclass
 
-from statpro.dmaic.models import DmaicInputError
+from statpro.dmaic.models import DmaicDocumentReference, DmaicInputError
+from statpro.domain.identity import input_digest
 
 
 @dataclass(frozen=True, slots=True)
@@ -16,6 +17,66 @@ class CostBenefitItem:
 
     def to_dict(self) -> dict[str, object]:
         return asdict(self)
+
+
+@dataclass(frozen=True, slots=True)
+class DmaicCostBenefitAnalysis:
+    """Immutable input-scenario record; it does not represent financial approval."""
+
+    document_id: str
+    project_id: str
+    revision: int
+    parent_digest: str | None
+    digest: str
+    currency: str
+    analysis_months: int
+    costs: tuple[CostBenefitItem, ...]
+    benefits: tuple[CostBenefitItem, ...]
+    summary: dict[str, object]
+    assumptions: tuple[str, ...]
+    source_documents: tuple[DmaicDocumentReference, ...]
+    actor: str
+    occurred_at: str
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "document_id": self.document_id,
+            "project_id": self.project_id,
+            "revision": self.revision,
+            "parent_digest": self.parent_digest,
+            "digest": self.digest,
+            "currency": self.currency,
+            "analysis_months": self.analysis_months,
+            "costs": [item.to_dict() for item in self.costs],
+            "benefits": [item.to_dict() for item in self.benefits],
+            "summary": self.summary,
+            "assumptions": list(self.assumptions),
+            "source_documents": [item.to_dict() for item in self.source_documents],
+            "actor": self.actor,
+            "occurred_at": self.occurred_at,
+        }
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, object]) -> "DmaicCostBenefitAnalysis":
+        analysis = cls(
+            document_id=str(payload["document_id"]), project_id=str(payload["project_id"]),
+            revision=int(payload["revision"]), parent_digest=payload.get("parent_digest") if isinstance(payload.get("parent_digest"), str) else None,
+            digest=str(payload["digest"]), currency=str(payload["currency"]), analysis_months=int(payload["analysis_months"]),
+            costs=tuple(CostBenefitItem(**item) for item in payload["costs"]),  # type: ignore[arg-type]
+            benefits=tuple(CostBenefitItem(**item) for item in payload["benefits"]),  # type: ignore[arg-type]
+            summary=dict(payload["summary"]), assumptions=tuple(str(item) for item in payload["assumptions"]),  # type: ignore[arg-type]
+            source_documents=tuple(DmaicDocumentReference(**item) for item in payload.get("source_documents", [])),  # type: ignore[arg-type]
+            actor=str(payload["actor"]), occurred_at=str(payload["occurred_at"]),
+        )
+        if analysis.digest != _cost_benefit_digest(analysis):
+            raise DmaicInputError("cost_benefit_digest_mismatch", "Stored cost-benefit digest does not match.", "digest")
+        return analysis
+
+
+def _cost_benefit_digest(analysis: DmaicCostBenefitAnalysis) -> str:
+    payload = analysis.to_dict()
+    payload.pop("digest")
+    return input_digest(payload)
 
 
 def _items(items: tuple[CostBenefitItem, ...], field: str) -> tuple[CostBenefitItem, ...]:

@@ -60,6 +60,7 @@ function evidenceFor(stored: StoredDmaicProject): EvidenceItem[] {
     { key: "measurement_plan", label: "측정 계획", phase: "측정", to: "/home/dmaic/measure", reference: project.measurement_plan },
     { key: "root_cause_analysis", label: "근본원인 분석", phase: "분석", to: "/home/dmaic/analyze/root-causes", reference: project.root_cause_analysis },
     { key: "solution_selection", label: "개선안 선정", phase: "개선", to: "/home/dmaic/improve/solution-selection", reference: project.solution_selection },
+    { key: "cost_benefit_analysis", label: "비용-편익 분석", phase: "개선", to: "/home/dmaic/improve/cost-benefit", reference: project.cost_benefit_analysis },
     { key: "pilot_plan", label: "파일럿 계획", phase: "개선", to: "/home/dmaic/improve/pilot-plan", reference: project.pilot_plan },
     { key: "control_handoff", label: "관리 인수인계", phase: "관리", to: "/home/dmaic/control", reference: project.control_handoff },
   ];
@@ -192,7 +193,7 @@ export function DmaicProjectOverviewPage() {
         { label: "연결된 분석 실행", status: detailStatus(project.root_cause_analysis, (detail) => detail.runs.length > 0) },
       ], "데이터로 검증된 핵심 원인과 실행 근거를 남깁니다."),
       gate("개선 (Improve)", "/home/dmaic/improve/solution-selection", [
-        { label: "개선안 선정·파일럿 문서", status: project.solution_selection && project.pilot_plan ? "ready" : "pending" },
+        { label: "개선안 선정·비용-편익·파일럿 문서", status: project.solution_selection && project.cost_benefit_analysis && project.pilot_plan ? "ready" : "pending" },
         { label: "선정 근거·검증 기준", status: detailStatus(project.solution_selection, (detail) => detail.checks.decision) },
         { label: "성공지표·중단 기준", status: detailStatus(project.pilot_plan, (detail) => detail.checks.decision) },
         { label: "DOE·파일럿 분석 실행", status: project.solution_selection && project.pilot_plan
