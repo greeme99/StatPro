@@ -431,6 +431,78 @@ class RuleFirstCopilotProvider:
             )
 
 
+def _is_code_generation_request(question: str) -> bool:
+    normalized = question.casefold()
+    return any(token in normalized for token in ("코드", "스크립트", "python", "sql", "api", "자동화", "구현"))
+
+
+def _is_complex_request(question: str) -> bool:
+    normalized = question.casefold()
+    complex_terms = (
+        "복잡", "원인", "상호작용", "최적화", "다단계", "규제", "승인",
+        "fmea", "dmaic", "doe", "설계", "코드", "스크립트", "api",
+    )
+    return len(normalized) >= 180 or _is_code_generation_request(question) or any(term in normalized for term in complex_terms)
+
+
+class FallbackChainCopilotProvider:
+    """Route unmatched questions through approved cloud and local fallback tiers."""
+
+    def __init__(
+        self,
+        *,
+        gemini_simple: CopilotProvider | None,
+        gemini_complex: CopilotProvider | None,
+        ollama_workflow: CopilotProvider | None,
+        ollama_code: CopilotProvider | None,
+    ) -> None:
+        self._gemini_simple = gemini_simple
+        self._gemini_complex = gemini_complex
+        self._ollama_workflow = ollama_workflow
+        self._ollama_code = ollama_code
+
+    def answer(
+        self,
+        *,
+        question: str,
+        pathname: str,
+        workspace: str,
+        evidence_context: str | None,
+    ) -> CopilotGuidance:
+        code_request = _is_code_generation_request(question)
+        cloud_provider = self._gemini_complex if _is_complex_request(question) else self._gemini_simple
+        local_provider = self._ollama_code if code_request else self._ollama_workflow
+        for provider in (cloud_provider, local_provider):
+            if provider is None:
+                continue
+            try:
+                return provider.answer(
+                    question=question,
+                    pathname=pathname,
+                    workspace=workspace,
+                    evidence_context=evidence_context,
+                )
+            except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError):
+                continue
+        return CopilotGuidance(
+            answer=(
+                "자동 안내 모델에 연결할 수 없습니다. 잠시 후 같은 질문을 다시 시도하거나, "
+                "분석 목적·결과 변수·데이터 구조·현재 제약을 직접 입력해 주세요."
+            ),
+            provider="statpro-fallback-unavailable",
+            sources=(_SELECTION_SOURCE,),
+            limitations=(
+                "Rulebase에 직접 대응하는 규칙을 찾지 못했습니다.",
+                "Gemini 및 로컬 Ollama 폴백 응답을 사용할 수 없었습니다.",
+                "분석 설정이나 저장 문서는 자동으로 변경하지 않습니다.",
+            ),
+            action=CopilotAction("분석 선택 시작", "/analyses"),
+            guidance_mode="unmatched",
+            checklist=("분석 목표 입력", "결과 변수의 데이터형 입력", "수집 구조와 표본 수 입력", "현장 제약·안전 범위 입력"),
+            workflow_steps=("필수 입력 보완", "분석 선택 도우미에서 방법 검토", "사용자가 설정을 검토·실행"),
+        )
+
+
 def _guidance_from_llm_payload(
     payload: Mapping[str, Any],
     *,
@@ -673,19 +745,51 @@ class LocalLlmCopilotProvider:
 
 
 def build_default_copilot_provider() -> CopilotProvider:
-    """Build the Rulebase-first chain with an explicitly enabled fallback only."""
+    """Build Rulebase → Gemini tier → Ollama tier → manual-input guidance."""
 
-    rule_provider = LocalKnowledgeCopilotProvider()
-    local_enabled = os.getenv("STATPRO_COPILOT_LOCAL_LLM_ENABLED", "").casefold() == "true"
-    if local_enabled:
-        endpoint = os.getenv("STATPRO_COPILOT_LOCAL_LLM_URL", "")
-        model = os.getenv("STATPRO_COPILOT_LOCAL_LLM_MODEL", "")
-        try:
-            fallback = LocalLlmCopilotProvider(endpoint, model)
-        except ValueError:
-            fallback = None
-        return RuleFirstCopilotProvider(rule_provider, fallback)
-    enabled = os.getenv("STATPRO_COPILOT_LLM_ENABLED", "").casefold() == "true"
+    gemini_enabled = os.getenv("STATPRO_COPILOT_LLM_ENABLED", "").casefold() == "true"
     api_key = os.getenv("GEMINI_API_KEY", "")
-    fallback = GeminiCopilotProvider(api_key) if enabled and api_key else None
-    return RuleFirstCopilotProvider(rule_provider, fallback)
+    gemini_simple = None
+    gemini_complex = None
+    if gemini_enabled and api_key:
+        gemini_simple = GeminiCopilotProvider(
+            api_key,
+            model=os.getenv("STATPRO_COPILOT_GEMINI_SIMPLE_MODEL", "") or "gemini-3.5-flash-lite",
+        )
+        gemini_complex = GeminiCopilotProvider(
+            api_key,
+            model=os.getenv("STATPRO_COPILOT_GEMINI_COMPLEX_MODEL", "") or "gemini-3.8-flash",
+        )
+
+    ollama_enabled = (
+        os.getenv("STATPRO_COPILOT_OLLAMA_ENABLED", "").casefold() == "true"
+        or os.getenv("STATPRO_COPILOT_LOCAL_LLM_ENABLED", "").casefold() == "true"
+    )
+    ollama_endpoint = (
+        os.getenv("STATPRO_COPILOT_OLLAMA_URL", "")
+        or os.getenv("STATPRO_COPILOT_LOCAL_LLM_URL", "")
+    )
+    workflow_model = (
+        os.getenv("STATPRO_COPILOT_OLLAMA_WORKFLOW_MODEL", "")
+        or os.getenv("STATPRO_COPILOT_LOCAL_LLM_MODEL", "")
+        or "qwen3:4b-q4_K_M"
+    )
+    code_model = os.getenv("STATPRO_COPILOT_OLLAMA_CODE_MODEL", "") or "qwen2.5-coder:7b-instruct-q4_K_M"
+    ollama_workflow = None
+    ollama_code = None
+    if ollama_enabled:
+        try:
+            ollama_workflow = LocalLlmCopilotProvider(ollama_endpoint, workflow_model)
+            ollama_code = LocalLlmCopilotProvider(ollama_endpoint, code_model)
+        except ValueError:
+            pass
+
+    return RuleFirstCopilotProvider(
+        LocalKnowledgeCopilotProvider(),
+        FallbackChainCopilotProvider(
+            gemini_simple=gemini_simple,
+            gemini_complex=gemini_complex,
+            ollama_workflow=ollama_workflow,
+            ollama_code=ollama_code,
+        ),
+    )

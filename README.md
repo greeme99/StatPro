@@ -13,7 +13,7 @@
 - **품질 도구와 DMAIC 연결**: 체크 시트, 일반 파레토, 특성요인도, 홈 기반 DMAIC 작업 흐름과 학습 리소스
 - **품질 대시보드**: 저장된 ResultBundle의 수치 경로를 불변 지표 스냅샷으로 연결하고 상태·담당·검토 주기·원본 Run 증거를 함께 표시
 - **결함 분석**: 체크 시트 개정 근거 또는 수동 입력에서 범주별 결함·검사 기회·단위 손실·심각도를 기록하고 DPMO·손실·위험 우선순위를 불변 개정으로 보존
-- **AI Copilot**: 오른쪽 보이기·감추기 패널에서 현재 작업공간과 저장된 분석 실행·DMAIC 프로젝트 근거를 읽고, 검토된 Rulebase로 추천 도구·메뉴 경로·체크리스트·업무절차를 우선 안내. 일치 규칙이 없고 관리자가 명시적으로 허용한 경우에만 Gemini 2.5 Flash를 호출하며, 실패 시 로컬 안내로 닫히고 분석 설정은 자동 변경하지 않음
+- **AI Copilot**: 오른쪽 보이기·감추기 대화 패널에서 현재 작업공간과 저장된 분석 실행·DMAIC 프로젝트 근거를 읽고, 검토된 Rulebase로 추천 도구·메뉴 경로·체크리스트·업무절차를 우선 안내. 대화에서 선택한 Workflow는 현재 단계 완료와 작업공간 이동으로 이어지며, 설정·결과·프로젝트 문서는 사용자가 해당 작업공간에서 별도로 저장함
 - **분석 선택 도우미**: 판단 목적, 데이터 유형, 표본·기회 구조를 단계적으로 선택해 현재 실행 가능한 SPC·DOE·FMEA·DMAIC 작업공간과 필수 입력·사전 점검 항목을 제안
 
 제품 웹 UI의 표준 흐름은 `홈(Home) → 작업공간(Workspace) → 작업 흐름(Workflow) → 데이터 입력(Input) → 분석 실행(Run) → 결과 검토(Review) → 결과 출력(Export)`입니다. 메뉴와 화면 표기는 한국어를 우선하고 필요한 경우 영어를 괄호로 병기합니다. 홈의 DOE·SPC·FMEA 카드에서 저장한 즐겨찾기는 상단 우측의 **즐겨찾기** 메뉴와 홈 바로가기 영역에 현재 브라우저별로 보존되어 즉시 작업공간을 열 수 있습니다.
@@ -47,7 +47,7 @@ npm ci
 npm run dev -- --host 127.0.0.1
 ```
 
-### AI Copilot의 선택적 Gemini 연결
+### AI Copilot의 선택적 생성형 AI 연결
 
 기본 상태는 외부 호출이 비활성화되어 Rulebase만 사용합니다. 저장소 루트의 `.env.example`을 `.env`로 복사한 뒤, 키를 **채팅이나 Git에 올리지 말고 로컬 `.env`에만** 입력합니다.
 
@@ -58,16 +58,19 @@ Copy-Item .env.example .env
 ```dotenv
 STATPRO_COPILOT_LLM_ENABLED=true
 GEMINI_API_KEY=여기에_발급받은_키를_입력
+STATPRO_COPILOT_GEMINI_SIMPLE_MODEL=gemini-3.5-flash-lite
+STATPRO_COPILOT_GEMINI_COMPLEX_MODEL=gemini-3.8-flash
 ```
 
-API는 `statpro-api` 실행 시 저장소 루트의 `.env`를 읽습니다. 다른 파일을 쓰려면 `statpro-api --env-file "D:\secure\statpro.env" ...`처럼 지정합니다. `.env`는 `.gitignore`로 제외되며, 이미 설정된 프로세스 환경 변수는 파일 값으로 덮어쓰지 않습니다. Gemini에는 Rulebase로 답하지 못한 질문과 현재 작업공간 문맥만 전달되므로 조직 정책과 개인정보 기준을 확인한 뒤 활성화하십시오.
+API는 `statpro-api` 실행 시 저장소 루트의 `.env`를 읽습니다. 다른 파일을 쓰려면 `statpro-api --env-file "D:\secure\statpro.env" ...`처럼 지정합니다. `.env`는 `.gitignore`로 제외되며, 이미 설정된 프로세스 환경 변수는 파일 값으로 덮어쓰지 않습니다. Rulebase 미일치 요청은 난이도 분류 후 단순 요청은 Gemini 3.5 Flash-Lite, 복잡·다단계·코드 요청은 Gemini 3.8 Flash로 전달합니다. Gemini에는 미일치 질문과 현재 작업공간 문맥만 전달되므로 조직 정책과 개인정보 기준을 확인한 뒤 활성화하십시오.
 
-로컬 모델을 사용할 때는 Gemini 설정 대신 아래처럼 OpenAI 호환 `chat/completions` endpoint를 지정합니다. `http://127.0.0.1`, `http://localhost`, `http://[::1]` 같은 loopback HTTP 주소만 허용하며, Rulebase가 일치한 질의는 모델로 전송하지 않습니다. endpoint·model이 비어 있거나 유효하지 않으면 생성형 폴백을 끄고 로컬 Rulebase 안내만 제공합니다.
+Gemini 호출이 실패했거나 비활성화된 경우에는 아래 Ollama OpenAI 호환 `chat/completions` endpoint로 폴백합니다. 일반 Workflow에는 `qwen3:4b-q4_K_M`, 코드 생성 요청에는 `qwen2.5-coder:7b-instruct-q4_K_M`을 사용합니다. `http://127.0.0.1`, `http://localhost`, `http://[::1]` 같은 loopback HTTP 주소만 허용하며, Rulebase가 일치한 질의는 모델로 전송하지 않습니다. 모든 모델이 실패하면 Copilot은 재시도와 분석 목적·데이터 구조·제약의 수동 입력을 안내합니다.
 
 ```dotenv
-STATPRO_COPILOT_LOCAL_LLM_ENABLED=true
-STATPRO_COPILOT_LOCAL_LLM_URL=http://127.0.0.1:11434/v1/chat/completions
-STATPRO_COPILOT_LOCAL_LLM_MODEL=설치한_모델_ID
+STATPRO_COPILOT_OLLAMA_ENABLED=true
+STATPRO_COPILOT_OLLAMA_URL=http://127.0.0.1:11434/v1/chat/completions
+STATPRO_COPILOT_OLLAMA_WORKFLOW_MODEL=qwen3:4b-q4_K_M
+STATPRO_COPILOT_OLLAMA_CODE_MODEL=qwen2.5-coder:7b-instruct-q4_K_M
 ```
 
 API 문서: <http://127.0.0.1:8765/docs> · 웹 UI: <http://127.0.0.1:5173>

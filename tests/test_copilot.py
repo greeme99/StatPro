@@ -14,6 +14,7 @@ from statpro.application.copilot import (
     CopilotAction,
     CopilotGuidance,
     CopilotSource,
+    FallbackChainCopilotProvider,
     GeminiCopilotProvider,
     LocalLlmCopilotProvider,
     LocalKnowledgeCopilotProvider,
@@ -90,6 +91,18 @@ class RecordingFallbackProvider:
         )
 
 
+class FailingFallbackProvider:
+    def answer(
+        self,
+        *,
+        question: str,
+        pathname: str,
+        workspace: str,
+        evidence_context: str | None,
+    ) -> CopilotGuidance:
+        raise OSError("model unavailable")
+
+
 class RuleFirstCopilotProviderTests(unittest.TestCase):
     def test_catalog_covers_every_supported_field_domain_with_complete_rules(self) -> None:
         rule_ids = [rule.rule_id for rule in COPILOT_RULE_CATALOG]
@@ -147,6 +160,12 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
             env_file.write_text(
                 "STATPRO_COPILOT_LLM_ENABLED=true\n"
                 "GEMINI_API_KEY=local-secret\n"
+                "STATPRO_COPILOT_GEMINI_SIMPLE_MODEL=gemini-test-lite\n"
+                "STATPRO_COPILOT_GEMINI_COMPLEX_MODEL=gemini-test-complex\n"
+                "STATPRO_COPILOT_OLLAMA_ENABLED=true\n"
+                "STATPRO_COPILOT_OLLAMA_URL=http://127.0.0.1:11434/v1/chat/completions\n"
+                "STATPRO_COPILOT_OLLAMA_WORKFLOW_MODEL=workflow-model\n"
+                "STATPRO_COPILOT_OLLAMA_CODE_MODEL=code-model\n"
                 "STATPRO_COPILOT_LOCAL_LLM_ENABLED=true\n"
                 "STATPRO_COPILOT_LOCAL_LLM_URL=http://127.0.0.1:11434/v1/chat/completions\n"
                 "STATPRO_COPILOT_LOCAL_LLM_MODEL=quality-model\n"
@@ -162,6 +181,8 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
 
                 self.assertEqual(os.environ["STATPRO_COPILOT_LLM_ENABLED"], "true")
                 self.assertEqual(os.environ["GEMINI_API_KEY"], "process-secret")
+                self.assertEqual(os.environ["STATPRO_COPILOT_GEMINI_SIMPLE_MODEL"], "gemini-test-lite")
+                self.assertEqual(os.environ["STATPRO_COPILOT_OLLAMA_CODE_MODEL"], "code-model")
                 self.assertEqual(os.environ["STATPRO_COPILOT_LOCAL_LLM_MODEL"], "quality-model")
                 self.assertNotIn("UNRELATED_SECRET", os.environ)
     def test_rule_match_never_calls_the_llm_fallback(self) -> None:
@@ -200,6 +221,64 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
         self.assertEqual(fallback.questions, ["사내 신규 열처리 장비의 고유 진단 코드를 해석해줘"])
         self.assertEqual(guidance.provider, "gemini-2.5-flash")
         self.assertEqual(guidance.guidance_mode, "llm_fallback")
+
+    def test_fallback_chain_uses_light_gemini_for_a_simple_question(self) -> None:
+        simple = RecordingFallbackProvider()
+        complex_provider = RecordingFallbackProvider()
+        chain = FallbackChainCopilotProvider(
+            gemini_simple=simple,
+            gemini_complex=complex_provider,
+            ollama_workflow=RecordingFallbackProvider(),
+            ollama_code=RecordingFallbackProvider(),
+        )
+
+        guidance = chain.answer(
+            question="작업표 열 이름을 설명해줘",
+            pathname="/data",
+            workspace="작업표 및 데이터 (Worksheet & Data)",
+            evidence_context=None,
+        )
+
+        self.assertEqual(simple.questions, ["작업표 열 이름을 설명해줘"])
+        self.assertEqual(complex_provider.questions, [])
+        self.assertEqual(guidance.guidance_mode, "llm_fallback")
+
+    def test_fallback_chain_uses_complex_gemini_then_code_ollama(self) -> None:
+        code_ollama = RecordingFallbackProvider()
+        chain = FallbackChainCopilotProvider(
+            gemini_simple=RecordingFallbackProvider(),
+            gemini_complex=FailingFallbackProvider(),
+            ollama_workflow=RecordingFallbackProvider(),
+            ollama_code=code_ollama,
+        )
+
+        chain.answer(
+            question="SPC 이상 신호를 정리하는 Python 코드를 만들어줘",
+            pathname="/spc",
+            workspace="통계적 공정관리 (SPC)",
+            evidence_context=None,
+        )
+
+        self.assertEqual(code_ollama.questions, ["SPC 이상 신호를 정리하는 Python 코드를 만들어줘"])
+
+    def test_fallback_chain_requests_manual_input_after_all_models_fail(self) -> None:
+        chain = FallbackChainCopilotProvider(
+            gemini_simple=FailingFallbackProvider(),
+            gemini_complex=FailingFallbackProvider(),
+            ollama_workflow=FailingFallbackProvider(),
+            ollama_code=FailingFallbackProvider(),
+        )
+
+        guidance = chain.answer(
+            question="현장 특수 문제를 도와줘",
+            pathname="/home",
+            workspace="홈 (Home)",
+            evidence_context=None,
+        )
+
+        self.assertEqual(guidance.provider, "statpro-fallback-unavailable")
+        self.assertEqual(guidance.guidance_mode, "unmatched")
+        self.assertTrue(guidance.answer)
 
     def test_equipment_downtime_rule_leads_through_dmaic(self) -> None:
         fallback = RecordingFallbackProvider()
@@ -342,15 +421,15 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "loopback"):
             LocalLlmCopilotProvider("https://example.invalid/v1/chat/completions", "quality-model")
 
-    def test_invalid_local_llm_configuration_fails_closed_without_gemini_fallback(self) -> None:
+    def test_invalid_ollama_configuration_continues_to_manual_input_when_gemini_is_disabled(self) -> None:
         with patch.dict(
             os.environ,
             {
                 "STATPRO_COPILOT_LOCAL_LLM_ENABLED": "true",
                 "STATPRO_COPILOT_LOCAL_LLM_URL": "https://example.invalid/v1/chat/completions",
                 "STATPRO_COPILOT_LOCAL_LLM_MODEL": "quality-model",
-                "STATPRO_COPILOT_LLM_ENABLED": "true",
-                "GEMINI_API_KEY": "must-not-be-used",
+                "STATPRO_COPILOT_LLM_ENABLED": "false",
+                "GEMINI_API_KEY": "",
             },
             clear=True,
         ):
@@ -361,9 +440,9 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
                 evidence_context=None,
             )
 
-        self.assertEqual(guidance.provider, "statpro-rulebase-v2")
+        self.assertEqual(guidance.provider, "statpro-fallback-unavailable")
         self.assertEqual(guidance.guidance_mode, "unmatched")
-        self.assertIn("직접 대응하는 검토된 지식 규칙", guidance.limitations[-1])
+        self.assertIn("Gemini 및 로컬 Ollama", guidance.limitations[1])
 
 
 if __name__ == "__main__":

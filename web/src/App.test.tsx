@@ -467,7 +467,9 @@ describe("StatPro UI", () => {
     expect(within(panel).getAllByText("분석과 확인 실험")).toHaveLength(2);
     const activeWorkflow = within(panel).getByRole("region", { name: "현재 대화 워크플로" });
     expect(within(activeWorkflow).getByText("실험계획법 (DOE)")).toBeInTheDocument();
-    expect(within(activeWorkflow).getByRole("link", { name: "작업공간 열기" })).toHaveAttribute("href", "/doe");
+    expect(within(activeWorkflow).getByRole("link", { name: "현재 단계 작업공간 열기" })).toHaveAttribute("href", "/doe");
+    await user.click(within(activeWorkflow).getByRole("button", { name: "현재 단계 완료" }));
+    expect(within(activeWorkflow).getByText("현재 단계: 인자와 범위 정의")).toBeInTheDocument();
     await user.click(within(panel).getByRole("button", { name: "대화 초기화" }));
     expect(within(panel).queryByRole("region", { name: "현재 대화 워크플로" })).not.toBeInTheDocument();
   });

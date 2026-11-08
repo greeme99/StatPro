@@ -186,8 +186,9 @@ class LocalApiContractTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         guidance = response.json()
-        self.assertIn("근거가 충분하지 않습니다", guidance["answer"])
-        self.assertIn("직접 대응하는 검토된 지식 규칙", guidance["limitations"][-1])
+        self.assertEqual(guidance["provider"], "statpro-fallback-unavailable")
+        self.assertEqual(guidance["guidance_mode"], "unmatched")
+        self.assertIn("Rulebase", guidance["limitations"][0])
 
     def test_copilot_rejects_undeclared_or_empty_input(self) -> None:
         response = self.client.post(

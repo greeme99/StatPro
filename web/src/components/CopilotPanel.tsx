@@ -26,6 +26,10 @@ type CopilotEvidence = {
   href: string;
   answerContext: string;
 };
+type WorkflowSession = {
+  messageId: number;
+  stepIndex: number;
+};
 
 const initialMessage = (): CopilotMessage => ({
   id: Date.now(),
@@ -94,6 +98,7 @@ export function CopilotPanel() {
   const [catalogRules, setCatalogRules] = useState<CopilotRule[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [messages, setMessages] = useState<CopilotMessage[]>(() => [initialMessage()]);
+  const [workflowSession, setWorkflowSession] = useState<WorkflowSession | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -175,7 +180,7 @@ export function CopilotPanel() {
         workspace: context.name,
         evidence_context: guidanceContext(evidence, messages),
       });
-      setMessages((current) => [...current, {
+      const assistantMessage: CopilotMessage = {
         id: messageId + 1,
         role: "assistant",
         text: guidance.answer,
@@ -187,7 +192,9 @@ export function CopilotPanel() {
         menuPath: guidance.menu_path,
         checklist: guidance.checklist,
         workflowSteps: guidance.workflow_steps,
-      }]);
+      };
+      setMessages((current) => [...current, assistantMessage]);
+      if (guidance.workflow_steps.length > 0) setWorkflowSession({ messageId: assistantMessage.id, stepIndex: 0 });
     } catch {
       const guidance = guideCopilotQuestion({
         question: text,
@@ -195,7 +202,7 @@ export function CopilotPanel() {
         pathname: location.pathname,
         evidenceContext: guidanceContext(evidence, messages),
       });
-      setMessages((current) => [...current, {
+      const assistantMessage: CopilotMessage = {
         id: messageId + 1,
         role: "assistant",
         text: guidance.text,
@@ -206,7 +213,9 @@ export function CopilotPanel() {
         menuPath: guidance.menuPath,
         checklist: guidance.checklist,
         workflowSteps: guidance.workflowSteps,
-      }]);
+      };
+      setMessages((current) => [...current, assistantMessage]);
+      if (guidance.workflowSteps?.length) setWorkflowSession({ messageId: assistantMessage.id, stepIndex: 0 });
     } finally {
       setAnswerLoading(false);
     }
@@ -217,10 +226,22 @@ export function CopilotPanel() {
     void ask(question);
   };
 
-  const activeWorkflow = [...messages].reverse().find((message) => message.role === "assistant" && message.workflowSteps && message.workflowSteps.length > 0);
+  const latestWorkflow = [...messages].reverse().find((message) => message.role === "assistant" && message.workflowSteps && message.workflowSteps.length > 0);
+  const activeWorkflow = workflowSession
+    ? messages.find((message) => message.id === workflowSession.messageId && message.workflowSteps && message.workflowSteps.length > 0) ?? latestWorkflow
+    : latestWorkflow;
+  const activeStepIndex = activeWorkflow && workflowSession?.messageId === activeWorkflow.id ? workflowSession.stepIndex : 0;
+  const activeStep = activeWorkflow?.workflowSteps?.[activeStepIndex];
+  const finishActiveStep = () => {
+    if (!activeWorkflow?.workflowSteps || !workflowSession || workflowSession.messageId !== activeWorkflow.id) return;
+    setWorkflowSession((current) => current && current.messageId === activeWorkflow.id
+      ? { ...current, stepIndex: Math.min(current.stepIndex + 1, activeWorkflow.workflowSteps!.length) }
+      : current);
+  };
   const resetConversation = () => {
     if (answerLoading) return;
     setMessages([initialMessage()]);
+    setWorkflowSession(null);
     setQuestion("");
     window.requestAnimationFrame(() => inputRef.current?.focus());
   };
@@ -246,11 +267,15 @@ export function CopilotPanel() {
           <header><span>{evidence?.kind === "project" ? <FolderKanban aria-hidden="true" /> : <Database aria-hidden="true" />}</span><div><strong>현재 근거</strong><small>저장된 실행·프로젝트 계약에서 읽음</small></div></header>
           {evidenceLoading && !evidence ? <p>근거를 확인하고 있습니다.</p> : evidence && <><div><strong>{evidence.title}</strong><span>{evidence.identifier}</span><small>{evidence.revision} · {evidence.detail}</small></div><Link to={evidence.href}>근거 열기 <ExternalLink aria-hidden="true" /></Link></>}
         </section>}
-        {activeWorkflow && <section className="copilot-evidence" aria-label="현재 대화 워크플로">
-          <header><span><ListChecks aria-hidden="true" /></span><div><strong>현재 대화 워크플로</strong><small>최근 안내에서 이어갈 다음 행동</small></div></header>
+        {activeWorkflow && <section className="copilot-evidence copilot-workflow-session" aria-label="현재 대화 워크플로">
+          <header><span><ListChecks aria-hidden="true" /></span><div><strong>대화에서 만든 작업 흐름</strong><small>{activeStep ? `현재 단계: ${activeStep}` : "모든 안내 단계를 검토했습니다."}</small></div></header>
           {activeWorkflow.recommendedTool && <div><strong>{activeWorkflow.recommendedTool}</strong><span>{activeWorkflow.text}</span></div>}
-          <ol>{activeWorkflow.workflowSteps?.map((step) => <li key={step}>{step}</li>)}</ol>
-          {activeWorkflow.action && <Link to={activeWorkflow.action.href}>작업공간 열기 <ExternalLink aria-hidden="true" /></Link>}
+          <ol>{activeWorkflow.workflowSteps?.map((step, index) => <li className={index < activeStepIndex ? "is-complete" : index === activeStepIndex ? "is-current" : ""} key={step}><span>{index + 1}</span>{step}</li>)}</ol>
+          <div className="copilot-workflow-actions">
+            {activeStep && <button type="button" className="button-secondary" onClick={finishActiveStep}>현재 단계 완료</button>}
+            {activeWorkflow.action && <Link className="button-primary" to={activeWorkflow.action.href}>{activeStep ? "현재 단계 작업공간 열기" : "작업공간 열기"} <ExternalLink aria-hidden="true" /></Link>}
+          </div>
+          <small>완료 표시는 이 브라우저 대화에서만 관리됩니다. 분석 설정·결과·프로젝트 문서는 사용자가 작업공간에서 별도로 저장해야 합니다.</small>
         </section>}
         <div className="copilot-messages" role="log" aria-live="polite" aria-relevant="additions">
           {messages.map((message) => <div className={`copilot-message is-${message.role}`} key={message.id}><strong>{message.role === "assistant" ? "Copilot" : "사용자"}</strong><p>{message.text}</p>{message.guidanceMode === "unmatched" && <section className="copilot-scope-notice" aria-label="StatPro 제공 범위 안내"><h3>StatPro 제공 범위 밖</h3><p>이 요청은 StatPro에서 분석·승인·자동 실행하지 않습니다. 권장 연계 도구와 데이터 계약을 별도로 확인하세요.</p></section>}{message.recommendedTool && <section className="copilot-guidance-block"><h3>{message.guidanceMode === "unmatched" ? "권장 연계 도구" : "추천 도구"}</h3><strong>{message.recommendedTool}</strong></section>}{message.menuPath && message.menuPath.length > 0 && <nav className="copilot-guidance-block" aria-label="추천 메뉴 경로"><h3>메뉴 경로</h3><ol>{message.menuPath.map((item) => <li key={item}>{item}</li>)}</ol></nav>}{message.checklist && message.checklist.length > 0 && <section className="copilot-guidance-block"><h3>실행 전 체크리스트</h3><ul>{message.checklist.map((item) => <li key={item}>{item}</li>)}</ul></section>}{message.workflowSteps && message.workflowSteps.length > 0 && <section className="copilot-guidance-block"><h3>업무절차 (Workflow)</h3><ol>{message.workflowSteps.map((item) => <li key={item}>{item}</li>)}</ol></section>}{message.provider && <small className="copilot-provider">응답 출처: {message.provider}{message.guidanceMode === "llm_fallback" ? " · 생성형 AI 보완" : message.guidanceMode === "rulebase" ? " · 검토된 Rulebase" : ""}</small>}{message.sources && message.sources.length > 0 && <details className="copilot-sources"><summary>근거 {message.sources.length}건</summary><ul>{message.sources.map((source) => <li key={source.reference}><span>{source.title}</span><code>{source.reference}</code></li>)}</ul></details>}{message.action && <Link className="copilot-action" to={message.action.href}>{message.action.label}<ChevronRight aria-hidden="true" /></Link>}</div>)}
