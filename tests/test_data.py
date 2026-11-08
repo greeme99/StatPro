@@ -9,10 +9,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from statpro.domain.data import (
     DataType,
+    add_derived_numeric_column,
     create_worksheet,
+    filter_worksheet_rows,
     import_csv_bytes,
     import_csv_dataset,
     replace_worksheet_cell,
+    sort_worksheet_rows,
 )
 from statpro.domain.errors import AnalysisInputError
 
@@ -107,3 +110,62 @@ class WorksheetRevisionTests(unittest.TestCase):
                 worksheet, row_index=0, column_name="value", value="not-a-number"
             )
         self.assertEqual(context.exception.detail.code, "invalid_column_value")
+
+    def test_filter_sort_and_derived_column_each_create_a_new_revision(self) -> None:
+        worksheet = create_worksheet(
+            import_csv_bytes(b"value,divisor,part\n2,2,A\n1,1,B\n,4,A\n", location="values.csv"),
+            name="Measurements",
+        )
+        filtered = filter_worksheet_rows(
+            worksheet, column_name="part", operator="equals", value="A"
+        )
+        sorted_worksheet = sort_worksheet_rows(
+            worksheet, column_name="value", descending=True
+        )
+        derived = add_derived_numeric_column(
+            worksheet,
+            column_name="ratio",
+            source_column="value",
+            operation="divide",
+            operand_column="divisor",
+        )
+
+        self.assertEqual(worksheet.row_count, 3)
+        self.assertEqual(filtered.revision, 2)
+        self.assertEqual(filtered.columns[0].values, (2.0, None))
+        self.assertEqual(filtered.transformations[-1]["operation"], "filter_rows")
+        self.assertEqual(sorted_worksheet.columns[0].values, (2.0, 1.0, None))
+        self.assertEqual(sorted_worksheet.columns[2].values, ("A", "B", "A"))
+        self.assertEqual(derived.columns[-1].name, "ratio")
+        self.assertEqual(derived.columns[-1].values, (1.0, 1.0, None))
+        self.assertEqual(derived.parent_digest, worksheet.digest)
+
+    def test_derived_column_rejects_zero_division_and_duplicate_names(self) -> None:
+        worksheet = create_worksheet(
+            import_csv_bytes(b"value,zero\n2,0\n", location="values.csv"), name="Measurements"
+        )
+        with self.assertRaises(AnalysisInputError) as zero_context:
+            add_derived_numeric_column(
+                worksheet,
+                column_name="ratio",
+                source_column="value",
+                operation="divide",
+                operand_column="zero",
+            )
+        with self.assertRaises(AnalysisInputError) as duplicate_context:
+            add_derived_numeric_column(
+                worksheet,
+                column_name="value",
+                source_column="value",
+                operation="copy",
+            )
+        self.assertEqual(zero_context.exception.detail.code, "division_by_zero")
+        self.assertEqual(duplicate_context.exception.detail.code, "duplicate_column_name")
+
+    def test_filter_requires_a_value_except_for_missingness_checks(self) -> None:
+        worksheet = create_worksheet(
+            import_csv_bytes(b"value\n2\n", location="values.csv"), name="Measurements"
+        )
+        with self.assertRaises(AnalysisInputError) as context:
+            filter_worksheet_rows(worksheet, column_name="value", operator="equals")
+        self.assertEqual(context.exception.detail.code, "missing_filter_value")

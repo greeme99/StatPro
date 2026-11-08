@@ -65,6 +65,9 @@ class LocalApiContractTests(unittest.TestCase):
         )
         self.assertIn("/v1/copilot/guidance", openapi.json()["paths"])
         self.assertIn("/v1/copilot/rules", openapi.json()["paths"])
+        self.assertIn("/v1/worksheets/{worksheet_id}/filter-rows", openapi.json()["paths"])
+        self.assertIn("/v1/worksheets/{worksheet_id}/sort-rows", openapi.json()["paths"])
+        self.assertIn("/v1/worksheets/{worksheet_id}/derived-columns", openapi.json()["paths"])
 
     def test_copilot_returns_local_evidence_aware_guidance(self) -> None:
         response = self.client.post(
@@ -2112,6 +2115,62 @@ class LocalApiContractTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 422)
         self.assertEqual(response.json()["error"]["code"], "invalid_base64")
+
+    def test_worksheet_filter_sort_and_derived_column_create_revisions(self) -> None:
+        content = base64.b64encode(
+            b"value,divisor,part\n2,2,A\n1,1,B\n,4,A\n"
+        ).decode("ascii")
+        created = self.client.post(
+            "/v1/worksheets/import-csv",
+            json={
+                "file_name": "process.csv",
+                "worksheet_name": "Process Measurements",
+                "content_base64": content,
+            },
+        ).json()
+        worksheet_id = created["worksheet_id"]
+
+        filtered = self.client.post(
+            f"/v1/worksheets/{worksheet_id}/filter-rows",
+            json={
+                "expected_storage_version": 1,
+                "column_name": "part",
+                "operator": "equals",
+                "value": "A",
+            },
+        )
+        self.assertEqual(filtered.status_code, 200)
+        self.assertEqual(filtered.json()["worksheet"]["revision"], 2)
+        self.assertEqual(filtered.json()["worksheet"]["row_count"], 2)
+        self.assertEqual(filtered.json()["worksheet"]["columns"][0]["values"], [2.0, None])
+        self.assertEqual(filtered.json()["worksheet"]["parent_digest"], created["worksheet"]["digest"])
+
+        sorted_response = self.client.post(
+            f"/v1/worksheets/{worksheet_id}/sort-rows",
+            json={
+                "expected_storage_version": 2,
+                "column_name": "value",
+                "descending": False,
+            },
+        )
+        self.assertEqual(sorted_response.status_code, 200)
+        self.assertEqual(sorted_response.json()["worksheet"]["revision"], 3)
+        self.assertEqual(sorted_response.json()["worksheet"]["columns"][0]["values"], [2.0, None])
+
+        derived = self.client.post(
+            f"/v1/worksheets/{worksheet_id}/derived-columns",
+            json={
+                "expected_storage_version": 3,
+                "column_name": "ratio",
+                "source_column": "value",
+                "operation": "divide",
+                "operand_constant": 2,
+            },
+        )
+        self.assertEqual(derived.status_code, 200)
+        self.assertEqual(derived.json()["worksheet"]["revision"], 4)
+        self.assertEqual(derived.json()["worksheet"]["columns"][-1]["name"], "ratio")
+        self.assertEqual(derived.json()["worksheet"]["columns"][-1]["values"], [1.0, None])
 
     def test_dmaic_solution_selection_is_versioned_and_retrievable(self) -> None:
         created = self.client.post(

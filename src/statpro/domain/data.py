@@ -372,3 +372,215 @@ def replace_worksheet_cell(
         columns=tuple(columns),
         transformations=transformations,
     )
+
+
+def _revise_worksheet(
+    worksheet: WorksheetSnapshot,
+    *,
+    columns: tuple[DataColumn, ...],
+    transformation: dict[str, Any],
+) -> WorksheetSnapshot:
+    """Create the single next immutable Worksheet revision for a transformation."""
+
+    transformations = worksheet.transformations + (transformation,)
+    revision = worksheet.revision + 1
+    payload = {
+        "name": worksheet.name,
+        "base_dataset_digest": worksheet.base_dataset_digest,
+        "revision": revision,
+        "parent_digest": worksheet.digest,
+        "columns": [item.to_dict() for item in columns],
+        "transformations": list(transformations),
+    }
+    digest = input_digest(payload)
+    return WorksheetSnapshot(
+        worksheet_id=worksheet.worksheet_id,
+        name=worksheet.name,
+        base_dataset_digest=worksheet.base_dataset_digest,
+        digest=digest,
+        revision=revision,
+        parent_digest=worksheet.digest,
+        columns=columns,
+        transformations=transformations,
+    )
+
+
+def _worksheet_column(worksheet: WorksheetSnapshot, column_name: str) -> DataColumn:
+    for column in worksheet.columns:
+        if column.name == column_name:
+            return column
+    raise AnalysisInputError(
+        "unknown_column", f"Worksheet has no column named '{column_name}'.", "column_name"
+    )
+
+
+def filter_worksheet_rows(
+    worksheet: WorksheetSnapshot,
+    *,
+    column_name: str,
+    operator: str,
+    value: CellValue = None,
+) -> WorksheetSnapshot:
+    """Keep rows matching a typed, auditable filter as a new Worksheet revision."""
+
+    column = _worksheet_column(worksheet, column_name)
+    allowed = {
+        "equals",
+        "not_equals",
+        "greater_than",
+        "greater_or_equal",
+        "less_than",
+        "less_or_equal",
+        "contains",
+        "is_missing",
+        "is_not_missing",
+    }
+    if operator not in allowed:
+        raise AnalysisInputError("invalid_filter_operator", "Unsupported worksheet filter.", "operator")
+    if operator in {"greater_than", "greater_or_equal", "less_than", "less_or_equal"} and column.data_type != DataType.NUMERIC:
+        raise AnalysisInputError("invalid_filter_type", "Numeric comparisons require a numeric column.", "column_name")
+    if operator == "contains" and column.data_type not in {DataType.TEXT, DataType.CATEGORICAL}:
+        raise AnalysisInputError("invalid_filter_type", "Contains requires a text or categorical column.", "column_name")
+    if operator not in {"is_missing", "is_not_missing"} and value is None:
+        raise AnalysisInputError("missing_filter_value", "This filter requires a comparison value.", "value")
+    if operator not in {"is_missing", "is_not_missing"} and value is not None:
+        normalized_value = _parse_value(str(value), column.data_type, "value")
+    else:
+        normalized_value = value
+
+    def matches(observed: CellValue) -> bool:
+        if operator == "is_missing":
+            return observed is None
+        if operator == "is_not_missing":
+            return observed is not None
+        if observed is None:
+            return False
+        if operator == "equals":
+            return observed == normalized_value
+        if operator == "not_equals":
+            return observed != normalized_value
+        if operator == "contains":
+            return str(normalized_value).casefold() in str(observed).casefold()
+        if operator == "greater_than":
+            return observed > normalized_value  # type: ignore[operator]
+        if operator == "greater_or_equal":
+            return observed >= normalized_value  # type: ignore[operator]
+        if operator == "less_than":
+            return observed < normalized_value  # type: ignore[operator]
+        return observed <= normalized_value  # type: ignore[operator]
+
+    row_indexes = tuple(index for index, observed in enumerate(column.values) if matches(observed))
+    columns = tuple(
+        replace(item, values=tuple(item.values[index] for index in row_indexes))
+        for item in worksheet.columns
+    )
+    return _revise_worksheet(
+        worksheet,
+        columns=columns,
+        transformation={
+            "operation": "filter_rows",
+            "column_name": column_name,
+            "operator": operator,
+            "value": normalized_value,
+            "kept_row_count": len(row_indexes),
+        },
+    )
+
+
+def sort_worksheet_rows(
+    worksheet: WorksheetSnapshot, *, column_name: str, descending: bool = False
+) -> WorksheetSnapshot:
+    """Stable-sort nonmissing rows while retaining missing values at the end."""
+
+    column = _worksheet_column(worksheet, column_name)
+    sortable_types = {DataType.NUMERIC, DataType.TEXT, DataType.CATEGORICAL, DataType.DATETIME, DataType.LOGICAL}
+    if column.data_type not in sortable_types:
+        raise AnalysisInputError("invalid_sort_type", "Column type cannot be sorted.", "column_name")
+    present = [index for index, value in enumerate(column.values) if value is not None]
+    missing = [index for index, value in enumerate(column.values) if value is None]
+    present.sort(key=lambda index: column.values[index], reverse=descending)
+    row_indexes = tuple(present + missing)
+    columns = tuple(
+        replace(item, values=tuple(item.values[index] for index in row_indexes))
+        for item in worksheet.columns
+    )
+    return _revise_worksheet(
+        worksheet,
+        columns=columns,
+        transformation={
+            "operation": "sort_rows",
+            "column_name": column_name,
+            "descending": descending,
+            "missing_position": "last",
+        },
+    )
+
+
+def add_derived_numeric_column(
+    worksheet: WorksheetSnapshot,
+    *,
+    column_name: str,
+    source_column: str,
+    operation: str,
+    operand_column: str | None = None,
+    operand_constant: float | None = None,
+) -> WorksheetSnapshot:
+    """Append a numeric arithmetic column without evaluating arbitrary expressions."""
+
+    normalized_name = column_name.strip()
+    if not normalized_name:
+        raise AnalysisInputError("empty_column_name", "Derived column needs a name.", "column_name")
+    if any(column.name == normalized_name for column in worksheet.columns):
+        raise AnalysisInputError("duplicate_column_name", "Worksheet column names must be unique.", "column_name")
+    source = _worksheet_column(worksheet, source_column)
+    if source.data_type != DataType.NUMERIC:
+        raise AnalysisInputError("invalid_derived_source", "Derived arithmetic requires a numeric source column.", "source_column")
+    allowed = {"copy", "add", "subtract", "multiply", "divide"}
+    if operation not in allowed:
+        raise AnalysisInputError("invalid_derived_operation", "Unsupported derived column operation.", "operation")
+    if operation == "copy" and (operand_column is not None or operand_constant is not None):
+        raise AnalysisInputError("unexpected_derived_operand", "Copy does not use an operand.", "operation")
+    if operation != "copy" and ((operand_column is None) == (operand_constant is None)):
+        raise AnalysisInputError("invalid_derived_operand", "Use exactly one operand column or numeric constant.", "operand")
+    if operand_column is not None:
+        operand = _worksheet_column(worksheet, operand_column)
+        if operand.data_type != DataType.NUMERIC:
+            raise AnalysisInputError("invalid_derived_operand", "Operand column must be numeric.", "operand_column")
+        operand_values = operand.values
+    else:
+        if operand_constant is not None and (isinstance(operand_constant, bool) or not math.isfinite(operand_constant)):
+            raise AnalysisInputError("invalid_derived_operand", "Operand constant must be finite.", "operand_constant")
+        operand_values = tuple(operand_constant for _ in range(worksheet.row_count))
+    values: list[CellValue] = []
+    for row_index, source_value in enumerate(source.values):
+        operand_value = operand_values[row_index]
+        if source_value is None or operand_value is None:
+            values.append(None)
+            continue
+        left = float(source_value)
+        right = float(operand_value)
+        if operation == "copy":
+            values.append(left)
+        elif operation == "add":
+            values.append(left + right)
+        elif operation == "subtract":
+            values.append(left - right)
+        elif operation == "multiply":
+            values.append(left * right)
+        else:
+            if right == 0:
+                raise AnalysisInputError("division_by_zero", "Derived column cannot divide by zero.", f"operand[{row_index}]")
+            values.append(left / right)
+    new_column = DataColumn(name=normalized_name, data_type=DataType.NUMERIC, values=tuple(values))
+    return _revise_worksheet(
+        worksheet,
+        columns=worksheet.columns + (new_column,),
+        transformation={
+            "operation": "add_derived_numeric_column",
+            "column_name": normalized_name,
+            "source_column": source_column,
+            "arithmetic": operation,
+            "operand_column": operand_column,
+            "operand_constant": operand_constant,
+        },
+    )

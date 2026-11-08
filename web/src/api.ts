@@ -1001,6 +1001,43 @@ export function replaceWorksheetCell(worksheetId: string, payload: {
   });
 }
 
+export function filterWorksheetRows(worksheetId: string, payload: {
+  expected_storage_version: number;
+  column_name: string;
+  operator: "equals" | "not_equals" | "greater_than" | "greater_or_equal" | "less_than" | "less_or_equal" | "contains" | "is_missing" | "is_not_missing";
+  value?: CellValue;
+}): Promise<StoredWorksheet> {
+  return request(`/v1/worksheets/${encodeURIComponent(worksheetId)}/filter-rows`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function sortWorksheetRows(worksheetId: string, payload: {
+  expected_storage_version: number;
+  column_name: string;
+  descending: boolean;
+}): Promise<StoredWorksheet> {
+  return request(`/v1/worksheets/${encodeURIComponent(worksheetId)}/sort-rows`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function addDerivedNumericColumn(worksheetId: string, payload: {
+  expected_storage_version: number;
+  column_name: string;
+  source_column: string;
+  operation: "copy" | "add" | "subtract" | "multiply" | "divide";
+  operand_column?: string;
+  operand_constant?: number;
+}): Promise<StoredWorksheet> {
+  return request(`/v1/worksheets/${encodeURIComponent(worksheetId)}/derived-columns`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function createCheckSheet(payload: {
   sheet_id: string;
   title: string;

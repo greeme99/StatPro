@@ -121,9 +121,12 @@ from statpro.domain.data import (
     DatasetSnapshot,
     DataType,
     WorksheetSnapshot,
+    add_derived_numeric_column,
     create_worksheet,
+    filter_worksheet_rows,
     import_csv_bytes,
     replace_worksheet_cell,
+    sort_worksheet_rows,
 )
 from statpro.domain.errors import AnalysisInputError, DomainInputError
 from statpro.domain.identity import input_digest
@@ -995,6 +998,30 @@ class ReplaceWorksheetCellRequest(ApiModel):
     row_index: int = Field(ge=0)
     column_name: str = Field(min_length=1)
     value: str | float | bool | None
+
+
+class FilterWorksheetRowsRequest(ApiModel):
+    expected_storage_version: int = Field(ge=1)
+    column_name: str = Field(min_length=1)
+    operator: Literal[
+        "equals", "not_equals", "greater_than", "greater_or_equal", "less_than", "less_or_equal", "contains", "is_missing", "is_not_missing"
+    ]
+    value: str | float | bool | None = None
+
+
+class SortWorksheetRowsRequest(ApiModel):
+    expected_storage_version: int = Field(ge=1)
+    column_name: str = Field(min_length=1)
+    descending: bool = False
+
+
+class AddDerivedNumericColumnRequest(ApiModel):
+    expected_storage_version: int = Field(ge=1)
+    column_name: str = Field(min_length=1, max_length=255)
+    source_column: str = Field(min_length=1)
+    operation: Literal["copy", "add", "subtract", "multiply", "divide"]
+    operand_column: str | None = Field(default=None, min_length=1)
+    operand_constant: float | None = None
 
 
 class StoredWorksheetResponse(ApiModel):
@@ -2990,6 +3017,67 @@ def create_app(
             revised,
             expected_version=request.expected_storage_version,
         )
+        response.headers["ETag"] = f'"{saved.etag}"'
+        return _worksheet_response(saved)
+
+    @app.post(
+        "/v1/worksheets/{worksheet_id}/filter-rows",
+        response_model=StoredWorksheetResponse,
+    )
+    def filter_rows(
+        worksheet_id: RunId,
+        request: FilterWorksheetRowsRequest,
+        response: Response,
+    ) -> StoredWorksheetResponse:
+        _stored, worksheet = _load_worksheet(repository, worksheet_id)
+        revised = filter_worksheet_rows(
+            worksheet,
+            column_name=request.column_name,
+            operator=request.operator,
+            value=request.value,
+        )
+        saved = _save_worksheet(repository, revised, expected_version=request.expected_storage_version)
+        response.headers["ETag"] = f'"{saved.etag}"'
+        return _worksheet_response(saved)
+
+    @app.post(
+        "/v1/worksheets/{worksheet_id}/sort-rows",
+        response_model=StoredWorksheetResponse,
+    )
+    def sort_rows(
+        worksheet_id: RunId,
+        request: SortWorksheetRowsRequest,
+        response: Response,
+    ) -> StoredWorksheetResponse:
+        _stored, worksheet = _load_worksheet(repository, worksheet_id)
+        revised = sort_worksheet_rows(
+            worksheet,
+            column_name=request.column_name,
+            descending=request.descending,
+        )
+        saved = _save_worksheet(repository, revised, expected_version=request.expected_storage_version)
+        response.headers["ETag"] = f'"{saved.etag}"'
+        return _worksheet_response(saved)
+
+    @app.post(
+        "/v1/worksheets/{worksheet_id}/derived-columns",
+        response_model=StoredWorksheetResponse,
+    )
+    def add_derived_column(
+        worksheet_id: RunId,
+        request: AddDerivedNumericColumnRequest,
+        response: Response,
+    ) -> StoredWorksheetResponse:
+        _stored, worksheet = _load_worksheet(repository, worksheet_id)
+        revised = add_derived_numeric_column(
+            worksheet,
+            column_name=request.column_name,
+            source_column=request.source_column,
+            operation=request.operation,
+            operand_column=request.operand_column,
+            operand_constant=request.operand_constant,
+        )
+        saved = _save_worksheet(repository, revised, expected_version=request.expected_storage_version)
         response.headers["ETag"] = f'"{saved.etag}"'
         return _worksheet_response(saved)
 
