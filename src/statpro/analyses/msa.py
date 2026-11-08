@@ -59,6 +59,10 @@ ATTRIBUTE_KAPPA_SOURCE = ProvenanceSource(
         "attribute-agreement-analysis/methods-and-formulas/kappa-statistics/"
     ),
 )
+ATTRIBUTE_WILSON_SOURCE = ProvenanceSource(
+    title="NIST/SEMATECH 7.2.4.1 Confidence intervals for proportions",
+    url="https://itl.nist.gov/div898/handbook/prc/section2/prc241.htm",
+)
 GAGE_BIAS_SOURCE = ProvenanceSource(
     title="Minitab: Methods and formulas for Gage Bias",
     url=(
@@ -173,6 +177,20 @@ def _repeatability_variance_ci(variance: float, degrees_of_freedom: int, confide
         "lower": degrees_of_freedom * variance / chi_square_quantile(1.0 - alpha / 2.0, degrees_of_freedom),
         "upper": degrees_of_freedom * variance / chi_square_quantile(alpha / 2.0, degrees_of_freedom),
     }
+
+
+def _wilson_proportion_ci(successes: int, trials: int, confidence_level: float = 0.95) -> dict[str, float]:
+    """Return a two-sided Wilson score interval for a binomial proportion."""
+    if trials < 1 or successes < 0 or successes > trials:
+        raise ValueError("Wilson interval needs 0 <= successes <= trials and trials >= 1.")
+    alpha = 1.0 - confidence_level
+    z = NormalDist().inv_cdf(1.0 - alpha / 2.0)
+    z_squared = z * z
+    proportion = successes / trials
+    denominator = 1.0 + z_squared / trials
+    center = (proportion + z_squared / (2.0 * trials)) / denominator
+    margin = z * math.sqrt((proportion * (1.0 - proportion) + z_squared / (4.0 * trials)) / trials) / denominator
+    return {"confidence_level": confidence_level, "lower": max(0.0, center - margin), "upper": min(1.0, center + margin)}
 
 
 def gage_rr_crossed(
@@ -513,8 +531,10 @@ def attribute_agreement(records: Sequence[AttributeAssessmentRecord]) -> ResultB
                 "trials_per_item": trials_per_item,
                 "within_matched": within,
                 "within_percent": within / len(items) * 100.0,
+                "within_confidence_interval": _wilson_proportion_ci(within, len(items)),
                 "standard_matched": standard,
                 "standard_percent": standard / len(items) * 100.0,
+                "standard_confidence_interval": _wilson_proportion_ci(standard, len(items)),
                 "cohen_kappa_vs_standard": _cohen_kappa(
                     [row.rating for row in flat], [row.standard for row in flat]
                 ),
@@ -561,8 +581,10 @@ def attribute_agreement(records: Sequence[AttributeAssessmentRecord]) -> ResultB
                 "items_inspected": len(items),
                 "all_appraisers_match_standard": all_standard,
                 "all_appraisers_standard_percent": all_standard / len(items) * 100.0,
+                "all_appraisers_standard_confidence_interval": _wilson_proportion_ci(all_standard, len(items)),
                 "all_appraisers_agree": all_agree,
                 "all_appraisers_agree_percent": all_agree / len(items) * 100.0,
+                "all_appraisers_agree_confidence_interval": _wilson_proportion_ci(all_agree, len(items)),
             },
         },
         plots={"agreement_by_appraiser": rows},
@@ -574,9 +596,10 @@ def attribute_agreement(records: Sequence[AttributeAssessmentRecord]) -> ResultB
         ),
         warnings=(
             "Percent agreement includes agreement that can occur by chance; Cohen's kappa is shown as a complementary chance-corrected measure.",
-            "This implementation does not calculate confidence intervals, Fleiss' kappa, or ordinal Kendall concordance.",
+            "Wilson 95% intervals describe the item-level complete-agreement proportions; they do not model dependencies among appraisers or repeated trials.",
+            "This implementation does not calculate Fleiss' kappa or ordinal Kendall concordance.",
         ),
-        provenance=(ATTRIBUTE_AGREEMENT_SOURCE, ATTRIBUTE_KAPPA_SOURCE),
+        provenance=(ATTRIBUTE_AGREEMENT_SOURCE, ATTRIBUTE_KAPPA_SOURCE, ATTRIBUTE_WILSON_SOURCE),
     )
 
 

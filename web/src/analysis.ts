@@ -74,8 +74,8 @@ export function toNestedGageRrView(result: ResultBundle | undefined): NestedGage
 
 export type AttributeAgreementView = {
   study: { item_count: number; appraiser_count: number; trials_per_item: number; assessment_count: number; categories: string[] };
-  appraisers: Array<{ appraiser: string; items_inspected: number; trials_per_item: number; within_percent: number; standard_percent: number; cohen_kappa_vs_standard: number | null }>;
-  overall: { all_appraisers_match_standard: number; all_appraisers_standard_percent: number; all_appraisers_agree: number; all_appraisers_agree_percent: number };
+  appraisers: Array<{ appraiser: string; items_inspected: number; trials_per_item: number; within_percent: number; within_confidence_interval: { confidence_level: number; lower: number; upper: number }; standard_percent: number; standard_confidence_interval: { confidence_level: number; lower: number; upper: number }; cohen_kappa_vs_standard: number | null }>;
+  overall: { all_appraisers_match_standard: number; all_appraisers_standard_percent: number; all_appraisers_standard_confidence_interval: { confidence_level: number; lower: number; upper: number }; all_appraisers_agree: number; all_appraisers_agree_percent: number; all_appraisers_agree_confidence_interval: { confidence_level: number; lower: number; upper: number } };
 };
 
 export type GageBiasLinearityView = {

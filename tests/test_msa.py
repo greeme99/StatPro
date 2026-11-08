@@ -53,6 +53,22 @@ class CrossedGageRrTests(unittest.TestCase):
         self.assertAlmostEqual(repeatability_ci["lower"], 0.7179, places=3)
         self.assertAlmostEqual(repeatability_ci["upper"], 16.5146, places=3)
 
+    def test_attribute_agreement_reports_item_level_wilson_intervals(self) -> None:
+        records = [
+            AttributeAssessmentRecord("1", "A", 1, "pass", "pass"), AttributeAssessmentRecord("1", "B", 1, "pass", "pass"),
+            AttributeAssessmentRecord("2", "A", 1, "fail", "fail"), AttributeAssessmentRecord("2", "B", 1, "pass", "fail"),
+            AttributeAssessmentRecord("3", "A", 1, "pass", "pass"), AttributeAssessmentRecord("3", "B", 1, "pass", "pass"),
+            AttributeAssessmentRecord("4", "A", 1, "fail", "fail"), AttributeAssessmentRecord("4", "B", 1, "fail", "fail"),
+        ]
+        result = attribute_agreement(records)
+        appraiser_b = next(row for row in result.tables["appraiser_agreement"] if row["appraiser"] == "B")
+        interval = appraiser_b["standard_confidence_interval"]
+        self.assertEqual(interval["confidence_level"], 0.95)
+        self.assertLess(interval["lower"], 0.75)
+        self.assertGreater(interval["upper"], 0.75)
+        self.assertIn("Wilson 95% intervals", result.warnings[1])
+        self.assertIn("7.2.4.1", result.provenance[-1].title)
+
     def test_negative_component_is_truncated_but_raw_estimate_is_preserved(self) -> None:
         result = gage_rr_crossed(fixture_records())
         components = {
