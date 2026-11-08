@@ -94,6 +94,7 @@ class DmaicProject:
     solution_selection: DmaicDocumentReference | None = None
     pilot_plan: DmaicDocumentReference | None = None
     cost_benefit_analysis: DmaicDocumentReference | None = None
+    implementation_plan: DmaicDocumentReference | None = None
     control_handoff: DmaicDocumentReference | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -139,9 +140,11 @@ class DmaicProject:
                 None if self.control_handoff is None else self.control_handoff.to_dict()
             ),
         }
-        # Omit a later-added document reference for historical digest compatibility.
+        # Omit later-added document references for historical digest compatibility.
         if self.cost_benefit_analysis is not None:
             payload["cost_benefit_analysis"] = self.cost_benefit_analysis.to_dict()
+        if self.implementation_plan is not None:
+            payload["implementation_plan"] = self.implementation_plan.to_dict()
         return payload
 
     @classmethod
@@ -156,6 +159,7 @@ class DmaicProject:
         solution_selection = payload.get("solution_selection")
         pilot_plan = payload.get("pilot_plan")
         cost_benefit_analysis = payload.get("cost_benefit_analysis")
+        implementation_plan = payload.get("implementation_plan")
         control_handoff = payload.get("control_handoff")
         project = cls(
             project_id=payload["project_id"], title=payload["title"], owner_ref=payload["owner_ref"],
@@ -200,6 +204,11 @@ class DmaicProject:
                 None
                 if cost_benefit_analysis is None
                 else DmaicDocumentReference(**cost_benefit_analysis)
+            ),
+            implementation_plan=(
+                None
+                if implementation_plan is None
+                else DmaicDocumentReference(**implementation_plan)
             ),
             control_handoff=(
                 None
@@ -680,6 +689,72 @@ class DmaicPilotPlan:
 
 
 @dataclass(frozen=True, slots=True)
+class DmaicImplementationPhase:
+    """A named, owned delivery phase within an implementation plan."""
+
+    phase_id: str
+    name: str
+    owner_ref: str
+    target_date: str | None
+    completion_criteria: tuple[str, ...]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {**asdict(self), "completion_criteria": list(self.completion_criteria)}
+
+
+@dataclass(frozen=True, slots=True)
+class DmaicImplementationPlan:
+    """Immutable Improve-phase execution plan; it does not claim rollout completion."""
+
+    document_id: str
+    project_id: str
+    revision: int
+    parent_digest: str | None
+    digest: str
+    strategy: str
+    phases: tuple[DmaicImplementationPhase, ...]
+    communication_plan: str
+    quality_plan: str
+    training_plan: str
+    completion_criteria: tuple[str, ...]
+    source_documents: tuple[DmaicDocumentReference, ...]
+    actor: str
+    occurred_at: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            **asdict(self),
+            "phases": [item.to_dict() for item in self.phases],
+            "completion_criteria": list(self.completion_criteria),
+            "source_documents": [item.to_dict() for item in self.source_documents],
+        }
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> "DmaicImplementationPlan":
+        plan = cls(
+            document_id=payload["document_id"], project_id=payload["project_id"],
+            revision=payload["revision"], parent_digest=payload.get("parent_digest"),
+            digest=payload["digest"], strategy=payload["strategy"],
+            phases=tuple(
+                DmaicImplementationPhase(
+                    phase_id=item["phase_id"], name=item["name"], owner_ref=item["owner_ref"],
+                    target_date=item.get("target_date"),
+                    completion_criteria=tuple(item["completion_criteria"]),
+                )
+                for item in payload["phases"]
+            ),
+            communication_plan=payload["communication_plan"], quality_plan=payload["quality_plan"],
+            training_plan=payload["training_plan"],
+            completion_criteria=tuple(payload["completion_criteria"]),
+            source_documents=tuple(DmaicDocumentReference(**item) for item in payload.get("source_documents", [])),
+            actor=payload["actor"], occurred_at=payload["occurred_at"],
+        )
+        if plan.digest != _implementation_plan_digest(plan):
+            raise DmaicInputError("implementation_plan_digest_mismatch", "Stored implementation plan digest does not match.", "digest")
+        return plan
+
+
+@dataclass(frozen=True, slots=True)
 class DmaicControlHandoff:
     """Immutable Control-phase operating contract and evidence handoff."""
 
@@ -786,6 +861,12 @@ def _solution_selection_digest(selection: DmaicSolutionSelection) -> str:
 
 
 def _pilot_plan_digest(plan: DmaicPilotPlan) -> str:
+    payload = plan.to_dict()
+    payload.pop("digest")
+    return input_digest(payload)
+
+
+def _implementation_plan_digest(plan: DmaicImplementationPlan) -> str:
     payload = plan.to_dict()
     payload.pop("digest")
     return input_digest(payload)

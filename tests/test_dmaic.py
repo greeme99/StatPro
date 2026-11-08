@@ -11,6 +11,7 @@ from statpro.dmaic import (
     DmaicCharter,
     DmaicControlHandoff,
     DmaicInputError,
+    DmaicImplementationPlan,
     DmaicMeasurementPlan,
     DmaicProblemDefinition,
     DmaicProject,
@@ -20,6 +21,7 @@ from statpro.dmaic import (
     create_project,
     save_charter,
     save_cost_benefit_analysis,
+    save_implementation_plan,
     save_control_handoff,
     save_measurement_plan,
     save_pilot_plan,
@@ -33,6 +35,57 @@ from statpro.dmaic import (
 
 
 class DmaicProjectTests(unittest.TestCase):
+    def test_implementation_plan_is_revisioned_and_links_improve_evidence(self) -> None:
+        project = create_project(
+            project_id="DMAIC-IMPLEMENT", title="Connector yield", owner_ref="quality.engineer"
+        )
+        project, selection = save_solution_selection(
+            project,
+            problem_statement="Connector defect rate increased",
+            candidate_solutions=("Set torque window",),
+            selected_solution="Set torque window",
+            decision_rationale="Lowest setup risk.",
+            validation_plan="Validate with a blocked DOE.",
+            analysis_evidence=(),
+            actor="quality.engineer",
+            occurred_at="2026-11-08T10:00:00+09:00",
+        )
+        revised, plan = save_implementation_plan(
+            project,
+            strategy="Pilot the torque window before controlled rollout.",
+            phases=({
+                "phase_id": "pilot", "name": "Pilot", "owner_ref": "line.supervisor",
+                "target_date": "2026-12-01", "completion_criteria": ("Pilot acceptance reviewed",),
+            },),
+            communication_plan="Review the rollout at the daily production meeting.",
+            quality_plan="Use the approved control plan and reaction plan.",
+            training_plan="Train each shift lead before release.",
+            completion_criteria=("Pilot acceptance evidence recorded",),
+            actor="quality.engineer",
+            occurred_at="2026-11-08T10:10:00+09:00",
+        )
+
+        self.assertEqual(plan.source_documents[0].document_id, selection.document_id)
+        self.assertEqual(revised.implementation_plan.document_id, plan.document_id)
+        self.assertEqual(DmaicProject.from_dict(revised.to_dict()), revised)
+        self.assertEqual(DmaicImplementationPlan.from_dict(plan.to_dict()), plan)
+
+    def test_implementation_plan_rejects_duplicate_phase_ids(self) -> None:
+        project = create_project(
+            project_id="DMAIC-DUPLICATE-PHASE", title="Connector yield", owner_ref="quality.engineer"
+        )
+        phase = {
+            "phase_id": "pilot", "name": "Pilot", "owner_ref": "line.supervisor",
+            "target_date": None, "completion_criteria": ("Acceptance reviewed",),
+        }
+        with self.assertRaisesRegex(DmaicInputError, "phase IDs must be unique"):
+            save_implementation_plan(
+                project, strategy="Controlled rollout", phases=(phase, phase),
+                communication_plan="Daily review", quality_plan="Control plan", training_plan="Shift training",
+                completion_criteria=("Release approved",), actor="quality.engineer",
+                occurred_at="2026-11-08T10:10:00+09:00",
+            )
+
     def test_cost_benefit_analysis_is_revisioned_and_links_project_evidence(self) -> None:
         project = create_project(
             project_id="DMAIC-COST", title="Connector yield", owner_ref="quality.engineer"

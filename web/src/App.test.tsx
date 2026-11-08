@@ -101,7 +101,7 @@ describe("StatPro UI", () => {
     render(<MemoryRouter initialEntries={["/home/progress"]}><App /></MemoryRouter>);
 
     expect(await screen.findByRole("heading", { name: "현장 분석 흐름의 목표 대비 진척도" })).toBeInTheDocument();
-    expect(screen.getByRole("progressbar", { name: "현재 릴리스 목표 가중 진척도" })).toHaveAttribute("value", "82");
+    expect(screen.getByRole("progressbar", { name: "현재 릴리스 목표 가중 진척도" })).toHaveAttribute("value", "86");
     expect(screen.getByRole("heading", { name: "측정시스템 분석(MSA)" })).toBeInTheDocument();
     expect(screen.getByText(/신뢰구간, REML·비균형 설계/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "통계적 공정관리(SPC)·공정능력 작업공간 열기" })).toHaveAttribute("href", "/spc");
@@ -258,7 +258,7 @@ describe("StatPro UI", () => {
 
     expect(await screen.findByRole("heading", { name: "현재 프로젝트 현황" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "도금 두께 산포 개선" })).toBeInTheDocument();
-    expect(screen.getByRole("progressbar", { name: "프로젝트 근거 완성도" })).toHaveAttribute("aria-valuenow", "10");
+    expect(screen.getByRole("progressbar", { name: "프로젝트 근거 완성도" })).toHaveAttribute("aria-valuenow", "25");
     const evidence = screen.getByRole("table", { name: "DMAIC 프로젝트 증거" });
     expect(within(evidence).getByText("charter-001 / r2")).toBeInTheDocument();
     expect(within(evidence).getAllByText("저장됨")).toHaveLength(1);

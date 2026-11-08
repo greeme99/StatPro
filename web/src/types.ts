@@ -193,6 +193,7 @@ export type DmaicProject = {
   solution_selection: DmaicDocumentReference | null;
   pilot_plan: DmaicDocumentReference | null;
   cost_benefit_analysis: DmaicDocumentReference | null;
+  implementation_plan: DmaicDocumentReference | null;
   control_handoff: DmaicDocumentReference | null;
 };
 
@@ -319,6 +320,38 @@ export type StoredDmaicCostBenefitAnalysis = {
   storage_version: number;
   etag: string;
   cost_benefit_analysis: DmaicCostBenefitAnalysis;
+};
+
+export type DmaicImplementationPhase = {
+  phase_id: string;
+  name: string;
+  owner_ref: string;
+  target_date: string | null;
+  completion_criteria: string[];
+};
+
+export type DmaicImplementationPlan = {
+  document_id: string;
+  project_id: string;
+  revision: number;
+  parent_digest: string | null;
+  digest: string;
+  strategy: string;
+  phases: DmaicImplementationPhase[];
+  communication_plan: string;
+  quality_plan: string;
+  training_plan: string;
+  completion_criteria: string[];
+  source_documents: DmaicDocumentReference[];
+  actor: string;
+  occurred_at: string;
+};
+
+export type StoredDmaicImplementationPlan = {
+  document_id: string;
+  storage_version: number;
+  etag: string;
+  implementation_plan: DmaicImplementationPlan;
 };
 
 export type DmaicAnalysisEvidenceReference = {

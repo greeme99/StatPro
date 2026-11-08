@@ -16,6 +16,8 @@ from statpro.dmaic.models import (
     DmaicControlHandoff,
     DmaicDocumentReference,
     DmaicFmeaControlPlanReference,
+    DmaicImplementationPhase,
+    DmaicImplementationPlan,
     DmaicInputError,
     DmaicMeasurementPlan,
     DmaicPilotPlan,
@@ -31,6 +33,7 @@ from statpro.dmaic.models import (
     DmaicVoiceOfCustomerStudy,
     _charter_digest,
     _control_handoff_digest,
+    _implementation_plan_digest,
     _measurement_plan_digest,
     _pilot_plan_digest,
     _problem_definition_digest,
@@ -588,6 +591,74 @@ def save_cost_benefit_analysis(
         cost_benefit_analysis=reference,
     )
     return replace(revised, digest=_project_digest(revised)), analysis
+
+
+def save_implementation_plan(
+    project: DmaicProject,
+    *,
+    strategy: str,
+    phases: tuple[dict[str, object], ...],
+    communication_plan: str,
+    quality_plan: str,
+    training_plan: str,
+    completion_criteria: tuple[str, ...],
+    actor: str,
+    occurred_at: str,
+) -> tuple[DmaicProject, DmaicImplementationPlan]:
+    """Save a revisioned rollout plan without claiming its activities have occurred."""
+
+    previous = project.implementation_plan
+    revision = 1 if previous is None else previous.revision + 1
+    normalized_phases = tuple(
+        DmaicImplementationPhase(
+            phase_id=_required(str(item["phase_id"]), "phases.phase_id"),
+            name=_required(str(item["name"]), "phases.name"),
+            owner_ref=_required(str(item["owner_ref"]), "phases.owner_ref"),
+            target_date=_optional(item.get("target_date") if isinstance(item.get("target_date"), str) else None),
+            completion_criteria=_items(
+                tuple(str(value) for value in item.get("completion_criteria", ())),
+                "phases.completion_criteria",
+            ),
+        )
+        for item in phases
+    )
+    if not normalized_phases:
+        raise DmaicInputError("phases_required", "At least one implementation phase is required.", "phases")
+    if len({phase.phase_id for phase in normalized_phases}) != len(normalized_phases):
+        raise DmaicInputError("duplicate_phase_id", "Implementation phase IDs must be unique.", "phases")
+    sources = tuple(item for item in (
+        project.cost_benefit_analysis, project.pilot_plan, project.solution_selection,
+        project.root_cause_analysis, project.problem_definition, project.measurement_plan,
+        project.sipoc, project.charter,
+    ) if item is not None)
+    plan = DmaicImplementationPlan(
+        document_id=f"{project.project_id}-implementation-plan-r{revision}",
+        project_id=project.project_id,
+        revision=revision,
+        parent_digest=None if previous is None else previous.digest,
+        digest="",
+        strategy=_required(strategy, "strategy"),
+        phases=normalized_phases,
+        communication_plan=_required(communication_plan, "communication_plan"),
+        quality_plan=_required(quality_plan, "quality_plan"),
+        training_plan=_required(training_plan, "training_plan"),
+        completion_criteria=_items(completion_criteria, "completion_criteria"),
+        source_documents=sources,
+        actor=_required(actor, "actor"),
+        occurred_at=_required(occurred_at, "occurred_at"),
+    )
+    plan = replace(plan, digest=_implementation_plan_digest(plan))
+    reference = DmaicDocumentReference(
+        "implementation_plan", plan.document_id, plan.revision, plan.digest
+    )
+    revised = replace(
+        project,
+        revision=project.revision + 1,
+        parent_digest=project.digest,
+        digest="",
+        implementation_plan=reference,
+    )
+    return replace(revised, digest=_project_digest(revised)), plan
 
 
 def save_control_handoff(

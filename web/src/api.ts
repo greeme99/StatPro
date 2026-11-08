@@ -1,4 +1,4 @@
-import type { ActionPriorityPolicyPage, ApiError, CellValue, DefectAnalysisPage, DmaicProjectPage, FmeaStudyPage, FmeaStudyReport, QualityMetricPage, StoredActionPriorityPolicy, StoredCheckSheet, StoredDefectAnalysis, StoredDmaicCharter, StoredDmaicControlHandoff, StoredDmaicCostBenefitAnalysis, StoredDmaicMeasurementPlan, StoredDmaicPilotPlan, StoredDmaicProject, StoredDmaicRootCauseAnalysis, StoredDmaicSolutionSelection, StoredFishbone, StoredFmeaStudy, StoredQualityMetric, RunPage, StoredRun, StoredWorksheet, WorksheetPage } from "./types";
+import type { ActionPriorityPolicyPage, ApiError, CellValue, DefectAnalysisPage, DmaicProjectPage, FmeaStudyPage, FmeaStudyReport, QualityMetricPage, StoredActionPriorityPolicy, StoredCheckSheet, StoredDefectAnalysis, StoredDmaicCharter, StoredDmaicControlHandoff, StoredDmaicCostBenefitAnalysis, StoredDmaicImplementationPlan, StoredDmaicMeasurementPlan, StoredDmaicPilotPlan, StoredDmaicProject, StoredDmaicRootCauseAnalysis, StoredDmaicSolutionSelection, StoredFishbone, StoredFmeaStudy, StoredQualityMetric, RunPage, StoredRun, StoredWorksheet, WorksheetPage } from "./types";
 
 const API_BASE = import.meta.env.VITE_STATPRO_API_URL ?? "/api";
 
@@ -361,6 +361,24 @@ export function saveDmaicCostBenefitAnalysis(projectId: string, payload: {
 
 export function getDmaicCostBenefitAnalysis(projectId: string, documentId: string): Promise<StoredDmaicCostBenefitAnalysis> {
   return request(`/v1/dmaic-projects/${encodeURIComponent(projectId)}/cost-benefit-analyses/${encodeURIComponent(documentId)}`);
+}
+
+export function saveDmaicImplementationPlan(projectId: string, payload: {
+  expected_storage_version: number;
+  strategy: string;
+  phases: Array<{ phase_id: string; name: string; owner_ref: string; target_date?: string | null; completion_criteria: string[] }>;
+  communication_plan: string;
+  quality_plan: string;
+  training_plan: string;
+  completion_criteria: string[];
+  actor: string;
+  occurred_at: string;
+}): Promise<StoredDmaicProject> {
+  return request(`/v1/dmaic-projects/${encodeURIComponent(projectId)}/implementation-plans`, { method: "POST", body: JSON.stringify(payload) });
+}
+
+export function getDmaicImplementationPlan(projectId: string, documentId: string): Promise<StoredDmaicImplementationPlan> {
+  return request(`/v1/dmaic-projects/${encodeURIComponent(projectId)}/implementation-plans/${encodeURIComponent(documentId)}`);
 }
 
 export function saveDmaicControlHandoff(projectId: string, payload: {

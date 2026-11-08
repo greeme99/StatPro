@@ -2318,6 +2318,48 @@ class LocalApiContractTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 422)
 
+    def test_dmaic_implementation_plan_is_versioned_and_retrievable(self) -> None:
+        created = self.client.post(
+            "/v1/dmaic-projects",
+            json={
+                "project_id": "DMAIC-IMPLEMENT-API",
+                "title": "Connector yield",
+                "owner_ref": "quality.engineer",
+            },
+        )
+        self.assertEqual(created.status_code, 201)
+        revised = self.client.post(
+            "/v1/dmaic-projects/DMAIC-IMPLEMENT-API/implementation-plans",
+            json={
+                "expected_storage_version": 1,
+                "strategy": "Pilot the torque window before controlled rollout.",
+                "phases": [{
+                    "phase_id": "pilot",
+                    "name": "Pilot",
+                    "owner_ref": "line.supervisor",
+                    "target_date": "2026-12-01",
+                    "completion_criteria": ["Pilot acceptance reviewed"],
+                }],
+                "communication_plan": "Review progress at the daily production meeting.",
+                "quality_plan": "Use the approved control plan and reaction plan.",
+                "training_plan": "Train each shift lead before release.",
+                "completion_criteria": ["Pilot acceptance evidence recorded"],
+                "actor": "quality.engineer",
+                "occurred_at": "2026-11-08T10:10:00+09:00",
+            },
+        )
+        self.assertEqual(revised.status_code, 201)
+        reference = revised.json()["project"]["implementation_plan"]
+        self.assertEqual(reference["revision"], 1)
+        stored = self.client.get(
+            "/v1/dmaic-projects/DMAIC-IMPLEMENT-API/implementation-plans/"
+            f"{reference['document_id']}"
+        )
+        self.assertEqual(stored.status_code, 200)
+        document = stored.json()["implementation_plan"]
+        self.assertEqual(document["phases"][0]["owner_ref"], "line.supervisor")
+        self.assertEqual(document["source_documents"], [])
+
     def test_dmaic_control_handoff_links_fmea_controls_and_spc_evidence(self) -> None:
         project = self.client.post(
             "/v1/dmaic-projects",

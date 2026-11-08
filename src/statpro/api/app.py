@@ -97,6 +97,7 @@ from statpro.dmaic import (
     DmaicCharter,
     DmaicCostBenefitAnalysis,
     DmaicControlHandoff,
+    DmaicImplementationPlan,
     DmaicInputError,
     DmaicMeasurementPlan,
     DmaicPilotPlan,
@@ -111,6 +112,7 @@ from statpro.dmaic import (
     save_charter,
     save_cost_benefit_analysis,
     save_control_handoff,
+    save_implementation_plan,
     save_measurement_plan,
     save_pilot_plan,
     save_problem_definition,
@@ -188,6 +190,7 @@ DMAIC_ROOT_CAUSE_ANALYSES = "dmaic-root-cause-analyses"
 DMAIC_SOLUTION_SELECTIONS = "dmaic-solution-selections"
 DMAIC_PILOT_PLANS = "dmaic-pilot-plans"
 DMAIC_COST_BENEFIT_ANALYSES = "dmaic-cost-benefit-analyses"
+DMAIC_IMPLEMENTATION_PLANS = "dmaic-implementation-plans"
 DMAIC_CONTROL_HANDOFFS = "dmaic-control-handoffs"
 SPC_CHECK_SHEETS = "spc-check-sheets"
 SPC_FISHBONE_DIAGRAMS = "spc-fishbone-diagrams"
@@ -902,6 +905,26 @@ class SaveDmaicCostBenefitAnalysisRequest(ApiModel):
     occurred_at: str
 
 
+class DmaicImplementationPhaseRequest(ApiModel):
+    phase_id: RunId
+    name: str = Field(min_length=1)
+    owner_ref: str = Field(min_length=1)
+    target_date: str | None = None
+    completion_criteria: list[str] = Field(min_length=1)
+
+
+class SaveDmaicImplementationPlanRequest(ApiModel):
+    expected_storage_version: int = Field(ge=1)
+    strategy: str = Field(min_length=1)
+    phases: list[DmaicImplementationPhaseRequest] = Field(min_length=1)
+    communication_plan: str = Field(min_length=1)
+    quality_plan: str = Field(min_length=1)
+    training_plan: str = Field(min_length=1)
+    completion_criteria: list[str] = Field(min_length=1)
+    actor: str = Field(min_length=1)
+    occurred_at: str = Field(min_length=1)
+
+
 class DmaicReactionPlanRequest(ApiModel):
     trigger: str
     action: str
@@ -998,6 +1021,13 @@ class StoredDmaicCostBenefitAnalysisResponse(ApiModel):
     storage_version: int
     etag: str
     cost_benefit_analysis: dict[str, Any]
+
+
+class StoredDmaicImplementationPlanResponse(ApiModel):
+    document_id: str
+    storage_version: int
+    etag: str
+    implementation_plan: dict[str, Any]
 
 
 class StoredDmaicControlHandoffResponse(ApiModel):
@@ -1349,6 +1379,15 @@ def _deserialize_dmaic_cost_benefit_analysis(
         ) from error
 
 
+def _deserialize_dmaic_implementation_plan(stored: StoredDocument) -> DmaicImplementationPlan:
+    try:
+        return DmaicImplementationPlan.from_dict(stored.document["implementation_plan"])
+    except (KeyError, TypeError, ValueError, DmaicInputError) as error:
+        raise DocumentStoreError(
+            f"Stored DMAIC implementation plan {stored.key} does not match its owned format."
+        ) from error
+
+
 def _deserialize_dmaic_control_handoff(stored: StoredDocument) -> DmaicControlHandoff:
     try:
         return DmaicControlHandoff.from_dict(stored.document["control_handoff"])
@@ -1473,6 +1512,18 @@ def _dmaic_cost_benefit_analysis_response(
         storage_version=stored.storage_version,
         etag=stored.etag,
         cost_benefit_analysis=analysis.to_dict(),
+    )
+
+
+def _dmaic_implementation_plan_response(
+    stored: StoredDocument,
+) -> StoredDmaicImplementationPlanResponse:
+    plan = _deserialize_dmaic_implementation_plan(stored)
+    return StoredDmaicImplementationPlanResponse(
+        document_id=stored.key,
+        storage_version=stored.storage_version,
+        etag=stored.etag,
+        implementation_plan=plan.to_dict(),
     )
 
 
@@ -1633,6 +1684,21 @@ def _save_dmaic_cost_benefit_analysis(
             "kind": "dmaic_cost_benefit_analysis",
             "document_id": analysis.document_id,
             "cost_benefit_analysis": analysis.to_dict(),
+        },
+        expected_version=0,
+    )
+
+
+def _save_dmaic_implementation_plan(
+    repository: DocumentRepository, plan: DmaicImplementationPlan
+) -> StoredDocument:
+    return repository.save(
+        DMAIC_IMPLEMENTATION_PLANS,
+        plan.document_id,
+        {
+            "kind": "dmaic_implementation_plan",
+            "document_id": plan.document_id,
+            "implementation_plan": plan.to_dict(),
         },
         expected_version=0,
     )
@@ -3870,6 +3936,56 @@ def create_app(
             )
         response.headers["ETag"] = f'"{stored.etag}"'
         return _dmaic_cost_benefit_analysis_response(stored)
+
+    @app.post(
+        "/v1/dmaic-projects/{project_id}/implementation-plans",
+        status_code=201,
+        response_model=StoredDmaicProjectResponse,
+    )
+    def create_dmaic_implementation_plan(
+        project_id: RunId,
+        request: SaveDmaicImplementationPlanRequest,
+        response: Response,
+    ) -> StoredDmaicProjectResponse:
+        stored, project = _load_dmaic_project(repository, project_id)
+        if stored.storage_version != request.expected_storage_version:
+            raise DocumentConflictError(
+                f"Expected storage version {request.expected_storage_version}; found {stored.storage_version}."
+            )
+        revised, plan = save_implementation_plan(
+            project,
+            strategy=request.strategy,
+            phases=tuple(item.model_dump() for item in request.phases),
+            communication_plan=request.communication_plan,
+            quality_plan=request.quality_plan,
+            training_plan=request.training_plan,
+            completion_criteria=tuple(request.completion_criteria),
+            actor=request.actor,
+            occurred_at=request.occurred_at,
+        )
+        _save_dmaic_implementation_plan(repository, plan)
+        saved = _save_dmaic_project(
+            repository, revised, expected_version=request.expected_storage_version
+        )
+        response.headers["ETag"] = f'"{saved.etag}"'
+        return _dmaic_project_response(saved)
+
+    @app.get(
+        "/v1/dmaic-projects/{project_id}/implementation-plans/{document_id}",
+        response_model=StoredDmaicImplementationPlanResponse,
+    )
+    def get_dmaic_implementation_plan(
+        project_id: RunId, document_id: RunId, response: Response
+    ) -> StoredDmaicImplementationPlanResponse:
+        _stored_project, project = _load_dmaic_project(repository, project_id)
+        stored = repository.load(DMAIC_IMPLEMENTATION_PLANS, document_id)
+        plan = _deserialize_dmaic_implementation_plan(stored)
+        if plan.project_id != project.project_id:
+            raise DocumentNotFoundError(
+                f"Document {DMAIC_IMPLEMENTATION_PLANS}/{document_id} does not exist."
+            )
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _dmaic_implementation_plan_response(stored)
 
     @app.post(
         "/v1/dmaic-projects/{project_id}/control-handoffs",
