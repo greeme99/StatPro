@@ -11,10 +11,10 @@ const catalogs: Record<string, Catalog> = {
     description: "분석 실행의 결과, 입력 근거, 경고와 내보내기 파일을 같은 기록에서 확인합니다.",
     items: [
       { name: "분석 실행 결과", detail: "저장된 분석 실행의 표, 차트, 진단과 근거를 확인합니다.", status: "구현됨", to: "/" },
-      { name: "DOE 표준 보고서", detail: "HTML, XLSX, JSON, CSV·SVG ZIP 내보내기를 제공합니다.", status: "구현됨", to: "/analyses/doe/full-factorial" },
+      { name: "DOE 표준 보고서", detail: "HTML, PDF, XLSX, JSON, CSV·SVG ZIP 내보내기를 제공합니다.", status: "구현됨", to: "/analyses/doe/full-factorial" },
       { name: "분석 결과 출력", detail: "모든 분석 실행은 Run ID·입력 digest·결과·근거를 포함한 브라우저 PDF 인쇄와 JSON·CSV를 제공합니다. I-MR·Xbar-R·Xbar-S는 Excel·PNG·SVG 차트도 제공합니다.", status: "구현됨", to: "/spc" },
       { name: "DOE 그래프·검토 양식", detail: "지원 Plot의 SVG와 표 XLSX·CSV·JSON을 묶어 내보내고 표준·고객·규제 검토용 양식을 선택합니다.", status: "구현됨", to: "/doe" },
-      { name: "PDF·조직 승인 양식", detail: "PDF 파일 생성, 조직별 필수 항목 검증과 전자서명 양식은 별도 확장 범위입니다.", status: "개발 예정" },
+      { name: "DOE PDF 검토 보고서", detail: "표준·고객·규제 검토 양식을 Pretendard·Noto Sans KR·나눔 font stack으로 PDF 생성합니다. 전자서명·조직별 승인 양식은 운영 정책이 필요합니다.", status: "구현됨", to: "/doe" },
     ],
   },
   tools: {

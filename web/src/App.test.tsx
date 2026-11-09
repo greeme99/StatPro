@@ -35,7 +35,8 @@ describe("StatPro UI", () => {
     expect(screen.getAllByText("구현됨").length).toBeGreaterThan(3);
     expect(screen.getByRole("heading", { name: "DOE 그래프·검토 양식" })).toBeInTheDocument();
     expect(screen.getByText(/지원 Plot의 SVG와 표 XLSX·CSV·JSON/)).toBeInTheDocument();
-    expect(screen.getByText("개발 예정")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "DOE PDF 검토 보고서" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "DOE PDF 검토 보고서 기능으로 이동" })).toHaveAttribute("href", "/doe");
     expect(screen.getByRole("link", { name: "실험계획법 (DOE)" })).toBeInTheDocument();
   });
 
@@ -101,7 +102,7 @@ describe("StatPro UI", () => {
     render(<MemoryRouter initialEntries={["/home/progress"]}><App /></MemoryRouter>);
 
     expect(await screen.findByRole("heading", { name: "현장 분석 흐름의 목표 대비 진척도" })).toBeInTheDocument();
-    expect(screen.getByRole("progressbar", { name: "현재 릴리스 목표 가중 진척도" })).toHaveAttribute("value", "86");
+    expect(screen.getByRole("progressbar", { name: "현재 릴리스 목표 가중 진척도" })).toHaveAttribute("value", "87");
     expect(screen.getByRole("heading", { name: "측정시스템 분석(MSA)" })).toBeInTheDocument();
     expect(screen.getByText(/신뢰구간, REML·비균형 설계/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "통계적 공정관리(SPC)·공정능력 작업공간 열기" })).toHaveAttribute("href", "/spc");
