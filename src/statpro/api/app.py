@@ -135,6 +135,7 @@ from statpro.domain.data import (
     create_worksheet,
     filter_worksheet_rows,
     import_csv_bytes,
+    import_xlsx_bytes,
     replace_worksheet_cell,
     sort_worksheet_rows,
 )
@@ -1055,6 +1056,10 @@ class ImportCsvWorksheetRequest(ApiModel):
     content_base64: str = Field(min_length=1, max_length=28_000_000)
     type_hints: dict[str, DataType] = Field(default_factory=dict)
     missing_tokens: list[str] = Field(default_factory=lambda: [""])
+
+
+class ImportXlsxWorksheetRequest(ImportCsvWorksheetRequest):
+    pass
 
 
 class ReplaceWorksheetCellRequest(ApiModel):
@@ -3120,6 +3125,38 @@ def create_app(
                 "content_base64",
             )
         dataset = import_csv_bytes(
+            source_bytes,
+            location=request.file_name,
+            type_hints=request.type_hints,
+            missing_tokens=request.missing_tokens,
+        )
+        _ensure_dataset(repository, dataset)
+        worksheet = create_worksheet(dataset, name=request.worksheet_name)
+        stored = _save_worksheet(repository, worksheet, expected_version=0)
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _worksheet_response(stored, dataset=dataset)
+
+    @app.post(
+        "/v1/worksheets/import-xlsx",
+        status_code=201,
+        response_model=StoredWorksheetResponse,
+    )
+    def import_worksheet_xlsx(
+        request: ImportXlsxWorksheetRequest, response: Response
+    ) -> StoredWorksheetResponse:
+        try:
+            source_bytes = base64.b64decode(request.content_base64, validate=True)
+        except (binascii.Error, ValueError) as error:
+            raise AnalysisInputError(
+                "invalid_base64", "XLSX content is not valid base64.", "content_base64"
+            ) from error
+        if len(source_bytes) > 20_000_000:
+            raise AnalysisInputError(
+                "dataset_too_large",
+                "XLSX upload supports at most 20,000,000 bytes.",
+                "content_base64",
+            )
+        dataset = import_xlsx_bytes(
             source_bytes,
             location=request.file_name,
             type_hints=request.type_hints,

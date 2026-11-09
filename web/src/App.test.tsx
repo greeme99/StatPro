@@ -1870,7 +1870,7 @@ describe("StatPro UI", () => {
     render(<MemoryRouter initialEntries={["/data"]}><App /></MemoryRouter>);
     await userEvent.clear(await screen.findByRole("textbox", { name: "워크시트 이름" }));
     await userEvent.type(screen.getByRole("textbox", { name: "워크시트 이름" }), "Incoming Data");
-    await userEvent.upload(screen.getByLabelText(/CSV 파일/), new File(["value\n10.5\n"], "incoming.csv", { type: "text/csv" }));
+    await userEvent.upload(screen.getByLabelText(/데이터 파일/), new File(["value\n10.5\n"], "incoming.csv", { type: "text/csv" }));
     await userEvent.click(screen.getByRole("button", { name: "가져오기" }));
 
     expect(await screen.findByRole("heading", { name: "Incoming Data" })).toBeInTheDocument();
@@ -1878,6 +1878,27 @@ describe("StatPro UI", () => {
     const body = JSON.parse(String((importCall?.[1] as RequestInit).body));
     expect(body.file_name).toBe("incoming.csv");
     expect(atob(body.content_base64)).toBe("value\n10.5\n");
+  });
+
+  it("routes an XLSX file to the values-only XLSX import contract", async () => {
+    const worksheet = { worksheet_id: "ws-xlsx", name: "Incoming XLSX", base_dataset_digest: "d".repeat(64), digest: "e".repeat(64), revision: 1, parent_digest: null, row_count: 1, columns: [{ name: "value", data_type: "numeric", nullable: false, missing_count: 0, values: [10.5] }], transformations: [] };
+    const stored = { worksheet_id: "ws-xlsx", storage_version: 1, etag: "a".repeat(64), worksheet, dataset: null };
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url.endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      if (init?.method === "POST") return new Response(JSON.stringify(stored), { status: 201 });
+      if (url.includes("/v1/worksheets/ws-xlsx")) return new Response(JSON.stringify(stored), { status: 200 });
+      return new Response(JSON.stringify({ items: [], next_after: null }), { status: 200 });
+    });
+
+    render(<MemoryRouter initialEntries={["/data"]}><App /></MemoryRouter>);
+    await userEvent.clear(await screen.findByRole("textbox", { name: "워크시트 이름" }));
+    await userEvent.type(screen.getByRole("textbox", { name: "워크시트 이름" }), "Incoming XLSX");
+    await userEvent.upload(screen.getByLabelText(/데이터 파일/), new File(["xlsx-bytes"], "incoming.xlsx", { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+    await userEvent.click(screen.getByRole("button", { name: "가져오기" }));
+
+    expect(await screen.findByRole("heading", { name: "Incoming XLSX" })).toBeInTheDocument();
+    expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith("/v1/worksheets/import-xlsx") && (init as RequestInit | undefined)?.method === "POST")).toBe(true);
   });
 
   it("edits a worksheet cell as a new revision", async () => {

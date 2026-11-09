@@ -8,6 +8,7 @@ from statpro.domain.data import (
     create_worksheet,
     import_csv_bytes,
     import_csv_dataset,
+    import_xlsx_bytes,
     replace_worksheet_cell,
 )
 from statpro.domain.errors import AnalysisInputError
@@ -24,6 +25,7 @@ __all__ = [
     "create_worksheet",
     "import_csv_bytes",
     "import_csv_dataset",
+    "import_xlsx_bytes",
     "replace_worksheet_cell",
     "result_bundle_schema",
 ]

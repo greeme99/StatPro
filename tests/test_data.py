@@ -3,6 +3,8 @@ from __future__ import annotations
 import sys
 import tempfile
 import unittest
+import io
+import zipfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
@@ -14,6 +16,7 @@ from statpro.domain.data import (
     filter_worksheet_rows,
     import_csv_bytes,
     import_csv_dataset,
+    import_xlsx_bytes,
     replace_worksheet_cell,
     sort_worksheet_rows,
 )
@@ -21,6 +24,38 @@ from statpro.domain.errors import AnalysisInputError
 
 
 class DatasetImportTests(unittest.TestCase):
+    @staticmethod
+    def _xlsx_bytes(*, formula: bool = False) -> bytes:
+        cell = '<c r="A2"><f>1+1</f><v>2</v></c>' if formula else '<c r="A2"><v>10.5</v></c>'
+        parts = {
+            "xl/workbook.xml": (
+                '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
+                'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+                '<sheets><sheet name="Measurements" sheetId="1" r:id="rId1"/></sheets></workbook>'
+            ),
+            "xl/_rels/workbook.xml.rels": (
+                '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+                '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" '
+                'Target="worksheets/sheet1.xml"/></Relationships>'
+            ),
+            "xl/sharedStrings.xml": (
+                '<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+                '<si><t>value</t></si><si><t>accepted</t></si><si><t>ok</t></si></sst>'
+            ),
+            "xl/worksheets/sheet1.xml": (
+                '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>'
+                '<row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1" t="s"><v>1</v></c></row>'
+                f'<row r="2">{cell}<c r="B2" t="b"><v>1</v></c></row>'
+                '<row r="3"><c r="B3" t="b"><v>0</v></c></row>'
+                '</sheetData></worksheet>'
+            ),
+        }
+        stream = io.BytesIO()
+        with zipfile.ZipFile(stream, "w", zipfile.ZIP_DEFLATED) as archive:
+            for path, content in parts.items():
+                archive.writestr(path, content)
+        return stream.getvalue()
+
     def test_csv_bytes_preserve_caller_source_identity_without_a_temp_file(self) -> None:
         source = b"value,accepted\n10.5,true\n,false\n"
         dataset = import_csv_bytes(source, location="browser-upload.csv")
@@ -50,6 +85,24 @@ class DatasetImportTests(unittest.TestCase):
         self.assertEqual(columns["note"].data_type, DataType.TEXT)
         self.assertEqual(len(dataset.digest), 64)
         self.assertEqual(len(dataset.source.content_digest), 64)
+
+    def test_xlsx_values_from_first_sheet_preserve_types_and_missing_values(self) -> None:
+        dataset = import_xlsx_bytes(self._xlsx_bytes(), location="process.xlsx")
+
+        columns = {column.name: column for column in dataset.columns}
+        self.assertEqual(dataset.source.kind, "xlsx")
+        self.assertEqual(dataset.source.location, "process.xlsx")
+        self.assertEqual(dataset.row_count, 2)
+        self.assertEqual(columns["value"].data_type, DataType.NUMERIC)
+        self.assertEqual(columns["value"].values, (10.5, None))
+        self.assertEqual(columns["accepted"].data_type, DataType.LOGICAL)
+        self.assertEqual(columns["accepted"].values, (True, False))
+
+    def test_xlsx_formula_cells_are_rejected_without_evaluation(self) -> None:
+        with self.assertRaises(AnalysisInputError) as context:
+            import_xlsx_bytes(self._xlsx_bytes(formula=True), location="formula.xlsx")
+
+        self.assertEqual(context.exception.detail.code, "xlsx_formula_not_supported")
 
     def test_normalized_digest_is_independent_of_file_location(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

@@ -1025,6 +1025,17 @@ export function importCsvWorksheet(payload: {
   });
 }
 
+export function importXlsxWorksheet(payload: {
+  file_name: string;
+  worksheet_name: string;
+  content_base64: string;
+}): Promise<StoredWorksheet> {
+  return request("/v1/worksheets/import-xlsx", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function replaceWorksheetCell(worksheetId: string, payload: {
   expected_storage_version: number;
   row_index: number;

@@ -2139,6 +2139,37 @@ class LocalApiContractTests(unittest.TestCase):
         self.assertEqual(response.status_code, 422)
         self.assertEqual(response.json()["error"]["code"], "invalid_base64")
 
+    def test_xlsx_worksheet_imports_first_sheet_values_only(self) -> None:
+        stream = io.BytesIO()
+        with zipfile.ZipFile(stream, "w", zipfile.ZIP_DEFLATED) as archive:
+            archive.writestr("xl/workbook.xml", (
+                '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
+                'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+                '<sheets><sheet name="Input" sheetId="1" r:id="rId1"/></sheets></workbook>'
+            ))
+            archive.writestr("xl/_rels/workbook.xml.rels", (
+                '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+                '<Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>'
+            ))
+            archive.writestr("xl/worksheets/sheet1.xml", (
+                '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>'
+                '<row r="1"><c r="A1" t="inlineStr"><is><t>value</t></is></c></row>'
+                '<row r="2"><c r="A2"><v>10.5</v></c></row>'
+                '</sheetData></worksheet>'
+            ))
+        content = base64.b64encode(stream.getvalue()).decode("ascii")
+
+        response = self.client.post("/v1/worksheets/import-xlsx", json={
+            "file_name": "process.xlsx",
+            "worksheet_name": "Incoming XLSX",
+            "content_base64": content,
+        })
+
+        self.assertEqual(response.status_code, 201)
+        payload = response.json()
+        self.assertEqual(payload["dataset"]["source"]["kind"], "xlsx")
+        self.assertEqual(payload["worksheet"]["columns"][0]["values"], [10.5])
+
     def test_worksheet_filter_sort_and_derived_column_create_revisions(self) -> None:
         content = base64.b64encode(
             b"value,divisor,part\n2,2,A\n1,1,B\n,4,A\n"

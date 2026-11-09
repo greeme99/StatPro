@@ -6,17 +6,28 @@ import csv
 import hashlib
 import io
 import math
+import re
+import zipfile
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any
+from xml.etree import ElementTree
 
 from statpro.domain.errors import AnalysisInputError
 from statpro.domain.identity import input_digest
 
 CellValue = float | bool | str | None
+
+_XLSX_MAX_UNCOMPRESSED_BYTES = 50_000_000
+_XLSX_MAX_ARCHIVE_MEMBERS = 200
+_XLSX_MAX_COLUMNS = 16_384
+_XLSX_MAIN_NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+_XLSX_REL_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+_XLSX_PACKAGE_REL_NS = "http://schemas.openxmlformats.org/package/2006/relationships"
+_XLSX_CELL_REF = re.compile(r"^([A-Z]{1,3})([1-9][0-9]*)$")
 
 
 class DataType(str, Enum):
@@ -297,6 +308,163 @@ def import_csv_bytes(
         columns=tuple(columns),
         row_count=len(data_rows),
     )
+
+
+def import_xlsx_bytes(
+    source_bytes: bytes,
+    *,
+    location: str,
+    type_hints: Mapping[str, DataType] | None = None,
+    missing_tokens: Sequence[str] = ("",),
+    error_field: str = "content",
+) -> DatasetSnapshot:
+    """Import values from the first OOXML worksheet without evaluating formulas.
+
+    XLSX is a ZIP container, so both member count and declared decompressed size
+    are bounded before XML is parsed.  Formula cells are deliberately rejected:
+    importing a workbook must not execute or silently trust spreadsheet logic.
+    """
+
+    try:
+        archive = zipfile.ZipFile(io.BytesIO(source_bytes))
+    except (OSError, zipfile.BadZipFile) as error:
+        raise AnalysisInputError("xlsx_read_failed", "XLSX content is not a valid OOXML ZIP file.", error_field) from error
+    with archive:
+        infos = archive.infolist()
+        if len(infos) > _XLSX_MAX_ARCHIVE_MEMBERS:
+            raise AnalysisInputError("xlsx_too_complex", "XLSX has too many archive members.", error_field)
+        if any(info.filename.startswith(("/", "\\")) or ".." in info.filename.split("/") for info in infos):
+            raise AnalysisInputError("xlsx_unsafe_archive", "XLSX archive contains an unsafe member path.", error_field)
+        if sum(info.file_size for info in infos) > _XLSX_MAX_UNCOMPRESSED_BYTES:
+            raise AnalysisInputError("dataset_too_large", "XLSX decompressed content exceeds 50,000,000 bytes.", error_field)
+        try:
+            workbook = ElementTree.fromstring(archive.read("xl/workbook.xml"))
+            relationships = ElementTree.fromstring(archive.read("xl/_rels/workbook.xml.rels"))
+        except (KeyError, ElementTree.ParseError) as error:
+            raise AnalysisInputError("xlsx_read_failed", "XLSX workbook metadata is missing or invalid.", error_field) from error
+        sheets = workbook.findall(f".//{{{_XLSX_MAIN_NS}}}sheet")
+        if not sheets:
+            raise AnalysisInputError("empty_xlsx", "XLSX requires at least one worksheet.", error_field)
+        relationship_id = sheets[0].get(f"{{{_XLSX_REL_NS}}}id")
+        targets = {
+            relation.get("Id"): relation.get("Target", "")
+            for relation in relationships.findall(f"{{{_XLSX_PACKAGE_REL_NS}}}Relationship")
+        }
+        target = targets.get(relationship_id, "")
+        sheet_path = f"xl/{target.lstrip('/')}"
+        if not target or not sheet_path.startswith("xl/worksheets/") or ".." in sheet_path.split("/"):
+            raise AnalysisInputError("xlsx_unsupported_sheet", "The first XLSX worksheet target is unsupported.", error_field)
+        try:
+            worksheet = ElementTree.fromstring(archive.read(sheet_path))
+        except (KeyError, ElementTree.ParseError) as error:
+            raise AnalysisInputError("xlsx_read_failed", "The first XLSX worksheet is missing or invalid.", error_field) from error
+        shared_strings = _read_xlsx_shared_strings(archive, error_field)
+
+    rows = _read_xlsx_rows(worksheet, shared_strings, error_field)
+    if not rows or not rows[0]:
+        raise AnalysisInputError("empty_xlsx", "XLSX input requires a header row in the first worksheet.", error_field)
+    headers = [header.strip() for header in rows[0]]
+    if any(not header for header in headers):
+        raise AnalysisInputError("empty_column_name", "Every XLSX column needs a name.", "header")
+    if len(set(headers)) != len(headers):
+        raise AnalysisInputError("duplicate_column_name", "XLSX column names must be unique.", "header")
+    data_rows = rows[1:]
+    if len(data_rows) > 1_000_000:
+        raise AnalysisInputError("dataset_too_large", "XLSX import supports at most 1,000,000 rows.", error_field)
+    width = len(headers)
+    if any(len(row) > width for row in data_rows):
+        raise AnalysisInputError("xlsx_data_outside_header", "XLSX has values beyond the header columns.", error_field)
+    normalized_rows = [row + [""] * (width - len(row)) for row in data_rows]
+    hints = dict(type_hints or {})
+    unknown_hints = sorted(set(hints) - set(headers))
+    if unknown_hints:
+        raise AnalysisInputError("unknown_type_hint", f"Type hints reference unknown columns: {', '.join(unknown_hints)}.", "type_hints")
+    missing = set(missing_tokens)
+    columns: list[DataColumn] = []
+    for column_index, name in enumerate(headers):
+        raw_values = [row[column_index] for row in normalized_rows]
+        observed = [value for value in raw_values if value not in missing]
+        data_type = hints.get(name, _infer_type(observed))
+        columns.append(DataColumn(
+            name=name,
+            data_type=data_type,
+            values=tuple(
+                None if value in missing else _parse_value(value, data_type, f"columns[{name}][{row_index}]")
+                for row_index, value in enumerate(raw_values)
+            ),
+        ))
+    normalized_payload = {
+        "columns": [column.to_dict() for column in columns],
+        "missing_tokens": list(missing_tokens),
+        "format": "xlsx-values-first-sheet",
+    }
+    digest = input_digest(normalized_payload)
+    return DatasetSnapshot(
+        dataset_id=f"ds_{digest[:16]}",
+        digest=digest,
+        source=DatasetSource(
+            kind="xlsx",
+            location=location,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            content_digest=hashlib.sha256(source_bytes).hexdigest(),
+        ),
+        columns=tuple(columns),
+        row_count=len(normalized_rows),
+    )
+
+
+def _read_xlsx_shared_strings(archive: zipfile.ZipFile, error_field: str) -> list[str]:
+    try:
+        payload = archive.read("xl/sharedStrings.xml")
+    except KeyError:
+        return []
+    try:
+        root = ElementTree.fromstring(payload)
+    except ElementTree.ParseError as error:
+        raise AnalysisInputError("xlsx_read_failed", "XLSX shared strings are invalid.", error_field) from error
+    return ["".join(node.itertext()) for node in root.findall(f"{{{_XLSX_MAIN_NS}}}si")]
+
+
+def _read_xlsx_rows(worksheet: ElementTree.Element, shared_strings: Sequence[str], error_field: str) -> list[list[str]]:
+    rows: list[list[str]] = []
+    for row in worksheet.findall(f".//{{{_XLSX_MAIN_NS}}}sheetData/{{{_XLSX_MAIN_NS}}}row"):
+        values: dict[int, str] = {}
+        for cell in row.findall(f"{{{_XLSX_MAIN_NS}}}c"):
+            reference = cell.get("r", "")
+            match = _XLSX_CELL_REF.fullmatch(reference)
+            if not match:
+                raise AnalysisInputError("xlsx_invalid_cell_reference", "XLSX cell reference is invalid.", error_field)
+            column = _xlsx_column_index(match.group(1))
+            if column >= _XLSX_MAX_COLUMNS:
+                raise AnalysisInputError("xlsx_too_wide", "XLSX exceeds the supported column limit.", error_field)
+            if cell.find(f"{{{_XLSX_MAIN_NS}}}f") is not None:
+                raise AnalysisInputError("xlsx_formula_not_supported", "XLSX formulas are not imported; save values-only data first.", error_field)
+            cell_type = cell.get("t")
+            raw_value = cell.findtext(f"{{{_XLSX_MAIN_NS}}}v", default="")
+            if cell_type == "s":
+                try:
+                    values[column] = shared_strings[int(raw_value)]
+                except (ValueError, IndexError) as error:
+                    raise AnalysisInputError("xlsx_read_failed", "XLSX shared string reference is invalid.", error_field) from error
+            elif cell_type == "inlineStr":
+                inline = cell.find(f"{{{_XLSX_MAIN_NS}}}is")
+                values[column] = "".join(inline.itertext()) if inline is not None else ""
+            elif cell_type == "b":
+                values[column] = "true" if raw_value == "1" else "false" if raw_value == "0" else raw_value
+            elif cell_type in {None, "str"}:
+                values[column] = raw_value
+            else:
+                raise AnalysisInputError("xlsx_unsupported_cell", f"XLSX cell type '{cell_type}' is unsupported.", error_field)
+        if values:
+            rows.append([values.get(index, "") for index in range(max(values) + 1)])
+    return rows
+
+
+def _xlsx_column_index(letters: str) -> int:
+    index = 0
+    for letter in letters:
+        index = index * 26 + ord(letter) - ord("A") + 1
+    return index - 1
 
 
 def create_worksheet(dataset: DatasetSnapshot, *, name: str) -> WorksheetSnapshot:
