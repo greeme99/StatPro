@@ -45,6 +45,7 @@ from statpro.analyses.msa import (
     gage_rr_crossed,
     gage_rr_nested,
 )
+from statpro.analyses.normality import jarque_bera_normality
 from statpro.analyses.spc import (
     c_chart,
     cusum_chart,
@@ -329,6 +330,12 @@ class CapabilityRunRequest(ApiModel):
     lsl: float | None = None
     usl: float | None = None
     target: float | None = None
+
+
+class JarqueBeraNormalityRunRequest(ApiModel):
+    run_id: RunId
+    values: list[float] = Field(min_length=3)
+    alpha: float = Field(default=0.05, gt=0.0, lt=1.0)
 
 
 class FactorRequest(ApiModel):
@@ -2429,6 +2436,22 @@ def create_app(
         return _response(stored)
 
     @app.post(
+        "/v1/analysis-runs/normality-jarque-bera",
+        status_code=201,
+        response_model=StoredRunResponse,
+    )
+    def run_jarque_bera_normality(
+        request: JarqueBeraNormalityRunRequest, response: Response
+    ) -> StoredRunResponse:
+        stored = _save_run(
+            repository,
+            request.run_id,
+            jarque_bera_normality(request.values, alpha=request.alpha),
+        )
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _response(stored)
+
+    @app.post(
         "/v1/analysis-runs/doe-full-factorial",
         status_code=201,
         response_model=StoredRunResponse,
@@ -3138,7 +3161,6 @@ def create_app(
         dataset = import_csv_bytes(
             source_bytes,
             location=request.file_name,
-            sheet_name=request.sheet_name,
             type_hints=request.type_hints,
             missing_tokens=request.missing_tokens,
         )
@@ -3171,6 +3193,7 @@ def create_app(
         dataset = import_xlsx_bytes(
             source_bytes,
             location=request.file_name,
+            sheet_name=request.sheet_name,
             type_hints=request.type_hints,
             missing_tokens=request.missing_tokens,
         )

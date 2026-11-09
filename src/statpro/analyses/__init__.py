@@ -27,6 +27,7 @@ from statpro.analyses.msa import (
     gage_rr_crossed,
     gage_rr_nested,
 )
+from statpro.analyses.normality import jarque_bera_normality
 from statpro.analyses.spc import (
     c_chart,
     individuals_moving_range,
@@ -60,6 +61,7 @@ __all__ = [
     "gage_rr_nested",
     "gage_bias_linearity",
     "individuals_moving_range",
+    "jarque_bera_normality",
     "nonnormal_process_capability",
     "normal_process_capability",
     "np_chart",

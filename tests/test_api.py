@@ -50,6 +50,7 @@ class LocalApiContractTests(unittest.TestCase):
         self.assertIn("/v1/analysis-runs/u-chart", openapi.json()["paths"])
         self.assertIn("/v1/analysis-runs/g-chart", openapi.json()["paths"])
         self.assertIn("/v1/analysis-runs/t-chart", openapi.json()["paths"])
+        self.assertIn("/v1/analysis-runs/normality-jarque-bera", openapi.json()["paths"])
         self.assertIn("/v1/analysis-runs/pareto", openapi.json()["paths"])
         self.assertIn(
             "/v1/fmea-studies/{study_id}/approve-enterprise",
@@ -881,6 +882,11 @@ class LocalApiContractTests(unittest.TestCase):
                 "/v1/analysis-runs/capability-nonnormal",
                 {"run_id": "cap-nonnormal", "values": [1, 1, 2, 2, 3, 5, 8, 13], "lsl": 0, "usl": 15},
                 "capability.nonnormal_empirical",
+            ),
+            (
+                "/v1/analysis-runs/normality-jarque-bera",
+                {"run_id": "normality-jb", "values": [0, 0, 0, 1], "alpha": 0.05},
+                "normality.jarque_bera",
             ),
             (
                 "/v1/analysis-runs/doe-full-factorial",
