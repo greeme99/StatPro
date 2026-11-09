@@ -703,6 +703,9 @@ def _is_loopback_llm_endpoint(endpoint: str) -> bool:
 class UrlLibLocalChatCompletionClient:
     """Dependency-free OpenAI-compatible client restricted by the provider to loopback."""
 
+    def __init__(self, *, timeout_seconds: int = 20) -> None:
+        self._timeout_seconds = timeout_seconds
+
     def complete(
         self,
         *,
@@ -730,7 +733,7 @@ class UrlLibLocalChatCompletionClient:
             method="POST",
         )
         try:
-            with urllib.request.urlopen(request, timeout=20) as response:
+            with urllib.request.urlopen(request, timeout=self._timeout_seconds) as response:
                 return json.loads(response.read().decode("utf-8"))
         except urllib.error.HTTPError as error:
             raise OSError(f"Local LLM request failed with HTTP {error.code}") from error
@@ -820,8 +823,17 @@ def build_default_copilot_provider() -> CopilotProvider:
     ollama_code = None
     if ollama_enabled:
         try:
-            ollama_workflow = LocalLlmCopilotProvider(ollama_endpoint, workflow_model)
-            ollama_code = LocalLlmCopilotProvider(ollama_endpoint, code_model)
+            timeout_seconds = _ollama_timeout_seconds()
+            ollama_workflow = LocalLlmCopilotProvider(
+                ollama_endpoint,
+                workflow_model,
+                client=UrlLibLocalChatCompletionClient(timeout_seconds=timeout_seconds),
+            )
+            ollama_code = LocalLlmCopilotProvider(
+                ollama_endpoint,
+                code_model,
+                client=UrlLibLocalChatCompletionClient(timeout_seconds=timeout_seconds),
+            )
         except ValueError:
             pass
 
@@ -834,6 +846,15 @@ def build_default_copilot_provider() -> CopilotProvider:
             ollama_code=ollama_code,
         ),
     )
+
+
+def _ollama_timeout_seconds() -> int:
+    raw_value = os.getenv("STATPRO_COPILOT_OLLAMA_TIMEOUT_SECONDS", "60")
+    try:
+        timeout_seconds = int(raw_value)
+    except ValueError:
+        return 60
+    return timeout_seconds if 1 <= timeout_seconds <= 120 else 60
 
 
 def copilot_runtime_status() -> dict[str, object]:
