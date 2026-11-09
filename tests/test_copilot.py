@@ -20,6 +20,7 @@ from statpro.application.copilot import (
     LocalKnowledgeCopilotProvider,
     RuleFirstCopilotProvider,
     build_default_copilot_provider,
+    copilot_runtime_status,
 )
 from statpro.application.copilot_rules import COPILOT_RULE_CATALOG
 
@@ -586,6 +587,30 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
         self.assertEqual(guidance.provider, "statpro-fallback-unavailable")
         self.assertEqual(guidance.guidance_mode, "unmatched")
         self.assertIn("Gemini 및 로컬 Ollama", guidance.limitations[1])
+
+    def test_runtime_status_reports_readiness_without_exposing_the_api_key(self) -> None:
+        with patch.dict(
+            os.environ,
+            {
+                "STATPRO_COPILOT_LLM_ENABLED": "true",
+                "GEMINI_API_KEY": "must-not-appear",
+                "STATPRO_COPILOT_GEMINI_SIMPLE_MODEL": "gemini-test-lite",
+                "STATPRO_COPILOT_GEMINI_COMPLEX_MODEL": "gemini-test-complex",
+                "STATPRO_COPILOT_OLLAMA_ENABLED": "true",
+                "STATPRO_COPILOT_OLLAMA_URL": "http://127.0.0.1:11434/v1/chat/completions",
+                "STATPRO_COPILOT_OLLAMA_WORKFLOW_MODEL": "workflow-test",
+                "STATPRO_COPILOT_OLLAMA_CODE_MODEL": "code-test",
+            },
+            clear=True,
+        ):
+            status = copilot_runtime_status()
+
+        self.assertTrue(status["rulebase"]["configured"])
+        self.assertTrue(status["gemini"]["ready"])
+        self.assertTrue(status["ollama"]["ready"])
+        self.assertFalse(status["gemini"]["live_verified"])
+        self.assertFalse(status["ollama"]["live_verified"])
+        self.assertNotIn("must-not-appear", repr(status))
 
 
 if __name__ == "__main__":

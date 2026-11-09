@@ -16,7 +16,11 @@ from dataclasses import dataclass, replace
 from typing import Any, Protocol
 from urllib.parse import urlparse
 
-from statpro.application.copilot_rules import CopilotRule, match_catalog_rule
+from statpro.application.copilot_rules import (
+    COPILOT_RULE_CATALOG,
+    CopilotRule,
+    match_catalog_rule,
+)
 
 
 @dataclass(frozen=True)
@@ -830,3 +834,59 @@ def build_default_copilot_provider() -> CopilotProvider:
             ollama_code=ollama_code,
         ),
     )
+
+
+def copilot_runtime_status() -> dict[str, object]:
+    """Describe configured fallback readiness without exposing credentials.
+
+    This is configuration evidence only.  It intentionally does not probe a
+    remote Gemini service or a local Ollama process, because a status request
+    must not transmit a user's context or create an unexpected model call.
+    """
+
+    gemini_enabled = os.getenv("STATPRO_COPILOT_LLM_ENABLED", "").casefold() == "true"
+    gemini_key_present = bool(os.getenv("GEMINI_API_KEY", ""))
+    ollama_enabled = (
+        os.getenv("STATPRO_COPILOT_OLLAMA_ENABLED", "").casefold() == "true"
+        or os.getenv("STATPRO_COPILOT_LOCAL_LLM_ENABLED", "").casefold() == "true"
+    )
+    ollama_endpoint = (
+        os.getenv("STATPRO_COPILOT_OLLAMA_URL", "")
+        or os.getenv("STATPRO_COPILOT_LOCAL_LLM_URL", "")
+    )
+    workflow_model = (
+        os.getenv("STATPRO_COPILOT_OLLAMA_WORKFLOW_MODEL", "")
+        or os.getenv("STATPRO_COPILOT_LOCAL_LLM_MODEL", "")
+        or "qwen3:4b-q4_K_M"
+    )
+    code_model = os.getenv("STATPRO_COPILOT_OLLAMA_CODE_MODEL", "") or "qwen2.5-coder:7b-instruct-q4_K_M"
+    loopback_endpoint = _is_loopback_llm_endpoint(ollama_endpoint)
+
+    return {
+        "rulebase": {
+            "configured": True,
+            "rule_count": len(COPILOT_RULE_CATALOG),
+            "live_verified": True,
+        },
+        "gemini": {
+            "enabled": gemini_enabled,
+            "credential_present": gemini_key_present,
+            "ready": gemini_enabled and gemini_key_present,
+            "simple_model": os.getenv("STATPRO_COPILOT_GEMINI_SIMPLE_MODEL", "") or "gemini-3.5-flash-lite",
+            "complex_model": os.getenv("STATPRO_COPILOT_GEMINI_COMPLEX_MODEL", "") or "gemini-3.8-flash",
+            "live_verified": False,
+        },
+        "ollama": {
+            "enabled": ollama_enabled,
+            "loopback_endpoint_configured": loopback_endpoint,
+            "ready": ollama_enabled and loopback_endpoint,
+            "workflow_model": workflow_model,
+            "code_model": code_model,
+            "live_verified": False,
+        },
+        "manual_input_available": True,
+        "limitations": (
+            "이 상태는 설정만 확인하며 Gemini API 또는 Ollama 프로세스에 요청하지 않습니다. "
+            "실제 연결·모델 가용성은 사용자가 명시적으로 활성화한 환경에서 별도로 검증해야 합니다."
+        ),
+    }

@@ -79,7 +79,7 @@ API 문서: <http://127.0.0.1:8765/docs> · 웹 UI: <http://127.0.0.1:5173>
 
 ## 결과와 내보내기
 
-모든 분석은 입력 digest, 엔진 버전, 옵션, 경고, 공개 근거를 포함하는 `ResultBundle` 경계를 통과합니다. DOE는 결정론적 JSON·HTML·UTF-8 CSV 표가 포함된 ZIP 내보내기를 제공합니다. 모든 결과는 경로·값 단일 시트 SpreadsheetML Excel 호환 표를 제공하며 원래 계층 구조는 JSON으로 확인합니다. I-MR, Xbar-R, Xbar-S는 추가로 브라우저 인쇄용 HTML(PDF 저장 가능), 전용 SpreadsheetML Excel, 결합 PNG·접근 가능한 SVG를 제공합니다. EWMA·CUSUM·p/np/c/u·Laney P′/U′·희귀사건 G/T는 저장된 `ResultBundle` 차트 데이터로 단일 PNG·접근 가능한 SVG를 생성합니다. 모든 출력은 Run ID·입력 digest·엔진 버전을 함께 보존하며, 차트 화면은 핵심 수치, 관리한계, 이상 신호, 접근 가능한 대체 표, 다음 조치를 같은 결과 맥락에 표시합니다.
+모든 분석은 입력 digest, 엔진 버전, 옵션, 경고, 공개 근거를 포함하는 `ResultBundle` 경계를 통과합니다. DOE는 결정론적 JSON·HTML·수식 없는 XLSX·UTF-8 CSV 표와 SVG 그래프가 포함된 ZIP 내보내기를 제공합니다. 모든 결과는 경로·값 단일 시트 SpreadsheetML Excel 호환 표를 제공하며 원래 계층 구조는 JSON으로 확인합니다. I-MR, Xbar-R, Xbar-S는 추가로 브라우저 인쇄용 HTML(PDF 저장 가능), 전용 SpreadsheetML Excel, 결합 PNG·접근 가능한 SVG를 제공합니다. EWMA·CUSUM·p/np/c/u·Laney P′/U′·희귀사건 G/T는 저장된 `ResultBundle` 차트 데이터로 단일 PNG·접근 가능한 SVG를 생성합니다. 모든 출력은 Run ID·입력 digest·엔진 버전을 함께 보존하며, 차트 화면은 핵심 수치, 관리한계, 이상 신호, 접근 가능한 대체 표, 다음 조치를 같은 결과 맥락에 표시합니다.
 
 브라우저 인쇄 기반 PDF의 파일 생성·보관은 사용자의 브라우저 인쇄 대화상자가 담당합니다. I-MR, Xbar-R, Xbar-S 외 SPC 관리도의 전용 PDF·Excel 보고서와 공정능력 전용 PNG·SVG, 조직별 규제/고객 템플릿은 기능별 지원 계약을 확인해야 하는 후속 범위입니다.
 

@@ -64,6 +64,7 @@ class LocalApiContractTests(unittest.TestCase):
             openapi.json()["paths"],
         )
         self.assertIn("/v1/copilot/guidance", openapi.json()["paths"])
+        self.assertIn("/v1/copilot/status", openapi.json()["paths"])
         self.assertIn("/v1/copilot/rules", openapi.json()["paths"])
         self.assertIn("/v1/worksheets/{worksheet_id}/filter-rows", openapi.json()["paths"])
         self.assertIn("/v1/worksheets/{worksheet_id}/sort-rows", openapi.json()["paths"])
@@ -89,6 +90,18 @@ class LocalApiContractTests(unittest.TestCase):
         self.assertEqual(guidance["sources"][0]["evidence_kind"], "product_documentation")
         self.assertTrue(guidance["sources"][0]["reference"].startswith("docs/evidence/"))
         self.assertIn("외부 AI 모델", " ".join(guidance["limitations"]))
+
+    def test_copilot_status_is_non_secret_configuration_evidence(self) -> None:
+        response = self.client.get("/v1/copilot/status")
+
+        self.assertEqual(response.status_code, 200)
+        status = response.json()
+        self.assertTrue(status["rulebase"]["configured"])
+        self.assertIn("rule_count", status["rulebase"])
+        self.assertTrue(status["manual_input_available"])
+        self.assertFalse(status["gemini"]["live_verified"])
+        self.assertFalse(status["ollama"]["live_verified"])
+        self.assertNotIn("GEMINI_API_KEY", status)
 
     def test_copilot_returns_a_reviewable_nelson_rule_draft(self) -> None:
         response = self.client.post(

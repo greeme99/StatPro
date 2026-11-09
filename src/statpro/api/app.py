@@ -66,7 +66,11 @@ from statpro.application.approval import (
     ApprovalConfigurationError,
     LocalApprovalAuthenticator,
 )
-from statpro.application.copilot import CopilotProvider, build_default_copilot_provider
+from statpro.application.copilot import (
+    CopilotProvider,
+    build_default_copilot_provider,
+    copilot_runtime_status,
+)
 from statpro.application.copilot_rules import COPILOT_RULE_CATALOG
 from statpro.application.documents import (
     AtomicJsonDocumentRepository,
@@ -2149,6 +2153,12 @@ def create_app(
             checklist=list(guidance.checklist),
             workflow_steps=list(guidance.workflow_steps),
         )
+
+    @app.get("/v1/copilot/status")
+    def get_copilot_status() -> dict[str, object]:
+        """Return non-secret readiness evidence for the Rulebase fallback chain."""
+
+        return copilot_runtime_status()
 
     @app.get("/v1/copilot/rules", response_model=list[CopilotRuleResponse])
     def list_copilot_rules(
