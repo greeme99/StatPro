@@ -314,6 +314,7 @@ def import_xlsx_bytes(
     source_bytes: bytes,
     *,
     location: str,
+    sheet_name: str | None = None,
     type_hints: Mapping[str, DataType] | None = None,
     missing_tokens: Sequence[str] = ("",),
     error_field: str = "content",
@@ -345,7 +346,12 @@ def import_xlsx_bytes(
         sheets = workbook.findall(f".//{{{_XLSX_MAIN_NS}}}sheet")
         if not sheets:
             raise AnalysisInputError("empty_xlsx", "XLSX requires at least one worksheet.", error_field)
-        relationship_id = sheets[0].get(f"{{{_XLSX_REL_NS}}}id")
+        selected_sheet = sheets[0]
+        if sheet_name is not None:
+            selected_sheet = next((sheet for sheet in sheets if sheet.get("name") == sheet_name), None)
+            if selected_sheet is None:
+                raise AnalysisInputError("xlsx_sheet_not_found", "The requested XLSX worksheet does not exist.", "sheet_name")
+        relationship_id = selected_sheet.get(f"{{{_XLSX_REL_NS}}}id")
         targets = {
             relation.get("Id"): relation.get("Target", "")
             for relation in relationships.findall(f"{{{_XLSX_PACKAGE_REL_NS}}}Relationship")
@@ -396,7 +402,8 @@ def import_xlsx_bytes(
     normalized_payload = {
         "columns": [column.to_dict() for column in columns],
         "missing_tokens": list(missing_tokens),
-        "format": "xlsx-values-first-sheet",
+        "format": "xlsx-values-selected-sheet",
+        "sheet_name": selected_sheet.get("name", ""),
     }
     digest = input_digest(normalized_payload)
     return DatasetSnapshot(

@@ -1060,7 +1060,7 @@ class ImportCsvWorksheetRequest(ApiModel):
 
 
 class ImportXlsxWorksheetRequest(ImportCsvWorksheetRequest):
-    pass
+    sheet_name: str | None = Field(default=None, min_length=1, max_length=255)
 
 
 class ReplaceWorksheetCellRequest(ApiModel):
@@ -3138,6 +3138,7 @@ def create_app(
         dataset = import_csv_bytes(
             source_bytes,
             location=request.file_name,
+            sheet_name=request.sheet_name,
             type_hints=request.type_hints,
             missing_tokens=request.missing_tokens,
         )

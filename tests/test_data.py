@@ -104,6 +104,12 @@ class DatasetImportTests(unittest.TestCase):
 
         self.assertEqual(context.exception.detail.code, "xlsx_formula_not_supported")
 
+    def test_xlsx_requested_sheet_must_exist(self) -> None:
+        with self.assertRaises(AnalysisInputError) as context:
+            import_xlsx_bytes(self._xlsx_bytes(), location="process.xlsx", sheet_name="Missing")
+
+        self.assertEqual(context.exception.detail.code, "xlsx_sheet_not_found")
+
     def test_normalized_digest_is_independent_of_file_location(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             first = Path(directory) / "first.csv"

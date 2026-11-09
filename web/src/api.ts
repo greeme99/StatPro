@@ -1041,6 +1041,7 @@ export function importXlsxWorksheet(payload: {
   file_name: string;
   worksheet_name: string;
   content_base64: string;
+  sheet_name?: string;
 }): Promise<StoredWorksheet> {
   return request("/v1/worksheets/import-xlsx", {
     method: "POST",

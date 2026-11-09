@@ -51,7 +51,7 @@ export function DataPage() {
         content_base64: await fileAsBase64(file),
       };
       const created = file.name.toLowerCase().endsWith(".xlsx")
-        ? await importXlsxWorksheet(payload)
+        ? await importXlsxWorksheet({ ...payload, sheet_name: String(form.get("sheet_name") ?? "").trim() || undefined })
         : await importCsvWorksheet(payload);
       navigate(`/data/${created.worksheet_id}`);
     } catch (requestError) {
@@ -71,6 +71,7 @@ export function DataPage() {
       </article>
       <form className="panel compact-form" onSubmit={handleImport}><header className="panel-heading"><div><span className="eyebrow">IMPORT DATA</span><h2>데이터 가져오기</h2></div><FileUp aria-hidden="true" /></header><div className="form-stack">
         <label className="field">워크시트 이름<input name="worksheet_name" required defaultValue="Process Measurements" /></label>
+        <label className="field">XLSX 시트 이름 (선택)<input name="sheet_name" placeholder="비우면 첫 번째 시트" /><small>다중 시트 XLSX는 시트 이름을 정확히 입력하세요.</small></label>
         <label className="field">데이터 파일 (CSV/XLSX)<input ref={fileRef} name="data_file" type="file" accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" /><small>UTF-8 CSV 또는 값 전용 XLSX의 첫 워크시트, 최대 20MB. 빈 셀은 결측으로 보존되며 XLSX 수식은 가져오지 않습니다.</small></label>
         <Button type="submit" variant="primary" loading={submitting} icon={<FileUp />}>가져오기</Button>
       </div></form>
