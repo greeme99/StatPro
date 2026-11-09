@@ -603,6 +603,7 @@ class LocalApiContractTests(unittest.TestCase):
 
         report = self.client.get("/v1/analysis-runs/doe-report-001/report")
         html = self.client.get("/v1/analysis-runs/doe-report-001/report.html")
+        pdf = self.client.get("/v1/analysis-runs/doe-report-001/report.pdf")
         xlsx = self.client.get("/v1/analysis-runs/doe-report-001/report.xlsx")
         exported = self.client.get("/v1/analysis-runs/doe-report-001/export")
 
@@ -614,6 +615,10 @@ class LocalApiContractTests(unittest.TestCase):
         self.assertEqual(report.headers["etag"], exported.headers["etag"])
         self.assertEqual(html.headers["content-type"], "text/html; charset=utf-8")
         self.assertIn("doe-report-001-doe-report.html", html.headers["content-disposition"])
+        self.assertEqual(pdf.status_code, 200)
+        self.assertEqual(pdf.headers["content-type"], "application/pdf")
+        self.assertTrue(pdf.content.startswith(b"%PDF-"))
+        self.assertIn("doe-report-001-doe-report.pdf", pdf.headers["content-disposition"])
         self.assertEqual(
             xlsx.headers["content-type"],
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

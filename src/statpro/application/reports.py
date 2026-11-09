@@ -8,10 +8,14 @@ import io
 import json
 import math
 import re
+import os
+import subprocess
+import tempfile
 import zipfile
 from collections.abc import Mapping, Sequence
 from html import escape
 from typing import Any
+from pathlib import Path
 
 from statpro.application.documents import DocumentStoreError, StoredDocument
 from statpro.domain.errors import AnalysisInputError
@@ -68,7 +72,10 @@ def render_doe_report_html(report: Mapping[str, Any]) -> bytes:
     run = report["run"]
     analysis = report["analysis"]
     parts = [
-        "<!doctype html><html lang=\"ko\"><head><meta charset=\"utf-8\">",
+        "<!doctype html><html lang=\"ko\"><head><meta charset=\"utf-8\"><style>"
+        "@page{size:A4;margin:16mm}body{font-family:Pretendard,'Noto Sans KR','Nanum Gothic','NanumSquare',sans-serif;color:#172033;line-height:1.55}"
+        "table{width:100%;border-collapse:collapse}th,td{border:1px solid #cbd5e1;padding:5px;text-align:left;vertical-align:top}"
+        "h1,h2{color:#0f3d7a}code{overflow-wrap:anywhere}</style>",
         f"<title>StatPro DOE 보고서 — {escape(str(run['run_id']))}</title></head><body>",
         "<main><header><h1>StatPro 실험계획법(DOE) 분석 보고서</h1>",
         f"<p>보고서 양식: {escape(str(report['template']['name']))}</p>",
@@ -104,6 +111,34 @@ def render_doe_report_html(report: Mapping[str, Any]) -> bytes:
         )
     parts.append("</ul></section></main></body></html>")
     return "".join(parts).encode("utf-8")
+
+
+def render_doe_report_pdf(report: Mapping[str, Any], *, browser_path: str | None = None) -> bytes:
+    """Render a review PDF with a local Chromium-compatible browser and Korean font stack."""
+
+    candidates = [browser_path, os.getenv("STATPRO_PDF_BROWSER_PATH"),
+        r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+        r"C:\Program Files\Google\Chrome\Application\chrome.exe"]
+    executable = next((Path(path) for path in candidates if path and Path(path).is_file()), None)
+    if executable is None:
+        raise AnalysisInputError("pdf_renderer_unavailable", "A local Edge or Chrome PDF renderer is required.", "pdf")
+    with tempfile.TemporaryDirectory(prefix="statpro-doe-pdf-") as directory:
+        html_path = Path(directory) / "report.html"
+        pdf_path = Path(directory) / "report.pdf"
+        html_path.write_bytes(render_doe_report_html(report))
+        try:
+            completed = subprocess.run(
+                [str(executable), "--headless=new", "--disable-gpu", "--no-pdf-header-footer", f"--print-to-pdf={pdf_path}", html_path.as_uri()],
+                capture_output=True, timeout=90, check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired) as error:
+            raise AnalysisInputError("pdf_render_failed", "Local PDF rendering did not complete.", "pdf") from error
+        if completed.returncode != 0 or not pdf_path.is_file():
+            raise AnalysisInputError("pdf_render_failed", "Local PDF rendering did not produce a PDF.", "pdf")
+        pdf = pdf_path.read_bytes()
+    if not pdf.startswith(b"%PDF-"):
+        raise AnalysisInputError("pdf_render_failed", "Local PDF output is invalid.", "pdf")
+    return pdf
 
 
 def render_doe_report_xlsx(report: Mapping[str, Any]) -> bytes:

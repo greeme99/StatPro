@@ -86,6 +86,7 @@ from statpro.application.reports import (
     build_doe_report,
     export_doe_report_zip,
     render_doe_report_html,
+    render_doe_report_pdf,
     render_doe_report_xlsx,
 )
 from statpro.defect_analysis import (
@@ -2951,6 +2952,16 @@ def create_app(
                 "ETag": f'"{report["report_digest"]}"',
             },
         )
+
+    @app.get("/v1/analysis-runs/{run_id}/report.pdf")
+    def get_doe_report_pdf(
+        run_id: RunId,
+        template_id: Annotated[str, Query(pattern=r"^(standard|customer_review|regulatory_review)$")] = "standard",
+    ) -> Response:
+        report = build_doe_report(repository.load(ANALYSIS_RUNS, run_id), template_id=template_id)
+        return Response(content=render_doe_report_pdf(report), media_type="application/pdf", headers={
+            "Content-Disposition": f'attachment; filename="{run_id}-doe-report.pdf"', "ETag": f'"{report["report_digest"]}"',
+        })
 
     @app.get("/v1/analysis-runs/{run_id}/export")
     def export_doe_report(
