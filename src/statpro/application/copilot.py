@@ -476,8 +476,10 @@ class FallbackChainCopilotProvider:
         code_request = _is_code_generation_request(question)
         cloud_provider = self._gemini_complex if _is_complex_request(question) else self._gemini_simple
         local_provider = self._ollama_code if code_request else self._ollama_workflow
-        for provider in (cloud_provider, local_provider):
+        failures: list[str] = []
+        for tier, provider in (("Gemini", cloud_provider), ("Ollama", local_provider)):
             if provider is None:
+                failures.append(f"{tier}: 미설정")
                 continue
             try:
                 return provider.answer(
@@ -486,7 +488,8 @@ class FallbackChainCopilotProvider:
                     workspace=workspace,
                     evidence_context=evidence_context,
                 )
-            except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError):
+            except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError) as error:
+                failures.append(f"{tier}: {type(error).__name__}")
                 continue
         return CopilotGuidance(
             answer=(
@@ -497,7 +500,7 @@ class FallbackChainCopilotProvider:
             sources=(_SELECTION_SOURCE,),
             limitations=(
                 "Rulebase에 직접 대응하는 규칙을 찾지 못했습니다.",
-                "Gemini 및 로컬 Ollama 폴백 응답을 사용할 수 없었습니다.",
+                "Gemini 및 로컬 Ollama 폴백 응답을 사용할 수 없었습니다 (" + ", ".join(failures) + ").",
                 "분석 설정이나 저장 문서는 자동으로 변경하지 않습니다.",
             ),
             action=CopilotAction("분석 선택 시작", "/analyses"),

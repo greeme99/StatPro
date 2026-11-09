@@ -618,6 +618,8 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
         self.assertEqual(guidance.provider, "statpro-fallback-unavailable")
         self.assertEqual(guidance.guidance_mode, "unmatched")
         self.assertIn("Gemini 및 로컬 Ollama", guidance.limitations[1])
+        self.assertIn("Gemini: 미설정", guidance.limitations[1])
+        self.assertIn("Ollama: 미설정", guidance.limitations[1])
 
     def test_runtime_status_reports_readiness_without_exposing_the_api_key(self) -> None:
         with patch.dict(
