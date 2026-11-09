@@ -28,6 +28,14 @@ export type CopilotRule = {
   source_reference: string;
 };
 
+export type CopilotRuntimeStatus = {
+  rulebase: { configured: boolean; rule_count: number; live_verified: boolean };
+  gemini: { enabled: boolean; credential_present: boolean; ready: boolean; simple_model: string; complex_model: string; live_verified: boolean };
+  ollama: { enabled: boolean; loopback_endpoint_configured: boolean; ready: boolean; workflow_model: string; code_model: string; live_verified: boolean };
+  manual_input_available: boolean;
+  limitations: string;
+};
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
     ...init,
@@ -93,6 +101,10 @@ export function listCopilotRules(filters: { domain?: string; limit?: number } = 
   if (filters.limit) params.set("limit", String(filters.limit));
   const suffix = params.toString() ? `?${params.toString()}` : "";
   return request(`/v1/copilot/rules${suffix}`);
+}
+
+export function getCopilotRuntimeStatus(): Promise<CopilotRuntimeStatus> {
+  return request("/v1/copilot/status");
 }
 
 export function getRun(runId: string): Promise<StoredRun> {

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Bot, ChevronRight, Database, ExternalLink, FolderKanban, ListChecks, RotateCcw, Send, X } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
-import { getCopilotGuidance, getRun, listCopilotRules, listDmaicProjects, type CopilotRule } from "../api";
+import { getCopilotGuidance, getCopilotRuntimeStatus, getRun, listCopilotRules, listDmaicProjects, type CopilotRule, type CopilotRuntimeStatus } from "../api";
 import { guideCopilotQuestion, type CopilotAction } from "../copilotGuidance";
 
 type CopilotMessage = {
@@ -97,6 +97,7 @@ export function CopilotPanel() {
   const [answerLoading, setAnswerLoading] = useState(false);
   const [catalogRules, setCatalogRules] = useState<CopilotRule[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(false);
+  const [runtimeStatus, setRuntimeStatus] = useState<CopilotRuntimeStatus | null>(null);
   const [messages, setMessages] = useState<CopilotMessage[]>(() => [initialMessage()]);
   const [workflowSession, setWorkflowSession] = useState<WorkflowSession | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -165,6 +166,17 @@ export function CopilotPanel() {
     setCatalogLoading(true);
     listCopilotRules({ domain, limit: 4 }).then(setCatalogRules).catch(() => setCatalogRules([])).finally(() => setCatalogLoading(false));
   }, [context.name, open]);
+
+  useEffect(() => {
+    let active = true;
+    if (!open) return () => { active = false; };
+    getCopilotRuntimeStatus().then((status) => {
+      if (active) setRuntimeStatus(status);
+    }).catch(() => {
+      if (active) setRuntimeStatus(null);
+    });
+    return () => { active = false; };
+  }, [open]);
 
   const ask = async (value: string) => {
     const text = value.trim();
@@ -253,7 +265,7 @@ export function CopilotPanel() {
       </button>
       <aside id="copilot-panel" className={`copilot-panel${open ? " is-open" : ""}`} aria-label="AI Copilot" aria-hidden={!open}>
         <header className="copilot-header">
-          <div><span className="eyebrow">CONTEXT-AWARE GUIDE</span><h2>AI Copilot</h2><p>{context.name}</p></div>
+          <div><span className="eyebrow">CONTEXT-AWARE GUIDE</span><h2>AI Copilot</h2><p>{context.name}</p>{runtimeStatus?.rulebase && runtimeStatus.gemini && runtimeStatus.ollama && <small className="copilot-runtime-status">Rulebase {runtimeStatus.rulebase.rule_count}개 · {runtimeStatus.gemini.ready ? "Gemini 준비됨" : "Gemini 미설정"} · {runtimeStatus.ollama.ready ? "Ollama 준비됨" : "Ollama 미설정"} · 수동 입력 가능</small>}</div>
           <div><button className="icon-button" type="button" aria-label="대화 초기화" disabled={answerLoading} onClick={resetConversation}><RotateCcw aria-hidden="true" /></button><button className="icon-button" type="button" aria-label="AI Copilot 닫기" onClick={() => setOpen(false)}><X aria-hidden="true" /></button></div>
         </header>
         <div className="copilot-suggestions" aria-label="추천 질문">
