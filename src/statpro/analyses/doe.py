@@ -9,7 +9,7 @@ from itertools import combinations, product
 from math import atan2, cos, exp, isfinite, lgamma, log, log1p, sin, sqrt
 from statistics import NormalDist, median
 
-from statpro.analyses.common import f_survival, finite_values
+from statpro.analyses.common import f_survival, finite_values, invert_matrix
 from statpro.domain.errors import AnalysisInputError
 from statpro.domain.identity import input_digest
 from statpro.domain.models import ProvenanceSource, ResultBundle
@@ -2493,7 +2493,7 @@ def box_behnken_design(
         for left in range(model_term_count)
     ]
     try:
-        _invert_matrix(cross_product, field="factors")
+        invert_matrix(cross_product, field="factors")
         quadratic_model_estimable = True
     except AnalysisInputError:
         quadratic_model_estimable = False
@@ -2693,43 +2693,6 @@ def central_composite_design(
     )
 
 
-def _invert_matrix(matrix: Sequence[Sequence[float]], *, field: str) -> list[list[float]]:
-    size = len(matrix)
-    augmented = [
-        [float(value) for value in row]
-        + [1.0 if row_index == column_index else 0.0 for column_index in range(size)]
-        for row_index, row in enumerate(matrix)
-    ]
-    for column in range(size):
-        pivot_row = max(range(column, size), key=lambda row: abs(augmented[row][column]))
-        pivot = augmented[pivot_row][column]
-        if abs(pivot) < 1e-12:
-            raise AnalysisInputError(
-                "singular_design_matrix",
-                "The selected response-surface model is not estimable from this design.",
-                field,
-            )
-        augmented[column], augmented[pivot_row] = (
-            augmented[pivot_row],
-            augmented[column],
-        )
-        pivot = augmented[column][column]
-        augmented[column] = [value / pivot for value in augmented[column]]
-        for row in range(size):
-            if row == column:
-                continue
-            multiplier = augmented[row][column]
-            if multiplier == 0.0:
-                continue
-            augmented[row] = [
-                value - multiplier * pivot_value
-                for value, pivot_value in zip(
-                    augmented[row], augmented[column], strict=True
-                )
-            ]
-    return [row[size:] for row in augmented]
-
-
 def _quadratic_model_columns(
     rows: Sequence[Mapping[str, object]], factor_names: Sequence[str]
 ) -> tuple[list[dict[str, object]], list[list[float]]]:
@@ -2865,7 +2828,7 @@ def _analyze_quadratic_design(
         sum(row[column] * value for row, value in zip(matrix, values, strict=True))
         for column in range(coefficient_count)
     ]
-    inverse = _invert_matrix(xtx, field="responses")
+    inverse = invert_matrix(xtx, field="responses")
     coefficients = [
         sum(inverse[row][column] * xty[column] for column in range(coefficient_count))
         for row in range(coefficient_count)
@@ -3332,7 +3295,7 @@ def _explore_quadratic_surface(
 
     stationary_coded: dict[str, float] | None = None
     try:
-        inverse = _invert_matrix(quadratic, field="responses")
+        inverse = invert_matrix(quadratic, field="responses")
         stationary_values = [
             -0.5 * sum(inverse[row][column] * linear[column] for column in range(len(linear)))
             for row in range(len(linear))

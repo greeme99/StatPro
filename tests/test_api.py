@@ -51,6 +51,7 @@ class LocalApiContractTests(unittest.TestCase):
         self.assertIn("/v1/analysis-runs/g-chart", openapi.json()["paths"])
         self.assertIn("/v1/analysis-runs/t-chart", openapi.json()["paths"])
         self.assertIn("/v1/analysis-runs/normality-jarque-bera", openapi.json()["paths"])
+        self.assertIn("/v1/analysis-runs/regression-linear-ols", openapi.json()["paths"])
         self.assertIn("/v1/analysis-runs/pareto", openapi.json()["paths"])
         self.assertIn(
             "/v1/fmea-studies/{study_id}/approve-enterprise",
@@ -887,6 +888,16 @@ class LocalApiContractTests(unittest.TestCase):
                 "/v1/analysis-runs/normality-jarque-bera",
                 {"run_id": "normality-jb", "values": [0, 0, 0, 1], "alpha": 0.05},
                 "normality.jarque_bera",
+            ),
+            (
+                "/v1/analysis-runs/regression-linear-ols",
+                {
+                    "run_id": "linear-ols",
+                    "response": [2, 3, 5, 7, 11, 13],
+                    "predictors": {"temperature": [0, 1, 2, 3, 4, 5]},
+                    "response_name": "Yield",
+                },
+                "regression.linear_ols",
             ),
             (
                 "/v1/analysis-runs/doe-full-factorial",

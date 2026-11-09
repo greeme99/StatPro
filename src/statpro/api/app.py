@@ -46,6 +46,7 @@ from statpro.analyses.msa import (
     gage_rr_nested,
 )
 from statpro.analyses.normality import jarque_bera_normality
+from statpro.analyses.regression import linear_ols
 from statpro.analyses.spc import (
     c_chart,
     cusum_chart,
@@ -336,6 +337,14 @@ class JarqueBeraNormalityRunRequest(ApiModel):
     run_id: RunId
     values: list[float] = Field(min_length=3)
     alpha: float = Field(default=0.05, gt=0.0, lt=1.0)
+
+
+class LinearOlsRunRequest(ApiModel):
+    run_id: RunId
+    response: list[float] = Field(min_length=3)
+    predictors: dict[str, list[float]] = Field(min_length=1, max_length=20)
+    response_name: str = Field(default="Response", min_length=1, max_length=255)
+    alpha: float = Field(default=0.05, ge=0.001, le=0.5)
 
 
 class FactorRequest(ApiModel):
@@ -2447,6 +2456,27 @@ def create_app(
             repository,
             request.run_id,
             jarque_bera_normality(request.values, alpha=request.alpha),
+        )
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _response(stored)
+
+    @app.post(
+        "/v1/analysis-runs/regression-linear-ols",
+        status_code=201,
+        response_model=StoredRunResponse,
+    )
+    def run_linear_ols(
+        request: LinearOlsRunRequest, response: Response
+    ) -> StoredRunResponse:
+        stored = _save_run(
+            repository,
+            request.run_id,
+            linear_ols(
+                request.response,
+                request.predictors,
+                response_name=request.response_name,
+                alpha=request.alpha,
+            ),
         )
         response.headers["ETag"] = f'"{stored.etag}"'
         return _response(stored)

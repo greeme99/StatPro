@@ -3,9 +3,46 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 
 from statpro.domain.errors import AnalysisInputError
+
+
+def invert_matrix(matrix: Sequence[Sequence[float]], *, field: str) -> list[list[float]]:
+    """Invert a small dense square matrix with partial pivoting."""
+
+    size = len(matrix)
+    if size == 0 or any(len(row) != size for row in matrix):
+        raise AnalysisInputError(
+            "invalid_matrix", "The model matrix must be non-empty and square.", field
+        )
+    augmented = [
+        [float(value) for value in row]
+        + [1.0 if row_index == column_index else 0.0 for column_index in range(size)]
+        for row_index, row in enumerate(matrix)
+    ]
+    for column in range(size):
+        pivot_row = max(range(column, size), key=lambda row: abs(augmented[row][column]))
+        pivot = augmented[pivot_row][column]
+        if abs(pivot) < 1e-12:
+            raise AnalysisInputError(
+                "singular_design_matrix",
+                "The selected linear model is not estimable from this design.",
+                field,
+            )
+        augmented[column], augmented[pivot_row] = augmented[pivot_row], augmented[column]
+        pivot = augmented[column][column]
+        augmented[column] = [value / pivot for value in augmented[column]]
+        for row in range(size):
+            if row == column:
+                continue
+            multiplier = augmented[row][column]
+            if multiplier != 0.0:
+                augmented[row] = [
+                    value - multiplier * pivot_value
+                    for value, pivot_value in zip(augmented[row], augmented[column], strict=True)
+                ]
+    return [row[size:] for row in augmented]
 
 
 def _beta_continued_fraction(a: float, b: float, x: float) -> float:
