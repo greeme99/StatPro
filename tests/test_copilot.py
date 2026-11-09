@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import json
 import sys
 import tempfile
 import unittest
@@ -19,6 +20,7 @@ from statpro.application.copilot import (
     LocalLlmCopilotProvider,
     LocalKnowledgeCopilotProvider,
     RuleFirstCopilotProvider,
+    UrlLibLocalChatCompletionClient,
     build_default_copilot_provider,
     copilot_runtime_status,
 )
@@ -46,6 +48,17 @@ class FakeGeminiClient:
                 }
             }]
         }
+
+
+class FakeHttpResponse:
+    def __enter__(self) -> FakeHttpResponse:
+        return self
+
+    def __exit__(self, exc_type: object, exc: object, traceback: object) -> None:
+        return None
+
+    def read(self) -> bytes:
+        return b'{"choices":[{"message":{"content":"{}"}}]}'
 
 
 class FakeLocalLlmClient:
@@ -564,6 +577,24 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
         self.assertIn("loopback", guidance.limitations[0])
         with self.assertRaisesRegex(ValueError, "loopback"):
             LocalLlmCopilotProvider("https://example.invalid/v1/chat/completions", "quality-model")
+
+    def test_local_openai_client_requests_a_single_non_streaming_json_response(self) -> None:
+        with patch(
+            "statpro.application.copilot.urllib.request.urlopen",
+            return_value=FakeHttpResponse(),
+        ) as urlopen:
+            client = UrlLibLocalChatCompletionClient(timeout_seconds=47)
+            client.complete(
+                endpoint="http://127.0.0.1:11434/v1/chat/completions",
+                model="qwen3:4b-q4_K_M",
+                prompt="JSON only",
+            )
+
+        request = urlopen.call_args.args[0]
+        body = json.loads(request.data.decode("utf-8"))
+        self.assertFalse(body["stream"])
+        self.assertEqual(request.full_url, "http://127.0.0.1:11434/v1/chat/completions")
+        self.assertEqual(urlopen.call_args.kwargs["timeout"], 47)
 
     def test_invalid_ollama_configuration_continues_to_manual_input_when_gemini_is_disabled(self) -> None:
         with patch.dict(

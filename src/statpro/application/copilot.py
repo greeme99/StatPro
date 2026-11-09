@@ -724,6 +724,7 @@ class UrlLibLocalChatCompletionClient:
                     {"role": "user", "content": prompt},
                 ],
                 "temperature": 0.2,
+                "stream": False,
             }
         ).encode("utf-8")
         request = urllib.request.Request(
