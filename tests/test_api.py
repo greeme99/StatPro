@@ -101,9 +101,9 @@ class LocalApiContractTests(unittest.TestCase):
         self.assertTrue(status["rulebase"]["configured"])
         self.assertIn("rule_count", status["rulebase"])
         self.assertTrue(status["manual_input_available"])
-        self.assertFalse(status["gemini"]["live_verified"])
+        self.assertFalse(status["exaone"]["live_verified"])
         self.assertFalse(status["ollama"]["live_verified"])
-        self.assertNotIn("GEMINI_API_KEY", status)
+        self.assertNotIn("EXAONE_API_KEY", status)
 
     def test_copilot_returns_a_reviewable_nelson_rule_draft(self) -> None:
         response = self.client.post(

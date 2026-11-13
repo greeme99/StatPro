@@ -16,35 +16,33 @@ from statpro.application.copilot import (
     CopilotGuidance,
     CopilotSource,
     FallbackChainCopilotProvider,
-    GeminiCopilotProvider,
+    ExaoneCopilotProvider,
     LocalLlmCopilotProvider,
     LocalKnowledgeCopilotProvider,
     RuleFirstCopilotProvider,
-    UrlLibLocalChatCompletionClient,
+    UrlLibExaoneChatCompletionClient,
     build_default_copilot_provider,
     copilot_runtime_status,
 )
 from statpro.application.copilot_rules import COPILOT_RULE_CATALOG
 
 
-class FakeGeminiClient:
+class FakeExaoneClient:
     def __init__(self) -> None:
-        self.calls: list[tuple[str, str, str]] = []
+        self.calls: list[tuple[str, str, str, str, str]] = []
 
-    def generate(self, *, api_key: str, model: str, prompt: str) -> dict[str, object]:
-        self.calls.append((api_key, model, prompt))
+    def complete(self, *, api_key: str, endpoint: str, model: str, prompt: str, reasoning_effort: str) -> dict[str, object]:
+        self.calls.append((api_key, endpoint, model, prompt, reasoning_effort))
         return {
-            "candidates": [{
-                "content": {
-                    "parts": [{
-                        "text": (
+            "choices": [{
+                "message": {
+                    "content": (
                             '{"answer":"열처리 코드 정의를 확인하세요.",'
                             '"recommended_tool":null,'
                             '"menu_path":["홈 (Home)"],'
                             '"checklist":["설비 매뉴얼 확보"],'
                             '"workflow_steps":["코드 발생 시점 확인"]}'
-                        )
-                    }]
+                    )
                 }
             }]
         }
@@ -82,9 +80,9 @@ class FakeLocalLlmClient:
         }
 
 
-class MalformedGeminiClient:
-    def generate(self, *, api_key: str, model: str, prompt: str) -> dict[str, object]:
-        return {"candidates": []}
+class MalformedExaoneClient:
+    def complete(self, *, api_key: str, endpoint: str, model: str, prompt: str, reasoning_effort: str) -> dict[str, object]:
+        return {"choices": []}
 
 
 class MalformedLocalLlmClient:
@@ -92,17 +90,15 @@ class MalformedLocalLlmClient:
         return {"choices": []}
 
 
-class IncompleteGuidanceGeminiClient:
-    def generate(self, *, api_key: str, model: str, prompt: str) -> dict[str, object]:
+class IncompleteGuidanceExaoneClient:
+    def complete(self, *, api_key: str, endpoint: str, model: str, prompt: str, reasoning_effort: str) -> dict[str, object]:
         return {
-            "candidates": [{
-                "content": {
-                    "parts": [{
-                        "text": (
+            "choices": [{
+                "message": {
+                    "content": (
                             '{"answer":"필수 필드가 빠진 응답입니다.",'
                             '"menu_path":[],"checklist":[],"workflow_steps":[]}'
-                        )
-                    }]
+                    )
                 }
             }]
         }
@@ -123,7 +119,7 @@ class RecordingFallbackProvider:
         self.questions.append(question)
         return CopilotGuidance(
             answer="LLM 보완 안내",
-            provider="gemini-2.5-flash",
+            provider="k-exaone_v2.5",
             sources=(CopilotSource("사용자 질문", "copilot://question", "user_context"),),
             limitations=("생성형 AI 응답은 사용자가 검토해야 합니다.",),
             action=CopilotAction("분석 선택 열기", "/analyses"),
@@ -222,10 +218,11 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             env_file = Path(directory) / ".env"
             env_file.write_text(
-                "STATPRO_COPILOT_LLM_ENABLED=true\n"
-                "GEMINI_API_KEY=local-secret\n"
-                "STATPRO_COPILOT_GEMINI_SIMPLE_MODEL=gemini-test-lite\n"
-                "STATPRO_COPILOT_GEMINI_COMPLEX_MODEL=gemini-test-complex\n"
+                "STATPRO_COPILOT_EXAONE_ENABLED=true\n"
+                "EXAONE_API_KEY=local-secret\n"
+                "STATPRO_COPILOT_EXAONE_MODEL=k-exaone_v2.5\n"
+                "STATPRO_COPILOT_EXAONE_SIMPLE_REASONING_EFFORT=low\n"
+                "STATPRO_COPILOT_EXAONE_COMPLEX_REASONING_EFFORT=high\n"
                 "STATPRO_COPILOT_OLLAMA_ENABLED=true\n"
                 "STATPRO_COPILOT_OLLAMA_URL=http://127.0.0.1:11434/v1/chat/completions\n"
                 "STATPRO_COPILOT_OLLAMA_WORKFLOW_MODEL=workflow-model\n"
@@ -238,14 +235,14 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
             )
             with patch.dict(
                 os.environ,
-                {"GEMINI_API_KEY": "process-secret"},
+                {"EXAONE_API_KEY": "process-secret"},
                 clear=True,
             ):
                 load_copilot_env(env_file)
 
-                self.assertEqual(os.environ["STATPRO_COPILOT_LLM_ENABLED"], "true")
-                self.assertEqual(os.environ["GEMINI_API_KEY"], "process-secret")
-                self.assertEqual(os.environ["STATPRO_COPILOT_GEMINI_SIMPLE_MODEL"], "gemini-test-lite")
+                self.assertEqual(os.environ["STATPRO_COPILOT_EXAONE_ENABLED"], "true")
+                self.assertEqual(os.environ["EXAONE_API_KEY"], "process-secret")
+                self.assertEqual(os.environ["STATPRO_COPILOT_EXAONE_SIMPLE_REASONING_EFFORT"], "low")
                 self.assertEqual(os.environ["STATPRO_COPILOT_OLLAMA_CODE_MODEL"], "code-model")
                 self.assertEqual(os.environ["STATPRO_COPILOT_LOCAL_LLM_MODEL"], "quality-model")
                 self.assertNotIn("UNRELATED_SECRET", os.environ)
@@ -271,7 +268,7 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
         self.assertGreaterEqual(len(guidance.checklist), 4)
         self.assertGreaterEqual(len(guidance.workflow_steps), 5)
 
-    def test_unmatched_question_calls_gemini_once(self) -> None:
+    def test_unmatched_question_calls_exaone_once(self) -> None:
         fallback = RecordingFallbackProvider()
         provider = RuleFirstCopilotProvider(LocalKnowledgeCopilotProvider(), fallback)
 
@@ -283,15 +280,15 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
         )
 
         self.assertEqual(fallback.questions, ["사내 신규 열처리 장비의 고유 진단 코드를 해석해줘"])
-        self.assertEqual(guidance.provider, "gemini-2.5-flash")
+        self.assertEqual(guidance.provider, "k-exaone_v2.5")
         self.assertEqual(guidance.guidance_mode, "llm_fallback")
 
-    def test_fallback_chain_uses_light_gemini_for_a_simple_question(self) -> None:
+    def test_fallback_chain_uses_light_exaone_for_a_simple_question(self) -> None:
         simple = RecordingFallbackProvider()
         complex_provider = RecordingFallbackProvider()
         chain = FallbackChainCopilotProvider(
-            gemini_simple=simple,
-            gemini_complex=complex_provider,
+            exaone_simple=simple,
+            exaone_complex=complex_provider,
             ollama_workflow=RecordingFallbackProvider(),
             ollama_code=RecordingFallbackProvider(),
         )
@@ -307,11 +304,11 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
         self.assertEqual(complex_provider.questions, [])
         self.assertEqual(guidance.guidance_mode, "llm_fallback")
 
-    def test_fallback_chain_uses_complex_gemini_then_code_ollama(self) -> None:
+    def test_fallback_chain_uses_complex_exaone_then_code_ollama(self) -> None:
         code_ollama = RecordingFallbackProvider()
         chain = FallbackChainCopilotProvider(
-            gemini_simple=RecordingFallbackProvider(),
-            gemini_complex=FailingFallbackProvider(),
+            exaone_simple=RecordingFallbackProvider(),
+            exaone_complex=FailingFallbackProvider(),
             ollama_workflow=RecordingFallbackProvider(),
             ollama_code=code_ollama,
         )
@@ -325,11 +322,11 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
 
         self.assertEqual(code_ollama.questions, ["SPC 이상 신호를 정리하는 Python 코드를 만들어줘"])
 
-    def test_fallback_chain_uses_workflow_ollama_after_simple_gemini_failure(self) -> None:
+    def test_fallback_chain_uses_workflow_ollama_after_simple_exaone_failure(self) -> None:
         workflow_ollama = RecordingFallbackProvider()
         chain = FallbackChainCopilotProvider(
-            gemini_simple=FailingFallbackProvider(),
-            gemini_complex=RecordingFallbackProvider(),
+            exaone_simple=FailingFallbackProvider(),
+            exaone_complex=RecordingFallbackProvider(),
             ollama_workflow=workflow_ollama,
             ollama_code=RecordingFallbackProvider(),
         )
@@ -343,15 +340,15 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
 
         self.assertEqual(workflow_ollama.questions, ["현장 작업표 열 이름을 설명해줘"])
 
-    def test_malformed_gemini_response_falls_through_to_workflow_ollama(self) -> None:
+    def test_malformed_exaone_response_falls_through_to_workflow_ollama(self) -> None:
         local_client = FakeLocalLlmClient()
         chain = FallbackChainCopilotProvider(
-            gemini_simple=GeminiCopilotProvider(
+            exaone_simple=ExaoneCopilotProvider(
                 "test-key",
-                model="gemini-test-lite",
-                client=MalformedGeminiClient(),
+                model="k-exaone_v2.5",
+                client=MalformedExaoneClient(),
             ),
-            gemini_complex=None,
+            exaone_complex=None,
             ollama_workflow=LocalLlmCopilotProvider(
                 "http://127.0.0.1:11434/v1/chat/completions",
                 "qwen3:4b-q4_K_M",
@@ -370,15 +367,15 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
         self.assertEqual(guidance.provider, "local:qwen3:4b-q4_K_M")
         self.assertEqual(len(local_client.calls), 1)
 
-    def test_incomplete_gemini_contract_falls_through_to_workflow_ollama(self) -> None:
+    def test_incomplete_exaone_contract_falls_through_to_workflow_ollama(self) -> None:
         local_client = FakeLocalLlmClient()
         chain = FallbackChainCopilotProvider(
-            gemini_simple=GeminiCopilotProvider(
+            exaone_simple=ExaoneCopilotProvider(
                 "test-key",
-                model="gemini-test-lite",
-                client=IncompleteGuidanceGeminiClient(),
+                model="k-exaone_v2.5",
+                client=IncompleteGuidanceExaoneClient(),
             ),
-            gemini_complex=None,
+            exaone_complex=None,
             ollama_workflow=LocalLlmCopilotProvider(
                 "http://127.0.0.1:11434/v1/chat/completions",
                 "qwen3:4b-q4_K_M",
@@ -399,8 +396,8 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
 
     def test_malformed_local_response_returns_manual_guidance(self) -> None:
         chain = FallbackChainCopilotProvider(
-            gemini_simple=None,
-            gemini_complex=None,
+            exaone_simple=None,
+            exaone_complex=None,
             ollama_workflow=LocalLlmCopilotProvider(
                 "http://127.0.0.1:11434/v1/chat/completions",
                 "qwen3:4b-q4_K_M",
@@ -420,8 +417,8 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
 
     def test_fallback_chain_requests_manual_input_after_all_models_fail(self) -> None:
         chain = FallbackChainCopilotProvider(
-            gemini_simple=FailingFallbackProvider(),
-            gemini_complex=FailingFallbackProvider(),
+            exaone_simple=FailingFallbackProvider(),
+            exaone_complex=FailingFallbackProvider(),
             ollama_workflow=FailingFallbackProvider(),
             ollama_code=FailingFallbackProvider(),
         )
@@ -537,9 +534,9 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
         self.assertEqual(guidance.recommended_tool, "MES·FDC·APC/R2R 플랫폼")
         self.assertIn("자동 실행하지 않습니다", guidance.limitations[2])
 
-    def test_gemini_fallback_uses_structured_contract(self) -> None:
-        client = FakeGeminiClient()
-        provider = GeminiCopilotProvider("test-key", client=client)
+    def test_exaone_fallback_uses_structured_contract(self) -> None:
+        client = FakeExaoneClient()
+        provider = ExaoneCopilotProvider("test-key", client=client)
 
         guidance = provider.answer(
             question="사내 열처리 장비 코드 E97은 무엇인가요?",
@@ -549,8 +546,10 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
         )
 
         self.assertEqual(len(client.calls), 1)
-        self.assertEqual(client.calls[0][0:2], ("test-key", "gemini-2.5-flash"))
-        self.assertIn("열처리 장비 코드 E97", client.calls[0][2])
+        self.assertEqual(client.calls[0][0], "test-key")
+        self.assertEqual(client.calls[0][2], "k-exaone_v2.5")
+        self.assertEqual(client.calls[0][4], "low")
+        self.assertIn("열처리 장비 코드 E97", client.calls[0][3])
         self.assertEqual(guidance.guidance_mode, "llm_fallback")
         self.assertEqual(guidance.checklist, ("설비 매뉴얼 확보",))
         self.assertEqual(guidance.workflow_steps, ("코드 발생 시점 확인",))
@@ -583,28 +582,33 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
             "statpro.application.copilot.urllib.request.urlopen",
             return_value=FakeHttpResponse(),
         ) as urlopen:
-            client = UrlLibLocalChatCompletionClient(timeout_seconds=47)
+            client = UrlLibExaoneChatCompletionClient(timeout_seconds=47)
             client.complete(
-                endpoint="http://127.0.0.1:11434/v1/chat/completions",
-                model="qwen3:4b-q4_K_M",
+                api_key="secret",
+                endpoint="https://api.exaone.ai/v1/chat/completions",
+                model="k-exaone_v2.5",
                 prompt="JSON only",
+                reasoning_effort="high",
             )
 
         request = urlopen.call_args.args[0]
         body = json.loads(request.data.decode("utf-8"))
         self.assertFalse(body["stream"])
-        self.assertEqual(request.full_url, "http://127.0.0.1:11434/v1/chat/completions")
+        self.assertEqual(request.full_url, "https://api.exaone.ai/v1/chat/completions")
+        self.assertEqual(request.get_header("Authorization"), "Bearer secret")
+        self.assertEqual(body["model"], "k-exaone_v2.5")
+        self.assertEqual(body["reasoning_effort"], "high")
         self.assertEqual(urlopen.call_args.kwargs["timeout"], 47)
 
-    def test_invalid_ollama_configuration_continues_to_manual_input_when_gemini_is_disabled(self) -> None:
+    def test_invalid_ollama_configuration_continues_to_manual_input_when_exaone_is_disabled(self) -> None:
         with patch.dict(
             os.environ,
             {
                 "STATPRO_COPILOT_LOCAL_LLM_ENABLED": "true",
                 "STATPRO_COPILOT_LOCAL_LLM_URL": "https://example.invalid/v1/chat/completions",
                 "STATPRO_COPILOT_LOCAL_LLM_MODEL": "quality-model",
-                "STATPRO_COPILOT_LLM_ENABLED": "false",
-                "GEMINI_API_KEY": "",
+                "STATPRO_COPILOT_EXAONE_ENABLED": "false",
+                "EXAONE_API_KEY": "",
             },
             clear=True,
         ):
@@ -617,18 +621,17 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
 
         self.assertEqual(guidance.provider, "statpro-fallback-unavailable")
         self.assertEqual(guidance.guidance_mode, "unmatched")
-        self.assertIn("Gemini 및 로컬 Ollama", guidance.limitations[1])
-        self.assertIn("Gemini: 미설정", guidance.limitations[1])
+        self.assertIn("EXAONE 및 로컬 Ollama", guidance.limitations[1])
+        self.assertIn("EXAONE: 미설정", guidance.limitations[1])
         self.assertIn("Ollama: 미설정", guidance.limitations[1])
 
     def test_runtime_status_reports_readiness_without_exposing_the_api_key(self) -> None:
         with patch.dict(
             os.environ,
             {
-                "STATPRO_COPILOT_LLM_ENABLED": "true",
-                "GEMINI_API_KEY": "must-not-appear",
-                "STATPRO_COPILOT_GEMINI_SIMPLE_MODEL": "gemini-test-lite",
-                "STATPRO_COPILOT_GEMINI_COMPLEX_MODEL": "gemini-test-complex",
+                "STATPRO_COPILOT_EXAONE_ENABLED": "true",
+                "EXAONE_API_KEY": "must-not-appear",
+                "STATPRO_COPILOT_EXAONE_MODEL": "k-exaone_v2.5",
                 "STATPRO_COPILOT_OLLAMA_ENABLED": "true",
                 "STATPRO_COPILOT_OLLAMA_URL": "http://127.0.0.1:11434/v1/chat/completions",
                 "STATPRO_COPILOT_OLLAMA_WORKFLOW_MODEL": "workflow-test",
@@ -639,9 +642,9 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
             status = copilot_runtime_status()
 
         self.assertTrue(status["rulebase"]["configured"])
-        self.assertTrue(status["gemini"]["ready"])
+        self.assertTrue(status["exaone"]["ready"])
         self.assertTrue(status["ollama"]["ready"])
-        self.assertFalse(status["gemini"]["live_verified"])
+        self.assertFalse(status["exaone"]["live_verified"])
         self.assertFalse(status["ollama"]["live_verified"])
         self.assertNotIn("must-not-appear", repr(status))
 

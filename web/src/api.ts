@@ -30,7 +30,7 @@ export type CopilotRule = {
 
 export type CopilotRuntimeStatus = {
   rulebase: { configured: boolean; rule_count: number; live_verified: boolean };
-  gemini: { enabled: boolean; credential_present: boolean; ready: boolean; simple_model: string; complex_model: string; live_verified: boolean };
+  exaone: { enabled: boolean; credential_present: boolean; ready: boolean; endpoint_configured: boolean; model: string; simple_reasoning_effort: string; complex_reasoning_effort: string; live_verified: boolean };
   ollama: { enabled: boolean; loopback_endpoint_configured: boolean; ready: boolean; workflow_model: string; code_model: string; live_verified: boolean };
   manual_input_available: boolean;
   limitations: string;

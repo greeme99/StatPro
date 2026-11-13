@@ -64,13 +64,15 @@ class CopilotProvider(Protocol):
     ) -> CopilotGuidance: ...
 
 
-class GeminiContentClient(Protocol):
-    def generate(
+class ExaoneChatCompletionClient(Protocol):
+    def complete(
         self,
         *,
         api_key: str,
+        endpoint: str,
         model: str,
         prompt: str,
+        reasoning_effort: str,
     ) -> Mapping[str, Any]: ...
 
 
@@ -455,13 +457,13 @@ class FallbackChainCopilotProvider:
     def __init__(
         self,
         *,
-        gemini_simple: CopilotProvider | None,
-        gemini_complex: CopilotProvider | None,
+        exaone_simple: CopilotProvider | None,
+        exaone_complex: CopilotProvider | None,
         ollama_workflow: CopilotProvider | None,
         ollama_code: CopilotProvider | None,
     ) -> None:
-        self._gemini_simple = gemini_simple
-        self._gemini_complex = gemini_complex
+        self._exaone_simple = exaone_simple
+        self._exaone_complex = exaone_complex
         self._ollama_workflow = ollama_workflow
         self._ollama_code = ollama_code
 
@@ -474,10 +476,10 @@ class FallbackChainCopilotProvider:
         evidence_context: str | None,
     ) -> CopilotGuidance:
         code_request = _is_code_generation_request(question)
-        cloud_provider = self._gemini_complex if _is_complex_request(question) else self._gemini_simple
+        cloud_provider = self._exaone_complex if _is_complex_request(question) else self._exaone_simple
         local_provider = self._ollama_code if code_request else self._ollama_workflow
         failures: list[str] = []
-        for tier, provider in (("Gemini", cloud_provider), ("Ollama", local_provider)):
+        for tier, provider in (("EXAONE", cloud_provider), ("Ollama", local_provider)):
             if provider is None:
                 failures.append(f"{tier}: 미설정")
                 continue
@@ -500,7 +502,7 @@ class FallbackChainCopilotProvider:
             sources=(_SELECTION_SOURCE,),
             limitations=(
                 "Rulebase에 직접 대응하는 규칙을 찾지 못했습니다.",
-                "Gemini 및 로컬 Ollama 폴백 응답을 사용할 수 없었습니다 (" + ", ".join(failures) + ").",
+                "EXAONE 및 로컬 Ollama 폴백 응답을 사용할 수 없었습니다 (" + ", ".join(failures) + ").",
                 "분석 설정이나 저장 문서는 자동으로 변경하지 않습니다.",
             ),
             action=CopilotAction("분석 선택 시작", "/analyses"),
@@ -587,74 +589,69 @@ def _guidance_from_provider_text(
         raise ValueError(f"{provider_name} returned an invalid guidance contract") from error
 
 
-class UrlLibGeminiContentClient:
-    """Small dependency-free client for the Gemini generateContent endpoint."""
+class UrlLibExaoneChatCompletionClient:
+    """Dependency-free OpenAI-compatible client for the EXAONE endpoint."""
 
-    def generate(
+    def __init__(self, *, timeout_seconds: int = 20) -> None:
+        self._timeout_seconds = timeout_seconds
+
+    def complete(
         self,
         *,
         api_key: str,
+        endpoint: str,
         model: str,
         prompt: str,
+        reasoning_effort: str,
     ) -> Mapping[str, Any]:
-        endpoint = (
-            "https://generativelanguage.googleapis.com/v1beta/models/"
-            f"{model}:generateContent"
-        )
-        schema = {
-            "type": "object",
-            "properties": {
-                "answer": {"type": "string"},
-                "recommended_tool": {"type": ["string", "null"]},
-                "menu_path": {"type": "array", "items": {"type": "string"}},
-                "checklist": {"type": "array", "items": {"type": "string"}},
-                "workflow_steps": {"type": "array", "items": {"type": "string"}},
-            },
-            "required": [
-                "answer",
-                "recommended_tool",
-                "menu_path",
-                "checklist",
-                "workflow_steps",
-            ],
-            "additionalProperties": False,
-        }
         body = json.dumps(
             {
-                "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {
-                    "temperature": 0.2,
-                    "responseMimeType": "application/json",
-                    "responseJsonSchema": schema,
-                },
+                "model": model,
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": "Return exactly one JSON object with answer, recommended_tool, menu_path, checklist, and workflow_steps.",
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                "max_tokens": 1024,
+                "temperature": 0.2,
+                "stream": False,
+                "reasoning_effort": reasoning_effort,
             }
         ).encode("utf-8")
         request = urllib.request.Request(
             endpoint,
             data=body,
-            headers={"Content-Type": "application/json", "x-goog-api-key": api_key},
+            headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
             method="POST",
         )
         try:
-            with urllib.request.urlopen(request, timeout=20) as response:
+            with urllib.request.urlopen(request, timeout=self._timeout_seconds) as response:
                 return json.loads(response.read().decode("utf-8"))
         except urllib.error.HTTPError as error:
-            raise OSError(f"Gemini request failed with HTTP {error.code}") from error
+            raise OSError(f"EXAONE request failed with HTTP {error.code}") from error
 
 
-class GeminiCopilotProvider:
-    """Constrained Gemini 2.5 Flash fallback for questions outside the rulebase."""
+class ExaoneCopilotProvider:
+    """Constrained EXAONE 2.5 fallback for questions outside the rulebase."""
 
     def __init__(
         self,
         api_key: str,
         *,
-        model: str = "gemini-2.5-flash",
-        client: GeminiContentClient | None = None,
+        endpoint: str = "https://api.exaone.ai/v1/chat/completions",
+        model: str = "k-exaone_v2.5",
+        reasoning_effort: str = "low",
+        client: ExaoneChatCompletionClient | None = None,
     ) -> None:
+        if reasoning_effort not in {"low", "high", "max"}:
+            raise ValueError("EXAONE reasoning_effort must be low, high, or max")
         self._api_key = api_key
+        self._endpoint = endpoint
         self._model = model
-        self._client = client or UrlLibGeminiContentClient()
+        self._reasoning_effort = reasoning_effort
+        self._client = client or UrlLibExaoneChatCompletionClient()
 
     def answer(
         self,
@@ -673,17 +670,19 @@ class GeminiCopilotProvider:
             f"사용자가 선택한 근거 문맥: {evidence_context or '없음'}"
         )
         try:
-            raw = self._client.generate(
+            raw = self._client.complete(
                 api_key=self._api_key,
+                endpoint=self._endpoint,
                 model=self._model,
                 prompt=prompt,
+                reasoning_effort=self._reasoning_effort,
             )
-            text = raw["candidates"][0]["content"]["parts"][0]["text"]
+            text = raw["choices"][0]["message"]["content"]
         except (KeyError, IndexError, TypeError) as error:
-            raise ValueError("Gemini returned an invalid guidance response") from error
+            raise ValueError("EXAONE returned an invalid guidance response") from error
         return _guidance_from_provider_text(
             text,
-            provider_name="Gemini",
+            provider_name="EXAONE",
             provider=self._model,
             source=CopilotSource("사용자 질문과 선택 문맥", "copilot://question", "user_context"),
             local_only=False,
@@ -793,20 +792,26 @@ class LocalLlmCopilotProvider:
 
 
 def build_default_copilot_provider() -> CopilotProvider:
-    """Build Rulebase → Gemini tier → Ollama tier → manual-input guidance."""
+    """Build Rulebase → EXAONE 2.5 tier → Ollama tier → manual-input guidance."""
 
-    gemini_enabled = os.getenv("STATPRO_COPILOT_LLM_ENABLED", "").casefold() == "true"
-    api_key = os.getenv("GEMINI_API_KEY", "")
-    gemini_simple = None
-    gemini_complex = None
-    if gemini_enabled and api_key:
-        gemini_simple = GeminiCopilotProvider(
+    exaone_enabled = os.getenv("STATPRO_COPILOT_EXAONE_ENABLED", "").casefold() == "true"
+    api_key = os.getenv("EXAONE_API_KEY", "")
+    exaone_endpoint = os.getenv("STATPRO_COPILOT_EXAONE_URL", "") or "https://api.exaone.ai/v1/chat/completions"
+    exaone_model = os.getenv("STATPRO_COPILOT_EXAONE_MODEL", "") or "k-exaone_v2.5"
+    exaone_simple = None
+    exaone_complex = None
+    if exaone_enabled and api_key:
+        exaone_simple = ExaoneCopilotProvider(
             api_key,
-            model=os.getenv("STATPRO_COPILOT_GEMINI_SIMPLE_MODEL", "") or "gemini-3.5-flash-lite",
+            endpoint=exaone_endpoint,
+            model=exaone_model,
+            reasoning_effort=os.getenv("STATPRO_COPILOT_EXAONE_SIMPLE_REASONING_EFFORT", "") or "low",
         )
-        gemini_complex = GeminiCopilotProvider(
+        exaone_complex = ExaoneCopilotProvider(
             api_key,
-            model=os.getenv("STATPRO_COPILOT_GEMINI_COMPLEX_MODEL", "") or "gemini-3.8-flash",
+            endpoint=exaone_endpoint,
+            model=exaone_model,
+            reasoning_effort=os.getenv("STATPRO_COPILOT_EXAONE_COMPLEX_REASONING_EFFORT", "") or "high",
         )
 
     ollama_enabled = (
@@ -844,8 +849,8 @@ def build_default_copilot_provider() -> CopilotProvider:
     return RuleFirstCopilotProvider(
         LocalKnowledgeCopilotProvider(),
         FallbackChainCopilotProvider(
-            gemini_simple=gemini_simple,
-            gemini_complex=gemini_complex,
+            exaone_simple=exaone_simple,
+            exaone_complex=exaone_complex,
             ollama_workflow=ollama_workflow,
             ollama_code=ollama_code,
         ),
@@ -865,12 +870,14 @@ def copilot_runtime_status() -> dict[str, object]:
     """Describe configured fallback readiness without exposing credentials.
 
     This is configuration evidence only.  It intentionally does not probe a
-    remote Gemini service or a local Ollama process, because a status request
+    remote EXAONE service or a local Ollama process, because a status request
     must not transmit a user's context or create an unexpected model call.
     """
 
-    gemini_enabled = os.getenv("STATPRO_COPILOT_LLM_ENABLED", "").casefold() == "true"
-    gemini_key_present = bool(os.getenv("GEMINI_API_KEY", ""))
+    exaone_enabled = os.getenv("STATPRO_COPILOT_EXAONE_ENABLED", "").casefold() == "true"
+    exaone_key_present = bool(os.getenv("EXAONE_API_KEY", ""))
+    exaone_endpoint = os.getenv("STATPRO_COPILOT_EXAONE_URL", "") or "https://api.exaone.ai/v1/chat/completions"
+    exaone_model = os.getenv("STATPRO_COPILOT_EXAONE_MODEL", "") or "k-exaone_v2.5"
     ollama_enabled = (
         os.getenv("STATPRO_COPILOT_OLLAMA_ENABLED", "").casefold() == "true"
         or os.getenv("STATPRO_COPILOT_LOCAL_LLM_ENABLED", "").casefold() == "true"
@@ -893,12 +900,14 @@ def copilot_runtime_status() -> dict[str, object]:
             "rule_count": len(COPILOT_RULE_CATALOG),
             "live_verified": True,
         },
-        "gemini": {
-            "enabled": gemini_enabled,
-            "credential_present": gemini_key_present,
-            "ready": gemini_enabled and gemini_key_present,
-            "simple_model": os.getenv("STATPRO_COPILOT_GEMINI_SIMPLE_MODEL", "") or "gemini-3.5-flash-lite",
-            "complex_model": os.getenv("STATPRO_COPILOT_GEMINI_COMPLEX_MODEL", "") or "gemini-3.8-flash",
+        "exaone": {
+            "enabled": exaone_enabled,
+            "credential_present": exaone_key_present,
+            "ready": exaone_enabled and exaone_key_present,
+            "endpoint_configured": bool(exaone_endpoint),
+            "model": exaone_model,
+            "simple_reasoning_effort": os.getenv("STATPRO_COPILOT_EXAONE_SIMPLE_REASONING_EFFORT", "") or "low",
+            "complex_reasoning_effort": os.getenv("STATPRO_COPILOT_EXAONE_COMPLEX_REASONING_EFFORT", "") or "high",
             "live_verified": False,
         },
         "ollama": {
@@ -911,7 +920,7 @@ def copilot_runtime_status() -> dict[str, object]:
         },
         "manual_input_available": True,
         "limitations": (
-            "이 상태는 설정만 확인하며 Gemini API 또는 Ollama 프로세스에 요청하지 않습니다. "
+            "이 상태는 설정만 확인하며 EXAONE API 또는 Ollama 프로세스에 요청하지 않습니다. "
             "실제 연결·모델 가용성은 사용자가 명시적으로 활성화한 환경에서 별도로 검증해야 합니다."
         ),
     }

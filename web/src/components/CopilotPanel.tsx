@@ -265,7 +265,7 @@ export function CopilotPanel() {
       </button>
       <aside id="copilot-panel" className={`copilot-panel${open ? " is-open" : ""}`} aria-label="AI Copilot" aria-hidden={!open}>
         <header className="copilot-header">
-          <div><span className="eyebrow">CONTEXT-AWARE GUIDE</span><h2>AI Copilot</h2><p>{context.name}</p>{runtimeStatus?.rulebase && runtimeStatus.gemini && runtimeStatus.ollama && <small className="copilot-runtime-status">Rulebase {runtimeStatus.rulebase.rule_count}개 · {runtimeStatus.gemini.ready ? "Gemini 준비됨" : "Gemini 미설정"} · {runtimeStatus.ollama.ready ? "Ollama 준비됨" : "Ollama 미설정"} · 수동 입력 가능</small>}</div>
+          <div><span className="eyebrow">CONTEXT-AWARE GUIDE</span><h2>AI Copilot</h2><p>{context.name}</p>{runtimeStatus?.rulebase && runtimeStatus.exaone && runtimeStatus.ollama && <small className="copilot-runtime-status">Rulebase {runtimeStatus.rulebase.rule_count}개 · {runtimeStatus.exaone.ready ? "EXAONE 준비됨" : "EXAONE 미설정"} · {runtimeStatus.ollama.ready ? "Ollama 준비됨" : "Ollama 미설정"} · 수동 입력 가능</small>}</div>
           <div><button className="icon-button" type="button" aria-label="대화 초기화" disabled={answerLoading} onClick={resetConversation}><RotateCcw aria-hidden="true" /></button><button className="icon-button" type="button" aria-label="AI Copilot 닫기" onClick={() => setOpen(false)}><X aria-hidden="true" /></button></div>
         </header>
         <div className="copilot-suggestions" aria-label="추천 질문">

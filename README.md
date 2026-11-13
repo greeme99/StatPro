@@ -57,14 +57,18 @@ Copy-Item .env.example .env
 
 ```dotenv
 STATPRO_COPILOT_LLM_ENABLED=true
-GEMINI_API_KEY=여기에_발급받은_키를_입력
-STATPRO_COPILOT_GEMINI_SIMPLE_MODEL=gemini-3.5-flash-lite
-STATPRO_COPILOT_GEMINI_COMPLEX_MODEL=gemini-3.8-flash
+EXAONE_API_KEY=여기에_발급받은_키를_입력
+STATPRO_COPILOT_EXAONE_ENABLED=false
+EXAONE_API_KEY=
+STATPRO_COPILOT_EXAONE_URL=https://api.exaone.ai/v1/chat/completions
+STATPRO_COPILOT_EXAONE_MODEL=k-exaone_v2.5
+STATPRO_COPILOT_EXAONE_SIMPLE_REASONING_EFFORT=low
+STATPRO_COPILOT_EXAONE_COMPLEX_REASONING_EFFORT=high
 ```
 
-API는 `statpro-api` 실행 시 저장소 루트의 `.env`를 읽습니다. 다른 파일을 쓰려면 `statpro-api --env-file "D:\secure\statpro.env" ...`처럼 지정합니다. `.env`는 `.gitignore`로 제외되며, 이미 설정된 프로세스 환경 변수는 파일 값으로 덮어쓰지 않습니다. Rulebase 미일치 요청은 난이도 분류 후 단순 요청은 Gemini 3.5 Flash-Lite, 복잡·다단계·코드 요청은 Gemini 3.8 Flash로 전달합니다. Gemini에는 미일치 질문과 현재 작업공간 문맥만 전달되므로 조직 정책과 개인정보 기준을 확인한 뒤 활성화하십시오.
+API는 `statpro-api` 실행 시 저장소 루트의 `.env`를 읽습니다. 다른 파일을 쓰려면 `statpro-api --env-file "D:\secure\statpro.env" ...`처럼 지정합니다. `.env`는 `.gitignore`로 제외되며, 이미 설정된 프로세스 환경 변수는 파일 값으로 덮어쓰지 않습니다. Rulebase 미일치 요청은 EXAONE 2.5(`k-exaone_v2.5`)에 전달하며, 단순 요청은 `reasoning_effort=low`, 복잡·다단계·코드 요청은 `reasoning_effort=high`로 구분합니다. EXAONE에는 미일치 질문과 현재 작업공간 문맥만 전달되므로 조직 정책과 개인정보 기준을 확인한 뒤 활성화하십시오.
 
-Gemini 호출이 실패했거나 비활성화된 경우에는 아래 Ollama OpenAI 호환 `chat/completions` endpoint로 폴백합니다. 일반 Workflow에는 `qwen3:4b-q4_K_M`, 코드 생성 요청에는 `qwen2.5-coder:7b-instruct-q4_K_M`을 사용합니다. `http://127.0.0.1`, `http://localhost`, `http://[::1]` 같은 loopback HTTP 주소만 허용하며, Rulebase가 일치한 질의는 모델로 전송하지 않습니다. 모든 모델이 실패하면 Copilot은 재시도와 분석 목적·데이터 구조·제약의 수동 입력을 안내합니다.
+EXAONE 호출이 실패했거나 비활성화된 경우에는 아래 Ollama OpenAI 호환 `chat/completions` endpoint로 폴백합니다. 일반 Workflow에는 `qwen3:4b-q4_K_M`, 코드 생성 요청에는 `qwen2.5-coder:7b-instruct-q4_K_M`을 사용합니다. `http://127.0.0.1`, `http://localhost`, `http://[::1]` 같은 loopback HTTP 주소만 허용하며, Rulebase가 일치한 질의는 모델로 전송하지 않습니다. 모든 모델이 실패하면 Copilot은 재시도와 분석 목적·데이터 구조·제약의 수동 입력을 안내합니다.
 
 ```dotenv
 STATPRO_COPILOT_OLLAMA_ENABLED=true
