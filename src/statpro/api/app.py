@@ -8,8 +8,9 @@ import re
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, Any, Literal
+from urllib.parse import urlsplit
 
-from fastapi import FastAPI, Header, Query, Response
+from fastapi import FastAPI, Header, Query, Request, Response
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -35,6 +36,7 @@ from statpro.analyses.doe import (
     full_factorial_2level,
     optimize_full_factorial_desirability,
     plackett_burman_design,
+    split_plot_factorial_2level,
 )
 from statpro.analyses.msa import (
     AttributeAssessmentRecord,
@@ -43,6 +45,7 @@ from statpro.analyses.msa import (
     attribute_agreement,
     gage_bias_linearity,
     gage_rr_crossed,
+    gage_rr_crossed_reml,
     gage_rr_nested,
 )
 from statpro.analyses.normality import jarque_bera_normality
@@ -70,6 +73,7 @@ from statpro.application.approval import (
 )
 from statpro.application.copilot import (
     CopilotProvider,
+    RuleFirstCopilotProvider,
     build_default_copilot_provider,
     copilot_runtime_status,
 )
@@ -83,11 +87,14 @@ from statpro.application.documents import (
     InvalidDocumentKeyError,
     StoredDocument,
 )
+from statpro.application.dmaic_reports import build_dmaic_report, render_dmaic_report_docx
 from statpro.application.enterprise_identity import EnterpriseApprovalAuthenticator
 from statpro.application.reports import (
     build_doe_report,
+    build_msa_report,
     export_doe_report_zip,
     render_doe_report_html,
+    render_doe_report_figures,
     render_doe_report_pdf,
     render_doe_report_xlsx,
 )
@@ -183,6 +190,27 @@ from statpro.quality_tools import (
 )
 from statpro.version import ENGINE_VERSION
 
+
+_LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
+
+
+def _is_loopback_authority(value: str) -> bool:
+    """Accept only a loopback host with an optional HTTP port."""
+
+    authority = value.strip().casefold()
+    if authority.startswith("["):
+        host = authority[1:].partition("]")[0]
+    elif authority.count(":") == 1:
+        host = authority.rsplit(":", 1)[0]
+    else:
+        host = authority
+    return host in _LOOPBACK_HOSTS
+
+
+def _is_loopback_origin(value: str) -> bool:
+    parsed = urlsplit(value)
+    return parsed.scheme in {"http", "https"} and _is_loopback_authority(parsed.netloc)
+
 ANALYSIS_RUNS = "analysis-runs"
 DATASETS = "datasets"
 WORKSHEETS = "worksheets"
@@ -205,6 +233,7 @@ SPC_CHECK_SHEETS = "spc-check-sheets"
 SPC_FISHBONE_DIAGRAMS = "spc-fishbone-diagrams"
 QUALITY_METRICS = "quality-metrics"
 DEFECT_ANALYSES = "defect-analyses"
+COPILOT_USER_RULES = "copilot-user-rules"
 RunId = Annotated[str, Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")]
 
 
@@ -217,6 +246,7 @@ class CopilotGuidanceRequest(ApiModel):
     pathname: str = Field(min_length=1, max_length=500)
     workspace: str = Field(min_length=1, max_length=200)
     evidence_context: str | None = Field(default=None, max_length=2000)
+    model_preference: Literal["auto", "rulebase", "exaone", "ollama"] = "auto"
 
 
 class CopilotSourceResponse(ApiModel):
@@ -230,18 +260,25 @@ class CopilotActionResponse(ApiModel):
     href: str
 
 
+class CopilotFallbackStepResponse(ApiModel):
+    stage: str
+    status: Literal["answered", "unmatched", "failed", "unavailable", "skipped"]
+    detail: str
+
+
 class CopilotGuidanceResponse(ApiModel):
     answer: str
     provider: str
     sources: list[CopilotSourceResponse]
     limitations: list[str]
     action: CopilotActionResponse | None = None
-    guidance_mode: Literal["rulebase", "llm_fallback", "unmatched"]
+    guidance_mode: Literal["rulebase", "llm_fallback", "manual_guidance", "unmatched"]
     rule_id: str | None = None
     recommended_tool: str | None = None
     menu_path: list[str]
     checklist: list[str]
     workflow_steps: list[str]
+    fallback_steps: list[CopilotFallbackStepResponse]
 
 
 class CopilotRuleResponse(ApiModel):
@@ -254,6 +291,19 @@ class CopilotRuleResponse(ApiModel):
     checklist: list[str]
     workflow_steps: list[str]
     source_reference: str
+    keywords: list[str] = []
+
+
+class CopilotUserRuleRequest(ApiModel):
+    rule_id: RunId
+    domain: str = Field(min_length=1, max_length=80)
+    situation: str = Field(min_length=1, max_length=500)
+    keywords: list[str] = Field(min_length=1, max_length=12)
+    recommended_tool: str = Field(min_length=1, max_length=120)
+    menu_path: list[str] = Field(min_length=1, max_length=8)
+    checklist: list[str] = Field(min_length=1, max_length=12)
+    workflow_steps: list[str] = Field(min_length=1, max_length=12)
+    source_reference: str = Field(min_length=1, max_length=200)
 
 
 class ImrRunRequest(ApiModel):
@@ -359,6 +409,15 @@ class FullFactorialRunRequest(ApiModel):
     replicates: int = 1
     center_points: int = 0
     blocks: Literal[1, 2, 4, 8, 16] = 1
+    randomize: bool = True
+    seed: int = 0
+
+
+class SplitPlotFactorialRunRequest(ApiModel):
+    run_id: RunId
+    factors: list[FactorRequest] = Field(min_length=2, max_length=10)
+    whole_plot_factors: list[str] = Field(min_length=1)
+    covariates: dict[str, list[float]] = Field(default_factory=dict)
     randomize: bool = True
     seed: int = 0
 
@@ -508,6 +567,10 @@ class GageRrRunRequest(ApiModel):
     run_id: RunId
     records: list[MeasurementRequest]
     study_variation_multiplier: float = 6.0
+
+
+class GageRrRemlRunRequest(GageRrRunRequest):
+    confidence_level: float = Field(default=0.95, gt=0.0, lt=1.0)
 
 
 class NestedGageRrRunRequest(ApiModel):
@@ -2039,6 +2102,34 @@ def create_app(
         redoc_url=None,
     )
 
+    @app.middleware("http")
+    async def enforce_loopback_request_boundary(request: Request, call_next: Any) -> Response:
+        host = request.headers.get("host", "")
+        if not _is_loopback_authority(host):
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "ok": False,
+                    "error": {
+                        "code": "local_host_required",
+                        "message": "StatPro API accepts loopback hosts only.",
+                    },
+                },
+            )
+        origin = request.headers.get("origin")
+        if origin is not None and not _is_loopback_origin(origin):
+            return JSONResponse(
+                status_code=403,
+                content={
+                    "ok": False,
+                    "error": {
+                        "code": "local_origin_required",
+                        "message": "StatPro API accepts loopback origins only.",
+                    },
+                },
+            )
+        return await call_next(request)
+
     @app.exception_handler(DomainInputError)
     async def domain_error_handler(_request: object, error: DomainInputError) -> JSONResponse:
         return JSONResponse(status_code=422, content={"ok": False, "error": error.to_dict()})
@@ -2145,12 +2236,34 @@ def create_app(
 
     @app.post("/v1/copilot/guidance", response_model=CopilotGuidanceResponse)
     def get_copilot_guidance(request: CopilotGuidanceRequest) -> CopilotGuidanceResponse:
-        guidance = active_copilot_provider.answer(
-            question=request.question,
-            pathname=request.pathname,
-            workspace=request.workspace,
-            evidence_context=request.evidence_context,
-        )
+        question_text = request.question.casefold()
+        for stored in repository.list_documents(COPILOT_USER_RULES, after=None, limit=200):
+            rule = stored.document.get("rule", {})
+            keywords = rule.get("keywords", [])
+            if keywords and all(isinstance(keyword, str) and keyword.casefold() in question_text for keyword in keywords):
+                return CopilotGuidanceResponse(
+                    answer=rule["situation"], provider="statpro-user-rulebase",
+                    sources=[CopilotSourceResponse(title="사용자 보완 Rule", reference=rule["source_reference"], evidence_kind="user_document")],
+                    limitations=["사용자 문서에서 저장한 Rule입니다. 현장 적용 전 근거를 검토하세요."],
+                    action=CopilotActionResponse(label="사용자 Rule 보기", href="/home"), guidance_mode="rulebase", rule_id=rule["rule_id"],
+                    recommended_tool=rule["recommended_tool"], menu_path=rule["menu_path"], checklist=rule["checklist"], workflow_steps=rule["workflow_steps"],
+                    fallback_steps=[CopilotFallbackStepResponse(stage="Rulebase", status="answered", detail="사용자 보완 Rule로 답변했습니다."), CopilotFallbackStepResponse(stage="EXAONE API", status="skipped", detail="사용자 Rule이 매칭되었습니다."), CopilotFallbackStepResponse(stage="Ollama API", status="skipped", detail="사용자 Rule이 매칭되었습니다.")],
+                )
+        if request.model_preference != "auto" and isinstance(active_copilot_provider, RuleFirstCopilotProvider):
+            guidance = active_copilot_provider.answer_selected_model(
+                model_preference=request.model_preference,
+                question=request.question,
+                pathname=request.pathname,
+                workspace=request.workspace,
+                evidence_context=request.evidence_context,
+            )
+        else:
+            guidance = active_copilot_provider.answer(
+                question=request.question,
+                pathname=request.pathname,
+                workspace=request.workspace,
+                evidence_context=request.evidence_context,
+            )
         return CopilotGuidanceResponse(
             answer=guidance.answer,
             provider=guidance.provider,
@@ -2174,6 +2287,10 @@ def create_app(
             menu_path=list(guidance.menu_path),
             checklist=list(guidance.checklist),
             workflow_steps=list(guidance.workflow_steps),
+            fallback_steps=[
+                CopilotFallbackStepResponse(stage=step.stage, status=step.status, detail=step.detail)
+                for step in guidance.fallback_steps
+            ],
         )
 
     @app.get("/v1/copilot/status")
@@ -2181,6 +2298,19 @@ def create_app(
         """Return non-secret readiness evidence for the Rulebase fallback chain."""
 
         return copilot_runtime_status()
+
+    @app.post("/v1/copilot/rules", status_code=201, response_model=CopilotRuleResponse)
+    def create_copilot_user_rule(request: CopilotUserRuleRequest) -> CopilotRuleResponse:
+        document = {"kind": "copilot_user_rule", "rule": request.model_dump()}
+        stored = repository.save(COPILOT_USER_RULES, request.rule_id, document, expected_version=0)
+        rule = stored.document["rule"]
+        return CopilotRuleResponse(
+            rule_id=rule["rule_id"], domain=rule["domain"], situation=rule["situation"],
+            recommended_tool=rule["recommended_tool"], menu_path=rule["menu_path"],
+            action=CopilotActionResponse(label="사용자 Rule 보기", href="/home"),
+            checklist=rule["checklist"], workflow_steps=rule["workflow_steps"],
+            source_reference=rule["source_reference"], keywords=rule["keywords"],
+        )
 
     @app.get("/v1/copilot/rules", response_model=list[CopilotRuleResponse])
     def list_copilot_rules(
@@ -2201,14 +2331,14 @@ def create_app(
                     rule.rule_id,
                     rule.domain,
                     rule.situation,
-                    rule.recommended_tool,
+                    rule.recommended_tool, " ".join(getattr(rule, "keywords", ())),
                     " ".join(rule.menu_path),
                 )).casefold()
                 if normalized_query not in searchable:
                     return False
             return True
 
-        return [
+        catalog_rules = [
             CopilotRuleResponse(
                 rule_id=rule.rule_id,
                 domain=rule.domain,
@@ -2222,10 +2352,27 @@ def create_app(
                 checklist=list(rule.checklist),
                 workflow_steps=list(rule.workflow_steps),
                 source_reference=rule.source_reference,
+                keywords=[],
             )
             for rule in COPILOT_RULE_CATALOG
             if matches(rule)
-        ][:limit]
+        ]
+        user_rules = []
+        for stored in repository.list_documents(COPILOT_USER_RULES, after=None, limit=200):
+            rule = stored.document.get("rule", {})
+            try:
+                candidate = CopilotRuleResponse(
+                    rule_id=rule["rule_id"], domain=rule["domain"], situation=rule["situation"],
+                    recommended_tool=rule["recommended_tool"], menu_path=rule["menu_path"],
+                    action=CopilotActionResponse(label="사용자 Rule 보기", href="/home"),
+                    checklist=rule["checklist"], workflow_steps=rule["workflow_steps"], source_reference=rule["source_reference"], keywords=rule.get("keywords", []),
+                )
+            except (KeyError, TypeError, ValueError):
+                continue
+            if not normalized_domain or candidate.domain.casefold() == normalized_domain:
+                if not normalized_query or normalized_query in " ".join((candidate.rule_id, candidate.domain, candidate.situation, candidate.recommended_tool, *candidate.menu_path, *candidate.keywords)).casefold():
+                    user_rules.append(candidate)
+        return (catalog_rules + user_rules)[:limit]
 
     @app.post("/v1/analysis-runs/imr", status_code=201, response_model=StoredRunResponse)
     def run_imr(request: ImrRunRequest, response: Response) -> StoredRunResponse:
@@ -2496,6 +2643,29 @@ def create_app(
                 replicates=request.replicates,
                 center_points=request.center_points,
                 blocks=request.blocks,
+                randomize=request.randomize,
+                seed=request.seed,
+            ),
+        )
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _response(stored)
+
+    @app.post(
+        "/v1/analysis-runs/doe-split-plot-factorial",
+        status_code=201,
+        response_model=StoredRunResponse,
+    )
+    def run_split_plot_doe(
+        request: SplitPlotFactorialRunRequest, response: Response
+    ) -> StoredRunResponse:
+        factors = [FactorDefinition(**factor.model_dump()) for factor in request.factors]
+        stored = _save_run(
+            repository,
+            request.run_id,
+            split_plot_factorial_2level(
+                factors,
+                whole_plot_factors=request.whole_plot_factors,
+                covariates=request.covariates,
                 randomize=request.randomize,
                 seed=request.seed,
             ),
@@ -2915,6 +3085,27 @@ def create_app(
         return _response(stored)
 
     @app.post(
+        "/v1/analysis-runs/gage-rr-crossed-reml",
+        status_code=201,
+        response_model=StoredRunResponse,
+    )
+    def run_gage_rr_reml(
+        request: GageRrRemlRunRequest, response: Response
+    ) -> StoredRunResponse:
+        records = [MeasurementRecord(**record.model_dump()) for record in request.records]
+        stored = _save_run(
+            repository,
+            request.run_id,
+            gage_rr_crossed_reml(
+                records,
+                study_variation_multiplier=request.study_variation_multiplier,
+                confidence_level=request.confidence_level,
+            ),
+        )
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _response(stored)
+
+    @app.post(
         "/v1/analysis-runs/gage-rr-nested",
         status_code=201,
         response_model=StoredRunResponse,
@@ -2975,6 +3166,40 @@ def create_app(
         report = build_doe_report(repository.load(ANALYSIS_RUNS, run_id), template_id=template_id)
         response.headers["ETag"] = f'"{report["report_digest"]}"'
         return report
+
+    @app.get("/v1/analysis-runs/{run_id}/msa-report", response_model=DoeAnalysisReportResponse)
+    def get_msa_report(
+        run_id: RunId,
+        response: Response,
+        template_id: Annotated[str, Query(pattern=r"^(standard|customer_review|regulatory_review)$")] = "standard",
+    ) -> dict[str, Any]:
+        report = build_msa_report(repository.load(ANALYSIS_RUNS, run_id), template_id=template_id)
+        response.headers["ETag"] = f'"{report["report_digest"]}"'
+        return report
+
+    @app.get("/v1/analysis-runs/{run_id}/msa-report.html")
+    def get_msa_report_html(run_id: RunId) -> Response:
+        report = build_msa_report(repository.load(ANALYSIS_RUNS, run_id))
+        return Response(content=render_doe_report_html(report), media_type="text/html", headers={"Content-Disposition": f'attachment; filename="{run_id}-msa-report.html"', "ETag": f'"{report["report_digest"]}"'})
+
+    @app.get("/v1/analysis-runs/{run_id}/msa-report.xlsx")
+    def get_msa_report_xlsx(run_id: RunId) -> Response:
+        report = build_msa_report(repository.load(ANALYSIS_RUNS, run_id))
+        return Response(content=render_doe_report_xlsx(report), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers={"Content-Disposition": f'attachment; filename="{run_id}-msa-report.xlsx"', "ETag": f'"{report["report_digest"]}"'})
+
+    @app.get("/v1/analysis-runs/{run_id}/msa-report.pdf")
+    def get_msa_report_pdf(run_id: RunId) -> Response:
+        report = build_msa_report(repository.load(ANALYSIS_RUNS, run_id))
+        return Response(content=render_doe_report_pdf(report), media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="{run_id}-msa-report.pdf"', "ETag": f'"{report["report_digest"]}"'})
+
+    @app.get("/v1/analysis-runs/{run_id}/msa-report.svg")
+    def get_msa_report_svg(run_id: RunId) -> Response:
+        report = build_msa_report(repository.load(ANALYSIS_RUNS, run_id))
+        figures = render_doe_report_figures(report)
+        if not figures:
+            raise AnalysisInputError("msa_figure_unavailable", "This MSA result has no SVG-compatible figure data.", "run_id")
+        name, content = next(iter(sorted(figures.items())))
+        return Response(content=content, media_type="image/svg+xml", headers={"Content-Disposition": f'attachment; filename="{run_id}-{name.rsplit('/', 1)[-1]}"', "ETag": f'"{report["report_digest"]}"'})
 
     @app.get("/v1/analysis-runs/{run_id}/report.html")
     def get_doe_report_html(
@@ -3536,6 +3761,35 @@ def create_app(
         stored, _project = _load_dmaic_project(repository, project_id)
         response.headers["ETag"] = f'"{stored.etag}"'
         return _dmaic_project_response(stored)
+
+    @app.get("/v1/dmaic-projects/{project_id}/report.docx")
+    def get_dmaic_project_docx(project_id: RunId) -> Response:
+        stored, project = _load_dmaic_project(repository, project_id)
+        report = build_dmaic_report(
+            project=project.to_dict(), storage_version=stored.storage_version, etag=stored.etag
+        )
+        return Response(
+            content=render_dmaic_report_docx(report),
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            headers={"Content-Disposition": f'attachment; filename="{project_id}-dmaic-report.docx"', "ETag": f'"{report["report_digest"]}"'},
+        )
+
+    @app.get("/v1/dmaic-projects/{project_id}/report.pdf")
+    def get_dmaic_project_pdf(project_id: RunId) -> Response:
+        stored, project = _load_dmaic_project(repository, project_id)
+        report = build_dmaic_report(
+            project=project.to_dict(), storage_version=stored.storage_version, etag=stored.etag
+        )
+        pdf_report = {
+            "run": {"run_id": project_id},
+            "analysis": {"analysis_type": "dmaic.project", "engine_version": "document", "input_digest": project.digest},
+            "template": {"name": "DMAIC 프로젝트 검토", "intended_use": "프로젝트 개정과 근거를 검토합니다.", "review_fields": []},
+            "parameters": {"project_revision": report["project_revision"], "storage_version": stored.storage_version},
+            "diagnostics": {"evidence_reference_count": len(report["evidence_references"])},
+            "tables": [{"name": "evidence_references", "columns": ["path", "run_id", "etag_or_digest"], "row_count": len(report["evidence_references"]), "rows": [dict(zip(("path", "run_id", "etag_or_digest"), row, strict=True)) for row in report["evidence_references"]]}],
+            "plots": {}, "figures": [], "assumptions": [], "warnings": [], "provenance": [], "limitations": report["limitations"], "report_digest": report["report_digest"],
+        }
+        return Response(content=render_doe_report_pdf(pdf_report), media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="{project_id}-dmaic-report.pdf"', "ETag": f'"{report["report_digest"]}"'})
 
     @app.post(
         "/v1/dmaic-projects/{project_id}/charters",

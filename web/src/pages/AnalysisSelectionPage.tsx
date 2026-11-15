@@ -5,6 +5,8 @@ import { defaultSamplingFor, recommendAnalysis, type AnalysisGoal, type Sampling
 
 const goals: { value: AnalysisGoal; title: string; detail: string }[] = [
   { value: "stability", title: "공정 안정성 감시", detail: "시간에 따른 변동과 이상 신호를 관리도로 확인" },
+  { value: "capability", title: "규격 충족 능력 평가", detail: "규격 대비 산포·중심·불량 PPM을 평가" },
+  { value: "measurement", title: "측정시스템 신뢰성 평가", detail: "측정 변동이 공정 판단에 적합한지 확인" },
   { value: "screening", title: "중요 인자 선별", detail: "많은 후보 인자에서 영향이 큰 인자를 좁힘" },
   { value: "optimization", title: "조건 최적화", detail: "곡률과 상호작용을 모델링해 목표 조건 탐색" },
   { value: "risk", title: "공정 위험 관리", detail: "고장 형태와 예방·검출 조치를 추적" },
@@ -45,7 +47,7 @@ export function AnalysisSelectionPage() {
     <div className="page analysis-selection-page" data-density="comfortable">
       <nav className="breadcrumb" aria-label="경로"><Link to="/home">홈 (Home)</Link><span>분석 선택 (Analysis Selection)</span></nav>
       <header className="analysis-selection-hero">
-        <div><span className="eyebrow">Workspace → Workflow</span><h1>분석 선택 도우미 (Analysis Selection Assistant)</h1><p>현장의 판단 목적과 데이터 구조를 선택하면, 현재 실행 가능한 StatPro 작업공간과 분석 전 확인사항을 제안합니다.</p></div>
+        <div><span className="eyebrow">Workspace → Workflow</span><h1>통합 분석 추천</h1><p>현장의 판단 목적과 데이터 구조를 선택하면 SPC, 공정능력, MSA, DOE, FMEA, DMAIC 작업공간과 분석 전 확인사항을 제안합니다.</p></div>
         <Route aria-hidden="true" />
       </header>
 

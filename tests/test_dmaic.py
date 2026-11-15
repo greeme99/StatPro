@@ -32,9 +32,17 @@ from statpro.dmaic import (
     save_stakeholder_assessment,
     save_voice_of_customer,
 )
+from statpro.application.dmaic_reports import build_dmaic_report, render_dmaic_report_docx
 
 
 class DmaicProjectTests(unittest.TestCase):
+    def test_project_report_retains_revision_and_generates_word_document(self) -> None:
+        project = create_project(project_id="DMAIC-REPORT", title="Yield", owner_ref="owner")
+        report = build_dmaic_report(project=project.to_dict(), storage_version=1, etag="etag")
+        document = render_dmaic_report_docx(report)
+        self.assertEqual(report["project_revision"], 1)
+        self.assertTrue(document.startswith(b"PK"))
+
     def test_implementation_plan_is_revisioned_and_links_improve_evidence(self) -> None:
         project = create_project(
             project_id="DMAIC-IMPLEMENT", title="Connector yield", owner_ref="quality.engineer"

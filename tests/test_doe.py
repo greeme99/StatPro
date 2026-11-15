@@ -29,11 +29,26 @@ from statpro.analyses.doe import (
     individual_desirability,
     optimize_full_factorial_desirability,
     plackett_burman_design,
+    split_plot_factorial_2level,
 )
 from statpro.domain.errors import AnalysisInputError
 
 
 class FullFactorialDesignTests(unittest.TestCase):
+    def test_split_plot_retains_randomization_and_covariate_contract(self) -> None:
+        result = split_plot_factorial_2level(
+            [FactorDefinition("Oven", 160, 180), FactorDefinition("Pressure", 1, 2)],
+            whole_plot_factors=["Oven"],
+            covariates={"Ambient": [20.0, 20.2, 20.4, 20.6]},
+            randomize=False,
+        )
+        rows = result.tables["design"]
+        self.assertEqual(result.analysis_type, "doe.split_plot_factorial_2level")
+        self.assertEqual([row["whole_plot"] for row in rows], [1, 1, 2, 2])
+        self.assertEqual([row["sub_plot_order"] for row in rows], [1, 2, 1, 2])
+        self.assertEqual(rows[0]["covariates"]["Ambient"], 20.0)
+        self.assertTrue(result.diagnostics["randomization_restricted"])
+
     def test_three_factor_standard_order_matches_nist(self) -> None:
         factors = [
             FactorDefinition("X1", 10, 20),

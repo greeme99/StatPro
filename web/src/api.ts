@@ -8,12 +8,17 @@ export type CopilotGuidanceResponse = {
   sources: Array<{ title: string; reference: string; evidence_kind: string }>;
   limitations: string[];
   action: { label: string; href: string } | null;
-  guidance_mode: "rulebase" | "llm_fallback" | "unmatched";
+  guidance_mode: "rulebase" | "llm_fallback" | "manual_guidance" | "unmatched";
   rule_id: string | null;
   recommended_tool: string | null;
   menu_path: string[];
   checklist: string[];
   workflow_steps: string[];
+  fallback_steps: Array<{
+    stage: "Rulebase" | "EXAONE API" | "Ollama API";
+    status: "answered" | "unmatched" | "failed" | "unavailable" | "skipped";
+    detail: string;
+  }>;
 };
 
 export type CopilotRule = {
@@ -26,6 +31,7 @@ export type CopilotRule = {
   checklist: string[];
   workflow_steps: string[];
   source_reference: string;
+  keywords: string[];
 };
 
 export type CopilotRuntimeStatus = {
@@ -75,6 +81,7 @@ export async function getCopilotGuidance(payload: {
   pathname: string;
   workspace: string;
   evidence_context?: string | null;
+  model_preference?: "auto" | "rulebase" | "exaone" | "ollama";
 }): Promise<CopilotGuidanceResponse> {
   const guidance = await request<CopilotGuidanceResponse>("/v1/copilot/guidance", {
     method: "POST",
@@ -85,10 +92,11 @@ export async function getCopilotGuidance(payload: {
     || typeof guidance.provider !== "string"
     || !Array.isArray(guidance.sources)
     || !Array.isArray(guidance.limitations)
-    || !["rulebase", "llm_fallback", "unmatched"].includes(guidance.guidance_mode)
+    || !["rulebase", "llm_fallback", "manual_guidance", "unmatched"].includes(guidance.guidance_mode)
     || !Array.isArray(guidance.menu_path)
     || !Array.isArray(guidance.checklist)
     || !Array.isArray(guidance.workflow_steps)
+    || !Array.isArray(guidance.fallback_steps)
   ) {
     throw new Error("Copilot 응답 계약이 올바르지 않습니다.");
   }
@@ -101,6 +109,10 @@ export function listCopilotRules(filters: { domain?: string; limit?: number } = 
   if (filters.limit) params.set("limit", String(filters.limit));
   const suffix = params.toString() ? `?${params.toString()}` : "";
   return request(`/v1/copilot/rules${suffix}`);
+}
+
+export function createCopilotRule(payload: { rule_id: string; domain: string; situation: string; keywords: string[]; recommended_tool: string; menu_path: string[]; checklist: string[]; workflow_steps: string[]; source_reference: string }): Promise<CopilotRule> {
+  return request("/v1/copilot/rules", { method: "POST", body: JSON.stringify(payload) });
 }
 
 export function getCopilotRuntimeStatus(): Promise<CopilotRuntimeStatus> {

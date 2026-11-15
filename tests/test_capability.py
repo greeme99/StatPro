@@ -23,6 +23,8 @@ class NormalCapabilityTests(unittest.TestCase):
         self.assertAlmostEqual(indices["pp"], 10.0 / (6.0 * (2.5**0.5)))
         self.assertAlmostEqual(indices["ppk"], indices["pp"])
         self.assertAlmostEqual(indices["cpm"], indices["pp"])
+        self.assertEqual(result.diagnostics["distribution_fit"]["method"], "jarque_bera_asymptotic")
+        self.assertFalse(result.diagnostics["distribution_fit"]["available"])
 
     def test_one_sided_spec_omits_width_indices(self) -> None:
         result = normal_process_capability([98, 99, 100, 101, 102], lsl=95)

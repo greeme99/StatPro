@@ -1,4 +1,4 @@
-export type AnalysisGoal = "stability" | "screening" | "optimization" | "risk" | "improvement";
+export type AnalysisGoal = "stability" | "capability" | "measurement" | "screening" | "optimization" | "risk" | "improvement";
 export type StabilityDataType = "continuous" | "defective" | "defects" | "rare";
 export type SamplingStructure =
   | "individual"
@@ -21,6 +21,24 @@ export type AnalysisRecommendation = {
 };
 
 const workflowRecommendations: Record<Exclude<AnalysisGoal, "stability">, AnalysisRecommendation> = {
+  capability: {
+    family: "공정능력 분석",
+    method: "정규성 검증 포함 공정능력 분석",
+    rationale: "규격 대비 공정 산포와 중심을 검토해 Cp·Cpk·PPM 기반의 개선 우선순위를 정합니다.",
+    requiredInputs: ["연속형 측정값", "하한·상한 규격", "안정 상태에서 수집한 기준 데이터"],
+    checks: ["관리도로 안정성을 먼저 확인", "정규성 적합도 결과와 비정규 분석 필요 여부 검토"],
+    href: "/analyses/capability",
+    action: "공정능력 분석 열기",
+  },
+  measurement: {
+    family: "측정시스템 분석 (MSA)",
+    method: "교차 Gage R&R",
+    rationale: "측정값을 SPC·능력 분석에 사용하기 전에 반복성·재현성과 부품 간 변동을 분리합니다.",
+    requiredInputs: ["부품·작업자·반복 측정값", "측정 단위", "모든 작업자가 같은 부품을 측정한 교차 설계"],
+    checks: ["파괴검사·작업자별 다른 부품이면 중첩 Gage R&R 선택", "불균형 반복 측정은 REML 분석 적용 여부 검토"],
+    href: "/analyses/msa/gage-rr",
+    action: "Gage R&R 분석 설정 열기",
+  },
   screening: {
     family: "실험계획법 (DOE)",
     method: "Plackett–Burman 선별 설계",

@@ -30,8 +30,13 @@ class GageBiasLinearityTests(unittest.TestCase):
         self.assertEqual(result.analysis_type, "msa.gage_bias_linearity")
         self.assertEqual(levels[0]["mean_bias"], 1.0)
         self.assertEqual(levels[2]["mean_bias"], 3.0)
+        self.assertIn("bias_confidence_interval", levels[0])
+        self.assertIn("p_value", levels[0])
         self.assertAlmostEqual(fit["slope"], 0.1)
         self.assertAlmostEqual(fit["intercept"], 0.0)
+        self.assertIn("slope_confidence_interval", fit)
+        self.assertIn("slope_test", fit)
+        self.assertIn("intercept_confidence_interval", fit)
         self.assertEqual(fit["r_squared"], 1.0)
 
     def test_rejects_reference_level_without_repetition(self) -> None:

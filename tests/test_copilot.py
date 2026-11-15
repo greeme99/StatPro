@@ -80,6 +80,17 @@ class FakeLocalLlmClient:
         }
 
 
+class DecoratedLocalLlmClient(FakeLocalLlmClient):
+    def complete(self, *, endpoint: str, model: str, prompt: str) -> dict[str, object]:
+        response = super().complete(endpoint=endpoint, model=model, prompt=prompt)
+        response["choices"][0]["message"]["content"] = (
+            "<think>응답 형식을 확인합니다.</think>\n```json\n"
+            + response["choices"][0]["message"]["content"]
+            + "\n```"
+        )
+        return response
+
+
 class MalformedExaoneClient:
     def complete(self, *, api_key: str, endpoint: str, model: str, prompt: str, reasoning_effort: str) -> dict[str, object]:
         return {"choices": []}
@@ -137,6 +148,18 @@ class FailingFallbackProvider:
         evidence_context: str | None,
     ) -> CopilotGuidance:
         raise OSError("model unavailable")
+
+
+class RateLimitedFallbackProvider:
+    def answer(
+        self,
+        *,
+        question: str,
+        pathname: str,
+        workspace: str,
+        evidence_context: str | None,
+    ) -> CopilotGuidance:
+        raise OSError("EXAONE request failed with HTTP 429")
 
 
 class RuleFirstCopilotProviderTests(unittest.TestCase):
@@ -268,6 +291,39 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
         self.assertGreaterEqual(len(guidance.checklist), 4)
         self.assertGreaterEqual(len(guidance.workflow_steps), 5)
 
+    def test_coating_discoloration_optimization_uses_doe_without_llm(self) -> None:
+        fallback = RecordingFallbackProvider()
+        provider = RuleFirstCopilotProvider(LocalKnowledgeCopilotProvider(), fallback)
+
+        guidance = provider.answer(
+            question="휴대폰 케이스의 착색 방지를 위한 최적 코팅 조건을 찾는 방법",
+            pathname="/analyses",
+            workspace="분석 선택",
+            evidence_context=None,
+        )
+
+        self.assertEqual(fallback.questions, [])
+        self.assertEqual(guidance.rule_id, "doe-coating-discoloration-optimization")
+        self.assertEqual(guidance.action.href, "/doe")
+        self.assertIn("ΔE", guidance.answer)
+        self.assertEqual(len(guidance.workflow_steps), 5)
+
+    def test_complex_rulebase_request_uses_api_to_enrich_unanswered_parts(self) -> None:
+        fallback = RecordingFallbackProvider()
+        provider = RuleFirstCopilotProvider(LocalKnowledgeCopilotProvider(), fallback)
+
+        guidance = provider.answer(
+            question="비가동의 정의와 MTBF 기준, 관리지표를 제안하고 데이터 분석으로 문제점 도출 및 개선방안 수립 절차를 상세히 설명해줘",
+            pathname="/home",
+            workspace="홈 (Home)",
+            evidence_context=None,
+        )
+
+        self.assertEqual(len(fallback.questions), 1)
+        self.assertIn("반복하지 말고", fallback.questions[0])
+        self.assertEqual(guidance.rule_id, "dmaic-equipment-downtime")
+        self.assertIn("추가 분석 가이드", guidance.answer)
+
     def test_unmatched_question_calls_exaone_once(self) -> None:
         fallback = RecordingFallbackProvider()
         provider = RuleFirstCopilotProvider(LocalKnowledgeCopilotProvider(), fallback)
@@ -286,10 +342,11 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
     def test_fallback_chain_uses_light_exaone_for_a_simple_question(self) -> None:
         simple = RecordingFallbackProvider()
         complex_provider = RecordingFallbackProvider()
+        workflow_ollama = RecordingFallbackProvider()
         chain = FallbackChainCopilotProvider(
             exaone_simple=simple,
             exaone_complex=complex_provider,
-            ollama_workflow=RecordingFallbackProvider(),
+            ollama_workflow=workflow_ollama,
             ollama_code=RecordingFallbackProvider(),
         )
 
@@ -302,7 +359,31 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
 
         self.assertEqual(simple.questions, ["작업표 열 이름을 설명해줘"])
         self.assertEqual(complex_provider.questions, [])
+        self.assertEqual(workflow_ollama.questions, ["작업표 열 이름을 설명해줘"])
         self.assertEqual(guidance.guidance_mode, "llm_fallback")
+        self.assertEqual([(step.stage, step.status) for step in guidance.fallback_steps], [("EXAONE API", "answered"), ("Ollama API", "answered")])
+
+    def test_selected_exaone_bypasses_ollama(self) -> None:
+        exaone = RecordingFallbackProvider()
+        ollama = RecordingFallbackProvider()
+        chain = FallbackChainCopilotProvider(
+            exaone_simple=RecordingFallbackProvider(),
+            exaone_complex=exaone,
+            ollama_workflow=ollama,
+            ollama_code=RecordingFallbackProvider(),
+        )
+
+        guidance = chain.answer_selected_model(
+            model_preference="exaone",
+            question="EXAONE API로 답변해줘",
+            pathname="/home",
+            workspace="홈 (Home)",
+            evidence_context=None,
+        )
+
+        self.assertEqual(exaone.questions, ["EXAONE API로 답변해줘"])
+        self.assertEqual(ollama.questions, [])
+        self.assertEqual([(step.stage, step.status) for step in guidance.fallback_steps], [("EXAONE API", "answered"), ("Ollama API", "skipped")])
 
     def test_fallback_chain_uses_complex_exaone_then_code_ollama(self) -> None:
         code_ollama = RecordingFallbackProvider()
@@ -431,8 +512,45 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
         )
 
         self.assertEqual(guidance.provider, "statpro-fallback-unavailable")
-        self.assertEqual(guidance.guidance_mode, "unmatched")
+        self.assertEqual(guidance.guidance_mode, "manual_guidance")
         self.assertTrue(guidance.answer)
+        self.assertEqual([(step.stage, step.status) for step in guidance.fallback_steps], [("EXAONE API", "failed"), ("Ollama API", "failed")])
+
+    def test_exaone_rate_limit_is_reported_without_a_false_connection_error(self) -> None:
+        chain = FallbackChainCopilotProvider(
+            exaone_simple=RateLimitedFallbackProvider(),
+            exaone_complex=None,
+            ollama_workflow=None,
+            ollama_code=None,
+        )
+
+        guidance = chain.answer(
+            question="현장 특수 문제를 도와줘",
+            pathname="/home",
+            workspace="홈 (Home)",
+            evidence_context=None,
+        )
+
+        self.assertIn("요청 한도", guidance.answer)
+        self.assertIn("EXAONE: HTTP 429", guidance.limitations[1])
+
+    def test_general_symptom_cause_action_request_uses_local_workflow(self) -> None:
+        fallback = RecordingFallbackProvider()
+        provider = RuleFirstCopilotProvider(LocalKnowledgeCopilotProvider(), fallback)
+
+        guidance = provider.answer(
+            question="현상, 원인, 대책 가이드 해줘",
+            pathname="/analyses",
+            workspace="분석 선택",
+            evidence_context=None,
+        )
+
+        self.assertEqual(fallback.questions, [])
+        self.assertEqual(guidance.guidance_mode, "rulebase")
+        self.assertEqual(guidance.rule_id, "dmaic-symptom-cause-action-guide")
+        self.assertIn("원인을 단정하지 않습니다", guidance.answer)
+        self.assertIn("원인 검증", guidance.workflow_steps[3])
+        self.assertEqual(guidance.action.href, "/home/dmaic/analyze/root-causes")
 
     def test_equipment_downtime_rule_leads_through_dmaic(self) -> None:
         fallback = RecordingFallbackProvider()
@@ -450,6 +568,35 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
         self.assertEqual(guidance.recommended_tool, "개선 프로젝트 (DMAIC)")
         self.assertEqual(guidance.action.href, "/home/dmaic/define")
         self.assertEqual(len(guidance.workflow_steps), 5)
+
+    def test_downtime_metric_request_uses_rulebase_then_api_enrichment(self) -> None:
+        fallback = RecordingFallbackProvider()
+        provider = RuleFirstCopilotProvider(LocalKnowledgeCopilotProvider(), fallback)
+
+        guidance = provider.answer(
+            question="비가동의 시작·종료와 계획정지 제외 기준, 현재 비가동 시간·빈도·MTBF·MTTR 기준선, 관리지표 제안해줘",
+            pathname="/home",
+            workspace="홈 (Home)",
+            evidence_context=None,
+        )
+
+        self.assertEqual(len(fallback.questions), 1)
+        self.assertEqual(guidance.rule_id, "dmaic-equipment-downtime")
+        self.assertIn("계획정지 제외", guidance.checklist[0])
+
+    def test_symptom_cause_action_wording_answers_from_rulebase(self) -> None:
+        fallback = RecordingFallbackProvider()
+        provider = RuleFirstCopilotProvider(LocalKnowledgeCopilotProvider(), fallback)
+
+        guidance = provider.answer(
+            question="현상 및 원인 파악하여 개선 조치해줘",
+            pathname="/analyses",
+            workspace="분석 선택",
+            evidence_context=None,
+        )
+
+        self.assertEqual(fallback.questions, [])
+        self.assertEqual(guidance.rule_id, "dmaic-symptom-cause-action-guide")
 
     def test_catalog_rule_routes_p_chart_without_calling_llm(self) -> None:
         fallback = RecordingFallbackProvider()
@@ -577,6 +724,23 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "loopback"):
             LocalLlmCopilotProvider("https://example.invalid/v1/chat/completions", "quality-model")
 
+    def test_local_llm_extracts_json_after_reasoning_or_code_fence(self) -> None:
+        provider = LocalLlmCopilotProvider(
+            "http://127.0.0.1:11434/v1/chat/completions",
+            "quality-model",
+            client=DecoratedLocalLlmClient(),
+        )
+
+        guidance = provider.answer(
+            question="순간정지 KPI를 안내해줘",
+            pathname="/home",
+            workspace="홈 (Home)",
+            evidence_context=None,
+        )
+
+        self.assertEqual(guidance.provider, "local:quality-model")
+        self.assertEqual(guidance.answer, "로컬 모델 안내입니다.")
+
     def test_local_openai_client_requests_a_single_non_streaming_json_response(self) -> None:
         with patch(
             "statpro.application.copilot.urllib.request.urlopen",
@@ -598,6 +762,8 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
         self.assertEqual(request.get_header("Authorization"), "Bearer secret")
         self.assertEqual(body["model"], "k-exaone_v2.5")
         self.assertEqual(body["reasoning_effort"], "high")
+        self.assertEqual(body["max_tokens"], 4096)
+        self.assertIn("Do not use Markdown fences", body["messages"][0]["content"])
         self.assertEqual(urlopen.call_args.kwargs["timeout"], 47)
 
     def test_invalid_ollama_configuration_continues_to_manual_input_when_exaone_is_disabled(self) -> None:
@@ -620,7 +786,7 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
             )
 
         self.assertEqual(guidance.provider, "statpro-fallback-unavailable")
-        self.assertEqual(guidance.guidance_mode, "unmatched")
+        self.assertEqual(guidance.guidance_mode, "manual_guidance")
         self.assertIn("EXAONE 및 로컬 Ollama", guidance.limitations[1])
         self.assertIn("EXAONE: 미설정", guidance.limitations[1])
         self.assertIn("Ollama: 미설정", guidance.limitations[1])

@@ -23,6 +23,24 @@ NIST_NONNORMAL_CAPABILITY_SOURCE = ProvenanceSource(
 )
 
 
+def _jarque_bera_normality(values: Sequence[float], *, alpha: float = 0.05) -> dict[str, float | bool | str]:
+    """Return asymptotic Jarque-Bera evidence; it does not establish stability."""
+
+    count = len(values)
+    if count < 8:
+        return {"method": "jarque_bera_asymptotic", "alpha": alpha, "available": False, "reason": "At least eight observations are required for the skewness and kurtosis diagnostic."}
+    mean = fmean(values)
+    variance = sum((value - mean) ** 2 for value in values) / count
+    if variance == 0.0:
+        return {"method": "jarque_bera_asymptotic", "alpha": alpha, "available": False, "reason": "The normality diagnostic is undefined for zero variation."}
+    standard_deviation = math.sqrt(variance)
+    skewness = sum(((value - mean) / standard_deviation) ** 3 for value in values) / count
+    excess_kurtosis = sum(((value - mean) / standard_deviation) ** 4 for value in values) / count - 3.0
+    statistic = count / 6.0 * (skewness * skewness + excess_kurtosis * excess_kurtosis / 4.0)
+    p_value = math.exp(-statistic / 2.0)  # Chi-square survival with two df.
+    return {"method": "jarque_bera_asymptotic", "alpha": alpha, "available": True, "statistic": statistic, "p_value": p_value, "skewness": skewness, "excess_kurtosis": excess_kurtosis, "reject_normality": p_value < alpha}
+
+
 def normal_process_capability(
     values: Sequence[float],
     *,
@@ -302,6 +320,11 @@ def _normal_capability_result(
     warnings = [
         "Capability interpretation requires a stable process and an approximately normal distribution."
     ]
+    normality = _jarque_bera_normality(observations)
+    if normality["available"] and normality["reject_normality"]:
+        warnings.append("Jarque-Bera normality test rejects normality at alpha=0.05; review a non-normal capability method before interpreting normal indices.")
+    elif not normality["available"]:
+        warnings.append("Normality-fit evidence is unavailable for this sample; review the diagnostic reason before interpreting normal indices.")
     if len(observations) < 50:
         warnings.append(
             "NIST notes that capability estimates generally need about 50 independent observations."
@@ -362,7 +385,8 @@ def _normal_capability_result(
         },
         diagnostics={
             "stability_verified": False,
-            "normality_verified": False,
+            "normality_verified": bool(normality["available"] and not normality["reject_normality"]),
+            "distribution_fit": normality,
             "within_sigma_method": "average_moving_range_2/d2",
         },
         assumptions=(

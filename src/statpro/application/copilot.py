@@ -37,6 +37,15 @@ class CopilotAction:
 
 
 @dataclass(frozen=True)
+class CopilotFallbackStep:
+    """A non-secret outcome for one fixed Copilot fallback stage."""
+
+    stage: str
+    status: str
+    detail: str
+
+
+@dataclass(frozen=True)
 class CopilotGuidance:
     answer: str
     provider: str
@@ -49,6 +58,7 @@ class CopilotGuidance:
     menu_path: tuple[str, ...] = ()
     checklist: tuple[str, ...] = ()
     workflow_steps: tuple[str, ...] = ()
+    fallback_steps: tuple[CopilotFallbackStep, ...] = ()
 
 
 class CopilotProvider(Protocol):
@@ -184,10 +194,10 @@ class LocalKnowledgeCopilotProvider:
                 ),
             )
 
-        equipment_terms = any(token in normalized for token in ("설비", "장비", "기계"))
         downtime_terms = any(token in normalized for token in ("비가동", "다운타임", "정지", "고장시간"))
         investigation_terms = any(token in normalized for token in ("원인", "개선", "높", "줄", "감소"))
-        if equipment_terms and downtime_terms and investigation_terms:
+        downtime_measure_terms = any(token in normalized for token in ("mtbf", "mttr", "기준선", "관리지표", "시작", "종료", "빈도"))
+        if downtime_terms and (investigation_terms or downtime_measure_terms):
             return CopilotGuidance(
                 answer=(
                     evidence_prefix
@@ -213,6 +223,37 @@ class LocalKnowledgeCopilotProvider:
                     "분석(Analyze): Pareto·Fishbone·5 Whys와 통계 분석으로 원인을 검증합니다.",
                     "개선(Improve): 대책을 파일럿하고 효과와 부작용을 검증합니다.",
                     "관리(Control): SPC·관리계획·FMEA와 책임자를 연결해 효과를 유지합니다.",
+                ),
+            )
+
+        coating_terms = any(token in normalized for token in ("코팅", "coating"))
+        discoloration_terms = any(token in normalized for token in ("착색", "변색", "황변", "색상"))
+        optimization_terms = any(token in normalized for token in ("최적", "조건", "방지", "개선"))
+        if coating_terms and discoloration_terms and optimization_terms:
+            return CopilotGuidance(
+                answer=(
+                    "착색 방지 코팅 조건은 색차(ΔE), 황변지수, 광택·밀착력 같은 반응값을 먼저 정한 뒤 DOE로 최적화하세요. "
+                    "코팅 두께·조성·경화 온도·시간·UV 에너지·소재 전처리를 인자로 두고, 가속 내후성 시험으로 후보 조건을 확인합니다."
+                ),
+                provider=self.provider_name,
+                sources=(_DOE_SOURCE,),
+                limitations=limitations + ("소재·코팅계·시험 규격이 없어 최적 조건값은 제시하지 않습니다.",),
+                action=CopilotAction("DOE 절차 시작", "/doe"),
+                rule_id="doe-coating-discoloration-optimization",
+                recommended_tool="실험계획법 (DOE)",
+                menu_path=("홈 (Home)", "실험계획법 (DOE)", "설계 및 생성"),
+                checklist=(
+                    "기준 색상과 허용 ΔE·광택·밀착력 기준을 정합니다.",
+                    "코팅 조성·두께·경화 조건과 소재 전처리의 안전 범위를 확인합니다.",
+                    "가속 내후성·열·UV 시험 조건과 측정 방법을 고정합니다.",
+                    "반복·무작위화·소재 lot을 블록으로 둘지 결정합니다.",
+                ),
+                workflow_steps=(
+                    "착색 방지 목표와 반응값 정의",
+                    "코팅·경화·전처리 인자와 수준 정의",
+                    "스크리닝 DOE로 영향 인자 선별",
+                    "반응표면 DOE로 후보 조건 최적화",
+                    "가속 시험·실사용 조건에서 확인 후 관리 기준 설정",
                 ),
             )
 
@@ -272,6 +313,24 @@ class LocalKnowledgeCopilotProvider:
                     "Xbar 신호와 반응계획을 검토합니다.",
                     "안정된 기준을 다음 실행의 근거로 보존합니다.",
                 ),
+            )
+
+        if all(any(term in normalized for term in group) for group in (("현상", "증상"), ("원인",), ("대책", "조치"))):
+            return CopilotGuidance(
+                answer=(
+                    "현상·원인·대책을 순서대로 정리할 수 있습니다. 먼저 무엇이 언제부터 얼마나 달라졌는지, "
+                    "제품·설비·공정과 영향 범위를 알려주세요. 원인은 현재 가설과 확인된 근거를 구분하고, "
+                    "대책은 임시 조치와 검증할 개선안을 나눠 제안하겠습니다. 구체 현상이나 데이터가 없으므로 원인을 단정하지 않습니다."
+                ),
+                provider=self.provider_name,
+                sources=(_DMAIC_SOURCE, _SELECTION_SOURCE),
+                limitations=limitations + ("구체적인 현상·데이터가 없어 원인과 효과는 아직 검증되지 않았습니다.",),
+                action=CopilotAction("원인 분석 작업공간 열기", "/home/dmaic/analyze/root-causes"),
+                rule_id="dmaic-symptom-cause-action-guide",
+                recommended_tool="DMAIC 원인 분석",
+                menu_path=("홈 (Home)", "개선 프로젝트 (DMAIC)", "분석 (Analyze)", "원인 분석"),
+                checklist=("현상·발생 시점·영향 범위를 정의합니다.", "기준선과 비교 데이터의 출처를 확인합니다.", "원인 후보와 검증된 원인을 구분합니다."),
+                workflow_steps=("현상을 수치와 범위로 정의", "데이터·측정 신뢰성 확인", "Pareto·특성요인도로 원인 후보 정리", "데이터로 원인 검증", "임시 조치와 개선 대책의 효과 확인"),
             )
 
         catalog_rule = match_catalog_rule(question)
@@ -420,26 +479,126 @@ class RuleFirstCopilotProvider:
             workspace=workspace,
             evidence_context=evidence_context,
         )
-        if rule_guidance.rule_id is not None or self._fallback_provider is None:
-            return rule_guidance
+        if rule_guidance.rule_id is not None:
+            if self._fallback_provider is not None and _requires_model_enrichment(question):
+                try:
+                    enrichment = self._fallback_provider.answer(
+                        question=_enrichment_question(question, rule_guidance),
+                        pathname=pathname,
+                        workspace=workspace,
+                        evidence_context=evidence_context,
+                    )
+                    return replace(
+                        enrichment,
+                        answer=rule_guidance.answer + "\n\n추가 분석 가이드\n" + enrichment.answer,
+                        sources=rule_guidance.sources + enrichment.sources,
+                        limitations=rule_guidance.limitations + enrichment.limitations,
+                        action=rule_guidance.action or enrichment.action,
+                        rule_id=rule_guidance.rule_id,
+                        recommended_tool=rule_guidance.recommended_tool or enrichment.recommended_tool,
+                        menu_path=rule_guidance.menu_path or enrichment.menu_path,
+                        checklist=rule_guidance.checklist or enrichment.checklist,
+                        workflow_steps=rule_guidance.workflow_steps or enrichment.workflow_steps,
+                        fallback_steps=(
+                            CopilotFallbackStep("Rulebase", "answered", "검토된 규칙으로 답변 가능한 부분을 먼저 제시했습니다."),
+                            *enrichment.fallback_steps,
+                        ),
+                    )
+                except (OSError, ValueError, KeyError, TypeError):
+                    pass
+            return replace(
+                rule_guidance,
+                fallback_steps=(
+                    CopilotFallbackStep("Rulebase", "answered", "검토된 규칙으로 답변을 생성했습니다."),
+                    CopilotFallbackStep("EXAONE API", "skipped", "Rulebase 답변이 있어 호출하지 않았습니다."),
+                    CopilotFallbackStep("Ollama API", "skipped", "Rulebase 답변이 있어 호출하지 않았습니다."),
+                ),
+            )
+        if self._fallback_provider is None:
+            return replace(
+                rule_guidance,
+                fallback_steps=(
+                    CopilotFallbackStep("Rulebase", "unmatched", "직접 대응하는 검토 규칙을 찾지 못했습니다."),
+                    CopilotFallbackStep("EXAONE API", "unavailable", "모델 연결이 설정되지 않았습니다."),
+                    CopilotFallbackStep("Ollama API", "unavailable", "모델 연결이 설정되지 않았습니다."),
+                ),
+            )
         try:
-            return self._fallback_provider.answer(
-                question=question,
-                pathname=pathname,
-                workspace=workspace,
-                evidence_context=evidence_context,
+            fallback_guidance = self._fallback_provider.answer(
+                question=question, pathname=pathname, workspace=workspace, evidence_context=evidence_context,
+            )
+            return replace(
+                fallback_guidance,
+                fallback_steps=(
+                    CopilotFallbackStep("Rulebase", "unmatched", "직접 대응하는 검토 규칙을 찾지 못했습니다."),
+                    *fallback_guidance.fallback_steps,
+                ),
             )
         except (OSError, ValueError, KeyError, TypeError):
             return replace(
                 rule_guidance,
                 limitations=rule_guidance.limitations
                 + ("생성형 AI 보완을 사용할 수 없어 검토된 로컬 안내만 제공합니다.",),
+                fallback_steps=(
+                    CopilotFallbackStep("Rulebase", "unmatched", "직접 대응하는 검토 규칙을 찾지 못했습니다."),
+                    CopilotFallbackStep("EXAONE API", "failed", "Fallback 체인을 시작하지 못했습니다."),
+                    CopilotFallbackStep("Ollama API", "skipped", "이전 단계 오류로 호출하지 못했습니다."),
+                ),
             )
+
+    def answer_selected_model(
+        self,
+        *,
+        model_preference: str,
+        question: str,
+        pathname: str,
+        workspace: str,
+        evidence_context: str | None,
+    ) -> CopilotGuidance:
+        if model_preference == "rulebase":
+            return replace(
+                self._rule_provider.answer(
+                    question=question, pathname=pathname, workspace=workspace, evidence_context=evidence_context,
+                ),
+                fallback_steps=(
+                    CopilotFallbackStep("Rulebase", "answered", "사용자가 Rulebase를 지정해 답변을 생성했습니다."),
+                    CopilotFallbackStep("EXAONE API", "skipped", "사용자가 Rulebase를 지정했습니다."),
+                    CopilotFallbackStep("Ollama API", "skipped", "사용자가 Rulebase를 지정했습니다."),
+                ),
+            )
+        if isinstance(self._fallback_provider, FallbackChainCopilotProvider):
+            return self._fallback_provider.answer_selected_model(
+                model_preference=model_preference,
+                question=question,
+                pathname=pathname,
+                workspace=workspace,
+                evidence_context=evidence_context,
+            )
+        raise ValueError("The selected Copilot model is not available")
 
 
 def _is_code_generation_request(question: str) -> bool:
     normalized = question.casefold()
     return any(token in normalized for token in ("코드", "스크립트", "python", "sql", "api", "자동화", "구현"))
+
+
+def _requires_model_enrichment(question: str) -> bool:
+    normalized = question.casefold()
+    definition_terms = ("정의", "설명", "기준", "kpi", "지표", "표준")
+    action_terms = ("제안", "분석", "문제점", "개선", "수립", "방안", "계산", "비교")
+    return len(normalized) >= 160 or (
+        any(term in normalized for term in definition_terms)
+        and any(term in normalized for term in action_terms)
+    )
+
+
+def _enrichment_question(question: str, rule_guidance: CopilotGuidance) -> str:
+    return (
+        "다음 사용자 요청에 대해 Rulebase가 아래 내용을 이미 안내했습니다. "
+        "반복하지 말고, Rulebase가 다루지 못한 정의·산식·분석 관점·현장 적용 주의사항만 보완하세요.\n"
+        f"사용자 요청: {question}\n"
+        f"Rulebase 안내: {rule_guidance.answer}"
+    )
 
 
 def _is_complex_request(question: str) -> bool:
@@ -451,8 +610,21 @@ def _is_complex_request(question: str) -> bool:
     return len(normalized) >= 180 or _is_code_generation_request(question) or any(term in normalized for term in complex_terms)
 
 
+def _model_error_detail(error: Exception) -> str:
+    message = str(error)
+    if "429" in message:
+        return "요청 한도(HTTP 429)에 도달했습니다."
+    if "timed out" in message.casefold():
+        return "로컬 모델의 응답 생성 시간이 제한을 초과했습니다."
+    if "invalid JSON" in message or "invalid guidance contract" in message:
+        return "모델 응답이 JSON 안내 형식과 일치하지 않습니다."
+    if "empty answer" in message:
+        return "모델이 비어 있는 답변을 반환했습니다."
+    return "모델 연결 또는 응답 생성에 실패했습니다."
+
+
 class FallbackChainCopilotProvider:
-    """Route unmatched questions through approved cloud and local fallback tiers."""
+    """Query both approved model APIs for every question unmatched by the Rulebase."""
 
     def __init__(
         self,
@@ -479,23 +651,52 @@ class FallbackChainCopilotProvider:
         cloud_provider = self._exaone_complex if _is_complex_request(question) else self._exaone_simple
         local_provider = self._ollama_code if code_request else self._ollama_workflow
         failures: list[str] = []
-        for tier, provider in (("EXAONE", cloud_provider), ("Ollama", local_provider)):
+        steps: list[CopilotFallbackStep] = []
+        answers: list[tuple[str, CopilotGuidance]] = []
+        for tier, failure_name, provider in (("EXAONE API", "EXAONE", cloud_provider), ("Ollama API", "Ollama", local_provider)):
             if provider is None:
-                failures.append(f"{tier}: 미설정")
+                failures.append(f"{failure_name}: 미설정")
+                steps.append(CopilotFallbackStep(tier, "unavailable", "사용 가능한 연결 또는 모델이 설정되지 않았습니다."))
                 continue
             try:
-                return provider.answer(
+                guidance = provider.answer(
                     question=question,
                     pathname=pathname,
                     workspace=workspace,
                     evidence_context=evidence_context,
                 )
+                steps.append(CopilotFallbackStep(tier, "answered", "답변을 생성했습니다."))
+                answers.append((tier, guidance))
             except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError) as error:
-                failures.append(f"{tier}: {type(error).__name__}")
+                rate_limited = "429" in str(error)
+                failures.append(
+                    f"{failure_name}: HTTP 429" if rate_limited else f"{failure_name}: {type(error).__name__}"
+                )
+                detail = _model_error_detail(error)
+                steps.append(CopilotFallbackStep(tier, "failed", detail))
                 continue
+        if answers:
+            selected_tier, selected_guidance = next(
+                (answer for answer in answers if answer[0] == "EXAONE API"),
+                answers[0],
+            )
+            selected_steps = tuple(
+                replace(
+                    step,
+                    detail=("답변을 생성했고 사용자에게 표시했습니다." if step.stage == selected_tier else "답변을 생성했으며 EXAONE 답변을 우선 표시했습니다.")
+                    if step.status == "answered"
+                    else step.detail,
+                )
+                for step in steps
+            )
+            return replace(selected_guidance, fallback_steps=selected_steps)
+        rate_limited = any(failure.endswith("HTTP 429") for failure in failures)
         return CopilotGuidance(
             answer=(
-                "자동 안내 모델에 연결할 수 없습니다. 잠시 후 같은 질문을 다시 시도하거나, "
+                "EXAONE API 요청 한도에 도달했습니다. 잠시 후 다시 시도하거나, "
+                if rate_limited
+                else "자동 안내 모델에 연결할 수 없습니다. 잠시 후 같은 질문을 다시 시도하거나, "
+            ) + (
                 "분석 목적·결과 변수·데이터 구조·현재 제약을 직접 입력해 주세요."
             ),
             provider="statpro-fallback-unavailable",
@@ -506,9 +707,61 @@ class FallbackChainCopilotProvider:
                 "분석 설정이나 저장 문서는 자동으로 변경하지 않습니다.",
             ),
             action=CopilotAction("분석 선택 시작", "/analyses"),
-            guidance_mode="unmatched",
+            guidance_mode="manual_guidance",
             checklist=("분석 목표 입력", "결과 변수의 데이터형 입력", "수집 구조와 표본 수 입력", "현장 제약·안전 범위 입력"),
             workflow_steps=("필수 입력 보완", "분석 선택 도우미에서 방법 검토", "사용자가 설정을 검토·실행"),
+            fallback_steps=tuple(steps),
+        )
+
+    def answer_selected_model(
+        self,
+        *,
+        model_preference: str,
+        question: str,
+        pathname: str,
+        workspace: str,
+        evidence_context: str | None,
+    ) -> CopilotGuidance:
+        code_request = _is_code_generation_request(question)
+        providers = {
+            "exaone": ("EXAONE API", self._exaone_complex if _is_complex_request(question) else self._exaone_simple),
+            "ollama": ("Ollama API", self._ollama_code if code_request else self._ollama_workflow),
+        }
+        tier, provider = providers[model_preference]
+        skipped = "Ollama API" if tier == "EXAONE API" else "EXAONE API"
+        if provider is None:
+            return CopilotGuidance(
+                answer=f"지정한 {tier} 모델이 설정되지 않았습니다.",
+                provider="statpro-selected-model-unavailable",
+                sources=(_SELECTION_SOURCE,),
+                limitations=("다른 모델로 자동 전환하지 않았습니다. 모델 지정을 해제하거나 설정을 확인하세요.",),
+                guidance_mode="manual_guidance",
+                fallback_steps=(
+                    CopilotFallbackStep(tier, "unavailable", "사용 가능한 연결 또는 모델이 설정되지 않았습니다."),
+                    CopilotFallbackStep(skipped, "skipped", "사용자가 특정 모델을 지정했습니다."),
+                ),
+            )
+        try:
+            guidance = provider.answer(question=question, pathname=pathname, workspace=workspace, evidence_context=evidence_context)
+        except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError) as error:
+            detail = _model_error_detail(error)
+            return CopilotGuidance(
+                answer=f"지정한 {tier}에서 답변을 생성하지 못했습니다. {detail}",
+                provider="statpro-selected-model-unavailable",
+                sources=(_SELECTION_SOURCE,),
+                limitations=("사용자 지정 모델만 호출했으며 다른 모델로 자동 전환하지 않았습니다.",),
+                guidance_mode="manual_guidance",
+                fallback_steps=(
+                    CopilotFallbackStep(tier, "failed", detail),
+                    CopilotFallbackStep(skipped, "skipped", "사용자가 특정 모델을 지정했습니다."),
+                ),
+            )
+        return replace(
+            guidance,
+            fallback_steps=(
+                CopilotFallbackStep(tier, "answered", "사용자가 지정한 모델로 답변을 생성했습니다."),
+                CopilotFallbackStep(skipped, "skipped", "사용자가 특정 모델을 지정했습니다."),
+            ),
         )
 
 
@@ -558,10 +811,19 @@ def _decode_llm_guidance_payload(text: object, *, provider_name: str) -> Mapping
 
     if not isinstance(text, str):
         raise ValueError(f"{provider_name} returned non-string content")
+    normalized = text.strip()
+    if normalized.startswith("```") and normalized.endswith("```"):
+        normalized = normalized.split("\n", 1)[1].rsplit("\n", 1)[0].strip()
     try:
-        payload = json.loads(text)
+        payload = json.loads(normalized)
     except (TypeError, json.JSONDecodeError) as error:
-        raise ValueError(f"{provider_name} returned invalid JSON guidance") from error
+        start = normalized.find("{")
+        if start < 0:
+            raise ValueError(f"{provider_name} returned invalid JSON guidance") from error
+        try:
+            payload, _ = json.JSONDecoder().raw_decode(normalized[start:])
+        except json.JSONDecodeError as extraction_error:
+            raise ValueError(f"{provider_name} returned invalid JSON guidance") from extraction_error
     if not isinstance(payload, Mapping):
         raise ValueError(f"{provider_name} returned a non-object JSON response")
     return payload
@@ -610,11 +872,15 @@ class UrlLibExaoneChatCompletionClient:
                 "messages": [
                     {
                         "role": "system",
-                        "content": "Return exactly one JSON object with answer, recommended_tool, menu_path, checklist, and workflow_steps.",
+                        "content": (
+                            "Return only one JSON object with this exact shape: "
+                            '{"answer":string,"recommended_tool":string|null,"menu_path":string[],"checklist":string[],"workflow_steps":string[]}. '
+                            "Do not use Markdown fences or add prose outside JSON."
+                        ),
                     },
                     {"role": "user", "content": prompt},
                 ],
-                "max_tokens": 1024,
+                "max_tokens": 4096,
                 "temperature": 0.2,
                 "stream": False,
                 "reasoning_effort": reasoning_effort,
@@ -643,15 +909,18 @@ class ExaoneCopilotProvider:
         endpoint: str = "https://api.exaone.ai/v1/chat/completions",
         model: str = "k-exaone_v2.5",
         reasoning_effort: str = "low",
+        timeout_seconds: int = 60,
         client: ExaoneChatCompletionClient | None = None,
     ) -> None:
         if reasoning_effort not in {"low", "high", "max"}:
             raise ValueError("EXAONE reasoning_effort must be low, high, or max")
+        if not 1 <= timeout_seconds <= 120:
+            raise ValueError("EXAONE timeout_seconds must be between 1 and 120")
         self._api_key = api_key
         self._endpoint = endpoint
         self._model = model
         self._reasoning_effort = reasoning_effort
-        self._client = client or UrlLibExaoneChatCompletionClient()
+        self._client = client or UrlLibExaoneChatCompletionClient(timeout_seconds=timeout_seconds)
 
     def answer(
         self,
@@ -725,6 +994,8 @@ class UrlLibLocalChatCompletionClient:
                     },
                     {"role": "user", "content": prompt},
                 ],
+                "response_format": {"type": "json_object"},
+                "max_tokens": 1024,
                 "temperature": 0.2,
                 "stream": False,
             }
@@ -740,6 +1011,8 @@ class UrlLibLocalChatCompletionClient:
                 return json.loads(response.read().decode("utf-8"))
         except urllib.error.HTTPError as error:
             raise OSError(f"Local LLM request failed with HTTP {error.code}") from error
+        except (TimeoutError, urllib.error.URLError) as error:
+            raise OSError("Local LLM request timed out") from error
 
 
 class LocalLlmCopilotProvider:
@@ -806,12 +1079,14 @@ def build_default_copilot_provider() -> CopilotProvider:
             endpoint=exaone_endpoint,
             model=exaone_model,
             reasoning_effort=os.getenv("STATPRO_COPILOT_EXAONE_SIMPLE_REASONING_EFFORT", "") or "low",
+            timeout_seconds=_exaone_timeout_seconds(),
         )
         exaone_complex = ExaoneCopilotProvider(
             api_key,
             endpoint=exaone_endpoint,
             model=exaone_model,
             reasoning_effort=os.getenv("STATPRO_COPILOT_EXAONE_COMPLEX_REASONING_EFFORT", "") or "high",
+            timeout_seconds=_exaone_timeout_seconds(),
         )
 
     ollama_enabled = (
@@ -859,6 +1134,15 @@ def build_default_copilot_provider() -> CopilotProvider:
 
 def _ollama_timeout_seconds() -> int:
     raw_value = os.getenv("STATPRO_COPILOT_OLLAMA_TIMEOUT_SECONDS", "60")
+    try:
+        timeout_seconds = int(raw_value)
+    except ValueError:
+        return 60
+    return timeout_seconds if 1 <= timeout_seconds <= 120 else 60
+
+
+def _exaone_timeout_seconds() -> int:
+    raw_value = os.getenv("STATPRO_COPILOT_EXAONE_TIMEOUT_SECONDS", "60")
     try:
         timeout_seconds = int(raw_value)
     except ValueError:

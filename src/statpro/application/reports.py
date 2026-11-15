@@ -30,12 +30,38 @@ def build_doe_report(
 ) -> dict[str, Any]:
     """Project one immutable DOE Run into the versioned report contract."""
 
-    result = _owned_doe_result(stored)
+    return _build_analysis_report(
+        stored,
+        template_id=template_id,
+        analysis_prefix="doe.",
+        report_type=REPORT_TYPE,
+    )
+
+
+def build_msa_report(
+    stored: StoredDocument, *, template_id: str = "standard"
+) -> dict[str, Any]:
+    """Project one immutable MSA Run into the same review/export contract."""
+
+    return _build_analysis_report(
+        stored,
+        template_id=template_id,
+        analysis_prefix="msa.",
+        report_type="statpro.msa.analysis_report.v1",
+    )
+
+
+def _build_analysis_report(
+    stored: StoredDocument, *, template_id: str, analysis_prefix: str, report_type: str
+) -> dict[str, Any]:
+    """Project an owned ResultBundle without reinterpreting its raw inputs."""
+
+    result = _owned_analysis_result(stored, analysis_prefix=analysis_prefix)
     template = _report_template(template_id)
     tables = [_normalize_table(name, value) for name, value in result["tables"].items()]
     tables.sort(key=lambda table: (table["row_count"] == 0, table["name"]))
     report: dict[str, Any] = {
-        "report_type": REPORT_TYPE,
+        "report_type": report_type,
         "run": {
             "run_id": stored.key,
             "storage_version": stored.storage_version,
@@ -50,8 +76,8 @@ def build_doe_report(
         "parameters": result["parameters"],
         "diagnostics": result["diagnostics"],
         "tables": tables,
-        "plots": result["plots"],
-        "figures": _figure_manifest(result["plots"]),
+        "plots": _report_plots(result),
+        "figures": _figure_manifest(_report_plots(result)),
         "template": template,
         "assumptions": result["assumptions"],
         "warnings": result["warnings"],
@@ -71,13 +97,15 @@ def render_doe_report_html(report: Mapping[str, Any]) -> bytes:
 
     run = report["run"]
     analysis = report["analysis"]
+    is_doe = str(analysis["analysis_type"]).startswith("doe.")
+    report_title = "StatPro 실험계획법(DOE) 분석 보고서" if is_doe else f"StatPro {analysis['analysis_type']} 분석 보고서"
     parts = [
         "<!doctype html><html lang=\"ko\"><head><meta charset=\"utf-8\"><style>"
         "@page{size:A4;margin:16mm}body{font-family:Pretendard,'Noto Sans KR','Nanum Gothic','NanumSquare',sans-serif;color:#172033;line-height:1.55}"
         "table{width:100%;border-collapse:collapse}th,td{border:1px solid #cbd5e1;padding:5px;text-align:left;vertical-align:top}"
         "h1,h2{color:#0f3d7a}code{overflow-wrap:anywhere}</style>",
-        f"<title>StatPro DOE 보고서 — {escape(str(run['run_id']))}</title></head><body>",
-        "<main><header><h1>StatPro 실험계획법(DOE) 분석 보고서</h1>",
+        f"<title>{escape(report_title)} — {escape(str(run['run_id']))}</title></head><body>",
+        f"<main><header><h1>{escape(report_title)}</h1>",
         f"<p>보고서 양식: {escape(str(report['template']['name']))}</p>",
         f"<p>분석 실행 ID: <code>{escape(str(run['run_id']))}</code></p>",
         f"<p>분석: {escape(str(analysis['analysis_type']))}</p>",
@@ -214,7 +242,7 @@ def export_doe_report_zip(report: Mapping[str, Any]) -> bytes:
     return output.getvalue()
 
 
-def _owned_doe_result(stored: StoredDocument) -> dict[str, Any]:
+def _owned_analysis_result(stored: StoredDocument, *, analysis_prefix: str) -> dict[str, Any]:
     document = stored.document
     result = document.get("result")
     if (
@@ -238,13 +266,26 @@ def _owned_doe_result(stored: StoredDocument) -> dict[str, Any]:
     }
     if any(not isinstance(result.get(key), expected) for key, expected in required.items()):
         raise DocumentStoreError("Stored analysis Run has an invalid ResultBundle.")
-    if not result["analysis_type"].startswith("doe."):
+    if not result["analysis_type"].startswith(analysis_prefix):
         raise AnalysisInputError(
             "unsupported_report_type",
-            "The DOE report endpoint requires a DOE analysis Run.",
+            f"This report endpoint requires a {analysis_prefix.rstrip('.')} analysis Run.",
             "run_id",
         )
     return result
+
+
+def _report_plots(result: Mapping[str, Any]) -> dict[str, Any]:
+    """Expose a common variance bar chart for MSA without altering stored evidence."""
+
+    plots = dict(result["plots"])
+    components = result["tables"].get("variance_components")
+    if result["analysis_type"].startswith("msa.") and isinstance(components, list):
+        terms = [str(row.get("source")) for row in components if isinstance(row, Mapping)]
+        values = [row.get("variance") for row in components if isinstance(row, Mapping)]
+        if terms and all(isinstance(value, (int, float)) for value in values):
+            plots["variance_components"] = {"terms": terms, "effects": values}
+    return plots
 
 
 def _normalize_table(name: str, value: object) -> dict[str, Any]:

@@ -31,7 +31,7 @@ class LocalApiContractTests(unittest.TestCase):
                 password=self.approval_password,
             ),
         ))
-        self.client = TestClient(create_app(self.repository, self.approval_authenticator))
+        self.client = TestClient(create_app(self.repository, self.approval_authenticator), base_url="http://127.0.0.1")
 
     def test_health_and_result_schema_are_available(self) -> None:
         health = self.client.get("/health")
@@ -72,6 +72,17 @@ class LocalApiContractTests(unittest.TestCase):
         self.assertIn("/v1/worksheets/{worksheet_id}/sort-rows", openapi.json()["paths"])
         self.assertIn("/v1/worksheets/{worksheet_id}/derived-columns", openapi.json()["paths"])
 
+    def test_local_request_boundary_rejects_non_loopback_host_and_origin(self) -> None:
+        foreign_host = self.client.get("/health", headers={"host": "example.test"})
+        foreign_origin = self.client.get("/health", headers={"origin": "https://example.test"})
+        local_origin = self.client.get("/health", headers={"origin": "http://127.0.0.1:5173"})
+
+        self.assertEqual(foreign_host.status_code, 400)
+        self.assertEqual(foreign_host.json()["error"]["code"], "local_host_required")
+        self.assertEqual(foreign_origin.status_code, 403)
+        self.assertEqual(foreign_origin.json()["error"]["code"], "local_origin_required")
+        self.assertEqual(local_origin.status_code, 200)
+
     def test_copilot_returns_local_evidence_aware_guidance(self) -> None:
         response = self.client.post(
             "/v1/copilot/guidance",
@@ -92,6 +103,8 @@ class LocalApiContractTests(unittest.TestCase):
         self.assertEqual(guidance["sources"][0]["evidence_kind"], "product_documentation")
         self.assertTrue(guidance["sources"][0]["reference"].startswith("docs/evidence/"))
         self.assertIn("외부 AI 모델", " ".join(guidance["limitations"]))
+        self.assertEqual(guidance["fallback_steps"][0]["stage"], "Rulebase")
+        self.assertEqual(guidance["fallback_steps"][0]["status"], "answered")
 
     def test_copilot_status_is_non_secret_configuration_evidence(self) -> None:
         response = self.client.get("/v1/copilot/status")
@@ -202,7 +215,7 @@ class LocalApiContractTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         guidance = response.json()
         self.assertEqual(guidance["provider"], "statpro-fallback-unavailable")
-        self.assertEqual(guidance["guidance_mode"], "unmatched")
+        self.assertEqual(guidance["guidance_mode"], "manual_guidance")
         self.assertIn("Rulebase", guidance["limitations"][0])
 
     def test_copilot_rejects_undeclared_or_empty_input(self) -> None:
@@ -2016,7 +2029,7 @@ class LocalApiContractTests(unittest.TestCase):
         )
         self.assertEqual(rejected.status_code, 401)
         self.assertEqual(rejected.json()["error"]["code"], "approval_authentication_failed")
-        unconfigured = TestClient(create_app(self.repository)).post(
+        unconfigured = TestClient(create_app(self.repository), base_url="http://127.0.0.1").post(
             "/v1/fmea-studies/PFMEA-ACTIONS/approve",
             json={
                 "expected_storage_version": 5,
@@ -2088,7 +2101,7 @@ class LocalApiContractTests(unittest.TestCase):
                 password=self.approval_password,
             ),
         ), policy=ApprovalPolicy(require_independent_approver=True))
-        denied = TestClient(create_app(self.repository, independent)).post(
+        denied = TestClient(create_app(self.repository, independent), base_url="http://127.0.0.1").post(
             "/v1/fmea-studies/PFMEA-SOD/approve",
             json={"expected_storage_version": 3, "user_id": "quality.approver", "password": self.approval_password, "meaning": "approval"},
         )

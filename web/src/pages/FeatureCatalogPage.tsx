@@ -28,7 +28,7 @@ const catalogs: Record<string, Catalog> = {
       { name: "Gage 편의·선형성", detail: "추적 가능한 기준값 범위에서 관측 편의와 편의 변화의 선형 추세를 확인합니다.", status: "구현됨", to: "/analyses/msa/bias-linearity" },
       { name: "실험 실행 수·설계 선택", detail: "DOE 설계 화면에서 실행 수와 설계 조건을 확인합니다.", status: "구현됨", to: "/analyses/doe/full-factorial" },
       { name: "SPC·DOE 선택 가이드", detail: "데이터 유형과 업무 목적에 따라 관리도와 실험설계를 선택하고 해당 작업공간으로 이동합니다.", status: "구현됨", to: "/spc" },
-      { name: "통합 분석 추천", detail: "모든 통계 모듈을 아우르는 자동 방법 추천과 검정력 기반 비교는 후속 범위입니다.", status: "개발 예정" },
+      { name: "통합 분석 추천", detail: "판단 목적에 따라 SPC, 공정능력, MSA, DOE, FMEA, DMAIC의 실행 가능한 작업공간과 필요한 입력·사전 확인사항을 추천합니다.", status: "구현됨", to: "/analyses" },
     ],
   },
   help: {

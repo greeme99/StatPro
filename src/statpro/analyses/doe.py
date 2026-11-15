@@ -959,6 +959,80 @@ def full_factorial_2level(
     )
 
 
+def split_plot_factorial_2level(
+    factors: Sequence[FactorDefinition],
+    *,
+    whole_plot_factors: Sequence[str],
+    covariates: Mapping[str, Sequence[float]] | None = None,
+    randomize: bool = True,
+    seed: int = 0,
+) -> ResultBundle:
+    """Create a two-level split-plot design with explicit randomization restrictions.
+
+    Whole-plot factors change only between whole plots.  Covariates are measured
+    values attached to the final run order, never manipulated treatment factors.
+    """
+
+    base = full_factorial_2level(factors, randomize=False, seed=seed)
+    factor_names = [factor["name"] for factor in base.parameters["factors"]]
+    normalized_whole = tuple(dict.fromkeys(name.strip() for name in whole_plot_factors if name.strip()))
+    if not normalized_whole or any(name not in factor_names for name in normalized_whole):
+        raise AnalysisInputError("invalid_whole_plot_factors", "Specify one or more known whole-plot factors.", "whole_plot_factors")
+    if len(normalized_whole) == len(factor_names):
+        raise AnalysisInputError("missing_sub_plot_factor", "A split-plot design requires at least one sub-plot factor.", "whole_plot_factors")
+    sub_plot_factors = tuple(name for name in factor_names if name not in normalized_whole)
+    rows = [dict(row) for row in base.tables["design"]]
+    groups: dict[tuple[int, ...], list[dict[str, object]]] = {}
+    for row in rows:
+        coded = row["coded"]
+        key = tuple(int(coded[name]) for name in normalized_whole)  # type: ignore[index]
+        groups.setdefault(key, []).append(row)
+    group_items = list(groups.items())
+    rng = random.Random(seed)
+    if randomize:
+        rng.shuffle(group_items)
+    ordered: list[dict[str, object]] = []
+    for whole_plot_order, (key, group_rows) in enumerate(group_items, start=1):
+        if randomize:
+            rng.shuffle(group_rows)
+        for sub_plot_order, row in enumerate(group_rows, start=1):
+            row["whole_plot"] = whole_plot_order
+            row["whole_plot_order"] = whole_plot_order
+            row["sub_plot_order"] = sub_plot_order
+            row["whole_plot_settings"] = dict(zip(normalized_whole, key, strict=True))
+            row["randomization_restriction"] = "whole_plot_then_sub_plot"
+            ordered.append(row)
+    for run_order, row in enumerate(ordered, start=1):
+        row["run_order"] = run_order
+
+    normalized_covariates: dict[str, list[float]] = {}
+    for name, values in (covariates or {}).items():
+        clean_name = name.strip()
+        if not clean_name or clean_name in factor_names:
+            raise AnalysisInputError("invalid_covariate", "Covariate names must be nonempty and differ from factor names.", "covariates")
+        clean_values = finite_values(values, f"covariates.{clean_name}")
+        if len(clean_values) != len(ordered):
+            raise AnalysisInputError("covariate_length_mismatch", "Each covariate needs one value for every design run in final run order.", "covariates")
+        normalized_covariates[clean_name] = clean_values
+    for index, row in enumerate(ordered):
+        if normalized_covariates:
+            row["covariates"] = {name: values[index] for name, values in normalized_covariates.items()}
+
+    payload = {"factors": base.parameters["factors"], "whole_plot_factors": normalized_whole, "covariates": normalized_covariates, "randomize": randomize, "seed": seed}
+    return ResultBundle(
+        analysis_type="doe.split_plot_factorial_2level",
+        engine_version=ENGINE_VERSION,
+        input_digest=input_digest(payload),
+        parameters={**base.parameters, "whole_plot_factors": list(normalized_whole), "sub_plot_factors": list(sub_plot_factors), "covariates": list(normalized_covariates), "randomization_unit": "whole_plot_then_sub_plot"},
+        tables={"design": ordered, "randomization_restrictions": [{"whole_plot_factors": list(normalized_whole), "sub_plot_factors": list(sub_plot_factors), "restriction": "Randomize whole plots first, then randomize sub-plots within each whole plot."}]},
+        plots={},
+        diagnostics={"whole_plot_count": len(group_items), "runs_per_whole_plot": 2 ** len(sub_plot_factors), "covariate_count": len(normalized_covariates), "randomization_restricted": True, "analysis_requirement": "Use a mixed model with whole plot as a random effect; do not use ordinary independent-run ANOVA."},
+        assumptions=("Whole plots are independent experimental units.", "Sub-plots are randomized only within their whole plot.", "Covariates are pre-treatment measurements and are not randomized factors."),
+        warnings=("This endpoint creates a design and analysis contract; response analysis must retain whole_plot and covariate columns.",),
+        provenance=(NIST_FACTORIAL_SOURCE, NIST_FACTORIAL_BLOCKING_SOURCE),
+    )
+
+
 def _effect_label(word: frozenset[str], factor_order: Mapping[str, int]) -> str:
     if not word:
         return "I"

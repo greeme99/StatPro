@@ -79,6 +79,10 @@ GAGE_LINEARITY_SOURCE = ProvenanceSource(
         "bias-study/methods-and-formulas/gage-linearity/"
     ),
 )
+REML_SOURCE = ProvenanceSource(
+    title="statsmodels MixedLM: variance components and REML",
+    url="https://www.statsmodels.org/stable/mixed_linear.html",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -176,6 +180,39 @@ def _repeatability_variance_ci(variance: float, degrees_of_freedom: int, confide
         "confidence_level": confidence_level,
         "lower": degrees_of_freedom * variance / chi_square_quantile(1.0 - alpha / 2.0, degrees_of_freedom),
         "upper": degrees_of_freedom * variance / chi_square_quantile(alpha / 2.0, degrees_of_freedom),
+    }
+
+
+def _two_sided_t_critical(alpha: float, degrees_of_freedom: int) -> float:
+    """Invert the two-sided t tail through the F(1, df) relationship."""
+
+    lower = 0.0
+    upper = 1.0
+    while (f_survival(upper * upper, 1.0, degrees_of_freedom) or 0.0) > alpha:
+        upper *= 2.0
+        if upper > 1_000_000.0:
+            raise AnalysisInputError(
+                "distribution_not_converged",
+                "The t-distribution critical value calculation did not converge.",
+                "distribution",
+            )
+    for _ in range(100):
+        midpoint = (lower + upper) / 2.0
+        tail = f_survival(midpoint * midpoint, 1.0, degrees_of_freedom)
+        if tail is None or tail > alpha:
+            lower = midpoint
+        else:
+            upper = midpoint
+    return (lower + upper) / 2.0
+
+
+def _two_sided_t_test(estimate: float, standard_error: float, degrees_of_freedom: int) -> dict[str, float | bool | None]:
+    t_value = None if standard_error == 0.0 else estimate / standard_error
+    p_value = None if t_value is None else f_survival(t_value * t_value, 1.0, degrees_of_freedom)
+    return {
+        "t_value": t_value,
+        "p_value": p_value,
+        "significant": None if p_value is None else p_value < 0.05,
     }
 
 
@@ -438,6 +475,181 @@ def gage_rr_crossed(
     )
 
 
+def _profile_variance_interval(result: object, name: str, estimate: float, confidence_level: float) -> dict[str, object]:
+    """Return a bounded profile-likelihood interval for one MixedLM VC."""
+
+    from scipy.stats import chi2
+
+    if estimate <= 0.0:
+        return {
+            "method": "profile_likelihood",
+            "confidence_level": confidence_level,
+            "available": False,
+            "reason": "The REML estimate is on the zero-variance boundary.",
+        }
+    try:
+        profile = result.profile_re(  # type: ignore[attr-defined]
+            name,
+            "vc",
+            num_low=8,
+            num_high=8,
+            dist_low=max(estimate * 0.95, 1e-9),
+            dist_high=max(estimate * 4.0, 1e-9),
+            method="lbfgs",
+            maxiter=200,
+        )
+    except Exception as error:
+        return {
+            "method": "profile_likelihood",
+            "confidence_level": confidence_level,
+            "available": False,
+            "reason": f"Profile likelihood did not converge: {type(error).__name__}.",
+        }
+
+    cutoff = float(max(profile[:, 1])) - float(chi2.ppf(confidence_level, 1)) / 2.0
+    accepted = profile[profile[:, 1] >= cutoff, 0]
+    if len(accepted) == 0:
+        return {
+            "method": "profile_likelihood",
+            "confidence_level": confidence_level,
+            "available": False,
+            "reason": "The profile grid did not cover the confidence set.",
+        }
+    return {
+        "method": "profile_likelihood",
+        "confidence_level": confidence_level,
+        "available": True,
+        "lower": float(min(accepted)),
+        "upper": float(max(accepted)),
+        "grid_points": len(profile),
+    }
+
+
+def gage_rr_crossed_reml(
+    records: Sequence[MeasurementRecord], *, study_variation_multiplier: float = 6.0, confidence_level: float = 0.95
+) -> ResultBundle:
+    """Fit an unbalanced, fully crossed random-effects Gage R&R study using REML.
+
+    Every part/operator cell must exist and have at least two repeats; cells may
+    contain different repeat counts.  Profile intervals are intentionally kept
+    with the fitted components rather than applying balanced-ANOVA formulas.
+    """
+
+    normalized = _normalize_records(records)
+    multiplier = finite_values([study_variation_multiplier], "study_variation_multiplier")[0]
+    if multiplier <= 0.0:
+        raise AnalysisInputError("invalid_study_variation_multiplier", "Study variation multiplier must be greater than zero.", "study_variation_multiplier")
+    if not 0.0 < confidence_level < 1.0:
+        raise AnalysisInputError("invalid_confidence_level", "Confidence level must be between zero and one.", "confidence_level")
+    if len(normalized) > 10_000:
+        raise AnalysisInputError("study_too_large", "REML Gage R&R supports at most 10,000 measurements.", "records")
+
+    parts = sorted({record.part for record in normalized})
+    operators = sorted({record.operator for record in normalized})
+    if len(parts) < 2 or len(operators) < 2:
+        raise AnalysisInputError("insufficient_crossed_levels", "REML Gage R&R requires at least two parts and two operators.", "records")
+    cells: dict[tuple[str, str], list[float]] = defaultdict(list)
+    for record in normalized:
+        cells[(record.part, record.operator)].append(record.measurement)
+    expected_cells = [(part, operator) for part in parts for operator in operators]
+    if missing_cells := sorted(set(expected_cells) - set(cells)):
+        raise AnalysisInputError("incomplete_crossed_design", "Every operator must measure every part; one or more cells are missing.", "records")
+    if any(len(cells[cell]) < 2 for cell in expected_cells):
+        raise AnalysisInputError("insufficient_replicates", "Each part-operator cell requires at least two repeated measurements.", "records")
+
+    try:
+        import pandas as pd
+        from statsmodels.regression.mixed_linear_model import MixedLM
+    except ImportError as error:
+        raise AnalysisInputError("advanced_dependency_unavailable", "Install StatPro with the 'advanced' extra to use REML Gage R&R.", "environment") from error
+
+    frame = pd.DataFrame(
+        {
+            "measurement": [record.measurement for record in normalized],
+            "part": [record.part for record in normalized],
+            "operator": [record.operator for record in normalized],
+            "part_operator": [f"{record.part}\x1f{record.operator}" for record in normalized],
+            "study": ["study"] * len(normalized),
+        }
+    )
+    model = MixedLM.from_formula(
+        "measurement ~ 1",
+        groups="study",
+        re_formula="0",
+        vc_formula={
+            "operator": "0 + C(operator)",
+            "part": "0 + C(part)",
+            "part_operator_interaction": "0 + C(part_operator)",
+        },
+        data=frame,
+    )
+    try:
+        fitted = model.fit(
+            reml=True,
+            method=["lbfgs", "bfgs", "cg", "powell"],
+            maxiter=500,
+            disp=False,
+        )
+    except Exception as error:
+        raise AnalysisInputError("reml_fit_failed", f"REML Gage R&R fit failed: {type(error).__name__}.", "records") from error
+    if not fitted.converged:
+        raise AnalysisInputError("reml_nonconvergence", "REML Gage R&R did not converge; review study design and variation.", "records")
+
+    estimated = dict(zip(model.exog_vc.names, (float(value) for value in fitted.vcomp), strict=True))
+    component_variances = {
+        "repeatability": max(float(fitted.scale), 0.0),
+        "operator": max(estimated["operator"], 0.0),
+        "part_operator_interaction": max(estimated["part_operator_interaction"], 0.0),
+        "part_to_part": max(estimated["part"], 0.0),
+    }
+    component_variances["reproducibility"] = component_variances["operator"] + component_variances["part_operator_interaction"]
+    component_variances["total_gage_rr"] = component_variances["repeatability"] + component_variances["reproducibility"]
+    component_variances["total_variation"] = component_variances["total_gage_rr"] + component_variances["part_to_part"]
+    total_variance = component_variances["total_variation"]
+    if total_variance <= 0.0:
+        raise AnalysisInputError("zero_total_variation", "Gage R&R is undefined when all estimated variation is zero.", "records")
+    total_standard_deviation = math.sqrt(total_variance)
+    residual_df = max(1, len(normalized) - 1 - len(parts) - len(operators))
+    intervals = {
+        "repeatability": _repeatability_variance_ci(component_variances["repeatability"], residual_df, confidence_level),
+        "operator": _profile_variance_interval(fitted, "operator", component_variances["operator"], confidence_level),
+        "part_operator_interaction": _profile_variance_interval(fitted, "part_operator_interaction", component_variances["part_operator_interaction"], confidence_level),
+        "part_to_part": _profile_variance_interval(fitted, "part", component_variances["part_to_part"], confidence_level),
+    }
+    component_order = ("repeatability", "operator", "part_operator_interaction", "reproducibility", "total_gage_rr", "part_to_part", "total_variation")
+    rows = []
+    for name in component_order:
+        variance = component_variances[name]
+        standard_deviation = math.sqrt(variance)
+        row: dict[str, object] = {
+            "source": name,
+            "variance": variance,
+            "standard_deviation": standard_deviation,
+            "study_variation": multiplier * standard_deviation,
+            "contribution_percent": variance / total_variance * 100.0,
+            "study_variation_percent": standard_deviation / total_standard_deviation * 100.0,
+        }
+        if name in intervals:
+            row["variance_confidence_interval"] = intervals[name]
+        rows.append(row)
+    gage_sd = math.sqrt(component_variances["total_gage_rr"])
+    ndc = None if gage_sd == 0.0 else max(1, math.floor(1.41 * math.sqrt(component_variances["part_to_part"]) / gage_sd))
+    replicate_counts = sorted({len(values) for values in cells.values()})
+    payload = {"records": [asdict(record) for record in normalized], "study_variation_multiplier": multiplier, "confidence_level": confidence_level}
+    return ResultBundle(
+        analysis_type="msa.gage_rr_crossed_reml",
+        engine_version=ENGINE_VERSION,
+        input_digest=input_digest(payload),
+        parameters={"study_variation_multiplier": multiplier, "confidence_level": confidence_level, "variance_estimation": "reml_mixed_linear_model", "interval_method": "profile_likelihood"},
+        tables={"study": {"measurement_count": len(normalized), "part_count": len(parts), "operator_count": len(operators), "replicates_per_cell": replicate_counts, "grand_mean": float(fitted.fe_params.iloc[0])}, "variance_components": rows},
+        plots={"measurement_variation": {"records": [asdict(record) for record in normalized]}},
+        diagnostics={"balanced": len(replicate_counts) == 1, "fully_crossed": True, "reml_converged": True, "residual_degrees_of_freedom_approximation": residual_df, "number_of_distinct_categories": ndc},
+        assumptions=("Parts, operators, and their interaction are random effects representative of use.", "Residuals are independent, approximately normal, and have constant variance.", "Every part-operator cell is observed at least twice; replicate counts may differ."),
+        warnings=("Variance-component profile intervals can be unavailable at a zero boundary or if the likelihood profile does not converge.", "Repeatability uses a residual chi-square interval with approximate residual degrees of freedom."),
+        provenance=(NIST_GAGE_SOURCE, NIST_VARIANCE_COMPONENTS_SOURCE, REML_SOURCE, NDC_SOURCE),
+    )
+
+
 def attribute_agreement(records: Sequence[AttributeAssessmentRecord]) -> ResultBundle:
     """Summarize nominal inspection agreement against a known reference standard."""
 
@@ -668,34 +880,47 @@ def gage_bias_linearity(records: Sequence[BiasLinearityRecord]) -> ResultBundle:
     residual_ss = sum((bias - prediction) ** 2 for bias, prediction in zip(biases, fitted))
     total_ss = sum((bias - bias_mean) ** 2 for bias in biases)
     r_squared = None if total_ss == 0.0 else 1.0 - residual_ss / total_ss
-    residual_sigma = (
-        math.sqrt(residual_ss / (len(normalized) - 2))
-        if len(normalized) > 2
-        else None
+    degrees_of_freedom = len(normalized) - 2
+    residual_sigma = math.sqrt(residual_ss / degrees_of_freedom)
+    t_critical = _two_sided_t_critical(0.05, degrees_of_freedom)
+    mean_bias_standard_error = residual_sigma / math.sqrt(len(normalized))
+    slope_standard_error = residual_sigma / math.sqrt(reference_ss)
+    intercept_standard_error = residual_sigma * math.sqrt(
+        1.0 / len(normalized) + reference_mean * reference_mean / reference_ss
     )
     level_rows = []
     for reference in sorted(by_reference):
         measurements = by_reference[reference]
         mean_measurement = fmean(measurements)
+        mean_bias = mean_measurement - reference
+        level_standard_deviation = math.sqrt(
+            sum((value - mean_measurement) ** 2 for value in measurements)
+            / (len(measurements) - 1)
+        )
+        level_standard_error = level_standard_deviation / math.sqrt(len(measurements))
+        level_t_critical = _two_sided_t_critical(0.05, len(measurements) - 1)
+        level_test = _two_sided_t_test(mean_bias, level_standard_error, len(measurements) - 1)
         level_rows.append(
             {
                 "reference": reference,
                 "measurement_count": len(measurements),
                 "mean_measurement": mean_measurement,
-                "mean_bias": mean_measurement - reference,
-                "measurement_standard_deviation": (
-                    math.sqrt(
-                        sum((value - mean_measurement) ** 2 for value in measurements)
-                        / (len(measurements) - 1)
-                    )
-                ),
+                "mean_bias": mean_bias,
+                "measurement_standard_deviation": level_standard_deviation,
+                "bias_standard_error": level_standard_error,
+                "bias_confidence_interval": {
+                    "confidence_level": 0.95,
+                    "lower": mean_bias - level_t_critical * level_standard_error,
+                    "upper": mean_bias + level_t_critical * level_standard_error,
+                },
+                **level_test,
             }
         )
 
     payload = {"records": [asdict(record) for record in normalized]}
     warnings = [
         "Bias is defined here as observed measurement minus known reference value; positive values indicate the gage reads high.",
-        "This implementation reports descriptive least-squares fit only and does not calculate confidence intervals or hypothesis-test p-values.",
+        "Bias and linearity tests are two-sided t tests at alpha=0.05; statistical significance does not establish engineering acceptability.",
     ]
     if r_squared is None:
         warnings.append(
@@ -705,12 +930,19 @@ def gage_bias_linearity(records: Sequence[BiasLinearityRecord]) -> ResultBundle:
         analysis_type="msa.gage_bias_linearity",
         engine_version=ENGINE_VERSION,
         input_digest=input_digest(payload),
-        parameters={"bias_definition": "measurement_minus_reference"},
+        parameters={"bias_definition": "measurement_minus_reference", "significance_level": 0.05, "confidence_level": 0.95},
         tables={
             "study": {
                 "measurement_count": len(normalized),
                 "reference_level_count": len(by_reference),
                 "mean_bias": bias_mean,
+                "mean_bias_standard_error": mean_bias_standard_error,
+                "mean_bias_confidence_interval": {
+                    "confidence_level": 0.95,
+                    "lower": bias_mean - t_critical * mean_bias_standard_error,
+                    "upper": bias_mean + t_critical * mean_bias_standard_error,
+                },
+                **_two_sided_t_test(bias_mean, mean_bias_standard_error, degrees_of_freedom),
             },
             "bias_by_reference": level_rows,
             "linearity_fit": {
@@ -718,6 +950,21 @@ def gage_bias_linearity(records: Sequence[BiasLinearityRecord]) -> ResultBundle:
                 "intercept": intercept,
                 "r_squared": r_squared,
                 "residual_standard_deviation": residual_sigma,
+                "degrees_of_freedom": degrees_of_freedom,
+                "slope_standard_error": slope_standard_error,
+                "slope_confidence_interval": {
+                    "confidence_level": 0.95,
+                    "lower": slope - t_critical * slope_standard_error,
+                    "upper": slope + t_critical * slope_standard_error,
+                },
+                "intercept_standard_error": intercept_standard_error,
+                "intercept_confidence_interval": {
+                    "confidence_level": 0.95,
+                    "lower": intercept - t_critical * intercept_standard_error,
+                    "upper": intercept + t_critical * intercept_standard_error,
+                },
+                "slope_test": _two_sided_t_test(slope, slope_standard_error, degrees_of_freedom),
+                "intercept_test": _two_sided_t_test(intercept, intercept_standard_error, degrees_of_freedom),
             },
         },
         plots={
@@ -738,7 +985,7 @@ def gage_bias_linearity(records: Sequence[BiasLinearityRecord]) -> ResultBundle:
         diagnostics={
             "reference_variation_sum_of_squares": reference_ss,
             "residual_sum_of_squares": residual_ss,
-            "degrees_of_freedom": len(normalized) - 2,
+            "degrees_of_freedom": degrees_of_freedom,
         },
         assumptions=(
             "Reference values are traceable known standards that span the intended operating range.",

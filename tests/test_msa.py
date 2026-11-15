@@ -11,6 +11,7 @@ from statpro.analyses.msa import (
     MeasurementRecord,
     attribute_agreement,
     gage_rr_crossed,
+    gage_rr_crossed_reml,
     gage_rr_nested,
 )
 from statpro.domain.errors import AnalysisInputError
@@ -100,6 +101,29 @@ class CrossedGageRrTests(unittest.TestCase):
         with self.assertRaises(AnalysisInputError) as context:
             gage_rr_crossed(records)
         self.assertEqual(context.exception.detail.code, "unbalanced_design")
+
+    def test_reml_accepts_unequal_replicates_and_returns_component_intervals(self) -> None:
+        records = [
+            MeasurementRecord(
+                f"P{part}",
+                f"O{operator}",
+                10.0 + part * 4.0 + operator * 1.5 + part * operator * 0.25 + (-0.2, 0.2, 0.1)[replicate],
+            )
+            for part in range(1, 5)
+            for operator in range(1, 4)
+            for replicate in range(2 + (part + operator) % 2)
+        ]
+        result = gage_rr_crossed_reml(records)
+        components = {row["source"]: row for row in result.tables["variance_components"]}
+
+        self.assertEqual(result.analysis_type, "msa.gage_rr_crossed_reml")
+        self.assertFalse(result.diagnostics["balanced"])
+        self.assertTrue(result.diagnostics["reml_converged"])
+        self.assertIn("variance_confidence_interval", components["operator"])
+        self.assertEqual(
+            components["operator"]["variance_confidence_interval"]["method"],
+            "profile_likelihood",
+        )
 
 
 class NestedGageRrTests(unittest.TestCase):

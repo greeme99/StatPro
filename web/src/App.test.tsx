@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -128,7 +128,7 @@ describe("StatPro UI", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 }));
     render(<MemoryRouter initialEntries={["/analyses"]}><App /></MemoryRouter>);
 
-    expect(await screen.findByRole("heading", { name: "분석 선택 도우미 (Analysis Selection Assistant)" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "통합 분석 추천" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Xbar-R 관리도" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Xbar-R 분석 설정 열기/ })).toHaveAttribute("href", "/analyses/spc/xbar-r");
 
@@ -334,15 +334,38 @@ describe("StatPro UI", () => {
     await user.click(screen.getByRole("button", { name: "AI Copilot 보이기" }));
     const panel = screen.getByRole("complementary", { name: "AI Copilot" });
     expect(panel).toHaveClass("is-open");
-    expect(within(panel).getByText("통계적 공정관리 (SPC)")).toBeInTheDocument();
+    expect(within(panel).getByRole("button", { name: "분석 Case 보기" })).toBeInTheDocument();
+    expect(within(panel).queryByRole("region", { name: "등록된 분석 Case" })).not.toBeInTheDocument();
+    expect(within(panel).getByRole("log")).toBeEmptyDOMElement();
 
-    await user.click(screen.getByRole("button", { name: "관리한계 설정값을 설명해줘" }));
+    await user.type(within(panel).getByLabelText("문의 및 작업 요청 · Text to Work"), "관리한계 설정값을 설명해줘");
+    await user.click(within(panel).getByRole("button", { name: "작업 명령 보내기" }));
     expect(await screen.findByText(/Xbar-R 관리도는 연속형 측정값을 합리적 부분군으로 묶고/)).toBeInTheDocument();
     expect(within(panel).getByRole("link", { name: "Xbar-R 분석 설정 열기" })).toHaveAttribute("href", "/analyses/spc/xbar-r");
     expect(localStorage.getItem("statpro-copilot-open")).toBe("true");
 
     await user.click(screen.getByRole("button", { name: "AI Copilot 닫기" }));
     expect(localStorage.getItem("statpro-copilot-open")).toBe("false");
+  });
+
+  it("grows the Copilot panel by dragging its left and bottom edges", async () => {
+    localStorage.clear();
+    render(<MemoryRouter initialEntries={["/home"]}><App /></MemoryRouter>);
+    await userEvent.click(screen.getByRole("button", { name: "AI Copilot 보이기" }));
+    const panel = screen.getByRole("complementary", { name: "AI Copilot" });
+    vi.spyOn(panel, "getBoundingClientRect").mockReturnValue({ width: 500, height: 400 } as DOMRect);
+    const left = within(panel).getByRole("button", { name: "AI Copilot 너비 조절" });
+    const bottom = within(panel).getByRole("button", { name: "AI Copilot 높이 조절" });
+    left.setPointerCapture = vi.fn();
+    bottom.setPointerCapture = vi.fn();
+    fireEvent.pointerDown(left, { button: 0, pointerId: 1, clientX: 500, clientY: 100 });
+    fireEvent.pointerMove(left, { pointerId: 1, clientX: 400, clientY: 100 });
+    fireEvent.pointerUp(left, { pointerId: 1 });
+    expect(panel).toHaveStyle({ width: "600px" });
+    fireEvent.pointerDown(bottom, { button: 0, pointerId: 2, clientX: 400, clientY: 400 });
+    fireEvent.pointerMove(bottom, { pointerId: 2, clientX: 400, clientY: 500 });
+    fireEvent.pointerUp(bottom, { pointerId: 2 });
+    expect(panel).toHaveStyle({ width: "600px", height: "500px" });
   });
 
   it("recommends a concrete SPC method and opens its workspace from Copilot", async () => {
@@ -352,11 +375,48 @@ describe("StatPro UI", () => {
 
     await user.click(await screen.findByRole("button", { name: "AI Copilot 보이기" }));
     const panel = screen.getByRole("complementary", { name: "AI Copilot" });
-    await user.type(within(panel).getByLabelText("질문"), "검사 수가 매번 다른 불량률은 어떤 관리도를 쓰나요?");
-    await user.click(within(panel).getByRole("button", { name: "질문 보내기" }));
+    await user.type(within(panel).getByLabelText("문의 및 작업 요청 · Text to Work"), "검사 수가 매번 다른 불량률은 어떤 관리도를 쓰나요?");
+    await user.click(within(panel).getByRole("button", { name: "작업 명령 보내기" }));
 
     expect(await within(panel).findByText(/p 관리도는 검사 수가 달라질 수 있는 각 표본의 부적합품 비율/)).toBeInTheDocument();
     expect(within(panel).getByRole("link", { name: "p 관리도 설정 열기" })).toHaveAttribute("href", "/analyses/spc/attribute?chart=p");
+  });
+
+  it("opens a registered analysis Case and continues its procedure in chat", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.includes("/v1/copilot/rules")) return new Response(JSON.stringify([{
+        rule_id: "spc-p-variable-sample", domain: "SPC", situation: "검사 수가 다른 불량률을 감시한다.",
+        recommended_tool: "p 관리도", menu_path: ["통계적 공정관리", "p 관리도"],
+        action: { label: "p 관리도 열기", href: "/analyses/spc/attribute?chart=p" },
+        checklist: ["검사 수를 확인한다."], workflow_steps: ["표본별 수량 입력", "관리도 실행"], source_reference: "docs/evidence/spc.md",
+      }]), { status: 200 });
+      if (url.endsWith("/v1/copilot/guidance")) return new Response(JSON.stringify({
+        answer: "표본별 검사 수를 먼저 확인하세요.", provider: "rulebase", sources: [], limitations: [],
+        action: { label: "p 관리도 열기", href: "/analyses/spc/attribute?chart=p" }, guidance_mode: "rulebase",
+        rule_id: "spc-p-variable-sample", recommended_tool: "p 관리도", menu_path: ["통계적 공정관리", "p 관리도"],
+        checklist: ["검사 수를 확인한다."], workflow_steps: ["표본별 수량 입력", "관리도 실행"],
+      }), { status: 200 });
+      return new Response(JSON.stringify({}), { status: 200 });
+    });
+    const user = userEvent.setup();
+    render(<MemoryRouter initialEntries={["/home"]}><App /></MemoryRouter>);
+    await user.click(screen.getByRole("button", { name: "AI Copilot 보이기" }));
+    const panel = screen.getByRole("complementary", { name: "AI Copilot" });
+    await user.click(within(panel).getByRole("button", { name: "분석 Case 보기" }));
+    const cases = await within(panel).findByRole("region", { name: "등록된 분석 Case" });
+    const finder = within(cases).getByRole("searchbox", { name: "분석 Case 찾기" });
+    await user.type(finder, "없는 사례");
+    expect(within(cases).getByText(/검색 결과가 없습니다/)).toBeInTheDocument();
+    await user.clear(finder);
+    await user.type(finder, "p 관리도");
+    await user.click(within(cases).getByRole("button", { name: /검사 수가 다른 불량률을 감시한다/ }));
+    expect(within(cases).getByText("분석절차")).toBeInTheDocument();
+    expect(within(cases).getByText("통계적 공정관리 › p 관리도")).toBeInTheDocument();
+    expect(within(cases).getByText("검사 수를 확인한다.")).toBeInTheDocument();
+    await user.click(within(cases).getByRole("button", { name: "이 Case로 대화하기" }));
+    expect(await within(within(panel).getByRole("log")).findByText("표본별 검사 수를 먼저 확인하세요.")).toBeInTheDocument();
+    expect(within(panel).queryByRole("region", { name: "등록된 분석 Case" })).not.toBeInTheDocument();
   });
 
   it("grounds Copilot answers in the immutable analysis run contract", async () => {
@@ -382,11 +442,13 @@ describe("StatPro UI", () => {
     render(<MemoryRouter initialEntries={["/runs/copilot-run-001"]}><App /></MemoryRouter>);
 
     await user.click(await screen.findByRole("button", { name: "AI Copilot 보이기" }));
+    const panel = screen.getByRole("complementary", { name: "AI Copilot" });
+    await user.type(within(panel).getByLabelText("문의 및 작업 요청 · Text to Work"), "이상 신호가 나오면 무엇을 해야 하나요?");
+    await user.click(within(panel).getByRole("button", { name: "작업 명령 보내기" }));
     const evidence = await screen.findByRole("region", { name: "현재 근거" });
     expect(within(evidence).getByText("copilot-run-001")).toBeInTheDocument();
     expect(within(evidence).getByText(/엔진 0.6.0 · 가정 1개 · 경고 1개/)).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "이상 신호가 나오면 무엇을 해야 하나요?" }));
     expect(await screen.findByText(/현재 근거: 실행 copilot-run-001, spc.imr, 엔진 0.6.0, 경고 1개/)).toBeInTheDocument();
   });
 
@@ -417,9 +479,9 @@ describe("StatPro UI", () => {
     render(<MemoryRouter initialEntries={["/analyses/spc/xbar-r"]}><App /></MemoryRouter>);
 
     await user.click(screen.getByRole("button", { name: "AI Copilot 보이기" }));
-    await user.click(screen.getByRole("button", { name: "관리한계 설정값을 설명해줘" }));
-
     const panel = screen.getByRole("complementary", { name: "AI Copilot" });
+    await user.type(within(panel).getByLabelText("문의 및 작업 요청 · Text to Work"), "관리한계 설정값을 설명해줘");
+    await user.click(within(panel).getByRole("button", { name: "작업 명령 보내기" }));
     expect(await within(panel).findByText("서버에서 검토된 Xbar-R 안내입니다.")).toBeInTheDocument();
     expect(within(panel).getByText(/응답 출처: statpro-local-knowledge-v1/)).toBeInTheDocument();
     await user.click(within(panel).getByText("근거 1건"));
@@ -455,9 +517,9 @@ describe("StatPro UI", () => {
     render(<MemoryRouter initialEntries={["/home"]}><App /></MemoryRouter>);
 
     await user.click(screen.getByRole("button", { name: "AI Copilot 보이기" }));
-    await user.click(screen.getByRole("button", { name: "현장 문제에 맞는 작업공간을 추천해줘" }));
-
     const panel = screen.getByRole("complementary", { name: "AI Copilot" });
+    await user.type(within(panel).getByLabelText("문의 및 작업 요청 · Text to Work"), "현장 문제에 맞는 작업공간을 추천해줘");
+    await user.click(within(panel).getByRole("button", { name: "작업 명령 보내기" }));
     expect(await within(panel).findByRole("heading", { name: "추천 도구" })).toBeInTheDocument();
     const recommendation = within(panel).getByRole("heading", { name: "추천 도구" }).parentElement;
     expect(recommendation).not.toBeNull();
@@ -503,12 +565,32 @@ describe("StatPro UI", () => {
 
     await user.click(screen.getByRole("button", { name: "AI Copilot 보이기" }));
     const panel = screen.getByRole("complementary", { name: "AI Copilot" });
-    await user.type(within(panel).getByLabelText("질문"), "FDC로 설비를 자동 제어하고 싶어요");
-    await user.click(within(panel).getByRole("button", { name: "질문 보내기" }));
+    await user.type(within(panel).getByLabelText("문의 및 작업 요청 · Text to Work"), "FDC로 설비를 자동 제어하고 싶어요");
+    await user.click(within(panel).getByRole("button", { name: "작업 명령 보내기" }));
 
     expect(await within(panel).findByLabelText("StatPro 제공 범위 안내")).toHaveTextContent("StatPro 제공 범위 밖");
     expect(within(panel).getByRole("heading", { name: "권장 연계 도구" })).toBeInTheDocument();
     expect(within(panel).getByText("MES·FDC·APC/R2R 플랫폼")).toBeInTheDocument();
+  });
+
+  it("keeps model outage guidance in the conversation without an out-of-scope warning", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input).endsWith("/v1/copilot/guidance")) return new Response(JSON.stringify({
+        answer: "현상을 수치와 기간으로 알려주시면 원인 후보와 조치를 함께 정리하겠습니다.",
+        provider: "statpro-fallback-unavailable", guidance_mode: "manual_guidance", rule_id: null,
+        recommended_tool: null, menu_path: [], checklist: ["현상과 기간 확인"], workflow_steps: [],
+        sources: [], limitations: [], action: null,
+      }), { status: 200 });
+      return new Response(JSON.stringify({}), { status: 200 });
+    });
+    const user = userEvent.setup();
+    render(<MemoryRouter initialEntries={["/analyses"]}><App /></MemoryRouter>);
+    await user.click(screen.getByRole("button", { name: "AI Copilot 보이기" }));
+    const panel = screen.getByRole("complementary", { name: "AI Copilot" });
+    await user.type(within(panel).getByLabelText("문의 및 작업 요청 · Text to Work"), "현상, 원인, 대책 가이드 해줘");
+    await user.click(within(panel).getByRole("button", { name: "작업 명령 보내기" }));
+    expect(await within(panel).findByText(/현상을 수치와 기간으로 알려주시면/)).toBeInTheDocument();
+    expect(within(panel).queryByLabelText("StatPro 제공 범위 안내")).not.toBeInTheDocument();
   });
 
   it("redirects the retired preview URL to the fixed home URL", async () => {

@@ -43,6 +43,20 @@ const response = (
 export function guideCopilotQuestion({ question, contextName, pathname, evidenceContext }: GuidanceInput): CopilotGuidance {
   const normalized = question.replace(/\s+/g, " ").trim();
 
+  if (/(현상|증상)/i.test(normalized) && /원인/i.test(normalized) && /(대책|조치)/i.test(normalized)) {
+    return response(
+      "현상·원인·대책을 순서대로 정리하겠습니다. 먼저 무엇이 언제부터 얼마나 달라졌는지와 제품·설비·공정의 영향 범위를 알려주세요. 원인 후보는 확인된 근거와 구분하고, 임시 조치와 개선 대책의 효과를 따로 검증합니다. 현장 데이터 없이 원인을 단정하지 않습니다.",
+      { label: "원인 분석 작업공간 열기", href: "/home/dmaic/analyze/root-causes" },
+      evidenceContext,
+      {
+        recommendedTool: "DMAIC 원인 분석",
+        menuPath: ["홈 (Home)", "개선 프로젝트 (DMAIC)", "분석 (Analyze)", "원인 분석"],
+        checklist: ["현상·발생 시점·영향 범위 정의", "기준선과 데이터 출처 확인", "원인 후보와 검증된 원인 구분"],
+        workflowSteps: ["현상을 수치와 범위로 정의", "데이터·측정 신뢰성 확인", "Pareto·특성요인도로 원인 후보 정리", "데이터로 원인 검증", "임시 조치와 개선 대책의 효과 확인"],
+      },
+    );
+  }
+
   if (/(수율|yield|반응값|y값)/i.test(normalized) && /(온도|압력|시간|인자|요인|xs)/i.test(normalized) && /(실험|최적|개선|조건)/i.test(normalized)) {
     return response(
       "수율(Y)에 영향을 주는 인자(Xs)를 동시에 검증하고 최적 조건을 찾는 문제이므로 실험계획법(DOE)이 적합합니다. 설계된 실행표로 주효과와 상호작용을 추정하고 최적 조건은 확인 실험으로 검증하세요.",
