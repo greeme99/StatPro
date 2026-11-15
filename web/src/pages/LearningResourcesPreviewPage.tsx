@@ -22,7 +22,7 @@ const resources: Resource[] = [
   { title: "개선 프로젝트 운영", description: "DMAIC 단계별 산출물과 분석 실행 근거를 하나의 개선 과제로 연결합니다.", status: "구현됨", to: "/home/dmaic", icon: ClipboardList },
 ];
 
-function Status({ value }: { value: Resource["status"] }) { return <span className={`preview-status ${value === "구현됨" ? "is-implemented" : "is-planned"}`}>{value}</span>; }
+function Status({ value }: { value: Resource["status"] }) { return value === "구현됨" ? null : <span className="preview-status is-planned">{value}</span>; }
 
 export function LearningResourcesPreviewPage() {
   return <div className="page learning-resources" data-density="comfortable">

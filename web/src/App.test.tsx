@@ -1,8 +1,9 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
+import { AUTH_SESSION_KEY } from "./auth";
 import type { StoredFishbone } from "./types";
 
 afterEach(() => {
@@ -11,7 +12,38 @@ afterEach(() => {
   delete document.documentElement.dataset.theme;
 });
 
+beforeEach(() => {
+  sessionStorage.setItem(AUTH_SESSION_KEY, "true");
+});
+
 describe("StatPro UI", () => {
+  it("shows the landing page for an unauthenticated root visit and signs in with the demo account", async () => {
+    sessionStorage.clear();
+    const user = userEvent.setup();
+    render(<MemoryRouter initialEntries={["/"]}><App /></MemoryRouter>);
+    expect(screen.getByRole("heading", { name: /현장 데이터가\s*개선 실행이 되는\s*순간\./ })).toBeInTheDocument();
+    await user.type(screen.getByLabelText("아이디 (ID)"), "admin");
+    await user.type(screen.getByLabelText("비밀번호 (Password)"), "admin123");
+    await user.click(screen.getByRole("button", { name: "로그인" }));
+    expect(await screen.findByRole("heading", { name: "공정 문제에서 검증된 조치까지" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "로그아웃" }));
+    expect(await screen.findByRole("heading", { name: /통계 분석과\s*6 Sigma 실행을\s*한 화면에서\./ })).toBeInTheDocument();
+  });
+
+  it("redirects an unauthenticated internal route to the landing page", async () => {
+    sessionStorage.clear();
+    render(<MemoryRouter initialEntries={["/home"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: /현장 데이터가\s*개선 실행이 되는\s*순간\./ })).toBeInTheDocument();
+  });
+
+  it("alternates landing variants for each root entry in the same browser", () => {
+    localStorage.clear();
+    const first = render(<MemoryRouter initialEntries={["/"]}><App /></MemoryRouter>);
+    expect(screen.getByRole("heading", { name: /현장 데이터가\s*개선 실행이 되는\s*순간\./ })).toBeInTheDocument();
+    first.unmount();
+    render(<MemoryRouter initialEntries={["/"]}><App /></MemoryRouter>);
+    expect(screen.getByRole("heading", { name: /통계 분석과\s*6 Sigma 실행을\s*한 화면에서\./ })).toBeInTheDocument();
+  });
   it("renders the DOE workspace and routes supported designs to their existing setup screens", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
@@ -22,7 +54,7 @@ describe("StatPro UI", () => {
     expect(screen.getByRole("tab", { name: "설계 및 계획", selected: true })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "2수준 완전요인 설계 시작" })).toHaveAttribute("href", "/analyses/doe/full-factorial");
     await userEvent.click(screen.getByRole("tab", { name: "근거" }));
-    expect(screen.getByText("XLSX·SVG 그래프·검토용 양식 구현됨")).toBeInTheDocument();
+    expect(screen.getByText(/DOE 분석 실행은 HTML, XLSX, JSON/)).toBeInTheDocument();
   });
 
   it("renders the Korean reports catalog with truthful delivery status", async () => {
@@ -32,7 +64,7 @@ describe("StatPro UI", () => {
     });
     render(<MemoryRouter initialEntries={["/catalog/reports"]}><App /></MemoryRouter>);
     expect(await screen.findByRole("heading", { name: "결과 및 보고서" })).toBeInTheDocument();
-    expect(screen.getAllByText("구현됨").length).toBeGreaterThan(3);
+    expect(screen.queryByText("구현됨")).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "DOE 그래프·검토 양식" })).toBeInTheDocument();
     expect(screen.getByText(/지원 Plot의 SVG와 표 XLSX·CSV·JSON/)).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "DOE PDF 검토 보고서" })).toBeInTheDocument();
@@ -206,6 +238,20 @@ describe("StatPro UI", () => {
     expect(screen.getByRole("button", { name: "사이드 메뉴 보이기" })).toHaveAttribute("aria-expanded", "false");
     expect(screen.getByRole("link", { name: "통계적 공정관리 (SPC)" })).toHaveAttribute("data-tooltip", "통계적 공정관리 (SPC)");
     expect(localStorage.getItem("statpro-sidebar-collapsed")).toBe("true");
+  });
+
+  it("resizes the sidebar with the main panel and collapses it at the left limit", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 }));
+    const { container } = render(<MemoryRouter initialEntries={["/home"]}><App /></MemoryRouter>);
+    const handle = await screen.findByRole("button", { name: "사이드 메뉴 너비 조절" });
+    fireEvent.pointerDown(handle, { clientX: 360, pointerId: 1 });
+    fireEvent.pointerMove(handle, { clientX: 420, pointerId: 1 });
+    fireEvent.pointerUp(handle, { clientX: 420, pointerId: 1 });
+    expect(localStorage.getItem("statpro-sidebar-width")).toBe("420");
+    fireEvent.pointerDown(handle, { clientX: 420, pointerId: 2 });
+    fireEvent.pointerMove(handle, { clientX: 120, pointerId: 2 });
+    fireEvent.pointerUp(handle, { clientX: 120, pointerId: 2 });
+    expect(container.querySelector(".sidebar")).toHaveClass("is-collapsed");
   });
 
   it("keeps the selected DMAIC project as global workspace context", async () => {

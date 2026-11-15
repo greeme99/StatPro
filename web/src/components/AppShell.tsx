@@ -1,6 +1,7 @@
-import { useEffect, useState, type ReactNode } from "react";
-import { Activity, BarChart3, Bug, Calculator, Database, FileText, FileWarning, FlaskConical, Gauge, HelpCircle, Home, ListChecks, Moon, PanelLeftClose, PanelLeftOpen, Sun } from "lucide-react";
-import { NavLink } from "react-router-dom";
+import { useEffect, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode } from "react";
+import { Activity, BarChart3, Bug, Calculator, Database, FileText, FileWarning, FlaskConical, Gauge, HelpCircle, Home, ListChecks, LogOut, Moon, PanelLeftClose, PanelLeftOpen, Sun } from "lucide-react";
+import { NavLink, useNavigate } from "react-router-dom";
+import { signOut } from "../auth";
 import { getHealth } from "../api";
 import { CopilotPanel } from "./CopilotPanel";
 import { FavoriteMenu } from "./FavoriteMenu";
@@ -17,10 +18,16 @@ const navigation = [
   { to: "/defects", label: "결함 분석 (Defect Analysis)", icon: Bug },
   { to: "/catalog/reports", label: "결과 및 보고서 (Results & Reports)", icon: FileText },
   { to: "/catalog/tools", label: "계산 및 도우미 (Calculators & Helpers)", icon: Calculator },
-  { to: "/catalog/help", label: "도움말 (Help)", icon: HelpCircle },
 ];
 
+const SIDEBAR_DEFAULT_WIDTH = 360;
+const SIDEBAR_MIN_WIDTH = 260;
+const SIDEBAR_MAX_WIDTH = 480;
+const SIDEBAR_COLLAPSE_THRESHOLD = 180;
+
 export function AppShell({ children }: { children: ReactNode }) {
+  const navigate = useNavigate();
+  const resizeStart = useRef<{ x: number; width: number } | null>(null);
   const [engine, setEngine] = useState<{ state: "loading" | "ready" | "error"; version: string }>({ state: "loading", version: "0.6.0" });
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     const stored = localStorage.getItem("statpro-theme");
@@ -31,6 +38,11 @@ export function AppShell({ children }: { children: ReactNode }) {
     if (stored !== null) return stored === "true";
     return typeof window.matchMedia === "function" && window.matchMedia("(max-width: 1023px)").matches;
   });
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    const stored = Number(localStorage.getItem("statpro-sidebar-width"));
+    return Number.isFinite(stored) && stored >= SIDEBAR_MIN_WIDTH && stored <= SIDEBAR_MAX_WIDTH ? stored : SIDEBAR_DEFAULT_WIDTH;
+  });
+  const [isResizingSidebar, setIsResizingSidebar] = useState(false);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -42,6 +54,10 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, [sidebarCollapsed]);
 
   useEffect(() => {
+    localStorage.setItem("statpro-sidebar-width", String(sidebarWidth));
+  }, [sidebarWidth]);
+
+  useEffect(() => {
     let active = true;
     getHealth()
       .then((health) => { if (active) setEngine({ state: "ready", version: health.engine_version ?? "0.6.0" }); })
@@ -49,8 +65,32 @@ export function AppShell({ children }: { children: ReactNode }) {
     return () => { active = false; };
   }, []);
 
+  function startSidebarResize(event: PointerEvent<HTMLButtonElement>) {
+    event.preventDefault();
+    resizeStart.current = { x: event.clientX, width: sidebarCollapsed ? SIDEBAR_MIN_WIDTH : sidebarWidth };
+    if (typeof event.currentTarget.setPointerCapture === "function") event.currentTarget.setPointerCapture(event.pointerId);
+    setIsResizingSidebar(true);
+  }
+
+  function resizeSidebar(event: PointerEvent<HTMLButtonElement>) {
+    if (!resizeStart.current) return;
+    const requestedWidth = resizeStart.current.width + event.clientX - resizeStart.current.x;
+    if (requestedWidth <= SIDEBAR_COLLAPSE_THRESHOLD) {
+      setSidebarCollapsed(true);
+      return;
+    }
+    setSidebarCollapsed(false);
+    setSidebarWidth(Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, requestedWidth)));
+  }
+
+  function finishSidebarResize(event: PointerEvent<HTMLButtonElement>) {
+    resizeStart.current = null;
+    if (typeof event.currentTarget.hasPointerCapture === "function" && typeof event.currentTarget.releasePointerCapture === "function" && event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    setIsResizingSidebar(false);
+  }
+
   return (
-    <div className={`app-frame${sidebarCollapsed ? " is-sidebar-collapsed" : ""}`}>
+    <div className={`app-frame${sidebarCollapsed ? " is-sidebar-collapsed" : ""}${isResizingSidebar ? " is-sidebar-resizing" : ""}`} style={{ "--sidebar-current-width": `${sidebarWidth}px` } as CSSProperties}>
       <a className="skip-link" href="#main-content">본문 바로가기</a>
       <header className="app-header">
         <div className="brand-lockup" aria-label="StatPro 홈">
@@ -70,6 +110,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           >
             {theme === "light" ? <Moon /> : <Sun />}
           </button>
+          <button className="icon-button" type="button" aria-label="도움말 열기" onClick={() => navigate("/catalog/help")}><HelpCircle /></button>
         </div>
       </header>
       <aside className={`sidebar${sidebarCollapsed ? " is-collapsed" : ""}`} aria-label="주 메뉴">
@@ -100,9 +141,12 @@ export function AppShell({ children }: { children: ReactNode }) {
           ))}
         </nav>
         <div className="sidebar-foot">
-          <span className="utility-label">ENGINE</span>
-          <strong>{engine.version}</strong>
+          <div className="sidebar-engine"><span className="utility-label">ENGINE</span><strong>{engine.version}</strong></div>
+          <button className="nav-item nav-logout" type="button" onClick={() => { signOut(); navigate("/", { replace: true }); }} aria-label="로그아웃" data-tooltip="로그아웃">
+            <LogOut aria-hidden="true" /><span className="nav-label">로그아웃</span>
+          </button>
         </div>
+        <button className="sidebar-resize-handle" type="button" aria-label="사이드 메뉴 너비 조절" aria-valuemin={SIDEBAR_MIN_WIDTH} aria-valuemax={SIDEBAR_MAX_WIDTH} aria-valuenow={sidebarCollapsed ? 0 : sidebarWidth} onPointerDown={startSidebarResize} onPointerMove={resizeSidebar} onPointerUp={finishSidebarResize} onPointerCancel={finishSidebarResize} />
       </aside>
       <main id="main-content" className="main-content">{children}</main>
       <CopilotPanel />

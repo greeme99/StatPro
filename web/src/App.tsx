@@ -1,5 +1,6 @@
-import { lazy, Suspense, type ComponentType } from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { lazy, Suspense, type ComponentType, type ReactNode } from "react";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { isAuthenticated } from "./auth";
 import { AppShell } from "./components/AppShell";
 import { ControlChartWorkspacePage } from "./pages/ControlChartWorkspacePage";
 import { DashboardPage } from "./pages/DashboardPage";
@@ -7,6 +8,7 @@ import { DmaicControlWorkspacePage } from "./pages/DmaicControlWorkspacePage";
 import { DmaicProjectOverviewPage } from "./pages/DmaicProjectOverviewPage";
 import { DmaicSipocWorkspacePage } from "./pages/DmaicSipocWorkspacePage";
 import { DmaicVoiceOfCustomerWorkspacePage } from "./pages/DmaicVoiceOfCustomerWorkspacePage";
+import { LandingPage } from "./pages/LandingPage";
 
 function lazyNamed(loader: () => Promise<Record<string, unknown>>, exportName: string) {
   return lazy(async () => ({ default: (await loader())[exportName] as ComponentType }));
@@ -59,12 +61,18 @@ const QualityDashboardPage = lazyNamed(() => import("./pages/QualityDashboardPag
 const DefectAnalysisPage = lazyNamed(() => import("./pages/DefectAnalysisPage"), "DefectAnalysisPage");
 const AnalysisSelectionPage = lazyNamed(() => import("./pages/AnalysisSelectionPage"), "AnalysisSelectionPage");
 
-export default function App() {
+function ProtectedApp({ children }: { children: ReactNode }) {
+  const location = useLocation();
+  if (!isAuthenticated()) return <Navigate to="/" replace state={{ from: location.pathname }} />;
+  return <AppShell>{children}</AppShell>;
+}
+
+function WorkspaceRoutes() {
   return (
-    <AppShell>
+    <ProtectedApp>
       <Suspense fallback={<div className="route-loading" role="status">화면을 불러오는 중입니다.</div>}>
         <Routes>
-          <Route path="/" element={<DashboardPage />} />
+          <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/analyses" element={<AnalysisSelectionPage />} />
           <Route path="/analyses/imr/new" element={<ImrSetupPage />} />
         <Route path="/analyses/capability" element={<CapabilitySetupPage />} />
@@ -119,9 +127,13 @@ export default function App() {
         <Route path="/ui-preview/dmaic" element={<Navigate to="/home/dmaic" replace />} />
         <Route path="/ui-preview/learning" element={<Navigate to="/home/learning" replace />} />
           <Route path="/catalog/:section" element={<FeatureCatalogPage />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<Navigate to="/home" replace />} />
         </Routes>
       </Suspense>
-    </AppShell>
+    </ProtectedApp>
   );
+}
+
+export default function App() {
+  return <Routes><Route path="/" element={<LandingPage />} /><Route path="*" element={<WorkspaceRoutes />} /></Routes>;
 }

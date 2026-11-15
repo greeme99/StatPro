@@ -1,4 +1,4 @@
-import { CheckCircle2, CircleDashed, ExternalLink, ShieldAlert } from "lucide-react";
+import { CircleDashed, ExternalLink, ShieldAlert } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 
 type Delivery = "구현됨" | "개발 예정" | "외부 정책 필요";
@@ -43,7 +43,7 @@ const catalogs: Record<string, Catalog> = {
   },
 };
 
-const iconFor = (status: Delivery) => status === "구현됨" ? CheckCircle2 : status === "외부 정책 필요" ? ShieldAlert : CircleDashed;
+const iconFor = (status: Exclude<Delivery, "구현됨">) => status === "외부 정책 필요" ? ShieldAlert : CircleDashed;
 
 export function FeatureCatalogPage() {
   const { section = "help" } = useParams();
@@ -53,9 +53,10 @@ export function FeatureCatalogPage() {
       <section className="page-heading"><div><span className="eyebrow">STATPRO CATALOG</span><h1>{catalog.title}</h1><p>{catalog.description}</p></div></section>
       <section className="feature-catalog" aria-label={`${catalog.title} 기능 목록`}>
         {catalog.items.map((item) => {
-          const Icon = iconFor(item.status);
+          const status = item.status === "구현됨" ? null : item.status;
+          const Icon = status ? iconFor(status) : CircleDashed;
           return <article className="feature-item" key={item.name}>
-            <header><Icon aria-hidden="true" /><span className={`delivery-status status-${item.status.replaceAll(" ", "-")}`}>{item.status}</span></header>
+            {status && <header><Icon aria-hidden="true" /><span className={`delivery-status status-${status.replaceAll(" ", "-")}`}>{status}</span></header>}
             <h2>{item.name}</h2><p>{item.detail}</p>
             {item.to ? <Link className="text-link" to={item.to} aria-label={`${item.name} 기능으로 이동`}>기능으로 이동 <ExternalLink aria-hidden="true" /></Link> : <p className="catalog-note">현재 분석을 실행할 수 없습니다. 제공 범위가 확정되면 이 메뉴에서 시작합니다.</p>}
           </article>;

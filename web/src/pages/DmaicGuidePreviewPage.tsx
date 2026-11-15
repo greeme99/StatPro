@@ -22,7 +22,7 @@ const tools: ToolCard[] = [
   { title: "결과를 조치로 전환", description: "고장 형태 및 영향 분석(FMEA)에서 관리계획서와 조치·승인 이력을 연결합니다.", status: "구현됨", to: "/fmea", icon: ShieldCheck },
 ];
 
-function Status({ value }: { value: ToolCard["status"] }) { return <span className={`preview-status ${value === "구현됨" ? "is-implemented" : "is-planned"}`}>{value}</span>; }
+function Status({ value }: { value: ToolCard["status"] }) { return value === "구현됨" ? null : <span className="preview-status is-planned">{value}</span>; }
 
 export function DmaicGuidePreviewPage() {
   return <div className="page dmaic-guide" data-density="comfortable">
