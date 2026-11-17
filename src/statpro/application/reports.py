@@ -153,10 +153,21 @@ def render_doe_report_pdf(report: Mapping[str, Any], *, browser_path: str | None
     with tempfile.TemporaryDirectory(prefix="statpro-doe-pdf-") as directory:
         html_path = Path(directory) / "report.html"
         pdf_path = Path(directory) / "report.pdf"
+        profile_path = Path(directory) / "browser-profile"
+        profile_path.mkdir()
         html_path.write_bytes(render_doe_report_html(report))
         try:
             completed = subprocess.run(
-                [str(executable), "--headless=new", "--disable-gpu", "--no-pdf-header-footer", f"--print-to-pdf={pdf_path}", html_path.as_uri()],
+                [
+                    str(executable),
+                    "--headless=new",
+                    "--disable-gpu",
+                    "--disable-software-rasterizer",
+                    f"--user-data-dir={profile_path}",
+                    "--no-pdf-header-footer",
+                    f"--print-to-pdf={pdf_path}",
+                    html_path.as_uri(),
+                ],
                 capture_output=True, timeout=90, check=False,
             )
         except (OSError, subprocess.TimeoutExpired) as error:

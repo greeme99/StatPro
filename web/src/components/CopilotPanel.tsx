@@ -223,15 +223,15 @@ export function CopilotPanel() {
     setMessages((current) => [...current, { id: messageId, role: "user", text }]);
     setQuestion("");
     setAnswerLoading(true);
-    const modelPreference = /(?:^|\s)\/?model\s+(rulebase|exaone|ollama)\b/i.exec(text)?.[1]?.toLowerCase()
-      ?? (/(?:exaone|엑사원)\s*(?:api\s*)?(?:로|으로|만|사용)/i.test(text) ? "exaone" : /ollama\s*(?:api\s*)?(?:로|으로|만|사용)/i.test(text) ? "ollama" : "auto");
+    const modelPreference = /(?:^|\s)\/?model\s+(rulebase|exaone|codex)\b/i.exec(text)?.[1]?.toLowerCase()
+      ?? (/(?:exaone|엑사원)\s*(?:api\s*)?(?:로|으로|만|사용)/i.test(text) ? "exaone" : /(?:codex|코덱스)\s*(?:sdk\s*)?(?:로|으로|만|사용)/i.test(text) ? "codex" : "auto");
     try {
       const guidance = await getCopilotGuidance({
         question: text,
         pathname: location.pathname,
         workspace: context.name,
         evidence_context: guidanceContext(evidence, messages),
-        model_preference: modelPreference as "auto" | "rulebase" | "exaone" | "ollama",
+        model_preference: modelPreference as "auto" | "rulebase" | "exaone" | "codex",
       });
       const assistantMessage: CopilotMessage = {
         id: messageId + 1,

@@ -3,9 +3,11 @@ from __future__ import annotations
 import io
 import json
 import sys
+import tempfile
 import unittest
 import zipfile
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -17,6 +19,7 @@ from statpro.application.reports import (
     export_doe_report_zip,
     render_doe_report_figures,
     render_doe_report_html,
+    render_doe_report_pdf,
     render_doe_report_xlsx,
 )
 
@@ -114,6 +117,29 @@ class DoeReportTests(unittest.TestCase):
         with zipfile.ZipFile(io.BytesIO(archive_bytes)) as archive:
             self.assertIn("charts/effects.svg", archive.namelist())
             self.assertIn("charts/residuals_vs_run_order.svg", archive.namelist())
+
+    def test_pdf_renderer_uses_an_isolated_profile_without_gpu_rasterization(self) -> None:
+        report = build_doe_report(self.stored)
+        commands: list[list[str]] = []
+
+        def render(command: list[str], **_kwargs: object) -> object:
+            commands.append(command)
+            pdf_argument = next(argument for argument in command if argument.startswith("--print-to-pdf="))
+            Path(pdf_argument.removeprefix("--print-to-pdf=")).write_bytes(b"%PDF-1.4\nfixture")
+            return type("Completed", (), {"returncode": 0})()
+
+        with tempfile.TemporaryDirectory() as directory:
+            browser = Path(directory) / "browser.exe"
+            browser.touch()
+            with patch("statpro.application.reports.subprocess.run", side_effect=render):
+                pdf = render_doe_report_pdf(report, browser_path=str(browser))
+
+        self.assertTrue(pdf.startswith(b"%PDF-"))
+        self.assertEqual(len(commands), 1)
+        command = commands[0]
+        self.assertIn("--disable-software-rasterizer", command)
+        profile_argument = next(argument for argument in command if argument.startswith("--user-data-dir="))
+        self.assertTrue(Path(profile_argument.removeprefix("--user-data-dir=")).is_absolute())
 
 
 if __name__ == "__main__":

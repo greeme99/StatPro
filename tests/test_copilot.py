@@ -15,9 +15,9 @@ from statpro.application.copilot import (
     CopilotAction,
     CopilotGuidance,
     CopilotSource,
+    CodexSdkCopilotProvider,
     FallbackChainCopilotProvider,
     ExaoneCopilotProvider,
-    LocalLlmCopilotProvider,
     LocalKnowledgeCopilotProvider,
     RuleFirstCopilotProvider,
     UrlLibExaoneChatCompletionClient,
@@ -48,6 +48,26 @@ class FakeExaoneClient:
         }
 
 
+class FakeCodexClient:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str | None, str, str]] = []
+
+    def run_read_only(self, *, model: str | None, prompt: str) -> str:
+        self.calls.append((model, prompt, "read_only"))
+        return (
+            '{"answer":"Codex SDK 안내입니다.",'
+            '"recommended_tool":"분석 선택",'
+            '"menu_path":["홈 (Home)"],'
+            '"checklist":["입력 구조 확인"],'
+            '"workflow_steps":["질문 검토"]}'
+        )
+
+
+class MalformedCodexClient:
+    def run_read_only(self, *, model: str | None, prompt: str) -> str:
+        return "not-json"
+
+
 class FakeHttpResponse:
     def __enter__(self) -> FakeHttpResponse:
         return self
@@ -59,45 +79,8 @@ class FakeHttpResponse:
         return b'{"choices":[{"message":{"content":"{}"}}]}'
 
 
-class FakeLocalLlmClient:
-    def __init__(self) -> None:
-        self.calls: list[tuple[str, str, str]] = []
-
-    def complete(self, *, endpoint: str, model: str, prompt: str) -> dict[str, object]:
-        self.calls.append((endpoint, model, prompt))
-        return {
-            "choices": [{
-                "message": {
-                    "content": (
-                        '{"answer":"로컬 모델 안내입니다.",'
-                        '"recommended_tool":"분석 선택",'
-                        '"menu_path":["홈 (Home)"],'
-                        '"checklist":["입력 구조 확인"],'
-                        '"workflow_steps":["질문 검토"]}'
-                    )
-                }
-            }]
-        }
-
-
-class DecoratedLocalLlmClient(FakeLocalLlmClient):
-    def complete(self, *, endpoint: str, model: str, prompt: str) -> dict[str, object]:
-        response = super().complete(endpoint=endpoint, model=model, prompt=prompt)
-        response["choices"][0]["message"]["content"] = (
-            "<think>응답 형식을 확인합니다.</think>\n```json\n"
-            + response["choices"][0]["message"]["content"]
-            + "\n```"
-        )
-        return response
-
-
 class MalformedExaoneClient:
     def complete(self, *, api_key: str, endpoint: str, model: str, prompt: str, reasoning_effort: str) -> dict[str, object]:
-        return {"choices": []}
-
-
-class MalformedLocalLlmClient:
-    def complete(self, *, endpoint: str, model: str, prompt: str) -> dict[str, object]:
         return {"choices": []}
 
 
@@ -246,13 +229,9 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
                 "STATPRO_COPILOT_EXAONE_MODEL=k-exaone_v2.5\n"
                 "STATPRO_COPILOT_EXAONE_SIMPLE_REASONING_EFFORT=low\n"
                 "STATPRO_COPILOT_EXAONE_COMPLEX_REASONING_EFFORT=high\n"
-                "STATPRO_COPILOT_OLLAMA_ENABLED=true\n"
-                "STATPRO_COPILOT_OLLAMA_URL=http://127.0.0.1:11434/v1/chat/completions\n"
-                "STATPRO_COPILOT_OLLAMA_WORKFLOW_MODEL=workflow-model\n"
-                "STATPRO_COPILOT_OLLAMA_CODE_MODEL=code-model\n"
-                "STATPRO_COPILOT_LOCAL_LLM_ENABLED=true\n"
-                "STATPRO_COPILOT_LOCAL_LLM_URL=http://127.0.0.1:11434/v1/chat/completions\n"
-                "STATPRO_COPILOT_LOCAL_LLM_MODEL=quality-model\n"
+                "STATPRO_COPILOT_CODEX_ENABLED=true\n"
+                "STATPRO_COPILOT_CODEX_ENABLED=true\n"
+                "STATPRO_COPILOT_CODEX_MODEL=gpt-test\n"
                 "UNRELATED_SECRET=must-not-load\n",
                 encoding="utf-8",
             )
@@ -266,8 +245,7 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
                 self.assertEqual(os.environ["STATPRO_COPILOT_EXAONE_ENABLED"], "true")
                 self.assertEqual(os.environ["EXAONE_API_KEY"], "process-secret")
                 self.assertEqual(os.environ["STATPRO_COPILOT_EXAONE_SIMPLE_REASONING_EFFORT"], "low")
-                self.assertEqual(os.environ["STATPRO_COPILOT_OLLAMA_CODE_MODEL"], "code-model")
-                self.assertEqual(os.environ["STATPRO_COPILOT_LOCAL_LLM_MODEL"], "quality-model")
+                self.assertEqual(os.environ["STATPRO_COPILOT_CODEX_MODEL"], "gpt-test")
                 self.assertNotIn("UNRELATED_SECRET", os.environ)
     def test_rule_match_never_calls_the_llm_fallback(self) -> None:
         fallback = RecordingFallbackProvider()
@@ -342,12 +320,11 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
     def test_fallback_chain_uses_light_exaone_for_a_simple_question(self) -> None:
         simple = RecordingFallbackProvider()
         complex_provider = RecordingFallbackProvider()
-        workflow_ollama = RecordingFallbackProvider()
+        codex = RecordingFallbackProvider()
         chain = FallbackChainCopilotProvider(
             exaone_simple=simple,
             exaone_complex=complex_provider,
-            ollama_workflow=workflow_ollama,
-            ollama_code=RecordingFallbackProvider(),
+            codex=codex,
         )
 
         guidance = chain.answer(
@@ -359,18 +336,17 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
 
         self.assertEqual(simple.questions, ["작업표 열 이름을 설명해줘"])
         self.assertEqual(complex_provider.questions, [])
-        self.assertEqual(workflow_ollama.questions, ["작업표 열 이름을 설명해줘"])
+        self.assertEqual(codex.questions, ["작업표 열 이름을 설명해줘"])
         self.assertEqual(guidance.guidance_mode, "llm_fallback")
-        self.assertEqual([(step.stage, step.status) for step in guidance.fallback_steps], [("EXAONE API", "answered"), ("Ollama API", "answered")])
+        self.assertEqual([(step.stage, step.status) for step in guidance.fallback_steps], [("EXAONE API", "answered"), ("Codex SDK", "answered")])
 
-    def test_selected_exaone_bypasses_ollama(self) -> None:
+    def test_selected_exaone_bypasses_codex(self) -> None:
         exaone = RecordingFallbackProvider()
-        ollama = RecordingFallbackProvider()
+        codex = RecordingFallbackProvider()
         chain = FallbackChainCopilotProvider(
             exaone_simple=RecordingFallbackProvider(),
             exaone_complex=exaone,
-            ollama_workflow=ollama,
-            ollama_code=RecordingFallbackProvider(),
+            codex=codex,
         )
 
         guidance = chain.answer_selected_model(
@@ -382,16 +358,15 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
         )
 
         self.assertEqual(exaone.questions, ["EXAONE API로 답변해줘"])
-        self.assertEqual(ollama.questions, [])
-        self.assertEqual([(step.stage, step.status) for step in guidance.fallback_steps], [("EXAONE API", "answered"), ("Ollama API", "skipped")])
+        self.assertEqual(codex.questions, [])
+        self.assertEqual([(step.stage, step.status) for step in guidance.fallback_steps], [("EXAONE API", "answered"), ("Codex SDK", "skipped")])
 
-    def test_fallback_chain_uses_complex_exaone_then_code_ollama(self) -> None:
-        code_ollama = RecordingFallbackProvider()
+    def test_fallback_chain_uses_codex_after_complex_exaone_failure(self) -> None:
+        codex = RecordingFallbackProvider()
         chain = FallbackChainCopilotProvider(
             exaone_simple=RecordingFallbackProvider(),
             exaone_complex=FailingFallbackProvider(),
-            ollama_workflow=RecordingFallbackProvider(),
-            ollama_code=code_ollama,
+            codex=codex,
         )
 
         chain.answer(
@@ -401,15 +376,14 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
             evidence_context=None,
         )
 
-        self.assertEqual(code_ollama.questions, ["SPC 이상 신호를 정리하는 Python 코드를 만들어줘"])
+        self.assertEqual(codex.questions, ["SPC 이상 신호를 정리하는 Python 코드를 만들어줘"])
 
-    def test_fallback_chain_uses_workflow_ollama_after_simple_exaone_failure(self) -> None:
-        workflow_ollama = RecordingFallbackProvider()
+    def test_fallback_chain_uses_codex_after_simple_exaone_failure(self) -> None:
+        codex = RecordingFallbackProvider()
         chain = FallbackChainCopilotProvider(
             exaone_simple=FailingFallbackProvider(),
             exaone_complex=RecordingFallbackProvider(),
-            ollama_workflow=workflow_ollama,
-            ollama_code=RecordingFallbackProvider(),
+            codex=codex,
         )
 
         chain.answer(
@@ -419,10 +393,10 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
             evidence_context=None,
         )
 
-        self.assertEqual(workflow_ollama.questions, ["현장 작업표 열 이름을 설명해줘"])
+        self.assertEqual(codex.questions, ["현장 작업표 열 이름을 설명해줘"])
 
-    def test_malformed_exaone_response_falls_through_to_workflow_ollama(self) -> None:
-        local_client = FakeLocalLlmClient()
+    def test_malformed_exaone_response_falls_through_to_codex(self) -> None:
+        codex_client = FakeCodexClient()
         chain = FallbackChainCopilotProvider(
             exaone_simple=ExaoneCopilotProvider(
                 "test-key",
@@ -430,12 +404,7 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
                 client=MalformedExaoneClient(),
             ),
             exaone_complex=None,
-            ollama_workflow=LocalLlmCopilotProvider(
-                "http://127.0.0.1:11434/v1/chat/completions",
-                "qwen3:4b-q4_K_M",
-                client=local_client,
-            ),
-            ollama_code=None,
+            codex=CodexSdkCopilotProvider(model="gpt-test", client=codex_client),
         )
 
         guidance = chain.answer(
@@ -445,11 +414,11 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
             evidence_context=None,
         )
 
-        self.assertEqual(guidance.provider, "local:qwen3:4b-q4_K_M")
-        self.assertEqual(len(local_client.calls), 1)
+        self.assertEqual(guidance.provider, "codex-sdk:gpt-test")
+        self.assertEqual(len(codex_client.calls), 1)
 
-    def test_incomplete_exaone_contract_falls_through_to_workflow_ollama(self) -> None:
-        local_client = FakeLocalLlmClient()
+    def test_incomplete_exaone_contract_falls_through_to_codex(self) -> None:
+        codex_client = FakeCodexClient()
         chain = FallbackChainCopilotProvider(
             exaone_simple=ExaoneCopilotProvider(
                 "test-key",
@@ -457,12 +426,7 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
                 client=IncompleteGuidanceExaoneClient(),
             ),
             exaone_complex=None,
-            ollama_workflow=LocalLlmCopilotProvider(
-                "http://127.0.0.1:11434/v1/chat/completions",
-                "qwen3:4b-q4_K_M",
-                client=local_client,
-            ),
-            ollama_code=None,
+            codex=CodexSdkCopilotProvider(model="gpt-test", client=codex_client),
         )
 
         guidance = chain.answer(
@@ -472,19 +436,14 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
             evidence_context=None,
         )
 
-        self.assertEqual(guidance.provider, "local:qwen3:4b-q4_K_M")
-        self.assertEqual(len(local_client.calls), 1)
+        self.assertEqual(guidance.provider, "codex-sdk:gpt-test")
+        self.assertEqual(len(codex_client.calls), 1)
 
-    def test_malformed_local_response_returns_manual_guidance(self) -> None:
+    def test_malformed_codex_response_returns_manual_guidance(self) -> None:
         chain = FallbackChainCopilotProvider(
             exaone_simple=None,
             exaone_complex=None,
-            ollama_workflow=LocalLlmCopilotProvider(
-                "http://127.0.0.1:11434/v1/chat/completions",
-                "qwen3:4b-q4_K_M",
-                client=MalformedLocalLlmClient(),
-            ),
-            ollama_code=None,
+            codex=CodexSdkCopilotProvider(model="gpt-test", client=MalformedCodexClient()),
         )
 
         guidance = chain.answer(
@@ -500,8 +459,7 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
         chain = FallbackChainCopilotProvider(
             exaone_simple=FailingFallbackProvider(),
             exaone_complex=FailingFallbackProvider(),
-            ollama_workflow=FailingFallbackProvider(),
-            ollama_code=FailingFallbackProvider(),
+            codex=FailingFallbackProvider(),
         )
 
         guidance = chain.answer(
@@ -514,14 +472,13 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
         self.assertEqual(guidance.provider, "statpro-fallback-unavailable")
         self.assertEqual(guidance.guidance_mode, "manual_guidance")
         self.assertTrue(guidance.answer)
-        self.assertEqual([(step.stage, step.status) for step in guidance.fallback_steps], [("EXAONE API", "failed"), ("Ollama API", "failed")])
+        self.assertEqual([(step.stage, step.status) for step in guidance.fallback_steps], [("EXAONE API", "failed"), ("Codex SDK", "failed")])
 
     def test_exaone_rate_limit_is_reported_without_a_false_connection_error(self) -> None:
         chain = FallbackChainCopilotProvider(
             exaone_simple=RateLimitedFallbackProvider(),
             exaone_complex=None,
-            ollama_workflow=None,
-            ollama_code=None,
+            codex=None,
         )
 
         guidance = chain.answer(
@@ -701,13 +658,9 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
         self.assertEqual(guidance.checklist, ("설비 매뉴얼 확보",))
         self.assertEqual(guidance.workflow_steps, ("코드 발생 시점 확인",))
 
-    def test_local_llm_fallback_requires_loopback_and_returns_the_same_contract(self) -> None:
-        client = FakeLocalLlmClient()
-        provider = LocalLlmCopilotProvider(
-            "http://127.0.0.1:11434/v1/chat/completions",
-            "quality-model",
-            client=client,
-        )
+    def test_codex_sdk_fallback_uses_read_only_thread_and_the_guidance_contract(self) -> None:
+        client = FakeCodexClient()
+        provider = CodexSdkCopilotProvider(model="gpt-test", client=client)
 
         guidance = provider.answer(
             question="사내 장비의 새로운 코드가 무엇인가요?",
@@ -716,30 +669,11 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
             evidence_context=None,
         )
 
-        self.assertEqual(client.calls[0][0:2], ("http://127.0.0.1:11434/v1/chat/completions", "quality-model"))
-        self.assertIn("JSON만 반환", client.calls[0][2])
-        self.assertEqual(guidance.provider, "local:quality-model")
+        self.assertEqual(client.calls[0][0], "gpt-test")
+        self.assertEqual(client.calls[0][2], "read_only")
+        self.assertIn("도구를 실행하거나 파일을 변경하지 마세요", client.calls[0][1])
+        self.assertEqual(guidance.provider, "codex-sdk:gpt-test")
         self.assertEqual(guidance.guidance_mode, "llm_fallback")
-        self.assertIn("loopback", guidance.limitations[0])
-        with self.assertRaisesRegex(ValueError, "loopback"):
-            LocalLlmCopilotProvider("https://example.invalid/v1/chat/completions", "quality-model")
-
-    def test_local_llm_extracts_json_after_reasoning_or_code_fence(self) -> None:
-        provider = LocalLlmCopilotProvider(
-            "http://127.0.0.1:11434/v1/chat/completions",
-            "quality-model",
-            client=DecoratedLocalLlmClient(),
-        )
-
-        guidance = provider.answer(
-            question="순간정지 KPI를 안내해줘",
-            pathname="/home",
-            workspace="홈 (Home)",
-            evidence_context=None,
-        )
-
-        self.assertEqual(guidance.provider, "local:quality-model")
-        self.assertEqual(guidance.answer, "로컬 모델 안내입니다.")
 
     def test_local_openai_client_requests_a_single_non_streaming_json_response(self) -> None:
         with patch(
@@ -766,13 +700,11 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
         self.assertIn("Do not use Markdown fences", body["messages"][0]["content"])
         self.assertEqual(urlopen.call_args.kwargs["timeout"], 47)
 
-    def test_invalid_ollama_configuration_continues_to_manual_input_when_exaone_is_disabled(self) -> None:
+    def test_disabled_codex_configuration_continues_to_manual_input_when_exaone_is_disabled(self) -> None:
         with patch.dict(
             os.environ,
             {
-                "STATPRO_COPILOT_LOCAL_LLM_ENABLED": "true",
-                "STATPRO_COPILOT_LOCAL_LLM_URL": "https://example.invalid/v1/chat/completions",
-                "STATPRO_COPILOT_LOCAL_LLM_MODEL": "quality-model",
+                "STATPRO_COPILOT_CODEX_ENABLED": "false",
                 "STATPRO_COPILOT_EXAONE_ENABLED": "false",
                 "EXAONE_API_KEY": "",
             },
@@ -787,9 +719,9 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
 
         self.assertEqual(guidance.provider, "statpro-fallback-unavailable")
         self.assertEqual(guidance.guidance_mode, "manual_guidance")
-        self.assertIn("EXAONE 및 로컬 Ollama", guidance.limitations[1])
+        self.assertIn("EXAONE API 및 Codex SDK", guidance.limitations[1])
         self.assertIn("EXAONE: 미설정", guidance.limitations[1])
-        self.assertIn("Ollama: 미설정", guidance.limitations[1])
+        self.assertIn("Codex SDK: 미설정", guidance.limitations[1])
 
     def test_runtime_status_reports_readiness_without_exposing_the_api_key(self) -> None:
         with patch.dict(
@@ -798,10 +730,8 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
                 "STATPRO_COPILOT_EXAONE_ENABLED": "true",
                 "EXAONE_API_KEY": "must-not-appear",
                 "STATPRO_COPILOT_EXAONE_MODEL": "k-exaone_v2.5",
-                "STATPRO_COPILOT_OLLAMA_ENABLED": "true",
-                "STATPRO_COPILOT_OLLAMA_URL": "http://127.0.0.1:11434/v1/chat/completions",
-                "STATPRO_COPILOT_OLLAMA_WORKFLOW_MODEL": "workflow-test",
-                "STATPRO_COPILOT_OLLAMA_CODE_MODEL": "code-test",
+                "STATPRO_COPILOT_CODEX_ENABLED": "true",
+                "STATPRO_COPILOT_CODEX_MODEL": "gpt-test",
             },
             clear=True,
         ):
@@ -809,9 +739,9 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
 
         self.assertTrue(status["rulebase"]["configured"])
         self.assertTrue(status["exaone"]["ready"])
-        self.assertTrue(status["ollama"]["ready"])
+        self.assertTrue(status["codex"]["ready"])
         self.assertFalse(status["exaone"]["live_verified"])
-        self.assertFalse(status["ollama"]["live_verified"])
+        self.assertFalse(status["codex"]["live_verified"])
         self.assertNotIn("must-not-appear", repr(status))
 
 

@@ -56,10 +56,8 @@ Copy-Item .env.example .env
 ```
 
 ```dotenv
-STATPRO_COPILOT_LLM_ENABLED=true
+STATPRO_COPILOT_EXAONE_ENABLED=true
 EXAONE_API_KEY=여기에_발급받은_키를_입력
-STATPRO_COPILOT_EXAONE_ENABLED=false
-EXAONE_API_KEY=
 STATPRO_COPILOT_EXAONE_URL=https://api.exaone.ai/v1/chat/completions
 STATPRO_COPILOT_EXAONE_MODEL=k-exaone_v2.5
 STATPRO_COPILOT_EXAONE_SIMPLE_REASONING_EFFORT=low
@@ -68,13 +66,13 @@ STATPRO_COPILOT_EXAONE_COMPLEX_REASONING_EFFORT=high
 
 API는 `statpro-api` 실행 시 저장소 루트의 `.env`를 읽습니다. 다른 파일을 쓰려면 `statpro-api --env-file "D:\secure\statpro.env" ...`처럼 지정합니다. `.env`는 `.gitignore`로 제외되며, 이미 설정된 프로세스 환경 변수는 파일 값으로 덮어쓰지 않습니다. Rulebase 미일치 요청은 EXAONE 2.5(`k-exaone_v2.5`)에 전달하며, 단순 요청은 `reasoning_effort=low`, 복잡·다단계·코드 요청은 `reasoning_effort=high`로 구분합니다. EXAONE에는 미일치 질문과 현재 작업공간 문맥만 전달되므로 조직 정책과 개인정보 기준을 확인한 뒤 활성화하십시오.
 
-EXAONE 호출이 실패했거나 비활성화된 경우에는 아래 Ollama OpenAI 호환 `chat/completions` endpoint로 폴백합니다. 일반 Workflow에는 `qwen3:4b-q4_K_M`, 코드 생성 요청에는 `qwen2.5-coder:7b-instruct-q4_K_M`을 사용합니다. `http://127.0.0.1`, `http://localhost`, `http://[::1]` 같은 loopback HTTP 주소만 허용하며, Rulebase가 일치한 질의는 모델로 전송하지 않습니다. 모든 모델이 실패하면 Copilot은 재시도와 분석 목적·데이터 구조·제약의 수동 입력을 안내합니다.
+EXAONE 호출이 실패했거나 비활성화된 경우에는 로컬 Codex Python SDK가 다음 폴백 단계로 동작합니다. SDK는 공식 `openai-codex` 패키지와 기존 Codex 인증을 사용하며, Copilot은 `Sandbox.read_only`로만 스레드를 시작합니다. 따라서 Copilot은 파일·설정·분석 결과를 변경하지 않고 기존 JSON 가이드 계약의 답변만 받습니다. Rulebase가 일치한 질의는 모델로 전송하지 않으며, 모든 모델이 실패하면 Copilot은 재시도와 분석 목적·데이터 구조·제약의 수동 입력을 안내합니다.
 
 ```dotenv
-STATPRO_COPILOT_OLLAMA_ENABLED=true
-STATPRO_COPILOT_OLLAMA_URL=http://127.0.0.1:11434/v1/chat/completions
-STATPRO_COPILOT_OLLAMA_WORKFLOW_MODEL=qwen3:4b-q4_K_M
-STATPRO_COPILOT_OLLAMA_CODE_MODEL=qwen2.5-coder:7b-instruct-q4_K_M
+# 선택 설치: pip install -e ".[codex]"
+STATPRO_COPILOT_CODEX_ENABLED=true
+# 비우면 Codex가 구성한 기본 모델을 사용합니다.
+STATPRO_COPILOT_CODEX_MODEL=
 ```
 
 API 문서: <http://127.0.0.1:8765/docs> · 웹 UI: <http://127.0.0.1:5173>

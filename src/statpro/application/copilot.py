@@ -14,7 +14,6 @@ import urllib.request
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from typing import Any, Protocol
-from urllib.parse import urlparse
 
 from statpro.application.copilot_rules import (
     COPILOT_RULE_CATALOG,
@@ -86,14 +85,10 @@ class ExaoneChatCompletionClient(Protocol):
     ) -> Mapping[str, Any]: ...
 
 
-class LocalChatCompletionClient(Protocol):
-    def complete(
-        self,
-        *,
-        endpoint: str,
-        model: str,
-        prompt: str,
-    ) -> Mapping[str, Any]: ...
+class CodexSdkClient(Protocol):
+    """Minimal boundary over the official local Codex Python SDK."""
+
+    def run_read_only(self, *, model: str | None, prompt: str) -> str: ...
 
 
 _SPC_SOURCE = CopilotSource(
@@ -511,7 +506,7 @@ class RuleFirstCopilotProvider:
                 fallback_steps=(
                     CopilotFallbackStep("Rulebase", "answered", "검토된 규칙으로 답변을 생성했습니다."),
                     CopilotFallbackStep("EXAONE API", "skipped", "Rulebase 답변이 있어 호출하지 않았습니다."),
-                    CopilotFallbackStep("Ollama API", "skipped", "Rulebase 답변이 있어 호출하지 않았습니다."),
+                    CopilotFallbackStep("Codex SDK", "skipped", "Rulebase 답변이 있어 호출하지 않았습니다."),
                 ),
             )
         if self._fallback_provider is None:
@@ -520,7 +515,7 @@ class RuleFirstCopilotProvider:
                 fallback_steps=(
                     CopilotFallbackStep("Rulebase", "unmatched", "직접 대응하는 검토 규칙을 찾지 못했습니다."),
                     CopilotFallbackStep("EXAONE API", "unavailable", "모델 연결이 설정되지 않았습니다."),
-                    CopilotFallbackStep("Ollama API", "unavailable", "모델 연결이 설정되지 않았습니다."),
+                    CopilotFallbackStep("Codex SDK", "unavailable", "모델 연결이 설정되지 않았습니다."),
                 ),
             )
         try:
@@ -542,7 +537,7 @@ class RuleFirstCopilotProvider:
                 fallback_steps=(
                     CopilotFallbackStep("Rulebase", "unmatched", "직접 대응하는 검토 규칙을 찾지 못했습니다."),
                     CopilotFallbackStep("EXAONE API", "failed", "Fallback 체인을 시작하지 못했습니다."),
-                    CopilotFallbackStep("Ollama API", "skipped", "이전 단계 오류로 호출하지 못했습니다."),
+                    CopilotFallbackStep("Codex SDK", "skipped", "이전 단계 오류로 호출하지 못했습니다."),
                 ),
             )
 
@@ -563,7 +558,7 @@ class RuleFirstCopilotProvider:
                 fallback_steps=(
                     CopilotFallbackStep("Rulebase", "answered", "사용자가 Rulebase를 지정해 답변을 생성했습니다."),
                     CopilotFallbackStep("EXAONE API", "skipped", "사용자가 Rulebase를 지정했습니다."),
-                    CopilotFallbackStep("Ollama API", "skipped", "사용자가 Rulebase를 지정했습니다."),
+                    CopilotFallbackStep("Codex SDK", "skipped", "사용자가 Rulebase를 지정했습니다."),
                 ),
             )
         if isinstance(self._fallback_provider, FallbackChainCopilotProvider):
@@ -624,20 +619,18 @@ def _model_error_detail(error: Exception) -> str:
 
 
 class FallbackChainCopilotProvider:
-    """Query both approved model APIs for every question unmatched by the Rulebase."""
+    """Use EXAONE first, then the read-only Codex SDK for unmatched questions."""
 
     def __init__(
         self,
         *,
         exaone_simple: CopilotProvider | None,
         exaone_complex: CopilotProvider | None,
-        ollama_workflow: CopilotProvider | None,
-        ollama_code: CopilotProvider | None,
+        codex: CopilotProvider | None,
     ) -> None:
         self._exaone_simple = exaone_simple
         self._exaone_complex = exaone_complex
-        self._ollama_workflow = ollama_workflow
-        self._ollama_code = ollama_code
+        self._codex = codex
 
     def answer(
         self,
@@ -647,13 +640,11 @@ class FallbackChainCopilotProvider:
         workspace: str,
         evidence_context: str | None,
     ) -> CopilotGuidance:
-        code_request = _is_code_generation_request(question)
         cloud_provider = self._exaone_complex if _is_complex_request(question) else self._exaone_simple
-        local_provider = self._ollama_code if code_request else self._ollama_workflow
         failures: list[str] = []
         steps: list[CopilotFallbackStep] = []
         answers: list[tuple[str, CopilotGuidance]] = []
-        for tier, failure_name, provider in (("EXAONE API", "EXAONE", cloud_provider), ("Ollama API", "Ollama", local_provider)):
+        for tier, failure_name, provider in (("EXAONE API", "EXAONE", cloud_provider), ("Codex SDK", "Codex SDK", self._codex)):
             if provider is None:
                 failures.append(f"{failure_name}: 미설정")
                 steps.append(CopilotFallbackStep(tier, "unavailable", "사용 가능한 연결 또는 모델이 설정되지 않았습니다."))
@@ -683,7 +674,7 @@ class FallbackChainCopilotProvider:
             selected_steps = tuple(
                 replace(
                     step,
-                    detail=("답변을 생성했고 사용자에게 표시했습니다." if step.stage == selected_tier else "답변을 생성했으며 EXAONE 답변을 우선 표시했습니다.")
+                    detail=("답변을 생성했고 사용자에게 표시했습니다." if step.stage == selected_tier else "답변을 생성했으며 EXAONE API 답변을 우선 표시했습니다.")
                     if step.status == "answered"
                     else step.detail,
                 )
@@ -703,7 +694,7 @@ class FallbackChainCopilotProvider:
             sources=(_SELECTION_SOURCE,),
             limitations=(
                 "Rulebase에 직접 대응하는 규칙을 찾지 못했습니다.",
-                "EXAONE 및 로컬 Ollama 폴백 응답을 사용할 수 없었습니다 (" + ", ".join(failures) + ").",
+                "EXAONE API 및 Codex SDK 폴백 응답을 사용할 수 없었습니다 (" + ", ".join(failures) + ").",
                 "분석 설정이나 저장 문서는 자동으로 변경하지 않습니다.",
             ),
             action=CopilotAction("분석 선택 시작", "/analyses"),
@@ -722,13 +713,12 @@ class FallbackChainCopilotProvider:
         workspace: str,
         evidence_context: str | None,
     ) -> CopilotGuidance:
-        code_request = _is_code_generation_request(question)
         providers = {
             "exaone": ("EXAONE API", self._exaone_complex if _is_complex_request(question) else self._exaone_simple),
-            "ollama": ("Ollama API", self._ollama_code if code_request else self._ollama_workflow),
+            "codex": ("Codex SDK", self._codex),
         }
         tier, provider = providers[model_preference]
-        skipped = "Ollama API" if tier == "EXAONE API" else "EXAONE API"
+        skipped = "Codex SDK" if tier == "EXAONE API" else "EXAONE API"
         if provider is None:
             return CopilotGuidance(
                 answer=f"지정한 {tier} 모델이 설정되지 않았습니다.",
@@ -958,80 +948,35 @@ class ExaoneCopilotProvider:
         )
 
 
-def _is_loopback_llm_endpoint(endpoint: str) -> bool:
-    parsed = urlparse(endpoint)
-    return (
-        parsed.scheme == "http"
-        and parsed.hostname is not None
-        and parsed.hostname.casefold() in {"127.0.0.1", "::1", "localhost"}
-        and not parsed.username
-        and not parsed.password
-        and not parsed.query
-        and not parsed.fragment
-    )
+class OpenAICodexSdkClient:
+    """Run one Copilot turn through the local Codex app-server.
 
+    The optional dependency is imported only when the administrator enables
+    this fallback, so a normal Rulebase request never requires the SDK.
+    """
 
-class UrlLibLocalChatCompletionClient:
-    """Dependency-free OpenAI-compatible client restricted by the provider to loopback."""
-
-    def __init__(self, *, timeout_seconds: int = 20) -> None:
-        self._timeout_seconds = timeout_seconds
-
-    def complete(
-        self,
-        *,
-        endpoint: str,
-        model: str,
-        prompt: str,
-    ) -> Mapping[str, Any]:
-        body = json.dumps(
-            {
-                "model": model,
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": "Return only one JSON object matching the requested fields. Do not execute tools or change settings.",
-                    },
-                    {"role": "user", "content": prompt},
-                ],
-                "response_format": {"type": "json_object"},
-                "max_tokens": 1024,
-                "temperature": 0.2,
-                "stream": False,
-            }
-        ).encode("utf-8")
-        request = urllib.request.Request(
-            endpoint,
-            data=body,
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
+    def run_read_only(self, *, model: str | None, prompt: str) -> str:
         try:
-            with urllib.request.urlopen(request, timeout=self._timeout_seconds) as response:
-                return json.loads(response.read().decode("utf-8"))
-        except urllib.error.HTTPError as error:
-            raise OSError(f"Local LLM request failed with HTTP {error.code}") from error
-        except (TimeoutError, urllib.error.URLError) as error:
-            raise OSError("Local LLM request timed out") from error
+            from openai_codex import Codex, Sandbox
+        except ImportError as error:
+            raise OSError("Codex SDK is not installed") from error
+        with Codex() as codex:
+            options: dict[str, object] = {"sandbox": Sandbox.read_only}
+            if model:
+                options["model"] = model
+            thread = codex.thread_start(**options)
+            result = thread.run(prompt)
+        if not isinstance(result.final_response, str):
+            raise ValueError("Codex SDK returned an invalid guidance response")
+        return result.final_response
 
 
-class LocalLlmCopilotProvider:
-    """Constrained local OpenAI-compatible fallback for unmatched Rulebase questions."""
+class CodexSdkCopilotProvider:
+    """Read-only Codex SDK fallback for unmatched Copilot questions."""
 
-    def __init__(
-        self,
-        endpoint: str,
-        model: str,
-        *,
-        client: LocalChatCompletionClient | None = None,
-    ) -> None:
-        if not _is_loopback_llm_endpoint(endpoint):
-            raise ValueError("Local LLM endpoint must use a loopback http URL")
-        if not model.strip():
-            raise ValueError("Local LLM model is required")
-        self._endpoint = endpoint
-        self._model = model
-        self._client = client or UrlLibLocalChatCompletionClient()
+    def __init__(self, *, model: str | None = None, client: CodexSdkClient | None = None) -> None:
+        self._model = model.strip() if model else None
+        self._client = client or OpenAICodexSdkClient()
 
     def answer(
         self,
@@ -1044,28 +989,25 @@ class LocalLlmCopilotProvider:
         prompt = (
             "당신은 제조·품질 통계 소프트웨어 StatPro의 한국어 업무 가이드입니다. "
             "검증되지 않은 수치나 기능을 만들지 말고, 초보자가 검토 후 실행할 수 있도록 설명하세요. "
-            "분석 설정을 자동 변경했다고 말하지 마세요. 다음 JSON만 반환하세요: "
+            "도구를 실행하거나 파일을 변경하지 마세요. 분석 설정을 자동 변경했다고 말하지 마세요. "
+            "다음 JSON만 반환하세요: "
             '{"answer":string,"recommended_tool":string|null,"menu_path":string[],"checklist":string[],"workflow_steps":string[]}.\n'
             f"현재 작업공간: {workspace}\n현재 경로: {pathname}\n"
             f"사용자 질문: {question}\n"
             f"사용자가 선택한 근거 문맥: {evidence_context or '없음'}"
         )
-        try:
-            raw = self._client.complete(endpoint=self._endpoint, model=self._model, prompt=prompt)
-            text = raw["choices"][0]["message"]["content"]
-        except (KeyError, IndexError, TypeError) as error:
-            raise ValueError("Local LLM returned an invalid guidance response") from error
+        text = self._client.run_read_only(model=self._model, prompt=prompt)
         return _guidance_from_provider_text(
             text,
-            provider_name="Local LLM",
-            provider=f"local:{self._model}",
-            source=CopilotSource("로컬 LLM의 사용자 질문과 선택 문맥", "copilot://local-question", "user_context"),
-            local_only=True,
+            provider_name="Codex SDK",
+            provider=f"codex-sdk:{self._model or 'default'}",
+            source=CopilotSource("Codex SDK의 사용자 질문과 선택 문맥", "copilot://codex-question", "user_context"),
+            local_only=False,
         )
 
 
 def build_default_copilot_provider() -> CopilotProvider:
-    """Build Rulebase → EXAONE 2.5 tier → Ollama tier → manual-input guidance."""
+    """Build Rulebase → EXAONE 2.5 → read-only Codex SDK → manual guidance."""
 
     exaone_enabled = os.getenv("STATPRO_COPILOT_EXAONE_ENABLED", "").casefold() == "true"
     api_key = os.getenv("EXAONE_API_KEY", "")
@@ -1089,56 +1031,18 @@ def build_default_copilot_provider() -> CopilotProvider:
             timeout_seconds=_exaone_timeout_seconds(),
         )
 
-    ollama_enabled = (
-        os.getenv("STATPRO_COPILOT_OLLAMA_ENABLED", "").casefold() == "true"
-        or os.getenv("STATPRO_COPILOT_LOCAL_LLM_ENABLED", "").casefold() == "true"
-    )
-    ollama_endpoint = (
-        os.getenv("STATPRO_COPILOT_OLLAMA_URL", "")
-        or os.getenv("STATPRO_COPILOT_LOCAL_LLM_URL", "")
-    )
-    workflow_model = (
-        os.getenv("STATPRO_COPILOT_OLLAMA_WORKFLOW_MODEL", "")
-        or os.getenv("STATPRO_COPILOT_LOCAL_LLM_MODEL", "")
-        or "qwen3:4b-q4_K_M"
-    )
-    code_model = os.getenv("STATPRO_COPILOT_OLLAMA_CODE_MODEL", "") or "qwen2.5-coder:7b-instruct-q4_K_M"
-    ollama_workflow = None
-    ollama_code = None
-    if ollama_enabled:
-        try:
-            timeout_seconds = _ollama_timeout_seconds()
-            ollama_workflow = LocalLlmCopilotProvider(
-                ollama_endpoint,
-                workflow_model,
-                client=UrlLibLocalChatCompletionClient(timeout_seconds=timeout_seconds),
-            )
-            ollama_code = LocalLlmCopilotProvider(
-                ollama_endpoint,
-                code_model,
-                client=UrlLibLocalChatCompletionClient(timeout_seconds=timeout_seconds),
-            )
-        except ValueError:
-            pass
+    codex_enabled = os.getenv("STATPRO_COPILOT_CODEX_ENABLED", "").casefold() == "true"
+    codex_model = os.getenv("STATPRO_COPILOT_CODEX_MODEL", "").strip() or None
+    codex = CodexSdkCopilotProvider(model=codex_model) if codex_enabled else None
 
     return RuleFirstCopilotProvider(
         LocalKnowledgeCopilotProvider(),
         FallbackChainCopilotProvider(
             exaone_simple=exaone_simple,
             exaone_complex=exaone_complex,
-            ollama_workflow=ollama_workflow,
-            ollama_code=ollama_code,
+            codex=codex,
         ),
     )
-
-
-def _ollama_timeout_seconds() -> int:
-    raw_value = os.getenv("STATPRO_COPILOT_OLLAMA_TIMEOUT_SECONDS", "60")
-    try:
-        timeout_seconds = int(raw_value)
-    except ValueError:
-        return 60
-    return timeout_seconds if 1 <= timeout_seconds <= 120 else 60
 
 
 def _exaone_timeout_seconds() -> int:
@@ -1154,7 +1058,7 @@ def copilot_runtime_status() -> dict[str, object]:
     """Describe configured fallback readiness without exposing credentials.
 
     This is configuration evidence only.  It intentionally does not probe a
-    remote EXAONE service or a local Ollama process, because a status request
+    remote EXAONE service or local Codex app-server, because a status request
     must not transmit a user's context or create an unexpected model call.
     """
 
@@ -1162,21 +1066,13 @@ def copilot_runtime_status() -> dict[str, object]:
     exaone_key_present = bool(os.getenv("EXAONE_API_KEY", ""))
     exaone_endpoint = os.getenv("STATPRO_COPILOT_EXAONE_URL", "") or "https://api.exaone.ai/v1/chat/completions"
     exaone_model = os.getenv("STATPRO_COPILOT_EXAONE_MODEL", "") or "k-exaone_v2.5"
-    ollama_enabled = (
-        os.getenv("STATPRO_COPILOT_OLLAMA_ENABLED", "").casefold() == "true"
-        or os.getenv("STATPRO_COPILOT_LOCAL_LLM_ENABLED", "").casefold() == "true"
-    )
-    ollama_endpoint = (
-        os.getenv("STATPRO_COPILOT_OLLAMA_URL", "")
-        or os.getenv("STATPRO_COPILOT_LOCAL_LLM_URL", "")
-    )
-    workflow_model = (
-        os.getenv("STATPRO_COPILOT_OLLAMA_WORKFLOW_MODEL", "")
-        or os.getenv("STATPRO_COPILOT_LOCAL_LLM_MODEL", "")
-        or "qwen3:4b-q4_K_M"
-    )
-    code_model = os.getenv("STATPRO_COPILOT_OLLAMA_CODE_MODEL", "") or "qwen2.5-coder:7b-instruct-q4_K_M"
-    loopback_endpoint = _is_loopback_llm_endpoint(ollama_endpoint)
+    codex_enabled = os.getenv("STATPRO_COPILOT_CODEX_ENABLED", "").casefold() == "true"
+    codex_model = os.getenv("STATPRO_COPILOT_CODEX_MODEL", "").strip() or None
+    try:
+        import importlib.util
+        codex_sdk_installed = importlib.util.find_spec("openai_codex") is not None
+    except (ImportError, ValueError):
+        codex_sdk_installed = False
 
     return {
         "rulebase": {
@@ -1194,17 +1090,17 @@ def copilot_runtime_status() -> dict[str, object]:
             "complex_reasoning_effort": os.getenv("STATPRO_COPILOT_EXAONE_COMPLEX_REASONING_EFFORT", "") or "high",
             "live_verified": False,
         },
-        "ollama": {
-            "enabled": ollama_enabled,
-            "loopback_endpoint_configured": loopback_endpoint,
-            "ready": ollama_enabled and loopback_endpoint,
-            "workflow_model": workflow_model,
-            "code_model": code_model,
+        "codex": {
+            "enabled": codex_enabled,
+            "sdk_installed": codex_sdk_installed,
+            "ready": codex_enabled and codex_sdk_installed,
+            "model": codex_model,
+            "sandbox": "read_only",
             "live_verified": False,
         },
         "manual_input_available": True,
         "limitations": (
-            "이 상태는 설정만 확인하며 EXAONE API 또는 Ollama 프로세스에 요청하지 않습니다. "
+            "이 상태는 설정만 확인하며 EXAONE API 또는 Codex SDK에 요청하지 않습니다. "
             "실제 연결·모델 가용성은 사용자가 명시적으로 활성화한 환경에서 별도로 검증해야 합니다."
         ),
     }
