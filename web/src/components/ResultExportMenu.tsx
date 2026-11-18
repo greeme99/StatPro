@@ -7,6 +7,7 @@ import { downloadArtifact, downloadXbarRPng, printXbarRReport, xbarRExcelXml, xb
 import { downloadXbarSPng, printXbarSReport, xbarSExcelXml, xbarSReportSvg } from "../xbarSExport";
 import { downloadImrPng, imrExcelXml, imrPrintHtml, imrReportSvg, printImrReport } from "../imrExport";
 import { downloadSpcChartPng, spcChartReportSvg, toSpcChartExportView } from "../spcChartExport";
+import { downloadRegressionPng, printRegressionReport, regressionResidualSvg, toRegressionExportView } from "../regressionExport";
 import { Button } from "./Button";
 
 type CsvRow = [section: string, path: string, value: string];
@@ -103,6 +104,7 @@ export function ResultExportMenu({ runId, result }: { runId: string; result: Res
   const imr = toImrView(result);
   const spcChart = toSpcChartExportView(result);
   const capability = toCapabilityExportView(result);
+  const regression = toRegressionExportView(result);
 
   useEffect(() => {
     if (!open) return;
@@ -151,11 +153,14 @@ export function ResultExportMenu({ runId, result }: { runId: string; result: Res
           <button role="menuitem" title="모든 ResultBundle 필드를 단일 시트 경로·값 표로 저장합니다. 원래 계층 구조는 JSON으로 확인하세요." onClick={() => { downloadArtifact(`${runId}-result.xls`, resultBundleSpreadsheetXml(runId, result), "application/vnd.ms-excel;charset=utf-8"); setOpen(false); }}><FileSpreadsheet aria-hidden="true" />Excel 호환 표로 저장</button>
           <button role="menuitem" onClick={() => { downloadSpcChartPng(runId, spcChart); setOpen(false); }}><ImageDown aria-hidden="true" />차트를 PNG로 저장</button>
           <button role="menuitem" onClick={() => { const svg = spcChartReportSvg(runId, spcChart); if (svg) downloadArtifact(`${runId}-spc-chart.svg`, svg, "image/svg+xml;charset=utf-8"); setOpen(false); }}><ImageUp aria-hidden="true" />차트를 SVG로 저장</button>
+        </> : regression ? <>
+          <button role="menuitem" onClick={() => { if (!printRegressionReport(runId, result, regression)) window.alert("보고서 창을 열 수 없습니다. 브라우저의 팝업 차단 설정을 확인하세요."); setOpen(false); }}><FileText aria-hidden="true" />PDF 보고서 저장·인쇄</button>
+          <button role="menuitem" title="모든 ResultBundle 필드를 단일 시트 경로·값 표로 저장합니다. 원래 계층 구조는 JSON으로 확인하세요." onClick={() => { downloadArtifact(`${runId}-result.xls`, resultBundleSpreadsheetXml(runId, result), "application/vnd.ms-excel;charset=utf-8"); setOpen(false); }}><FileSpreadsheet aria-hidden="true" />Excel 호환 표로 저장</button>
+          <button role="menuitem" onClick={() => { downloadRegressionPng(runId, regression); setOpen(false); }}><ImageDown aria-hidden="true" />잔차 차트를 PNG로 저장</button>
+          <button role="menuitem" onClick={() => { downloadArtifact(`${runId}-ols-residuals.svg`, regressionResidualSvg(runId, regression), "image/svg+xml;charset=utf-8"); setOpen(false); }}><ImageUp aria-hidden="true" />잔차 차트를 SVG로 저장</button>
         </> : <>
           <button role="menuitem" onClick={() => { if (!printResultBundle(runId, result)) window.alert("보고서 창을 열 수 없습니다. 브라우저의 팝업 차단 설정을 확인하세요."); setOpen(false); }}><FileText aria-hidden="true" />PDF 보고서 저장·인쇄</button>
           <button role="menuitem" title="모든 ResultBundle 필드를 단일 시트 경로·값 표로 저장합니다. 원래 계층 구조는 JSON으로 확인하세요." onClick={() => { downloadArtifact(`${runId}-result.xls`, resultBundleSpreadsheetXml(runId, result), "application/vnd.ms-excel;charset=utf-8"); setOpen(false); }}><FileSpreadsheet aria-hidden="true" />Excel 호환 표로 저장</button>
-          <span role="menuitem" aria-disabled="true" title="개발 예정"><ImageDown aria-hidden="true" />차트를 PNG로 저장 <small>개발 예정</small></span>
-          <span role="menuitem" aria-disabled="true" title="개발 예정"><ImageUp aria-hidden="true" />차트를 SVG로 저장 <small>개발 예정</small></span>
         </>}
       </div>}
     </div>

@@ -432,11 +432,36 @@ export function getDmaicControlHandoff(projectId: string, documentId: string): P
   return request(`/v1/dmaic-projects/${encodeURIComponent(projectId)}/control-handoffs/${encodeURIComponent(documentId)}`);
 }
 
-export type DoeReportTemplate = "standard" | "customer_review" | "regulatory_review";
+export type ReportTemplate = "standard" | "customer_review" | "regulatory_review";
+export type AnalysisReportKind = "doe" | "msa";
+export type AnalysisReportArtifact = "html" | "pdf" | "xlsx" | "zip";
 
-export function doeRunArtifactUrl(runId: string, artifact: "html" | "pdf" | "xlsx" | "zip", template: DoeReportTemplate = "standard"): string {
-  const suffix = artifact === "html" ? "report.html" : artifact === "pdf" ? "report.pdf" : artifact === "xlsx" ? "report.xlsx" : "export";
-  const templateQuery = template === "standard" ? "" : `?template_id=${encodeURIComponent(template)}`;
+export const ANALYSIS_REPORT_REGISTRY: Record<AnalysisReportKind, {
+  artifacts: readonly AnalysisReportArtifact[];
+  supportsTemplates: boolean;
+}> = {
+  doe: { artifacts: ["html", "pdf", "xlsx", "zip"], supportsTemplates: true },
+  msa: { artifacts: ["html", "pdf", "xlsx"], supportsTemplates: false },
+};
+
+export function analysisReportKind(analysisType: string): AnalysisReportKind | null {
+  if (analysisType.startsWith("doe.")) return "doe";
+  if (analysisType.startsWith("msa.")) return "msa";
+  return null;
+}
+
+export function analysisRunArtifactUrl(
+  runId: string,
+  reportKind: AnalysisReportKind,
+  artifact: AnalysisReportArtifact,
+  template: ReportTemplate = "standard",
+): string {
+  if (!ANALYSIS_REPORT_REGISTRY[reportKind].artifacts.includes(artifact)) {
+    throw new Error(`${reportKind} 보고서는 ${artifact} 형식을 지원하지 않습니다.`);
+  }
+  const reportPrefix = reportKind === "doe" ? "report" : "msa-report";
+  const suffix = artifact === "zip" ? "export" : `${reportPrefix}.${artifact}`;
+  const templateQuery = reportKind === "doe" && template !== "standard" ? `?template_id=${encodeURIComponent(template)}` : "";
   return `${API_BASE}/v1/analysis-runs/${encodeURIComponent(runId)}/${suffix}${templateQuery}`;
 }
 
@@ -551,6 +576,14 @@ export function createCapabilityRun(payload: {
     method: "POST",
     body: JSON.stringify(body),
   });
+}
+
+export function createJarqueBeraNormalityRun(payload: { run_id: string; values: number[]; alpha: number }): Promise<StoredRun> {
+  return request("/v1/analysis-runs/normality-jarque-bera", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export function createLinearOlsRun(payload: { run_id: string; response: number[]; predictors: Record<string, number[]>; response_name: string; alpha: number }): Promise<StoredRun> {
+  return request("/v1/analysis-runs/regression-linear-ols", { method: "POST", body: JSON.stringify(payload) });
 }
 
 export function createGageRrRun(payload: {
@@ -849,6 +882,10 @@ export function getFmeaStudy(studyId: string): Promise<StoredFmeaStudy> {
 
 export function getFmeaStudyReport(studyId: string): Promise<FmeaStudyReport> {
   return request(`/v1/fmea-studies/${encodeURIComponent(studyId)}/report`);
+}
+
+export function fmeaStudyArtifactUrl(studyId: string, artifact: "html" | "pdf" | "xlsx"): string {
+  return `${API_BASE}/v1/fmea-studies/${encodeURIComponent(studyId)}/report.${artifact}`;
 }
 
 export function createFmeaStudy(payload: {

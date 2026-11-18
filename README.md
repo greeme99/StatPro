@@ -9,7 +9,7 @@
 - **측정시스템분석(MSA)**: 균형 교차·중첩 Gage R&R(비풀링 ANOVA F·p 판정, 반복성 분산의 정확 95% 신뢰구간), Attribute Agreement, Gage 편의·선형성
 - **고장 형태 및 영향 분석(FMEA)**: 불변 개정, AIAG/VDA 7단계, 조치·재평가·검토·승인, 외부 Action Priority 정책, PFMEA–Control Plan 추적, SPC/MSA Run 연결
 - **데이터·실행 관리**: UTF-8 CSV와 값 전용 XLSX 첫 워크시트 Dataset snapshot, 필터·정렬·선택형 사칙연산 파생 열·현재 revision CSV 내보내기를 갖춘 Worksheet, Analysis Run, ETag/낙관적 동시성, cursor paging, ResultBundle
-- **결과 출력**: 모든 Analysis Run의 읽기 전용 인쇄 보고서·JSON·CSV·Excel 호환 표, SPC 관리도의 PNG·SVG 차트 출력
+- **기초 분석·결과 출력**: Jarque–Bera 정규성 진단과 다중 예측변수 OLS 선형회귀를 실행하며, 모든 Analysis Run의 읽기 전용 인쇄 보고서·JSON·CSV·Excel 호환 표를 제공합니다. OLS는 엔진이 산출한 적합값·잔차가 모두 있을 때 잔차–적합값 PNG·SVG와 전용 인쇄 보고서를 추가로 제공합니다.
 - **품질 도구와 DMAIC 연결**: 체크 시트, 일반 파레토, 특성요인도, 홈 기반 DMAIC 작업 흐름과 학습 리소스
 - **품질 대시보드**: 저장된 ResultBundle의 수치 경로를 불변 지표 스냅샷으로 연결하고 상태·담당·검토 주기·원본 Run 증거를 함께 표시
 - **결함 분석**: 체크 시트 개정 근거 또는 수동 입력에서 범주별 결함·검사 기회·단위 손실·심각도를 기록하고 DPMO·손실·위험 우선순위를 불변 개정으로 보존
@@ -81,9 +81,9 @@ API 문서: <http://127.0.0.1:8765/docs> · 웹 UI: <http://127.0.0.1:5173>
 
 ## 결과와 내보내기
 
-모든 분석은 입력 digest, 엔진 버전, 옵션, 경고, 공개 근거를 포함하는 `ResultBundle` 경계를 통과합니다. DOE는 결정론적 JSON·HTML·수식 없는 XLSX·UTF-8 CSV 표와 SVG 그래프가 포함된 ZIP 내보내기를 제공합니다. 모든 결과는 경로·값 단일 시트 SpreadsheetML Excel 호환 표를 제공하며 원래 계층 구조는 JSON으로 확인합니다. I-MR, Xbar-R, Xbar-S는 추가로 브라우저 인쇄용 HTML(PDF 저장 가능), 전용 SpreadsheetML Excel, 결합 PNG·접근 가능한 SVG를 제공합니다. EWMA·CUSUM·p/np/c/u·Laney P′/U′·희귀사건 G/T는 저장된 `ResultBundle` 차트 데이터로 단일 PNG·접근 가능한 SVG를 생성합니다. 모든 출력은 Run ID·입력 digest·엔진 버전을 함께 보존하며, 차트 화면은 핵심 수치, 관리한계, 이상 신호, 접근 가능한 대체 표, 다음 조치를 같은 결과 맥락에 표시합니다.
+모든 분석은 입력 digest, 엔진 버전, 옵션, 경고, 공개 근거를 포함하는 `ResultBundle` 경계를 통과합니다. DOE는 결정론적 JSON·HTML·수식 없는 XLSX·UTF-8 CSV 표와 SVG 그래프가 포함된 ZIP 내보내기를 제공합니다. 모든 결과는 경로·값 단일 시트 SpreadsheetML Excel 호환 표를 제공하며 원래 계층 구조는 JSON으로 확인합니다. I-MR, Xbar-R, Xbar-S는 추가로 브라우저 인쇄용 HTML(PDF 저장 가능), 전용 SpreadsheetML Excel, 결합 PNG·접근 가능한 SVG를 제공합니다. EWMA·CUSUM·p/np/c/u·Laney P′/U′·희귀사건 G/T는 저장된 `ResultBundle` 차트 데이터로 단일 PNG·접근 가능한 SVG를 생성합니다. OLS는 저장된 `fitted_values` 표가 완전할 때만 잔차–적합값 PNG·접근 가능한 SVG와 같은 차트를 포함한 전용 브라우저 인쇄 보고서를 생성합니다. 모든 출력은 Run ID·입력 digest·엔진 버전을 함께 보존하며, 차트 화면은 핵심 수치, 관리한계, 이상 신호, 접근 가능한 대체 표, 다음 조치를 같은 결과 맥락에 표시합니다.
 
-브라우저 인쇄 기반 PDF의 파일 생성·보관은 사용자의 브라우저 인쇄 대화상자가 담당합니다. I-MR, Xbar-R, Xbar-S 외 SPC 관리도의 전용 PDF·Excel 보고서와 공정능력 전용 PNG·SVG, 조직별 규제/고객 템플릿은 기능별 지원 계약을 확인해야 하는 후속 범위입니다.
+브라우저 인쇄 기반 PDF의 파일 생성·보관은 사용자의 브라우저 인쇄 대화상자가 담당합니다. I-MR, Xbar-R, Xbar-S 외 SPC 관리도의 전용 PDF·Excel 보고서와 공정능력·정규성의 전용 PNG·SVG, 조직별 규제/고객 템플릿은 기능별 지원 계약을 확인해야 하는 후속 범위입니다.
 
 ## 개발 및 검증
 
@@ -95,7 +95,7 @@ cd ..
 python tools\oss_gate.py --check
 ```
 
-현재 기준 검증 결과는 Python 267개와 웹 99개 테스트 통과, 웹 빌드 통과, OSS 게이트 통과입니다. 전체 Ruff 실행에는 기존 코드의 비관련 lint 항목이 남아 있으므로 새 변경은 대상 파일에 대해 별도 검사하고 기존 부채는 후속 정리 항목으로 추적합니다.
+2026-11-18 기준으로 Python 전체 `unittest discover`, 웹 `npm run check`, OSS 게이트 검사를 통과했습니다. 이 기준선에는 Codex SDK 폴백 계약과 Windows DOE PDF 렌더링 회귀 검사가 포함됩니다. `advanced` 및 `codex` optional 의존성은 정책 등록부와 CycloneDX SBOM에 동기화했습니다. 전체 Ruff 실행에는 기존 코드의 비관련 lint 항목이 남아 있으므로 새 변경은 대상 파일에 대해 별도 검사하고 기존 부채는 후속 정리 항목으로 추적합니다.
 
 차트 엔진은 제품 런타임에서 Recharts를 사용합니다. ECharts 6.1.0은 `web/benchmarks/chart-engines/`의 격리된 성능 비교에만 존재하며 제품 코드로 가져오지 않습니다. 근거는 [브라우저 벤치마크](docs/evidence/chart-engine-browser-benchmark.json), [번들 벤치마크](docs/evidence/chart-engine-bundle-benchmark.json)에 보존합니다.
 
@@ -119,4 +119,5 @@ python tools\oss_gate.py --check
 - [테스트 결과 보고서](docs/07.StatPro_Test_Report.md)
 - [메뉴·화면 제안 및 상태](docs/08.StatPro_Menu_UI_Proposal.md)
 - [오픈소스 거버넌스](docs/09.StatPro_OSS_Governance.md)
+- [개발 로드맵 및 완료 기준](docs/11.StatPro_Development_Roadmap.md)
 - [컨텍스트 맵](CONTEXT-MAP.md)

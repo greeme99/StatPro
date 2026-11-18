@@ -77,6 +77,14 @@ export function AnalysisSelectionPage() {
         </section>
       </>}
 
+      <section className="analysis-question-panel" aria-labelledby="basic-analysis-title">
+        <header><span className="eyebrow">기본 분석 작업공간</span><h2 id="basic-analysis-title">데이터 가정과 변수 관계를 먼저 확인합니다</h2></header>
+        <div className="analysis-choice-grid is-compact">
+          <Link className="analysis-choice" to="/analyses/normality"><strong>정규성 검정</strong><span>측정값의 정규성 가정을 Jarque–Bera 검정으로 점검합니다.</span></Link>
+          <Link className="analysis-choice" to="/analyses/regression/linear"><strong>선형회귀 분석</strong><span>연속형 결과(Y)와 하나 이상의 설명변수(X) 관계를 추정합니다.</span></Link>
+        </div>
+      </section>
+
       <section className="analysis-recommendation" aria-live="polite" aria-labelledby="recommendation-title">
         <header><span className="recommendation-icon"><ClipboardCheck aria-hidden="true" /></span><div><span className="eyebrow">추천 작업공간</span><h2 id="recommendation-title">{recommendation.method}</h2><p>{recommendation.family}</p></div></header>
         <p className="recommendation-rationale">{recommendation.rationale}</p>

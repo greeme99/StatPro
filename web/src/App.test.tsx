@@ -161,6 +161,8 @@ describe("StatPro UI", () => {
     render(<MemoryRouter initialEntries={["/analyses"]}><App /></MemoryRouter>);
 
     expect(await screen.findByRole("heading", { name: "통합 분석 추천" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /정규성 검정/ })).toHaveAttribute("href", "/analyses/normality");
+    expect(screen.getByRole("link", { name: /선형회귀 분석/ })).toHaveAttribute("href", "/analyses/regression/linear");
     expect(screen.getByRole("heading", { name: "Xbar-R 관리도" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Xbar-R 분석 설정 열기/ })).toHaveAttribute("href", "/analyses/spc/xbar-r");
 
@@ -189,6 +191,51 @@ describe("StatPro UI", () => {
     await userEvent.clear(screen.getByRole("spinbutton", { name: "USL (상한 규격)" }));
     await userEvent.click(screen.getByRole("button", { name: "공정능력 분석 실행" }));
     expect(screen.getByText("LSL 또는 USL을 하나 이상 입력하고, 규격·목표값은 유한한 숫자로 입력하세요.")).toBeInTheDocument();
+  });
+
+  it("submits multiple aligned predictors to the linear regression workspace", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      if ((init as RequestInit | undefined)?.method === "POST") return new Response(JSON.stringify({ run_id: "regression-test", storage_version: 1, etag: "a".repeat(64), result: { analysis_type: "regression.linear_ols", engine_version: "0.6.0", input_digest: "b".repeat(64), warnings: [], assumptions: [], provenance: [], parameters: {}, diagnostics: {}, tables: {}, plots: {} } }), { status: 201 });
+      return new Response(JSON.stringify({ run_id: "regression-test", storage_version: 1, etag: "a".repeat(64), result: { analysis_type: "regression.linear_ols", engine_version: "0.6.0", input_digest: "b".repeat(64), warnings: [], assumptions: [], provenance: [], parameters: {}, diagnostics: {}, tables: {}, plots: {} } }), { status: 200 });
+    });
+    render(<MemoryRouter initialEntries={["/analyses/regression/linear"]}><App /></MemoryRouter>);
+
+    await userEvent.click(await screen.findByRole("button", { name: "설명변수 추가" }));
+    const names = screen.getAllByRole("textbox", { name: "설명변수 이름" });
+    await userEvent.clear(names[1]);
+    await userEvent.type(names[1], "압력");
+    await userEvent.type(screen.getByRole("textbox", { name: /압력 값\(X\)/ }), "1 2 3 4 5 6");
+    await userEvent.click(screen.getByRole("button", { name: "선형회귀 분석 실행" }));
+
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith("/regression-linear-ols") && (init as RequestInit | undefined)?.method === "POST")).toBe(true));
+    const call = fetchMock.mock.calls.find(([url, init]) => String(url).endsWith("/regression-linear-ols") && (init as RequestInit | undefined)?.method === "POST");
+    expect(JSON.parse(String((call?.[1] as RequestInit).body))).toMatchObject({ predictors: { 온도: [180, 185, 190, 195, 200, 205], 압력: [1, 2, 3, 4, 5, 6] } });
+  });
+
+  it("renders OLS fit, ANOVA, and residual review from the stored result contract", async () => {
+    const user = userEvent.setup();
+    const result = {
+      analysis_type: "regression.linear_ols", engine_version: "0.6.0", input_digest: "b".repeat(64), warnings: [], assumptions: [], provenance: [], parameters: {}, plots: {},
+      diagnostics: { r_squared: 0.92, adjusted_r_squared: 0.88, residual_standard_error: 1.2, residual_degrees_of_freedom: 4, model_f_statistic: 12.3, model_p_value: 0.01 },
+      tables: {
+        coefficients: { rows: [{ term: "Intercept", coefficient: 1, standard_error: 0.2, t_value: 5, p_value: 0.01, significant: true }] },
+        anova: { rows: [{ source: "Model", degrees_of_freedom: 1, sum_squares: 12, mean_square: 12, f_value: 12.3, p_value: 0.01 }] },
+        fitted_values: { rows: [{ observation: 1, actual: 10, fitted: 9.5, residual: 0.5, leverage: 0.2 }] },
+      },
+    };
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      return new Response(JSON.stringify({ run_id: "ols-001", storage_version: 1, etag: "a".repeat(64), result }), { status: 200 });
+    });
+    render(<MemoryRouter initialEntries={["/runs/ols-001"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "선형회귀 결과" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "모형 분산분석" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "관측값별 적합과 잔차" })).toBeInTheDocument();
+    expect(screen.getByRole("table", { name: "원 관측값, 모형 적합값과 잔차" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "결과 출력" }));
+    expect(screen.getByRole("menuitem", { name: "잔차 차트를 PNG로 저장" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "잔차 차트를 SVG로 저장" })).toBeInTheDocument();
   });
 
   it("opens the crossed Gage R&R workspace with its balanced-design contract", async () => {
@@ -442,6 +489,7 @@ describe("StatPro UI", () => {
         action: { label: "p 관리도 열기", href: "/analyses/spc/attribute?chart=p" }, guidance_mode: "rulebase",
         rule_id: "spc-p-variable-sample", recommended_tool: "p 관리도", menu_path: ["통계적 공정관리", "p 관리도"],
         checklist: ["검사 수를 확인한다."], workflow_steps: ["표본별 수량 입력", "관리도 실행"],
+        fallback_steps: [],
       }), { status: 200 });
       return new Response(JSON.stringify({}), { status: 200 });
     });
@@ -517,6 +565,7 @@ describe("StatPro UI", () => {
           menu_path: [],
           checklist: [],
           workflow_steps: [],
+          fallback_steps: [],
         }), { status: 200, headers: { "Content-Type": "application/json" } });
       }
       return new Response(JSON.stringify({ items: [], next_after: null }), { status: 200 });
@@ -552,6 +601,7 @@ describe("StatPro UI", () => {
           menu_path: ["홈 (Home)", "실험계획법 (DOE)", "설계 및 생성"],
           checklist: ["반응값 Y와 목표를 정의", "온도·압력·시간 범위를 확인"],
           workflow_steps: ["목표와 반응 정의", "인자와 범위 정의", "설계 생성", "실험 실행", "분석과 확인 실험"],
+          fallback_steps: [],
           sources: [],
           limitations: ["사용자 검토 후 실행합니다."],
           action: { label: "DOE 절차 시작", href: "/doe" },
@@ -599,6 +649,7 @@ describe("StatPro UI", () => {
           menu_path: [],
           checklist: [],
           workflow_steps: [],
+          fallback_steps: [],
           sources: [],
           limitations: ["범위 밖 기능은 StatPro에서 자동 실행하지 않습니다."],
           action: { label: "지원 분석 범위 확인", href: "/analyses" },
@@ -625,6 +676,7 @@ describe("StatPro UI", () => {
         answer: "현상을 수치와 기간으로 알려주시면 원인 후보와 조치를 함께 정리하겠습니다.",
         provider: "statpro-fallback-unavailable", guidance_mode: "manual_guidance", rule_id: null,
         recommended_tool: null, menu_path: [], checklist: ["현상과 기간 확인"], workflow_steps: [],
+        fallback_steps: [],
         sources: [], limitations: [], action: null,
       }), { status: 200 });
       return new Response(JSON.stringify({}), { status: 200 });
@@ -1424,12 +1476,29 @@ describe("StatPro UI", () => {
     });
     render(<MemoryRouter initialEntries={["/fmea/PFMEA-REPORT"]}><App /></MemoryRouter>);
     await userEvent.click(await screen.findByRole("button", { name: "현재 revision 보기" }));
+    expect(screen.getByRole("link", { name: "HTML 보고서" })).toHaveAttribute("href", "/api/v1/fmea-studies/PFMEA-REPORT/report.html");
+    expect(screen.getByRole("button", { name: "PDF 보고서" })).toBeEnabled();
+    expect(screen.getByRole("link", { name: "Excel 보고서" })).toHaveAttribute("href", "/api/v1/fmea-studies/PFMEA-REPORT/report.xlsx");
     expect(await screen.findByText("보고할 고장 분석 항목이 없습니다.")).toBeInTheDocument();
     expect(screen.getByText("승인 기록 없음")).toBeInTheDocument();
     expect(screen.getByRole("table", { name: "보고서 조회 시 SPC/MSA Run 식별값 재검증" })).toBeInTheDocument();
     expect(screen.getByText("내용 불일치")).toBeInTheDocument();
     expect(screen.getByText("연결된 SPC/MSA Run 중 재검증되지 않은 결과가 있습니다.").closest('[role="alert"]')).toBeInTheDocument();
     expect(screen.getByText("Actor names are self-reported workflow fields.")).toBeInTheDocument();
+  });
+
+  it("guides a PDF report user to the HTML fallback when the local renderer is unavailable", async () => {
+    const result = { analysis_type: "msa.example", engine_version: "0.6.0", input_digest: "b".repeat(64), warnings: [], assumptions: [], provenance: [], parameters: {}, diagnostics: {}, tables: {}, plots: {} };
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      if (url.endsWith("/msa-report.pdf")) return new Response(JSON.stringify({ ok: false, error: { code: "pdf_renderer_unavailable", message: "A local Edge or Chrome PDF renderer is required." } }), { status: 422 });
+      return new Response(JSON.stringify({ run_id: "msa-pdf-001", storage_version: 1, etag: "a".repeat(64), result }), { status: 200 });
+    });
+
+    render(<MemoryRouter initialEntries={["/runs/msa-pdf-001"]}><App /></MemoryRouter>);
+    await userEvent.click(await screen.findByRole("button", { name: "PDF 보고서" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("HTML 보고서를 내려받은 뒤 브라우저의 인쇄 기능에서 PDF로 저장하세요.");
   });
 
   it("validates the DOE response count before creating an analysis run", async () => {
@@ -1507,6 +1576,24 @@ describe("StatPro UI", () => {
     expect(screen.getByRole("heading", { name: "조건별 예측" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "최적 설정" })).toBeInTheDocument();
     expect(screen.getAllByText("A:B").length).toBeGreaterThan(0);
+  });
+
+  it("shows only the supported native report formats for an MSA run", async () => {
+    const result = {
+      analysis_type: "msa.example", engine_version: "0.6.0", input_digest: "b".repeat(64), warnings: [], assumptions: [], provenance: [], parameters: {}, diagnostics: {}, tables: {}, plots: {},
+    };
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      return new Response(JSON.stringify({ run_id: "msa-001", storage_version: 1, etag: "a".repeat(64), result }), { status: 200 });
+    });
+
+    render(<MemoryRouter initialEntries={["/runs/msa-001"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "분석 결과 요약" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "HTML 보고서" })).toHaveAttribute("href", "/api/v1/analysis-runs/msa-001/msa-report.html");
+    expect(screen.getByRole("button", { name: "PDF 보고서" })).toBeEnabled();
+    expect(screen.getByRole("link", { name: "Excel 보고서" })).toHaveAttribute("href", "/api/v1/analysis-runs/msa-001/msa-report.xlsx");
+    expect(screen.queryByRole("link", { name: "그래프·Excel·CSV·JSON 묶음" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "DOE 보고서 양식" })).not.toBeInTheDocument();
   });
 
   it("submits a regular fractional factorial generator", async () => {
