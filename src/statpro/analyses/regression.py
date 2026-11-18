@@ -293,17 +293,35 @@ def linear_ols(
             "significant": p_value <= normalized_alpha if p_value is not None else False,
         })
     fitted_rows = []
+    influence_thresholds = {
+        "leverage": 2.0 * parameter_count / sample_size,
+        "standardized_residual": 2.0,
+        "studentized_residual": 2.0,
+        "cooks_distance": 4.0 / sample_size,
+        "dffits": 2.0 * math.sqrt(parameter_count / sample_size),
+    }
     for index, (actual, prediction, residual) in enumerate(zip(values, fitted, residuals, strict=True)):
         leverage = sum(
             matrix[index][left] * inverse[left][right] * matrix[index][right]
             for left in range(parameter_count) for right in range(parameter_count)
         )
         prediction_margin = t_critical * math.sqrt(residual_ms * (1.0 + leverage))
+        remaining_variance = residual_ms * (1.0 - leverage)
+        standardized_residual = residual / math.sqrt(remaining_variance) if remaining_variance > 0.0 else None
+        deleted_ss = residual_ss - residual * residual / (1.0 - leverage) if leverage < 1.0 else None
+        deleted_ms = deleted_ss / (residual_df - 1) if deleted_ss is not None and residual_df > 1 else None
+        studentized_residual = residual / math.sqrt(deleted_ms * (1.0 - leverage)) if deleted_ms is not None and deleted_ms > 0.0 and leverage < 1.0 else None
+        cooks_distance = residual * residual * leverage / (parameter_count * residual_ms * (1.0 - leverage) ** 2) if residual_ms > 0.0 and leverage < 1.0 else None
+        dffits = studentized_residual * math.sqrt(leverage / (1.0 - leverage)) if studentized_residual is not None and leverage < 1.0 else None
         fitted_rows.append({
             "observation": index + 1, "actual": actual, "fitted": prediction,
             "residual": residual, "leverage": leverage,
             "prediction_interval_lower": prediction - prediction_margin,
             "prediction_interval_upper": prediction + prediction_margin,
+            "standardized_residual": standardized_residual,
+            "studentized_residual": studentized_residual,
+            "cooks_distance": cooks_distance,
+            "dffits": dffits,
         })
     warnings = [
         "OLS estimates and inferential p-values assume independent errors with constant variance; inspect residuals before using the model operationally.",
@@ -328,11 +346,11 @@ def linear_ols(
                 {"source": "Error", "degrees_of_freedom": residual_df, "sum_squares": residual_ss, "mean_square": residual_ms, "f_value": None, "p_value": None},
                 {"source": "Total", "degrees_of_freedom": sample_size - 1, "sum_squares": total_ss, "mean_square": None, "f_value": None, "p_value": None},
             ]},
-            "fitted_values": {"columns": ["observation", "actual", "fitted", "residual", "leverage", "prediction_interval_lower", "prediction_interval_upper"], "rows": fitted_rows},
+            "fitted_values": {"columns": ["observation", "actual", "fitted", "residual", "leverage", "prediction_interval_lower", "prediction_interval_upper", "standardized_residual", "studentized_residual", "cooks_distance", "dffits"], "rows": fitted_rows},
             "collinearity": {"columns": ["term", "vif", "tolerance"], "rows": collinearity_rows},
         },
         plots={},
-        diagnostics={"r_squared": r_squared, "adjusted_r_squared": adjusted_r_squared, "residual_standard_error": math.sqrt(residual_ms), "residual_degrees_of_freedom": residual_df, "model_f_statistic": model_f, "model_p_value": model_p, "prediction_interval_confidence": 1.0 - normalized_alpha, "maximum_vif": maximum_vif},
+        diagnostics={"r_squared": r_squared, "adjusted_r_squared": adjusted_r_squared, "residual_standard_error": math.sqrt(residual_ms), "residual_degrees_of_freedom": residual_df, "model_f_statistic": model_f, "model_p_value": model_p, "prediction_interval_confidence": 1.0 - normalized_alpha, "maximum_vif": maximum_vif, "influence_thresholds": influence_thresholds},
         assumptions=(
             "The response is continuous and observations are aligned by row.",
             "Errors are independent with approximately constant variance.",

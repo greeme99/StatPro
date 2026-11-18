@@ -247,11 +247,11 @@ describe("StatPro UI", () => {
     const user = userEvent.setup();
     const result = {
       analysis_type: "regression.linear_ols", engine_version: "0.6.0", input_digest: "b".repeat(64), warnings: [], assumptions: [], provenance: [], parameters: {}, plots: {},
-      diagnostics: { r_squared: 0.92, adjusted_r_squared: 0.88, residual_standard_error: 1.2, residual_degrees_of_freedom: 4, model_f_statistic: 12.3, model_p_value: 0.01, prediction_interval_confidence: 0.95, maximum_vif: 2.4 },
+      diagnostics: { r_squared: 0.92, adjusted_r_squared: 0.88, residual_standard_error: 1.2, residual_degrees_of_freedom: 4, model_f_statistic: 12.3, model_p_value: 0.01, prediction_interval_confidence: 0.95, maximum_vif: 2.4, influence_thresholds: { cooks_distance: 0.5 } },
       tables: {
         coefficients: { rows: [{ term: "Intercept", coefficient: 1, standard_error: 0.2, t_value: 5, p_value: 0.01, significant: true }] },
         anova: { rows: [{ source: "Model", degrees_of_freedom: 1, sum_squares: 12, mean_square: 12, f_value: 12.3, p_value: 0.01 }] },
-        fitted_values: { rows: [{ observation: 1, actual: 10, fitted: 9.5, residual: 0.5, leverage: 0.2, prediction_interval_lower: 7.1, prediction_interval_upper: 11.9 }] },
+        fitted_values: { rows: [{ observation: 1, actual: 10, fitted: 9.5, residual: 0.5, leverage: 0.2, prediction_interval_lower: 7.1, prediction_interval_upper: 11.9, standardized_residual: 0.4, studentized_residual: 0.42, cooks_distance: 0.12, dffits: 0.21 }] },
         collinearity: { rows: [{ term: "온도", vif: 2.4, tolerance: 0.4167 }] },
       },
     };
@@ -264,6 +264,7 @@ describe("StatPro UI", () => {
     expect(screen.getByRole("heading", { name: "모형 분산분석" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "공선성 진단" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "관측값별 적합과 잔차" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "영향 관측치 진단" })).toBeInTheDocument();
     expect(screen.getByRole("table", { name: "원 관측값, 모형 적합값과 잔차" })).toBeInTheDocument();
     expect(screen.getByRole("table", { name: "설명변수별 분산팽창계수와 허용도" })).toBeInTheDocument();
     expect(screen.getByText("7.1000 ~ 11.9000")).toBeInTheDocument();

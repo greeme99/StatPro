@@ -51,6 +51,22 @@ class LinearOlsTests(unittest.TestCase):
         self.assertGreater(fitted[0]["prediction_interval_upper"], fitted[0]["fitted"])
         self.assertEqual(result.diagnostics["prediction_interval_confidence"], 0.95)
 
+    def test_reports_influence_diagnostics_for_an_outlying_observation(self) -> None:
+        result = linear_ols(
+            [2, 4, 6, 8, 10, 12, 14, 50],
+            {"temperature": [1, 2, 3, 4, 5, 6, 7, 8]},
+            response_name="Yield",
+        )
+
+        fitted = result.tables["fitted_values"]["rows"]
+        outlier = fitted[-1]
+
+        self.assertGreater(outlier["standardized_residual"], 1.0)
+        self.assertGreater(outlier["studentized_residual"], 1.0)
+        self.assertGreater(outlier["cooks_distance"], 1.0)
+        self.assertGreater(outlier["dffits"], 1.0)
+        self.assertEqual(result.diagnostics["influence_thresholds"]["cooks_distance"], 0.5)
+
 
 class LogisticRegressionTests(unittest.TestCase):
     def test_returns_odds_ratio_intervals_and_probabilities(self) -> None:
