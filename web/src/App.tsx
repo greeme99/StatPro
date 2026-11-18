@@ -60,6 +60,8 @@ const FishboneWorkspacePage = lazyNamed(() => import("./pages/FishboneWorkspaceP
 const QualityDashboardPage = lazyNamed(() => import("./pages/QualityDashboardPage"), "QualityDashboardPage");
 const DefectAnalysisPage = lazyNamed(() => import("./pages/DefectAnalysisPage"), "DefectAnalysisPage");
 const AnalysisSelectionPage = lazyNamed(() => import("./pages/AnalysisSelectionPage"), "AnalysisSelectionPage");
+const BasicAnalysisSetupPage = lazyNamed(() => import("./pages/BasicAnalysisSetupPage"), "BasicAnalysisSetupPage");
+const WelchTSetupPage = lazyNamed(() => import("./pages/WelchTSetupPage"), "WelchTSetupPage");
 
 function ProtectedApp({ children }: { children: ReactNode }) {
   const location = useLocation();
@@ -74,6 +76,9 @@ function WorkspaceRoutes() {
         <Routes>
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/analyses" element={<AnalysisSelectionPage />} />
+          <Route path="/analyses/normality" element={<BasicAnalysisSetupPage />} />
+          <Route path="/analyses/regression/linear" element={<BasicAnalysisSetupPage />} />
+          <Route path="/analyses/hypothesis/independent-welch-t" element={<WelchTSetupPage />} />
           <Route path="/analyses/imr/new" element={<ImrSetupPage />} />
         <Route path="/analyses/capability" element={<CapabilitySetupPage />} />
         <Route path="/analyses/msa/gage-rr" element={<GageRrSetupPage />} />
