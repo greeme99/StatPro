@@ -1219,7 +1219,7 @@ describe("StatPro UI", () => {
       next_after: null,
     }), { status: 200, headers: { "Content-Type": "application/json" } }));
 
-    render(<MemoryRouter><App /></MemoryRouter>);
+    render(<MemoryRouter initialEntries={["/dashboard"]}><App /></MemoryRouter>);
     expect(await screen.findByRole("heading", { name: "공정 판단을 한 화면에서" })).toBeInTheDocument();
     expect(await screen.findByText("run-001")).toBeInTheDocument();
   });
@@ -1311,7 +1311,7 @@ describe("StatPro UI", () => {
 
   it("toggles dark theme with an accessible control", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ items: [], next_after: null }), { status: 200, headers: { "Content-Type": "application/json" } }));
-    render(<MemoryRouter><App /></MemoryRouter>);
+    render(<MemoryRouter initialEntries={["/home"]}><App /></MemoryRouter>);
     await userEvent.click(screen.getByRole("button", { name: "다크 테마로 전환" }));
     expect(document.documentElement.dataset.theme).toBe("dark");
   });
@@ -1607,7 +1607,7 @@ describe("StatPro UI", () => {
 
     render(<MemoryRouter initialEntries={["/runs/msa-pdf-001"]}><App /></MemoryRouter>);
     await userEvent.click(await screen.findByRole("button", { name: "PDF 보고서" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("HTML 보고서를 내려받은 뒤 브라우저의 인쇄 기능에서 PDF로 저장하세요.");
+    expect((await screen.findByText(/HTML 보고서를 내려받은 뒤 브라우저의 인쇄 기능에서 PDF로 저장하세요\./)).closest('[role="alert"]')).toBeInTheDocument();
   });
 
   it("validates the DOE response count before creating an analysis run", async () => {
