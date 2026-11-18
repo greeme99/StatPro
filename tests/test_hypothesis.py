@@ -8,6 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from statpro.analyses.hypothesis import independent_welch_t_test
 from statpro.analyses.hypothesis import paired_t_test
+from statpro.analyses.hypothesis import one_way_anova
 from statpro.domain.errors import AnalysisInputError
 
 
@@ -33,3 +34,8 @@ class IndependentWelchTTests(unittest.TestCase):
         self.assertEqual(result.analysis_type, "hypothesis.paired_t")
         self.assertAlmostEqual(result.diagnostics["difference"], 2.0)
         self.assertEqual(result.diagnostics["degrees_of_freedom"], 3)
+
+    def test_returns_one_way_anova_statistics(self) -> None:
+        result = one_way_anova({"A": [1, 2, 3], "B": [4, 5, 6], "C": [7, 8, 9]})
+        self.assertEqual(result.analysis_type, "hypothesis.one_way_anova")
+        self.assertGreater(result.diagnostics["f_statistic"], 0)
