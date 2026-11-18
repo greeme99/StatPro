@@ -29,7 +29,7 @@ from statpro.analyses.msa import (
 )
 from statpro.analyses.normality import jarque_bera_normality
 from statpro.analyses.hypothesis import independent_welch_t_test, one_way_anova, paired_t_test
-from statpro.analyses.regression import linear_ols
+from statpro.analyses.regression import linear_ols, polynomial_ols
 from statpro.analyses.spc import (
     c_chart,
     individuals_moving_range,
@@ -68,6 +68,7 @@ __all__ = [
     "paired_t_test",
     "one_way_anova",
     "linear_ols",
+    "polynomial_ols",
     "nonnormal_process_capability",
     "normal_process_capability",
     "np_chart",

@@ -6,7 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from statpro.analyses.regression import linear_ols, logistic_regression
+from statpro.analyses.regression import linear_ols, logistic_regression, polynomial_ols
 from statpro.domain.errors import AnalysisInputError
 
 
@@ -44,6 +44,22 @@ class LogisticRegressionTests(unittest.TestCase):
         self.assertEqual(result.diagnostics["classification_threshold"], 0.5)
         self.assertGreaterEqual(result.diagnostics["classification_accuracy"], 0)
         self.assertLessEqual(result.diagnostics["classification_accuracy"], 1)
+
+
+class PolynomialRegressionTests(unittest.TestCase):
+    def test_expands_predictors_to_the_requested_degree(self) -> None:
+        result = polynomial_ols(
+            [2.2, 4.8, 10.2, 17.8, 27.8, 39.8],
+            {"temperature": [1, 2, 3, 4, 5, 6]},
+            response_name="Yield",
+            degree=2,
+        )
+        terms = [row["term"] for row in result.tables["coefficients"]["rows"]]
+        self.assertEqual(result.analysis_type, "regression.polynomial_ols")
+        self.assertEqual(terms, ["Intercept", "temperature", "temperature^2"])
+        self.assertEqual(result.parameters["degree"], 2)
+        self.assertEqual(result.parameters["source_predictor_names"], ["temperature"])
+        self.assertGreater(result.diagnostics["r_squared"], 0.99)
 
 
 if __name__ == "__main__":

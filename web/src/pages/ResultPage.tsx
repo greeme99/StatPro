@@ -58,7 +58,7 @@ export function ResultPage() {
   const reportKind = result ? analysisReportKind(result.analysis_type) : null;
   const reportDescriptor = reportKind ? ANALYSIS_REPORT_REGISTRY[reportKind] : null;
   const normality = result?.analysis_type === "normality.jarque_bera";
-  const regression = result?.analysis_type === "regression.linear_ols" || result?.analysis_type === "regression.logistic";
+  const regression = result?.analysis_type === "regression.linear_ols" || result?.analysis_type === "regression.polynomial_ols" || result?.analysis_type === "regression.logistic";
   const welchT = result?.analysis_type === "hypothesis.independent_welch_t";
   const pairedT = result?.analysis_type === "hypothesis.paired_t";
   const anova = result?.analysis_type === "hypothesis.one_way_anova" || result?.analysis_type === "hypothesis.chi_square_independence";
@@ -144,18 +144,19 @@ function ChiSquareResult({ result }: { result: StoredRun["result"] }) { const d 
 
 function LinearRegressionResult({ result }: { result: StoredRun["result"] }) {
   if (result.analysis_type === "regression.logistic") return <LogisticRegressionResult result={result} />;
+  const polynomial = result.analysis_type === "regression.polynomial_ols";
   const coefficients = (result.tables.coefficients as { rows?: Array<Record<string, string | number | boolean | null>> } | undefined)?.rows ?? [];
   const anova = (result.tables.anova as { rows?: Array<Record<string, string | number | null>> } | undefined)?.rows ?? [];
   const fittedValues = (result.tables.fitted_values as { rows?: Array<Record<string, number | null>> } | undefined)?.rows ?? [];
   const diagnostic = (name: string) => result.diagnostics[name] as number | null;
   return <>
-    <section className="metric-grid result-metrics" aria-label="선형회귀 모형 적합도">
+    <section className="metric-grid result-metrics" aria-label={`${polynomial ? "다항" : "선형"}회귀 모형 적합도`}>
       <article className="metric-card"><span>R²</span><strong>{statistic(diagnostic("r_squared"))}</strong><small>설명된 변동 비율</small></article>
       <article className="metric-card"><span>수정 R²</span><strong>{statistic(diagnostic("adjusted_r_squared"))}</strong><small>변수 수 보정</small></article>
       <article className="metric-card"><span>잔차 표준오차</span><strong>{statistic(diagnostic("residual_standard_error"))}</strong><small>모형 오차의 크기</small></article>
       <article className="metric-card"><span>모형 p값</span><strong>{statistic(diagnostic("model_p_value"))}</strong><small>전체 모형 F 검정</small></article>
     </section>
-    <section className="panel table-panel"><header className="panel-heading"><div><span className="eyebrow">OLS</span><h2>선형회귀 결과</h2></div><span>잔차 자유도 {diagnostic("residual_degrees_of_freedom") ?? "—"}</span></header><p>계수의 유의성만으로 운영 설정을 확정하지 말고 잔차·공정 제약·확인 실험을 함께 검토하세요.</p><div className="table-scroll"><table><caption>회귀 계수와 유의성</caption><thead><tr><th>항</th><th>계수</th><th>표준오차</th><th>t</th><th>p값</th><th>판정</th></tr></thead><tbody>{coefficients.map((row) => <tr key={String(row.term)}><th>{row.term}</th><td>{statistic(row.coefficient as number | null)}</td><td>{statistic(row.standard_error as number | null)}</td><td>{statistic(row.t_value as number | null)}</td><td>{statistic(row.p_value as number | null)}</td><td>{row.significant ? "유의" : "비유의"}</td></tr>)}</tbody></table></div></section>
+    <section className="panel table-panel"><header className="panel-heading"><div><span className="eyebrow">OLS</span><h2>{polynomial ? "다항회귀 결과" : "선형회귀 결과"}</h2></div><span>잔차 자유도 {diagnostic("residual_degrees_of_freedom") ?? "—"}</span></header><p>{polynomial ? `차수 ${String(result.parameters.degree ?? "—")}의 항은 관측된 X 범위에서만 해석하세요. 상호작용과 자동 변수선택은 포함하지 않습니다.` : "계수의 유의성만으로 운영 설정을 확정하지 말고 잔차·공정 제약·확인 실험을 함께 검토하세요."}</p><div className="table-scroll"><table><caption>회귀 계수와 유의성</caption><thead><tr><th>항</th><th>계수</th><th>표준오차</th><th>t</th><th>p값</th><th>판정</th></tr></thead><tbody>{coefficients.map((row) => <tr key={String(row.term)}><th>{row.term}</th><td>{statistic(row.coefficient as number | null)}</td><td>{statistic(row.standard_error as number | null)}</td><td>{statistic(row.t_value as number | null)}</td><td>{statistic(row.p_value as number | null)}</td><td>{row.significant ? "유의" : "비유의"}</td></tr>)}</tbody></table></div></section>
     <section className="panel table-panel"><header className="panel-heading"><div><span className="eyebrow">ANOVA</span><h2>모형 분산분석</h2></div><span>F {statistic(diagnostic("model_f_statistic"))}</span></header><div className="table-scroll"><table><caption>모형·오차·전체 변동</caption><thead><tr><th>변동원</th><th>DF</th><th>SS</th><th>MS</th><th>F</th><th>p값</th></tr></thead><tbody>{anova.map((row) => <tr key={String(row.source)}><th>{row.source}</th><td>{row.degrees_of_freedom}</td><td>{statistic(row.sum_squares as number | null)}</td><td>{statistic(row.mean_square as number | null)}</td><td>{statistic(row.f_value as number | null)}</td><td>{statistic(row.p_value as number | null)}</td></tr>)}</tbody></table></div></section>
     <section className="panel table-panel"><header className="panel-heading"><div><span className="eyebrow">RESIDUAL REVIEW</span><h2>관측값별 적합과 잔차</h2></div><span>높은 leverage와 큰 잔차를 함께 검토</span></header><div className="table-scroll"><table><caption>원 관측값, 모형 적합값과 잔차</caption><thead><tr><th>관측</th><th>실제값</th><th>적합값</th><th>잔차</th><th>Leverage</th></tr></thead><tbody>{fittedValues.map((row) => <tr key={row.observation}><th>{row.observation}</th><td>{statistic(row.actual ?? null)}</td><td>{statistic(row.fitted ?? null)}</td><td>{statistic(row.residual ?? null)}</td><td>{statistic(row.leverage ?? null)}</td></tr>)}</tbody></table></div></section>
   </>;

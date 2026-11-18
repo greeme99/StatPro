@@ -52,6 +52,7 @@ class LocalApiContractTests(unittest.TestCase):
         self.assertIn("/v1/analysis-runs/t-chart", openapi.json()["paths"])
         self.assertIn("/v1/analysis-runs/normality-jarque-bera", openapi.json()["paths"])
         self.assertIn("/v1/analysis-runs/regression-linear-ols", openapi.json()["paths"])
+        self.assertIn("/v1/analysis-runs/regression-polynomial-ols", openapi.json()["paths"])
         self.assertIn("/v1/analysis-runs/independent-welch-t", openapi.json()["paths"])
         self.assertIn("/v1/analysis-runs/one-way-anova", openapi.json()["paths"])
         self.assertIn("/v1/analysis-runs/pareto", openapi.json()["paths"])
@@ -913,6 +914,17 @@ class LocalApiContractTests(unittest.TestCase):
                     "response_name": "Yield",
                 },
                 "regression.linear_ols",
+            ),
+            (
+                "/v1/analysis-runs/regression-polynomial-ols",
+                {
+                    "run_id": "polynomial-ols",
+                    "response": [2.2, 4.8, 10.2, 17.8, 27.8, 39.8],
+                    "predictors": {"temperature": [1, 2, 3, 4, 5, 6]},
+                    "response_name": "Yield",
+                    "degree": 2,
+                },
+                "regression.polynomial_ols",
             ),
             (
                 "/v1/analysis-runs/independent-welch-t",

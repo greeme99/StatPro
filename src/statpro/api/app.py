@@ -52,7 +52,7 @@ from statpro.analyses.normality import jarque_bera_normality
 from statpro.analyses.hypothesis import independent_welch_t_test
 from statpro.analyses.hypothesis import paired_t_test
 from statpro.analyses.hypothesis import chi_square_independence, one_way_anova
-from statpro.analyses.regression import linear_ols, logistic_regression
+from statpro.analyses.regression import linear_ols, logistic_regression, polynomial_ols
 from statpro.analyses.spc import (
     c_chart,
     cusum_chart,
@@ -399,6 +399,10 @@ class LinearOlsRunRequest(ApiModel):
     predictors: dict[str, list[float]] = Field(min_length=1, max_length=20)
     response_name: str = Field(default="Response", min_length=1, max_length=255)
     alpha: float = Field(default=0.05, ge=0.001, le=0.5)
+
+
+class PolynomialOlsRunRequest(LinearOlsRunRequest):
+    degree: StrictInt = Field(default=2, ge=2, le=3)
 
 
 class LogisticRegressionRunRequest(ApiModel):
@@ -2664,6 +2668,28 @@ def create_app(
                 request.response,
                 request.predictors,
                 response_name=request.response_name,
+                alpha=request.alpha,
+            ),
+        )
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _response(stored)
+
+    @app.post(
+        "/v1/analysis-runs/regression-polynomial-ols",
+        status_code=201,
+        response_model=StoredRunResponse,
+    )
+    def run_polynomial_ols(
+        request: PolynomialOlsRunRequest, response: Response
+    ) -> StoredRunResponse:
+        stored = _save_run(
+            repository,
+            request.run_id,
+            polynomial_ols(
+                request.response,
+                request.predictors,
+                response_name=request.response_name,
+                degree=request.degree,
                 alpha=request.alpha,
             ),
         )

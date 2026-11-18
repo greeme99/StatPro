@@ -59,6 +59,57 @@ def logistic_regression(response: Sequence[float], predictors: Mapping[str, Sequ
     return ResultBundle(analysis_type="regression.logistic", engine_version=ENGINE_VERSION, input_digest=input_digest({"response":values,"predictors":columns,"response_name":response_name,"alpha":alpha}), parameters={"response_name":response_name,"predictor_names":names,"alpha":alpha,"sample_size":len(values)}, tables={"coefficients":{"columns":["term","coefficient","odds_ratio","odds_ratio_ci_lower","odds_ratio_ci_upper","standard_error","z_value","p_value","significant"],"rows":rows},"fitted_values":{"columns":["observation","actual","predicted_probability"],"rows":[{"observation":i+1,"actual":values[i],"predicted_probability":probabilities[i]} for i in range(len(values))]}}, plots={}, diagnostics={"event_count":sum(values),"predicted_event_count":sum(probabilities),"classification_threshold":classification_threshold,"classification_accuracy":classification_accuracy,"log_likelihood":log_likelihood}, assumptions=("Rows are independent and the response is coded 0 or 1.",), warnings=("Wald inference can be unstable with small samples or separation; review coefficients and event counts.",), provenance=(NIST_LINEAR_LEAST_SQUARES_SOURCE,))
 
 
+def polynomial_ols(
+    response: Sequence[float],
+    predictors: Mapping[str, Sequence[float]],
+    *,
+    response_name: str = "Response",
+    degree: int = 2,
+    alpha: float = 0.05,
+) -> ResultBundle:
+    """Fit an OLS model with explicit per-predictor polynomial terms.
+
+    Interaction terms, automatic term selection, and extrapolation assessment
+    are intentionally outside this focused polynomial extension.
+    """
+    if isinstance(degree, bool) or degree not in (2, 3):
+        raise AnalysisInputError("invalid_polynomial_degree", "Polynomial degree must be 2 or 3.", "degree")
+    if len(predictors) * degree > 20:
+        raise AnalysisInputError("too_many_polynomial_terms", "At most 20 expanded polynomial terms are supported.", "predictors")
+
+    source_names = list(predictors)
+    expanded_predictors: dict[str, list[float]] = {}
+    for name, source_values in predictors.items():
+        if not name.strip():
+            raise AnalysisInputError("empty_predictor_name", "Predictor names cannot be empty.", "predictors")
+        values = finite_values(source_values, f"predictors.{name}")
+        for exponent in range(1, degree + 1):
+            term_name = name if exponent == 1 else f"{name}^{exponent}"
+            term_values = [value**exponent for value in values]
+            if any(not math.isfinite(value) for value in term_values):
+                raise AnalysisInputError("non_finite_polynomial_term", "Polynomial expansion produced a non-finite value.", f"predictors.{name}")
+            expanded_predictors[term_name] = term_values
+
+    fitted = linear_ols(response, expanded_predictors, response_name=response_name, alpha=alpha)
+    return ResultBundle(
+        analysis_type="regression.polynomial_ols",
+        engine_version=fitted.engine_version,
+        input_digest=input_digest({"response": list(response), "predictors": predictors, "response_name": response_name, "degree": degree, "alpha": alpha}),
+        parameters={
+            **fitted.parameters,
+            "degree": degree,
+            "source_predictor_names": source_names,
+            "expanded_predictor_names": list(expanded_predictors),
+        },
+        tables=fitted.tables,
+        plots=fitted.plots,
+        diagnostics=fitted.diagnostics,
+        assumptions=(*fitted.assumptions, "Polynomial terms model curvature within the observed predictor range; extrapolation requires separate review."),
+        warnings=(*fitted.warnings, "Polynomial terms are fitted without interactions or automatic term selection."),
+        provenance=fitted.provenance,
+    )
+
+
 def linear_ols(
     response: Sequence[float],
     predictors: Mapping[str, Sequence[float]],

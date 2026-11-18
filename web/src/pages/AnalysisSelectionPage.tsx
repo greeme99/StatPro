@@ -82,6 +82,7 @@ export function AnalysisSelectionPage() {
         <div className="analysis-choice-grid is-compact">
           <Link className="analysis-choice" to="/analyses/normality"><strong>정규성 검정</strong><span>측정값의 정규성 가정을 Jarque–Bera 검정으로 점검합니다.</span></Link>
           <Link className="analysis-choice" to="/analyses/regression/linear"><strong>선형회귀 분석</strong><span>연속형 결과(Y)와 하나 이상의 설명변수(X) 관계를 추정합니다.</span></Link>
+          <Link className="analysis-choice" to="/analyses/regression/polynomial"><strong>다항회귀 분석</strong><span>관측 범위 안에서 곡선형 X–Y 관계를 2차 또는 3차 항으로 추정합니다.</span></Link>
           <Link className="analysis-choice" to="/analyses/regression/logistic"><strong>로지스틱 회귀</strong><span>합격·불합격 등 0/1 결과(Y)의 발생확률을 추정합니다.</span></Link>
           <Link className="analysis-choice" to="/analyses/hypothesis/independent-welch-t"><strong>독립표본 t-검정</strong><span>독립 두 집단의 평균차를 Welch 방법으로 비교합니다.</span></Link>
           <Link className="analysis-choice" to="/analyses/hypothesis/paired-t"><strong>대응표본 t-검정</strong><span>같은 대상의 전후 또는 짝지어진 두 측정값 차이를 비교합니다.</span></Link>

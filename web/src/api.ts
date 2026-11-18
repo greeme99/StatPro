@@ -585,6 +585,9 @@ export function createJarqueBeraNormalityRun(payload: { run_id: string; values: 
 export function createLinearOlsRun(payload: { run_id: string; response: number[]; predictors: Record<string, number[]>; response_name: string; alpha: number }): Promise<StoredRun> {
   return request("/v1/analysis-runs/regression-linear-ols", { method: "POST", body: JSON.stringify(payload) });
 }
+export function createPolynomialOlsRun(payload: { run_id: string; response: number[]; predictors: Record<string, number[]>; response_name: string; degree: 2 | 3; alpha: number }): Promise<StoredRun> {
+  return request("/v1/analysis-runs/regression-polynomial-ols", { method: "POST", body: JSON.stringify(payload) });
+}
 export function createLogisticRegressionRun(payload: { run_id: string; response: number[]; predictors: Record<string, number[]>; response_name: string; alpha: number }): Promise<StoredRun> { return request("/v1/analysis-runs/regression-logistic", { method: "POST", body: JSON.stringify(payload) }); }
 export function createIndependentWelchTRun(payload: { run_id: string; group_a: number[]; group_b: number[]; group_a_name: string; group_b_name: string; alpha: number }): Promise<StoredRun> { return request("/v1/analysis-runs/independent-welch-t", { method: "POST", body: JSON.stringify(payload) }); }
 export function createPairedTRun(payload: { run_id: string; before: number[]; after: number[]; before_name: string; after_name: string; alpha: number }): Promise<StoredRun> { return request("/v1/analysis-runs/paired-t", { method: "POST", body: JSON.stringify(payload) }); }

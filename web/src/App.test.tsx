@@ -213,6 +213,23 @@ describe("StatPro UI", () => {
     expect(JSON.parse(String((call?.[1] as RequestInit).body))).toMatchObject({ predictors: { 온도: [180, 185, 190, 195, 200, 205], 압력: [1, 2, 3, 4, 5, 6] } });
   });
 
+  it("submits the selected degree to the polynomial regression workspace", async () => {
+    sessionStorage.setItem(AUTH_SESSION_KEY, "true");
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      return new Response(JSON.stringify({ run_id: "polynomial-test", storage_version: 1, etag: "a".repeat(64), result: { analysis_type: "regression.polynomial_ols", engine_version: "0.6.0", input_digest: "b".repeat(64), warnings: [], assumptions: [], provenance: [], parameters: {}, diagnostics: {}, tables: {}, plots: {} } }), { status: 201 });
+    });
+    render(<MemoryRouter initialEntries={["/analyses/regression/polynomial"]}><App /></MemoryRouter>);
+
+    expect(await screen.findByRole("heading", { name: "다항회귀 분석 설정" })).toBeInTheDocument();
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: /다항 차수/ }), "3");
+    await userEvent.click(screen.getByRole("button", { name: "다항회귀 분석 실행" }));
+
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith("/regression-polynomial-ols") && (init as RequestInit | undefined)?.method === "POST")).toBe(true));
+    const call = fetchMock.mock.calls.find(([url, init]) => String(url).endsWith("/regression-polynomial-ols") && (init as RequestInit | undefined)?.method === "POST");
+    expect(JSON.parse(String((call?.[1] as RequestInit).body))).toMatchObject({ degree: 3, predictors: { 온도: [180, 185, 190, 195, 200, 205] } });
+  });
+
   it("renders OLS fit, ANOVA, and residual review from the stored result contract", async () => {
     const user = userEvent.setup();
     const result = {

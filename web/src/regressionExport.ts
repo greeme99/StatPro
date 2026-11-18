@@ -17,7 +17,7 @@ function fixed(value: number) {
  * is present: this prevents the UI from producing an inferred or placeholder plot.
  */
 export function toRegressionExportView(result: ResultBundle): RegressionExportView | null {
-  if (result.analysis_type !== "regression.linear_ols") return null;
+  if (result.analysis_type !== "regression.linear_ols" && result.analysis_type !== "regression.polynomial_ols") return null;
   const rows = (result.tables.fitted_values as { rows?: unknown } | undefined)?.rows;
   if (!Array.isArray(rows) || rows.length === 0) return null;
   const points = rows.map((row): RegressionExportPoint | null => {
