@@ -51,6 +51,7 @@ from statpro.analyses.msa import (
 from statpro.analyses.normality import jarque_bera_normality
 from statpro.analyses.hypothesis import independent_welch_t_test
 from statpro.analyses.hypothesis import paired_t_test
+from statpro.analyses.hypothesis import one_way_anova
 from statpro.analyses.regression import linear_ols
 from statpro.analyses.spc import (
     c_chart,
@@ -414,6 +415,11 @@ class PairedTRunRequest(ApiModel):
     after: list[float] = Field(min_length=2)
     before_name: str = Field(default="Before", min_length=1, max_length=255)
     after_name: str = Field(default="After", min_length=1, max_length=255)
+    alpha: float = Field(default=0.05, ge=0.001, le=0.5)
+
+class OneWayAnovaRunRequest(ApiModel):
+    run_id: RunId
+    groups: dict[str, list[float]] = Field(min_length=2)
     alpha: float = Field(default=0.05, ge=0.001, le=0.5)
 
 
@@ -2673,6 +2679,12 @@ def create_app(
     @app.post("/v1/analysis-runs/paired-t", status_code=201, response_model=StoredRunResponse)
     def run_paired_t(request: PairedTRunRequest, response: Response) -> StoredRunResponse:
         stored = _save_run(repository, request.run_id, paired_t_test(request.before, request.after, before_name=request.before_name, after_name=request.after_name, alpha=request.alpha))
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _response(stored)
+
+    @app.post("/v1/analysis-runs/one-way-anova", status_code=201, response_model=StoredRunResponse)
+    def run_one_way_anova(request: OneWayAnovaRunRequest, response: Response) -> StoredRunResponse:
+        stored = _save_run(repository, request.run_id, one_way_anova(request.groups, alpha=request.alpha))
         response.headers["ETag"] = f'"{stored.etag}"'
         return _response(stored)
 
