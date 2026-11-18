@@ -62,6 +62,7 @@ const DefectAnalysisPage = lazyNamed(() => import("./pages/DefectAnalysisPage"),
 const AnalysisSelectionPage = lazyNamed(() => import("./pages/AnalysisSelectionPage"), "AnalysisSelectionPage");
 const BasicAnalysisSetupPage = lazyNamed(() => import("./pages/BasicAnalysisSetupPage"), "BasicAnalysisSetupPage");
 const WelchTSetupPage = lazyNamed(() => import("./pages/WelchTSetupPage"), "WelchTSetupPage");
+const PairedTSetupPage = lazyNamed(() => import("./pages/PairedTSetupPage"), "PairedTSetupPage");
 const OneWayAnovaSetupPage = lazyNamed(() => import("./pages/OneWayAnovaSetupPage"), "OneWayAnovaSetupPage");
 
 function ProtectedApp({ children }: { children: ReactNode }) {
@@ -80,6 +81,7 @@ function WorkspaceRoutes() {
           <Route path="/analyses/normality" element={<BasicAnalysisSetupPage />} />
           <Route path="/analyses/regression/linear" element={<BasicAnalysisSetupPage />} />
           <Route path="/analyses/hypothesis/independent-welch-t" element={<WelchTSetupPage />} />
+          <Route path="/analyses/hypothesis/paired-t" element={<PairedTSetupPage />} />
           <Route path="/analyses/hypothesis/one-way-anova" element={<OneWayAnovaSetupPage />} />
           <Route path="/analyses/imr/new" element={<ImrSetupPage />} />
         <Route path="/analyses/capability" element={<CapabilitySetupPage />} />

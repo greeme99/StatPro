@@ -586,6 +586,7 @@ export function createLinearOlsRun(payload: { run_id: string; response: number[]
   return request("/v1/analysis-runs/regression-linear-ols", { method: "POST", body: JSON.stringify(payload) });
 }
 export function createIndependentWelchTRun(payload: { run_id: string; group_a: number[]; group_b: number[]; group_a_name: string; group_b_name: string; alpha: number }): Promise<StoredRun> { return request("/v1/analysis-runs/independent-welch-t", { method: "POST", body: JSON.stringify(payload) }); }
+export function createPairedTRun(payload: { run_id: string; before: number[]; after: number[]; before_name: string; after_name: string; alpha: number }): Promise<StoredRun> { return request("/v1/analysis-runs/paired-t", { method: "POST", body: JSON.stringify(payload) }); }
 export function createOneWayAnovaRun(payload: { run_id: string; groups: Record<string, number[]>; alpha: number }): Promise<StoredRun> { return request("/v1/analysis-runs/one-way-anova", { method: "POST", body: JSON.stringify(payload) }); }
 
 export function createGageRrRun(payload: {
