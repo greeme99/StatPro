@@ -6,7 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from statpro.analyses.regression import linear_ols
+from statpro.analyses.regression import linear_ols, logistic_regression
 from statpro.domain.errors import AnalysisInputError
 
 
@@ -30,6 +30,16 @@ class LinearOlsTests(unittest.TestCase):
         with self.assertRaises(AnalysisInputError) as raised:
             linear_ols([1, 2], {"x": [1, 2]})
         self.assertEqual(raised.exception.detail.code, "insufficient_observations")
+
+
+class LogisticRegressionTests(unittest.TestCase):
+    def test_returns_odds_ratio_intervals_and_probabilities(self) -> None:
+        result = logistic_regression([0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0], {"temperature": list(range(12))})
+        coefficient = result.tables["coefficients"]["rows"][1]
+        self.assertEqual(result.analysis_type, "regression.logistic")
+        self.assertGreater(coefficient["odds_ratio"], 0)
+        self.assertLess(coefficient["odds_ratio_ci_lower"], coefficient["odds_ratio_ci_upper"])
+        self.assertEqual(len(result.tables["fitted_values"]["rows"]), 12)
 
 
 if __name__ == "__main__":
