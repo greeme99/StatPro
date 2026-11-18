@@ -213,6 +213,19 @@ describe("StatPro UI", () => {
     expect(JSON.parse(String((call?.[1] as RequestInit).body))).toMatchObject({ predictors: { 온도: [180, 185, 190, 195, 200, 205], 압력: [1, 2, 3, 4, 5, 6] } });
   });
 
+  it("submits two predictors to the interaction regression workspace", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      return new Response(JSON.stringify({ run_id: "interaction-test", storage_version: 1, etag: "a".repeat(64), result: { analysis_type: "regression.interaction_ols", engine_version: "0.6.0", input_digest: "b".repeat(64), warnings: [], assumptions: [], provenance: [], parameters: {}, diagnostics: {}, tables: {}, plots: {} } }), { status: 201 });
+    });
+    render(<MemoryRouter initialEntries={["/analyses/regression/interaction"]}><App /></MemoryRouter>);
+
+    expect(await screen.findByRole("heading", { name: "교호작용 회귀 분석 설정" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "교호작용 회귀 분석 실행" }));
+
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith("/regression-interaction-ols") && (init as RequestInit | undefined)?.method === "POST")).toBe(true));
+  });
+
   it("submits the selected degree to the polynomial regression workspace", async () => {
     sessionStorage.setItem(AUTH_SESSION_KEY, "true");
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {

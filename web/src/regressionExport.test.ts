@@ -29,4 +29,8 @@ describe("OLS regression report", () => {
     expect(report).toContain("7.1000");
     expect(report).toContain("12.9000");
   });
+
+  it("reuses the OLS export for a two-factor interaction model", () => {
+    expect(toRegressionExportView({ ...result, analysis_type: "regression.interaction_ols" })).not.toBeNull();
+  });
 });

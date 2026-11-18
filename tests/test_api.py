@@ -956,6 +956,19 @@ class LocalApiContractTests(unittest.TestCase):
                 "regression.polynomial_ols",
             ),
             (
+                "/v1/analysis-runs/regression-interaction-ols",
+                {
+                    "run_id": "interaction-ols",
+                    "response": [3, 5, 8, 12, 17, 23, 30, 38],
+                    "predictors": {
+                        "temperature": [1, 2, 3, 4, 5, 6, 7, 8],
+                        "pressure": [2, 1, 2, 1, 2, 1, 2, 1],
+                    },
+                    "response_name": "Yield",
+                },
+                "regression.interaction_ols",
+            ),
+            (
                 "/v1/analysis-runs/independent-welch-t",
                 {"run_id": "welch-t", "group_a": [1, 2, 3, 4], "group_b": [3, 4, 5, 6]},
                 "hypothesis.independent_welch_t",
