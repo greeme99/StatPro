@@ -31,6 +31,26 @@ class LinearOlsTests(unittest.TestCase):
             linear_ols([1, 2], {"x": [1, 2]})
         self.assertEqual(raised.exception.detail.code, "insufficient_observations")
 
+    def test_reports_vif_and_observation_prediction_intervals(self) -> None:
+        result = linear_ols(
+            [12, 15, 17, 21, 24, 28, 30, 35],
+            {
+                "temperature": [1, 2, 3, 4, 5, 6, 7, 8],
+                "pressure": [3, 1, 4, 2, 5, 3, 6, 4],
+            },
+            response_name="Yield",
+        )
+
+        collinearity = result.tables["collinearity"]["rows"]
+        fitted = result.tables["fitted_values"]["rows"]
+
+        self.assertEqual([row["term"] for row in collinearity], ["temperature", "pressure"])
+        self.assertTrue(all(row["vif"] >= 1.0 for row in collinearity))
+        self.assertTrue(all(0.0 < row["tolerance"] <= 1.0 for row in collinearity))
+        self.assertLess(fitted[0]["prediction_interval_lower"], fitted[0]["fitted"])
+        self.assertGreater(fitted[0]["prediction_interval_upper"], fitted[0]["fitted"])
+        self.assertEqual(result.diagnostics["prediction_interval_confidence"], 0.95)
+
 
 class LogisticRegressionTests(unittest.TestCase):
     def test_returns_odds_ratio_intervals_and_probabilities(self) -> None:

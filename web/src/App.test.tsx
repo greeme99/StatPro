@@ -234,11 +234,12 @@ describe("StatPro UI", () => {
     const user = userEvent.setup();
     const result = {
       analysis_type: "regression.linear_ols", engine_version: "0.6.0", input_digest: "b".repeat(64), warnings: [], assumptions: [], provenance: [], parameters: {}, plots: {},
-      diagnostics: { r_squared: 0.92, adjusted_r_squared: 0.88, residual_standard_error: 1.2, residual_degrees_of_freedom: 4, model_f_statistic: 12.3, model_p_value: 0.01 },
+      diagnostics: { r_squared: 0.92, adjusted_r_squared: 0.88, residual_standard_error: 1.2, residual_degrees_of_freedom: 4, model_f_statistic: 12.3, model_p_value: 0.01, prediction_interval_confidence: 0.95, maximum_vif: 2.4 },
       tables: {
         coefficients: { rows: [{ term: "Intercept", coefficient: 1, standard_error: 0.2, t_value: 5, p_value: 0.01, significant: true }] },
         anova: { rows: [{ source: "Model", degrees_of_freedom: 1, sum_squares: 12, mean_square: 12, f_value: 12.3, p_value: 0.01 }] },
-        fitted_values: { rows: [{ observation: 1, actual: 10, fitted: 9.5, residual: 0.5, leverage: 0.2 }] },
+        fitted_values: { rows: [{ observation: 1, actual: 10, fitted: 9.5, residual: 0.5, leverage: 0.2, prediction_interval_lower: 7.1, prediction_interval_upper: 11.9 }] },
+        collinearity: { rows: [{ term: "온도", vif: 2.4, tolerance: 0.4167 }] },
       },
     };
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
@@ -248,8 +249,11 @@ describe("StatPro UI", () => {
     render(<MemoryRouter initialEntries={["/runs/ols-001"]}><App /></MemoryRouter>);
     expect(await screen.findByRole("heading", { name: "선형회귀 결과" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "모형 분산분석" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "공선성 진단" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "관측값별 적합과 잔차" })).toBeInTheDocument();
     expect(screen.getByRole("table", { name: "원 관측값, 모형 적합값과 잔차" })).toBeInTheDocument();
+    expect(screen.getByRole("table", { name: "설명변수별 분산팽창계수와 허용도" })).toBeInTheDocument();
+    expect(screen.getByText("7.1000 ~ 11.9000")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "결과 출력" }));
     expect(screen.getByRole("menuitem", { name: "잔차 차트를 PNG로 저장" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "잔차 차트를 SVG로 저장" })).toBeInTheDocument();
@@ -515,6 +519,27 @@ describe("StatPro UI", () => {
     await user.click(within(panel).getByRole("button", { name: "작업 명령 보내기" }));
     await waitFor(() => expect(requests).toHaveLength(2));
     expect(requests[1]).toMatchObject({ model_preference: "codex" });
+  });
+
+  it("uses the saved AI Assistant provider setting for prompts without an explicit alias", async () => {
+    const requests: unknown[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      if (String(input).endsWith("/v1/copilot/guidance")) {
+        requests.push(JSON.parse(String((init as RequestInit).body)));
+        return new Response(JSON.stringify({ answer: "지정 모델 응답", provider: "selected", sources: [], limitations: [], guidance_mode: "llm_fallback", menu_path: [], checklist: [], workflow_steps: [], fallback_steps: [] }), { status: 200 });
+      }
+      if (String(input).endsWith("/v1/copilot/rules")) return new Response(JSON.stringify([]), { status: 200 });
+      return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+    });
+    const user = userEvent.setup();
+    render(<MemoryRouter initialEntries={["/home"]}><App /></MemoryRouter>);
+    await user.click(await screen.findByRole("button", { name: "AI Assistant 보이기" }));
+    const panel = screen.getByRole("complementary", { name: "AI Assistant" });
+    await user.selectOptions(within(panel).getByRole("combobox", { name: "AI 응답 경로" }), "codex");
+    await user.type(within(panel).getByLabelText("문의 및 작업 요청 · Text to Work"), "이 작업표를 검토해줘");
+    await user.click(within(panel).getByRole("button", { name: "작업 명령 보내기" }));
+    await waitFor(() => expect(requests).toHaveLength(1));
+    expect(requests[0]).toMatchObject({ model_preference: "codex" });
   });
 
   it("opens a registered analysis Case and continues its procedure in chat", async () => {

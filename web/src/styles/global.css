@@ -192,6 +192,8 @@ svg { width: var(--icon-size); height: var(--icon-size); stroke-width: 1.8; }
 .copilot-action svg { width: var(--space-4); height: var(--space-4); }
 .copilot-composer { display: grid; gap: var(--space-2); padding: var(--space-4) var(--space-5); border-top: var(--border-width) solid var(--color-border); background: var(--color-bg-raised); }
 .copilot-composer > label { font-weight: 700; }
+.copilot-provider-setting { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: var(--space-2); color: var(--color-text-secondary); font-size: var(--font-caption-size); }
+.copilot-provider-setting select { min-width: 0; min-height: var(--control-height); padding: var(--space-1) var(--space-2); border: var(--border-width) solid var(--color-border-strong); border-radius: var(--radius-md); color: var(--color-text-primary); background: var(--color-bg-surface); font: inherit; }
 .copilot-command-row { display: grid; grid-template-columns: var(--touch-target) minmax(0, 1fr) var(--touch-target) var(--touch-target); align-items: center; gap: var(--space-2); min-height: var(--touch-target); padding: var(--space-1) var(--space-2); border: var(--border-width) solid var(--color-border-strong); border-radius: var(--radius-xl); background: var(--color-bg-subtle); }
 .copilot-command-row:focus-within { border-color: var(--color-focus-ring); }
 .copilot-composer textarea { min-width: 0; min-height: var(--touch-target); max-height: calc(var(--space-16) * 2); border: 0; outline: 0; resize: vertical; color: var(--color-text-primary); background: transparent; font: inherit; line-height: inherit; }

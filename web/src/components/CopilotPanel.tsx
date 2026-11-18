@@ -31,6 +31,7 @@ type WorkflowSession = {
   messageId: number;
   stepIndex: number;
 };
+type ModelPreference = "auto" | "rulebase" | "exaone" | "codex";
 
 const commandStarters = [
   { label: "사용법", text: "현재 작업공간의 사용법과 시작 순서를 안내해줘." },
@@ -95,6 +96,10 @@ export function CopilotPanel() {
   const context = workspaceContext(location.pathname);
   const [open, setOpen] = useState(() => localStorage.getItem("statpro-copilot-open") === "true");
   const [question, setQuestion] = useState("");
+  const [modelPreferenceSetting, setModelPreferenceSetting] = useState<ModelPreference>(() => {
+    const saved = localStorage.getItem("statpro-copilot-model-preference");
+    return saved === "rulebase" || saved === "exaone" || saved === "codex" ? saved : "auto";
+  });
   const [commandMenuOpen, setCommandMenuOpen] = useState(false);
   const [showCases, setShowCases] = useState(false);
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null);
@@ -155,6 +160,10 @@ export function CopilotPanel() {
     if (open) window.requestAnimationFrame(() => inputRef.current?.focus());
     else setShowCases(false);
   }, [open]);
+
+  useEffect(() => {
+    localStorage.setItem("statpro-copilot-model-preference", modelPreferenceSetting);
+  }, [modelPreferenceSetting]);
 
   useEffect(() => {
     let active = true;
@@ -224,7 +233,7 @@ export function CopilotPanel() {
     setQuestion("");
     setAnswerLoading(true);
     const modelPreference = /(?:^|\s)\/?model\s+(rulebase|exaone|codex)\b/i.exec(text)?.[1]?.toLowerCase()
-      ?? (/(?:\bexaone\b|엑사원)/i.test(text) ? "exaone" : /(?:\bcodex\b|\bsdk\b|코덱스|에스디케이)/i.test(text) ? "codex" : "auto");
+      ?? (/(?:\bexaone\b|엑사원)/i.test(text) ? "exaone" : /(?:\bcodex\b|\bsdk\b|코덱스|에스디케이)/i.test(text) ? "codex" : modelPreferenceSetting);
     try {
       const guidance = await getCopilotGuidance({
         question: text,
@@ -371,6 +380,7 @@ export function CopilotPanel() {
         </div>
         <form className="copilot-composer" onSubmit={submit}>
           <label htmlFor="copilot-question">문의 및 작업 요청 · Text to Work</label>
+          <label className="copilot-provider-setting"><span>AI 응답 경로</span><select value={modelPreferenceSetting} onChange={(event) => setModelPreferenceSetting(event.target.value as ModelPreference)} disabled={answerLoading}><option value="auto">기본 순서 · Rulebase → EXAONE → Codex SDK</option><option value="rulebase">Rulebase만</option><option value="exaone">EXAONE만</option><option value="codex">Codex SDK만</option></select></label>
           <div className="copilot-command-row">
             <button className="copilot-command-icon" type="button" aria-label="명령 추가" aria-expanded={commandMenuOpen} aria-controls="copilot-command-menu" disabled={answerLoading} onClick={() => setCommandMenuOpen((current) => !current)}><Plus aria-hidden="true" /></button>
             <textarea ref={inputRef} id="copilot-question" value={question} onChange={(event) => setQuestion(event.target.value)} onKeyDown={submitOnEnter} placeholder="질문하거나 작업 가이드를 요청하세요 (Shift+Enter 줄바꿈)" rows={2} disabled={answerLoading} />

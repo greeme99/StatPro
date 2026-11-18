@@ -23,6 +23,48 @@ NIST_LEAST_SQUARES_GLOSSARY_SOURCE = ProvenanceSource(
 )
 
 
+def _two_sided_t_critical(alpha: float, degrees_of_freedom: int) -> float:
+    """Return the positive two-sided Student-t critical value via F(1, df)."""
+    lower, upper = 0.0, 1.0
+    target_tail = alpha
+    while (f_survival(upper * upper, 1, degrees_of_freedom) or 0.0) > target_tail:
+        upper *= 2.0
+        if upper > 1e6:
+            raise AnalysisInputError("distribution_not_converged", "The t critical value search exceeded its bound.", "alpha")
+    for _ in range(80):
+        midpoint = (lower + upper) / 2.0
+        if (f_survival(midpoint * midpoint, 1, degrees_of_freedom) or 0.0) > target_tail:
+            lower = midpoint
+        else:
+            upper = midpoint
+    return (lower + upper) / 2.0
+
+
+def _collinearity_rows(predictors: Mapping[str, Sequence[float]]) -> list[dict[str, float | str]]:
+    """Calculate VIF from the inverse correlation matrix of the fitted X terms."""
+    names = list(predictors)
+    if len(names) == 1:
+        return [{"term": names[0], "vif": 1.0, "tolerance": 1.0}]
+    centered = {
+        name: [value - fmean(values) for value in values]
+        for name, values in predictors.items()
+    }
+    sums_of_squares = {name: sum(value * value for value in values) for name, values in centered.items()}
+    correlation = [
+        [
+            sum(left * right for left, right in zip(centered[left_name], centered[right_name], strict=True))
+            / math.sqrt(sums_of_squares[left_name] * sums_of_squares[right_name])
+            for right_name in names
+        ]
+        for left_name in names
+    ]
+    inverse = invert_matrix(correlation, field="predictors")
+    return [
+        {"term": name, "vif": inverse[index][index], "tolerance": 1.0 / inverse[index][index]}
+        for index, name in enumerate(names)
+    ]
+
+
 def logistic_regression(response: Sequence[float], predictors: Mapping[str, Sequence[float]], *, response_name: str = "Outcome", alpha: float = 0.05) -> ResultBundle:
     """Fit a binary logistic model with bounded IRLS iterations."""
     values = finite_values(response, "response")
@@ -236,6 +278,8 @@ def linear_ols(
         1.0 - (1.0 - r_squared) * (sample_size - 1) / residual_df
         if r_squared is not None else None
     )
+    t_critical = _two_sided_t_critical(normalized_alpha, residual_df)
+    collinearity_rows = _collinearity_rows(normalized_predictors)
 
     terms = ["Intercept", *predictor_names]
     coefficient_rows: list[dict[str, float | str | bool | None]] = []
@@ -254,9 +298,12 @@ def linear_ols(
             matrix[index][left] * inverse[left][right] * matrix[index][right]
             for left in range(parameter_count) for right in range(parameter_count)
         )
+        prediction_margin = t_critical * math.sqrt(residual_ms * (1.0 + leverage))
         fitted_rows.append({
             "observation": index + 1, "actual": actual, "fitted": prediction,
             "residual": residual, "leverage": leverage,
+            "prediction_interval_lower": prediction - prediction_margin,
+            "prediction_interval_upper": prediction + prediction_margin,
         })
     warnings = [
         "OLS estimates and inferential p-values assume independent errors with constant variance; inspect residuals before using the model operationally.",
@@ -266,6 +313,9 @@ def linear_ols(
         warnings.append("Residual variance is zero; F and coefficient t/p statistics are not reported as exact significance claims.")
     if sample_size < 20:
         warnings.append("Small sample size: coefficient and model inference can be unstable.")
+    maximum_vif = max(row["vif"] for row in collinearity_rows)
+    if maximum_vif >= 10.0:
+        warnings.append("High predictor collinearity: at least one VIF is 10 or higher; review redundant X variables before operational use.")
     return ResultBundle(
         analysis_type="regression.linear_ols",
         engine_version=ENGINE_VERSION,
@@ -278,10 +328,11 @@ def linear_ols(
                 {"source": "Error", "degrees_of_freedom": residual_df, "sum_squares": residual_ss, "mean_square": residual_ms, "f_value": None, "p_value": None},
                 {"source": "Total", "degrees_of_freedom": sample_size - 1, "sum_squares": total_ss, "mean_square": None, "f_value": None, "p_value": None},
             ]},
-            "fitted_values": {"columns": ["observation", "actual", "fitted", "residual", "leverage"], "rows": fitted_rows},
+            "fitted_values": {"columns": ["observation", "actual", "fitted", "residual", "leverage", "prediction_interval_lower", "prediction_interval_upper"], "rows": fitted_rows},
+            "collinearity": {"columns": ["term", "vif", "tolerance"], "rows": collinearity_rows},
         },
         plots={},
-        diagnostics={"r_squared": r_squared, "adjusted_r_squared": adjusted_r_squared, "residual_standard_error": math.sqrt(residual_ms), "residual_degrees_of_freedom": residual_df, "model_f_statistic": model_f, "model_p_value": model_p},
+        diagnostics={"r_squared": r_squared, "adjusted_r_squared": adjusted_r_squared, "residual_standard_error": math.sqrt(residual_ms), "residual_degrees_of_freedom": residual_df, "model_f_statistic": model_f, "model_p_value": model_p, "prediction_interval_confidence": 1.0 - normalized_alpha, "maximum_vif": maximum_vif},
         assumptions=(
             "The response is continuous and observations are aligned by row.",
             "Errors are independent with approximately constant variance.",
