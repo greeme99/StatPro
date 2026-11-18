@@ -180,6 +180,13 @@ def chi_square_quantile(probability: float, degrees_of_freedom: float) -> float:
     return (lower + upper) / 2.0
 
 
+def chi_square_survival(value: float | None, degrees_of_freedom: float) -> float | None:
+    if value is None or degrees_of_freedom <= 0.0: return None
+    if value <= 0.0: return 1.0
+    if not math.isfinite(value): return 0.0
+    return min(1.0, max(0.0, 1.0 - _regularized_gamma_lower(degrees_of_freedom / 2.0, value / 2.0)))
+
+
 def finite_values(values: Iterable[object], field: str) -> list[float]:
     converted: list[float] = []
     for index, value in enumerate(values):

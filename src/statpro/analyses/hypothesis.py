@@ -6,7 +6,7 @@ import math
 from collections.abc import Sequence
 from statistics import fmean
 
-from statpro.analyses.common import f_survival, finite_values
+from statpro.analyses.common import chi_square_survival, f_survival, finite_values
 from statpro.domain.errors import AnalysisInputError
 from statpro.domain.identity import input_digest
 from statpro.domain.models import ProvenanceSource, ResultBundle
@@ -16,6 +16,7 @@ NIST_TWO_SAMPLE_T_SOURCE = ProvenanceSource(
     title="NIST/SEMATECH Two-Sample t-Test",
     url="https://www.itl.nist.gov/div898/handbook/eda/section3/eda353.htm",
 )
+NIST_CHI_SQUARE_SOURCE = ProvenanceSource(title="NIST/SEMATECH Chi-Square Test", url="https://www.itl.nist.gov/div898/handbook/eda/section3/eda35f.htm")
 
 
 def _sample_variance(values: list[float], mean: float) -> float:
@@ -102,3 +103,18 @@ def one_way_anova(groups: dict[str, Sequence[float]], *, alpha: float = 0.05) ->
     if any(not name.strip() or len(values) < 2 for name, values in normalized.items()): raise AnalysisInputError("insufficient_observations", "Each group needs a name and at least two observations.", "groups")
     all_values = [value for values in normalized.values() for value in values]; grand = fmean(all_values); means = {name: fmean(values) for name, values in normalized.items()}; between = sum(len(normalized[name]) * (mean-grand)**2 for name, mean in means.items()); within = sum(sum((value-means[name])**2 for value in values) for name, values in normalized.items()); dfb, dfw = len(normalized)-1, len(all_values)-len(normalized); msb, msw = between/dfb, within/dfw; statistic = msb/msw if msw else None; p = f_survival(statistic, dfb, dfw); eta = between/(between+within) if between+within else None
     return ResultBundle(analysis_type="hypothesis.one_way_anova", engine_version=ENGINE_VERSION, input_digest=input_digest({"groups": normalized,"alpha":alpha}), parameters={"method":"one_way_anova","alpha":alpha}, tables={"anova":{"columns":["source","df","sum_squares","mean_square","f_value","p_value"],"rows":[{"source":"Between groups","df":dfb,"sum_squares":between,"mean_square":msb,"f_value":statistic,"p_value":p},{"source":"Within groups","df":dfw,"sum_squares":within,"mean_square":msw,"f_value":None,"p_value":None}]},"group_summary":{"columns":["group","n","mean"],"rows":[{"group":name,"n":len(values),"mean":means[name]} for name,values in normalized.items()]}},plots={},diagnostics={"f_statistic":statistic,"p_value":p,"eta_squared":eta,"reject_equal_means":p <= alpha if p is not None else False},assumptions=("Groups are independent with approximately equal within-group variance.",),warnings=("A significant omnibus ANOVA does not identify which groups differ; use a separately validated post-hoc method.",),provenance=(NIST_TWO_SAMPLE_T_SOURCE,))
+
+
+def chi_square_independence(rows: Sequence[str], columns: Sequence[str], counts: Sequence[Sequence[int]], *, alpha: float = 0.05) -> ResultBundle:
+    if len(rows) < 2 or len(columns) < 2 or len(counts) != len(rows) or any(len(row) != len(columns) for row in counts): raise AnalysisInputError("invalid_contingency_table", "A contingency table needs at least two rows and two columns.", "counts")
+    if not 0.001 <= alpha <= 0.5 or any(not name.strip() for name in [*rows, *columns]): raise AnalysisInputError("invalid_chi_square_input", "Use non-empty category names and a valid alpha.", "alpha")
+    values = [[float(value) for value in row] for row in counts]
+    if any(value < 0 or not value.is_integer() for row in values for value in row): raise AnalysisInputError("invalid_count", "Contingency values must be non-negative whole counts.", "counts")
+    total = sum(sum(row) for row in values)
+    row_totals, col_totals = [sum(row) for row in values], [sum(values[i][j] for i in range(len(rows))) for j in range(len(columns))]
+    if total <= 0 or any(value == 0 for value in [*row_totals, *col_totals]): raise AnalysisInputError("empty_category", "Each row and column needs an observation.", "counts")
+    expected = [[row_totals[i] * col_totals[j] / total for j in range(len(columns))] for i in range(len(rows))]
+    statistic = sum((values[i][j] - expected[i][j]) ** 2 / expected[i][j] for i in range(len(rows)) for j in range(len(columns))); df = (len(rows)-1)*(len(columns)-1); p_value = chi_square_survival(statistic, df)
+    cells = [{"row": rows[i], "column": columns[j], "observed": int(values[i][j]), "expected": expected[i][j]} for i in range(len(rows)) for j in range(len(columns))]
+    warnings = ("Some expected counts are below 5; review the asymptotic approximation.",) if any(value < 5 for row in expected for value in row) else ()
+    return ResultBundle(analysis_type="hypothesis.chi_square_independence", engine_version=ENGINE_VERSION, input_digest=input_digest({"rows":list(rows),"columns":list(columns),"counts":values,"alpha":alpha}), parameters={"method":"chi_square_independence","alpha":alpha}, tables={"cells":{"columns":["row","column","observed","expected"],"rows":cells}}, plots={}, diagnostics={"chi_square":statistic,"degrees_of_freedom":df,"p_value":p_value,"cramers_v":math.sqrt(statistic/(total*min(len(rows)-1,len(columns)-1))),"reject_independence":p_value <= alpha if p_value is not None else False}, assumptions=("Observations are independent and appear in one table cell.", "Expected counts require review."), warnings=warnings, provenance=(NIST_CHI_SQUARE_SOURCE,))

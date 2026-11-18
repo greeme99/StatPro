@@ -8,7 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from statpro.analyses.hypothesis import independent_welch_t_test
 from statpro.analyses.hypothesis import paired_t_test
-from statpro.analyses.hypothesis import one_way_anova
+from statpro.analyses.hypothesis import chi_square_independence, one_way_anova
 from statpro.domain.errors import AnalysisInputError
 
 
@@ -39,3 +39,8 @@ class IndependentWelchTTests(unittest.TestCase):
         result = one_way_anova({"A": [1, 2, 3], "B": [4, 5, 6], "C": [7, 8, 9]})
         self.assertEqual(result.analysis_type, "hypothesis.one_way_anova")
         self.assertGreater(result.diagnostics["f_statistic"], 0)
+
+    def test_returns_chi_square_independence_statistics(self) -> None:
+        result = chi_square_independence(["주간", "야간"], ["합격", "불합격"], [[90, 10], [70, 30]])
+        self.assertEqual(result.analysis_type, "hypothesis.chi_square_independence")
+        self.assertLess(result.diagnostics["p_value"], 0.01)
