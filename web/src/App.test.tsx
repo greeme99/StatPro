@@ -2192,4 +2192,20 @@ describe("StatPro UI", () => {
     expect((await screen.findAllByText("표준 작업 교육 부족")).length).toBeGreaterThanOrEqual(1);
     expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith("/causes"))).toBe(true);
   });
+
+  it("submits one-way ANOVA groups through the published analysis route", async () => {
+    const stored = { run_id: "anova-ui", result: { analysis_type: "hypothesis.one_way_anova", diagnostics: { f_statistic: 27, p_value: 0.001, eta_squared: 0.9, reject_equal_means: true }, tables: { group_summary: { rows: [{ group: "조건 A", n: 3, mean: 99 }, { group: "조건 B", n: 3, mean: 102 }, { group: "조건 C", n: 3, mean: 105 }] }, anova: { rows: [] } }, warnings: [], notes: [] } };
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      return new Response(JSON.stringify(stored), { status: 200 });
+    });
+
+    render(<MemoryRouter initialEntries={["/analyses/hypothesis/one-way-anova"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "일원 분산분석 설정" })).toBeInTheDocument();
+    await userEvent.clear(screen.getByLabelText("Run ID"));
+    await userEvent.type(screen.getByLabelText("Run ID"), "anova-ui");
+    await userEvent.click(screen.getByRole("button", { name: "ANOVA 실행" }));
+
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith("/v1/analysis-runs/one-way-anova") && (init as RequestInit | undefined)?.method === "POST")).toBe(true));
+  });
 });
