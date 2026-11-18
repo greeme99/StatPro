@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping, Sequence
+from itertools import combinations
 from statistics import NormalDist, fmean
 
 from statpro.analyses.common import f_survival, finite_values, invert_matrix
@@ -106,6 +107,47 @@ def polynomial_ols(
         diagnostics=fitted.diagnostics,
         assumptions=(*fitted.assumptions, "Polynomial terms model curvature within the observed predictor range; extrapolation requires separate review."),
         warnings=(*fitted.warnings, "Polynomial terms are fitted without interactions or automatic term selection."),
+        provenance=fitted.provenance,
+    )
+
+
+def interaction_ols(
+    response: Sequence[float],
+    predictors: Mapping[str, Sequence[float]],
+    *,
+    response_name: str = "Response",
+    alpha: float = 0.05,
+) -> ResultBundle:
+    """Fit OLS with all explicit two-factor interactions and no term selection."""
+    source_names = list(predictors)
+    term_count = len(source_names) + (len(source_names) * (len(source_names) - 1)) // 2
+    if term_count > 20:
+        raise AnalysisInputError("too_many_interaction_terms", "At most 20 main and two-factor interaction terms are supported.", "predictors")
+
+    normalized = {name: finite_values(values, f"predictors.{name}") for name, values in predictors.items()}
+    expanded_predictors = dict(normalized)
+    for left, right in combinations(source_names, 2):
+        expanded_predictors[f"{left}*{right}"] = [
+            left_value * right_value
+            for left_value, right_value in zip(normalized[left], normalized[right], strict=True)
+        ]
+
+    fitted = linear_ols(response, expanded_predictors, response_name=response_name, alpha=alpha)
+    return ResultBundle(
+        analysis_type="regression.interaction_ols",
+        engine_version=fitted.engine_version,
+        input_digest=input_digest({"response": list(response), "predictors": predictors, "response_name": response_name, "interaction_order": 2, "alpha": alpha}),
+        parameters={
+            **fitted.parameters,
+            "interaction_order": 2,
+            "source_predictor_names": source_names,
+            "expanded_predictor_names": list(expanded_predictors),
+        },
+        tables=fitted.tables,
+        plots=fitted.plots,
+        diagnostics=fitted.diagnostics,
+        assumptions=(*fitted.assumptions, "Every two-factor interaction is included explicitly; interpretation requires sufficient observations across the joint predictor range."),
+        warnings=(*fitted.warnings, "Higher-order interactions and automatic term selection are not included."),
         provenance=fitted.provenance,
     )
 

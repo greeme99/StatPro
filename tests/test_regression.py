@@ -6,7 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from statpro.analyses.regression import linear_ols, logistic_regression, polynomial_ols
+from statpro.analyses.regression import interaction_ols, linear_ols, logistic_regression, polynomial_ols
 from statpro.domain.errors import AnalysisInputError
 
 
@@ -60,6 +60,22 @@ class PolynomialRegressionTests(unittest.TestCase):
         self.assertEqual(result.parameters["degree"], 2)
         self.assertEqual(result.parameters["source_predictor_names"], ["temperature"])
         self.assertGreater(result.diagnostics["r_squared"], 0.99)
+
+
+class InteractionRegressionTests(unittest.TestCase):
+    def test_adds_requested_two_factor_interaction_terms(self) -> None:
+        result = interaction_ols(
+            [3, 5, 8, 12, 17, 23, 30, 38],
+            {
+                "temperature": [1, 2, 3, 4, 5, 6, 7, 8],
+                "pressure": [2, 1, 2, 1, 2, 1, 2, 1],
+            },
+            response_name="Yield",
+        )
+        terms = [row["term"] for row in result.tables["coefficients"]["rows"]]
+        self.assertEqual(result.analysis_type, "regression.interaction_ols")
+        self.assertIn("temperature*pressure", terms)
+        self.assertEqual(result.parameters["interaction_order"], 2)
 
 
 if __name__ == "__main__":
