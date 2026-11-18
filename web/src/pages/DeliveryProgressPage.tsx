@@ -10,7 +10,7 @@ const goals: Goal[] = [
   { title: "측정시스템 분석(MSA)", progress: 86, delivery: "구현됨", available: "연속 측정은 교차·중첩 Gage R&R과 편의·선형성, 표준 판정 검사는 Attribute Agreement로 실행합니다. 균형 Gage R&R은 ANOVA 분모·F·p 판정과 반복성 분산의 정확 95% 신뢰구간을 실행 근거와 함께 보존합니다.", remaining: "다른 분산성분 신뢰구간, REML·비균형 설계와 측정계획 연계는 아직 시작할 수 없습니다.", to: "/analyses/msa/gage-rr-nested" },
   { title: "FMEA·관리계획 인수인계", progress: 80, delivery: "외부 정책 필요", available: "PFMEA 개정·조치·재평가·승인과 SPC/MSA 실행 근거를 Control Plan에 연결합니다.", remaining: "운영 tenant, SCIM 계정 수명주기, 조건부 접근과 조직별 전자서명 정책은 조직 제공 정책과 실환경 검증이 필요합니다.", to: "/fmea" },
   { title: "DMAIC 개선 프로젝트", progress: 86, delivery: "구현됨", available: "정의·측정·분석·개선·관리 문서와 분석 실행 근거를 프로젝트 단위로 연결합니다. 개선 단계는 개선안·파일럿·비용편익 시나리오·실행계획을 불변 개정으로 저장하고, 실행계획에는 단계별 담당·목표일·완료기준과 소통·품질·교육 계획을 보존합니다.", remaining: "프로젝트 문서의 Word/PDF 출력, 조직별 승인 양식, 실시간 데이터 연동과 실제 롤아웃·교육 이수의 외부 검증은 후속 범위입니다.", to: "/home/dmaic" },
-  { title: "AI Copilot 안내", progress: 82, delivery: "외부 정책 필요", available: "Rulebase 기반으로 현상·데이터 구조에 맞는 도구, 메뉴 경로, 체크리스트, 업무절차를 안내합니다. 미적중 질의는 EXAONE 2.5로 전달하고 실패 시 읽기 전용 Codex SDK로 대체합니다.", remaining: "EXAONE API 키·전송 정책·운영 감사 기준과 Codex 인증·계정 권한을 확인한 뒤에만 생성형 AI 폴백을 활성화할 수 있습니다." },
+  { title: "AI Assistant 안내", progress: 82, delivery: "외부 정책 필요", available: "Rulebase 기반으로 현상·데이터 구조에 맞는 도구, 메뉴 경로, 체크리스트, 업무절차를 안내합니다. 미적중 질의는 EXAONE 2.5로 전달하고 실패 시 읽기 전용 Codex SDK로 대체합니다.", remaining: "EXAONE API 키·전송 정책·운영 감사 기준과 Codex 인증·계정 권한을 확인한 뒤에만 생성형 AI 폴백을 활성화할 수 있습니다." },
 ];
 
 const iconFor = (delivery: Exclude<Delivery, "구현됨">) => delivery === "외부 정책 필요" ? ShieldAlert : CircleDashed;

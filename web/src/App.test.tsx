@@ -436,13 +436,13 @@ describe("StatPro UI", () => {
     expect(within(readiness).getByRole("listitem", { name: /정의 \(Define\).*미완료/ })).toBeInTheDocument();
   });
 
-  it("opens the contextual AI Copilot and answers without changing analysis settings", async () => {
+  it("opens the contextual AI Assistant and answers without changing analysis settings", async () => {
     localStorage.clear();
     const user = userEvent.setup();
     render(<MemoryRouter initialEntries={["/analyses/spc/xbar-r"]}><App /></MemoryRouter>);
 
-    await user.click(screen.getByRole("button", { name: "AI Copilot 보이기" }));
-    const panel = screen.getByRole("complementary", { name: "AI Copilot" });
+    await user.click(screen.getByRole("button", { name: "AI Assistant 보이기" }));
+    const panel = screen.getByRole("complementary", { name: "AI Assistant" });
     expect(panel).toHaveClass("is-open");
     expect(within(panel).getByRole("button", { name: "분석 Case 보기" })).toBeInTheDocument();
     expect(within(panel).queryByRole("region", { name: "등록된 분석 Case" })).not.toBeInTheDocument();
@@ -454,18 +454,18 @@ describe("StatPro UI", () => {
     expect(within(panel).getByRole("link", { name: "Xbar-R 분석 설정 열기" })).toHaveAttribute("href", "/analyses/spc/xbar-r");
     expect(localStorage.getItem("statpro-copilot-open")).toBe("true");
 
-    await user.click(screen.getByRole("button", { name: "AI Copilot 닫기" }));
+    await user.click(screen.getByRole("button", { name: "AI Assistant 닫기" }));
     expect(localStorage.getItem("statpro-copilot-open")).toBe("false");
   });
 
   it("grows the Copilot panel by dragging its left and bottom edges", async () => {
     localStorage.clear();
     render(<MemoryRouter initialEntries={["/home"]}><App /></MemoryRouter>);
-    await userEvent.click(screen.getByRole("button", { name: "AI Copilot 보이기" }));
-    const panel = screen.getByRole("complementary", { name: "AI Copilot" });
+    await userEvent.click(screen.getByRole("button", { name: "AI Assistant 보이기" }));
+    const panel = screen.getByRole("complementary", { name: "AI Assistant" });
     vi.spyOn(panel, "getBoundingClientRect").mockReturnValue({ width: 500, height: 400 } as DOMRect);
-    const left = within(panel).getByRole("button", { name: "AI Copilot 너비 조절" });
-    const bottom = within(panel).getByRole("button", { name: "AI Copilot 높이 조절" });
+    const left = within(panel).getByRole("button", { name: "AI Assistant 너비 조절" });
+    const bottom = within(panel).getByRole("button", { name: "AI Assistant 높이 조절" });
     left.setPointerCapture = vi.fn();
     bottom.setPointerCapture = vi.fn();
     fireEvent.pointerDown(left, { button: 0, pointerId: 1, clientX: 500, clientY: 100 });
@@ -483,8 +483,8 @@ describe("StatPro UI", () => {
     const user = userEvent.setup();
     render(<MemoryRouter initialEntries={["/home"]}><App /></MemoryRouter>);
 
-    await user.click(await screen.findByRole("button", { name: "AI Copilot 보이기" }));
-    const panel = screen.getByRole("complementary", { name: "AI Copilot" });
+    await user.click(await screen.findByRole("button", { name: "AI Assistant 보이기" }));
+    const panel = screen.getByRole("complementary", { name: "AI Assistant" });
     await user.type(within(panel).getByLabelText("문의 및 작업 요청 · Text to Work"), "검사 수가 매번 다른 불량률은 어떤 관리도를 쓰나요?");
     await user.click(within(panel).getByRole("button", { name: "작업 명령 보내기" }));
 
@@ -512,8 +512,8 @@ describe("StatPro UI", () => {
     });
     const user = userEvent.setup();
     render(<MemoryRouter initialEntries={["/home"]}><App /></MemoryRouter>);
-    await user.click(screen.getByRole("button", { name: "AI Copilot 보이기" }));
-    const panel = screen.getByRole("complementary", { name: "AI Copilot" });
+    await user.click(screen.getByRole("button", { name: "AI Assistant 보이기" }));
+    const panel = screen.getByRole("complementary", { name: "AI Assistant" });
     await user.click(within(panel).getByRole("button", { name: "분석 Case 보기" }));
     const cases = await within(panel).findByRole("region", { name: "등록된 분석 Case" });
     const finder = within(cases).getByRole("searchbox", { name: "분석 Case 찾기" });
@@ -552,8 +552,8 @@ describe("StatPro UI", () => {
     const user = userEvent.setup();
     render(<MemoryRouter initialEntries={["/runs/copilot-run-001"]}><App /></MemoryRouter>);
 
-    await user.click(await screen.findByRole("button", { name: "AI Copilot 보이기" }));
-    const panel = screen.getByRole("complementary", { name: "AI Copilot" });
+    await user.click(await screen.findByRole("button", { name: "AI Assistant 보이기" }));
+    const panel = screen.getByRole("complementary", { name: "AI Assistant" });
     await user.type(within(panel).getByLabelText("문의 및 작업 요청 · Text to Work"), "이상 신호가 나오면 무엇을 해야 하나요?");
     await user.click(within(panel).getByRole("button", { name: "작업 명령 보내기" }));
     const evidence = await screen.findByRole("region", { name: "현재 근거" });
@@ -590,8 +590,8 @@ describe("StatPro UI", () => {
     const user = userEvent.setup();
     render(<MemoryRouter initialEntries={["/analyses/spc/xbar-r"]}><App /></MemoryRouter>);
 
-    await user.click(screen.getByRole("button", { name: "AI Copilot 보이기" }));
-    const panel = screen.getByRole("complementary", { name: "AI Copilot" });
+    await user.click(screen.getByRole("button", { name: "AI Assistant 보이기" }));
+    const panel = screen.getByRole("complementary", { name: "AI Assistant" });
     await user.type(within(panel).getByLabelText("문의 및 작업 요청 · Text to Work"), "관리한계 설정값을 설명해줘");
     await user.click(within(panel).getByRole("button", { name: "작업 명령 보내기" }));
     expect(await within(panel).findByText("서버에서 검토된 Xbar-R 안내입니다.")).toBeInTheDocument();
@@ -629,8 +629,8 @@ describe("StatPro UI", () => {
     const user = userEvent.setup();
     render(<MemoryRouter initialEntries={["/home"]}><App /></MemoryRouter>);
 
-    await user.click(screen.getByRole("button", { name: "AI Copilot 보이기" }));
-    const panel = screen.getByRole("complementary", { name: "AI Copilot" });
+    await user.click(screen.getByRole("button", { name: "AI Assistant 보이기" }));
+    const panel = screen.getByRole("complementary", { name: "AI Assistant" });
     await user.type(within(panel).getByLabelText("문의 및 작업 요청 · Text to Work"), "현장 문제에 맞는 작업공간을 추천해줘");
     await user.click(within(panel).getByRole("button", { name: "작업 명령 보내기" }));
     expect(await within(panel).findByRole("heading", { name: "추천 도구" })).toBeInTheDocument();
@@ -677,8 +677,8 @@ describe("StatPro UI", () => {
     const user = userEvent.setup();
     render(<MemoryRouter initialEntries={["/home"]}><App /></MemoryRouter>);
 
-    await user.click(screen.getByRole("button", { name: "AI Copilot 보이기" }));
-    const panel = screen.getByRole("complementary", { name: "AI Copilot" });
+    await user.click(screen.getByRole("button", { name: "AI Assistant 보이기" }));
+    const panel = screen.getByRole("complementary", { name: "AI Assistant" });
     await user.type(within(panel).getByLabelText("문의 및 작업 요청 · Text to Work"), "FDC로 설비를 자동 제어하고 싶어요");
     await user.click(within(panel).getByRole("button", { name: "작업 명령 보내기" }));
 
@@ -700,8 +700,8 @@ describe("StatPro UI", () => {
     });
     const user = userEvent.setup();
     render(<MemoryRouter initialEntries={["/analyses"]}><App /></MemoryRouter>);
-    await user.click(screen.getByRole("button", { name: "AI Copilot 보이기" }));
-    const panel = screen.getByRole("complementary", { name: "AI Copilot" });
+    await user.click(screen.getByRole("button", { name: "AI Assistant 보이기" }));
+    const panel = screen.getByRole("complementary", { name: "AI Assistant" });
     await user.type(within(panel).getByLabelText("문의 및 작업 요청 · Text to Work"), "현상, 원인, 대책 가이드 해줘");
     await user.click(within(panel).getByRole("button", { name: "작업 명령 보내기" }));
     expect(await within(panel).findByText(/현상을 수치와 기간으로 알려주시면/)).toBeInTheDocument();
