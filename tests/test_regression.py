@@ -40,6 +40,10 @@ class LogisticRegressionTests(unittest.TestCase):
         self.assertGreater(coefficient["odds_ratio"], 0)
         self.assertLess(coefficient["odds_ratio_ci_lower"], coefficient["odds_ratio_ci_upper"])
         self.assertEqual(len(result.tables["fitted_values"]["rows"]), 12)
+        self.assertLess(result.diagnostics["log_likelihood"], 0)
+        self.assertEqual(result.diagnostics["classification_threshold"], 0.5)
+        self.assertGreaterEqual(result.diagnostics["classification_accuracy"], 0)
+        self.assertLessEqual(result.diagnostics["classification_accuracy"], 1)
 
 
 if __name__ == "__main__":

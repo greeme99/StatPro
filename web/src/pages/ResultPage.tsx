@@ -164,8 +164,25 @@ function LinearRegressionResult({ result }: { result: StoredRun["result"] }) {
 function LogisticRegressionResult({ result }: { result: StoredRun["result"] }) {
   const coefficients = (result.tables.coefficients as { rows?: Array<Record<string, string | number | boolean | null>> } | undefined)?.rows ?? [];
   const fitted = (result.tables.fitted_values as { rows?: Array<Record<string, number>> } | undefined)?.rows ?? [];
-  const classified = fitted.filter((row) => (row.predicted_probability >= 0.5 ? 1 : 0) === row.actual).length;
-  return <><section className="metric-grid result-metrics"><article className="metric-card"><span>사건 수</span><strong>{String(result.diagnostics.event_count ?? "—")}</strong><small>Y=1 관측</small></article><article className="metric-card"><span>예측 사건 수</span><strong>{statistic(result.diagnostics.predicted_event_count as number | null)}</strong><small>확률 합계</small></article><article className="metric-card"><span>분류 일치</span><strong>{fitted.length ? `${classified}/${fitted.length}` : "—"}</strong><small>기준 0.50</small></article></section><section className="panel table-panel"><header className="panel-heading"><div><span className="eyebrow">LOGISTIC REGRESSION</span><h2>오즈비와 유의성</h2></div></header><p>오즈비는 다른 변수가 고정된 상태에서 X가 1단위 증가할 때의 사건(Y=1) 오즈 변화입니다.</p><div className="table-scroll"><table><thead><tr><th>항</th><th>계수</th><th>오즈비</th><th>표준오차</th><th>z</th><th>p값</th><th>판정</th></tr></thead><tbody>{coefficients.map((row) => <tr key={String(row.term)}><th>{row.term}</th><td>{statistic(row.coefficient as number | null)}</td><td>{statistic(row.odds_ratio as number | null)}</td><td>{statistic(row.standard_error as number | null)}</td><td>{statistic(row.z_value as number | null)}</td><td>{statistic(row.p_value as number | null)}</td><td>{row.significant ? "유의" : "비유의"}</td></tr>)}</tbody></table></div></section><section className="panel table-panel"><header className="panel-heading"><div><span className="eyebrow">PREDICTED PROBABILITY</span><h2>관측별 예측확률</h2></div><span>분류 기준 0.50</span></header><div className="table-scroll"><table><thead><tr><th>관측</th><th>실제 Y</th><th>예측확률</th><th>분류</th></tr></thead><tbody>{fitted.map((row) => <tr key={row.observation}><th>{row.observation}</th><td>{row.actual}</td><td>{statistic(row.predicted_probability)}</td><td>{row.predicted_probability >= 0.5 ? "사건(1)" : "비사건(0)"}</td></tr>)}</tbody></table></div></section></>;
+  const threshold = (result.diagnostics.classification_threshold as number | undefined) ?? 0.5;
+  const accuracy = result.diagnostics.classification_accuracy as number | undefined;
+  const classified = fitted.filter((row) => (row.predicted_probability >= threshold ? 1 : 0) === row.actual).length;
+  return <>
+    <section className="metric-grid result-metrics" aria-label="로지스틱 회귀 적합도 요약">
+      <article className="metric-card"><span>사건 수</span><strong>{String(result.diagnostics.event_count ?? "—")}</strong><small>Y=1 관측</small></article>
+      <article className="metric-card"><span>로그우도</span><strong>{statistic(result.diagnostics.log_likelihood as number | null)}</strong><small>값이 클수록 적합</small></article>
+      <article className="metric-card"><span>분류 정확도</span><strong>{accuracy === undefined ? "—" : `${(accuracy * 100).toFixed(1)}%`}</strong><small>기준 {threshold.toFixed(2)} · {fitted.length ? `${classified}/${fitted.length}` : "—"}</small></article>
+    </section>
+    <section className="panel table-panel">
+      <header className="panel-heading"><div><span className="eyebrow">LOGISTIC REGRESSION</span><h2>오즈비와 유의성</h2></div></header>
+      <p>오즈비는 다른 변수가 고정된 상태에서 X가 1단위 증가할 때 사건(Y=1)의 오즈 변화입니다. 신뢰구간이 1을 포함하면 해당 유의수준에서 효과가 불확실할 수 있습니다.</p>
+      <div className="table-scroll"><table><caption>로지스틱 회귀 계수, 오즈비와 95% 신뢰구간</caption><thead><tr><th scope="col">항</th><th scope="col">계수</th><th scope="col">오즈비</th><th scope="col">오즈비 95% 신뢰구간</th><th scope="col">표준오차</th><th scope="col">z</th><th scope="col">p값</th><th scope="col">판정</th></tr></thead><tbody>{coefficients.map((row) => <tr key={String(row.term)}><th scope="row">{row.term}</th><td>{statistic(row.coefficient as number | null)}</td><td>{statistic(row.odds_ratio as number | null)}</td><td>{statistic(row.odds_ratio_ci_lower as number | null)} ~ {statistic(row.odds_ratio_ci_upper as number | null)}</td><td>{statistic(row.standard_error as number | null)}</td><td>{statistic(row.z_value as number | null)}</td><td>{statistic(row.p_value as number | null)}</td><td>{row.significant ? "유의" : "비유의"}</td></tr>)}</tbody></table></div>
+    </section>
+    <section className="panel table-panel">
+      <header className="panel-heading"><div><span className="eyebrow">PREDICTED PROBABILITY</span><h2>관측별 예측확률</h2></div><span>분류 기준 {threshold.toFixed(2)}</span></header>
+      <div className="table-scroll"><table><caption>관측별 실제 결과와 로지스틱 예측확률</caption><thead><tr><th scope="col">관측</th><th scope="col">실제 Y</th><th scope="col">예측확률</th><th scope="col">분류</th></tr></thead><tbody>{fitted.map((row) => <tr key={row.observation}><th scope="row">{row.observation}</th><td>{row.actual}</td><td>{statistic(row.predicted_probability)}</td><td>{row.predicted_probability >= threshold ? "사건(1)" : "비사건(0)"}</td></tr>)}</tbody></table></div>
+    </section>
+  </>;
 }
 
 function CapabilityResult({ view }: { view: CapabilityView }) {

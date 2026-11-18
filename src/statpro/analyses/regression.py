@@ -47,7 +47,16 @@ def logistic_regression(response: Sequence[float], predictors: Mapping[str, Sequ
         se = math.sqrt(max(0.0, inverse[i][i])); z = coefficients[i] / se if se else None; p = math.erfc(abs(z) / math.sqrt(2)) if z is not None else None
         lower, upper = coefficients[i] - critical * se, coefficients[i] + critical * se
         rows.append({"term": term, "coefficient": coefficients[i], "odds_ratio": math.exp(coefficients[i]), "odds_ratio_ci_lower": math.exp(lower), "odds_ratio_ci_upper": math.exp(upper), "standard_error": se, "z_value": z, "p_value": p, "significant": p <= alpha if p is not None else False})
-    return ResultBundle(analysis_type="regression.logistic", engine_version=ENGINE_VERSION, input_digest=input_digest({"response":values,"predictors":columns,"response_name":response_name,"alpha":alpha}), parameters={"response_name":response_name,"predictor_names":names,"alpha":alpha,"sample_size":len(values)}, tables={"coefficients":{"columns":["term","coefficient","odds_ratio","odds_ratio_ci_lower","odds_ratio_ci_upper","standard_error","z_value","p_value","significant"],"rows":rows},"fitted_values":{"columns":["observation","actual","predicted_probability"],"rows":[{"observation":i+1,"actual":values[i],"predicted_probability":probabilities[i]} for i in range(len(values))]}}, plots={}, diagnostics={"event_count":sum(values),"predicted_event_count":sum(probabilities)}, assumptions=("Rows are independent and the response is coded 0 or 1.",), warnings=("Wald inference can be unstable with small samples or separation; review coefficients and event counts.",), provenance=(NIST_LINEAR_LEAST_SQUARES_SOURCE,))
+    classification_threshold = 0.5
+    classification_accuracy = sum(
+        (1.0 if probability >= classification_threshold else 0.0) == actual
+        for probability, actual in zip(probabilities, values, strict=True)
+    ) / len(values)
+    log_likelihood = sum(
+        actual * math.log(probability) + (1.0 - actual) * math.log1p(-probability)
+        for probability, actual in zip(probabilities, values, strict=True)
+    )
+    return ResultBundle(analysis_type="regression.logistic", engine_version=ENGINE_VERSION, input_digest=input_digest({"response":values,"predictors":columns,"response_name":response_name,"alpha":alpha}), parameters={"response_name":response_name,"predictor_names":names,"alpha":alpha,"sample_size":len(values)}, tables={"coefficients":{"columns":["term","coefficient","odds_ratio","odds_ratio_ci_lower","odds_ratio_ci_upper","standard_error","z_value","p_value","significant"],"rows":rows},"fitted_values":{"columns":["observation","actual","predicted_probability"],"rows":[{"observation":i+1,"actual":values[i],"predicted_probability":probabilities[i]} for i in range(len(values))]}}, plots={}, diagnostics={"event_count":sum(values),"predicted_event_count":sum(probabilities),"classification_threshold":classification_threshold,"classification_accuracy":classification_accuracy,"log_likelihood":log_likelihood}, assumptions=("Rows are independent and the response is coded 0 or 1.",), warnings=("Wald inference can be unstable with small samples or separation; review coefficients and event counts.",), provenance=(NIST_LINEAR_LEAST_SQUARES_SOURCE,))
 
 
 def linear_ols(
