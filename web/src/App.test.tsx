@@ -535,6 +535,8 @@ describe("StatPro UI", () => {
     render(<MemoryRouter initialEntries={["/home"]}><App /></MemoryRouter>);
     await user.click(await screen.findByRole("button", { name: "AI Assistant 보이기" }));
     const panel = screen.getByRole("complementary", { name: "AI Assistant" });
+    expect(within(panel).getByText("응답 경로")).toBeInTheDocument();
+    expect(within(panel).getByText("기본 순서는 Rulebase → EXAONE → Codex SDK입니다.")).toBeInTheDocument();
     await user.selectOptions(within(panel).getByRole("combobox", { name: "AI 응답 경로" }), "codex");
     await user.type(within(panel).getByLabelText("문의 및 작업 요청 · Text to Work"), "이 작업표를 검토해줘");
     await user.click(within(panel).getByRole("button", { name: "작업 명령 보내기" }));

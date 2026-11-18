@@ -351,6 +351,7 @@ export function CopilotPanel() {
           <div><h2>AI Assistant</h2></div>
           <div className="copilot-header-actions"><button className="button-secondary" type="button" aria-expanded={showCases} onClick={() => setShowCases((current) => !current)}>{showCases ? "대화 보기" : "분석 Case 보기"}</button><button className="icon-button" type="button" aria-label="대화 초기화" disabled={answerLoading} onClick={resetConversation}><RotateCcw aria-hidden="true" /></button><button className="icon-button" type="button" aria-label="AI Assistant 닫기" onClick={() => setOpen(false)}><X aria-hidden="true" /></button></div>
         </header>
+        <section className="copilot-route-summary" aria-label="AI 응답 경로 설정"><div><strong>응답 경로</strong><p>기본 순서는 Rulebase → EXAONE → Codex SDK입니다.</p></div><label><span className="sr-only">AI 응답 경로</span><select aria-label="AI 응답 경로" value={modelPreferenceSetting} onChange={(event) => setModelPreferenceSetting(event.target.value as ModelPreference)} disabled={answerLoading}><option value="auto">기본 순서</option><option value="rulebase">Rulebase만</option><option value="exaone">EXAONE만</option><option value="codex">Codex SDK만</option></select></label></section>
         <div className="copilot-content">
         {showCases ? <section className="copilot-catalog" aria-label="등록된 분석 Case">
           <header><div><strong>등록된 분석 Case</strong><small>{visibleCases.length}건 · 검토된 Rulebase</small></div><button type="button" className="button-secondary" aria-expanded={ruleEditorOpen} onClick={() => setRuleEditorOpen((current) => !current)}>{ruleEditorOpen ? "Rule 추가 닫기" : "Rule 추가·보완"}</button></header>
@@ -380,7 +381,6 @@ export function CopilotPanel() {
         </div>
         <form className="copilot-composer" onSubmit={submit}>
           <label htmlFor="copilot-question">문의 및 작업 요청 · Text to Work</label>
-          <label className="copilot-provider-setting"><span>AI 응답 경로</span><select value={modelPreferenceSetting} onChange={(event) => setModelPreferenceSetting(event.target.value as ModelPreference)} disabled={answerLoading}><option value="auto">기본 순서 · Rulebase → EXAONE → Codex SDK</option><option value="rulebase">Rulebase만</option><option value="exaone">EXAONE만</option><option value="codex">Codex SDK만</option></select></label>
           <div className="copilot-command-row">
             <button className="copilot-command-icon" type="button" aria-label="명령 추가" aria-expanded={commandMenuOpen} aria-controls="copilot-command-menu" disabled={answerLoading} onClick={() => setCommandMenuOpen((current) => !current)}><Plus aria-hidden="true" /></button>
             <textarea ref={inputRef} id="copilot-question" value={question} onChange={(event) => setQuestion(event.target.value)} onKeyDown={submitOnEnter} placeholder="질문하거나 작업 가이드를 요청하세요 (Shift+Enter 줄바꿈)" rows={2} disabled={answerLoading} />
