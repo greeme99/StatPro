@@ -22,6 +22,33 @@ NIST_LEAST_SQUARES_GLOSSARY_SOURCE = ProvenanceSource(
 )
 
 
+def logistic_regression(response: Sequence[float], predictors: Mapping[str, Sequence[float]], *, response_name: str = "Outcome", alpha: float = 0.05) -> ResultBundle:
+    """Fit a binary logistic model with bounded IRLS iterations."""
+    values = finite_values(response, "response")
+    if not predictors or any(value not in (0.0, 1.0) for value in values): raise AnalysisInputError("invalid_binary_response", "Logistic regression requires predictors and a binary 0/1 response.", "response")
+    names = list(predictors); columns = {name: finite_values(value, f"predictors.{name}") for name, value in predictors.items()}
+    if len(values) < len(names) + 3 or any(len(column) != len(values) for column in columns.values()): raise AnalysisInputError("insufficient_observations", "Response and predictors must align with enough observations.", "predictors")
+    if not 0.001 <= alpha <= 0.5 or not response_name.strip(): raise AnalysisInputError("invalid_alpha", "Use a valid response name and alpha.", "alpha")
+    matrix = [[1.0, *(columns[name][i] for name in names)] for i in range(len(values))]; coefficients = [0.0] * (len(names) + 1); inverse = None
+    for _ in range(50):
+        linear = [sum(x * beta for x, beta in zip(row, coefficients, strict=True)) for row in matrix]
+        probabilities = [min(1 - 1e-9, max(1e-9, 1 / (1 + math.exp(-max(-35.0, min(35.0, value)))))) for value in linear]
+        weights = [p * (1 - p) for p in probabilities]
+        information = [[sum(weights[k] * matrix[k][i] * matrix[k][j] for k in range(len(values))) for j in range(len(coefficients))] for i in range(len(coefficients))]
+        inverse = invert_matrix(information, field="predictors")
+        score = [sum(matrix[k][i] * (values[k] - probabilities[k]) for k in range(len(values))) for i in range(len(coefficients))]
+        updated = [coefficients[i] + sum(inverse[i][j] * score[j] for j in range(len(coefficients))) for i in range(len(coefficients))]
+        if max(abs(a-b) for a, b in zip(updated, coefficients, strict=True)) < 1e-8: coefficients = updated; break
+        coefficients = updated
+    else: raise AnalysisInputError("logistic_not_converged", "Logistic fitting did not converge; review separation and scaling.", "predictors")
+    probabilities = [min(1 - 1e-9, max(1e-9, 1 / (1 + math.exp(-sum(x * beta for x, beta in zip(row, coefficients, strict=True))))) ) for row in matrix]
+    rows = []
+    for i, term in enumerate(["Intercept", *names]):
+        se = math.sqrt(max(0.0, inverse[i][i])); z = coefficients[i] / se if se else None; p = math.erfc(abs(z) / math.sqrt(2)) if z is not None else None
+        rows.append({"term": term, "coefficient": coefficients[i], "odds_ratio": math.exp(coefficients[i]), "standard_error": se, "z_value": z, "p_value": p, "significant": p <= alpha if p is not None else False})
+    return ResultBundle(analysis_type="regression.logistic", engine_version=ENGINE_VERSION, input_digest=input_digest({"response":values,"predictors":columns,"response_name":response_name,"alpha":alpha}), parameters={"response_name":response_name,"predictor_names":names,"alpha":alpha,"sample_size":len(values)}, tables={"coefficients":{"columns":["term","coefficient","odds_ratio","standard_error","z_value","p_value","significant"],"rows":rows},"fitted_values":{"columns":["observation","actual","predicted_probability"],"rows":[{"observation":i+1,"actual":values[i],"predicted_probability":probabilities[i]} for i in range(len(values))]}}, plots={}, diagnostics={"event_count":sum(values),"predicted_event_count":sum(probabilities)}, assumptions=("Rows are independent and the response is coded 0 or 1.",), warnings=("Wald inference can be unstable with small samples or separation; review coefficients and event counts.",), provenance=(NIST_LINEAR_LEAST_SQUARES_SOURCE,))
+
+
 def linear_ols(
     response: Sequence[float],
     predictors: Mapping[str, Sequence[float]],
