@@ -121,6 +121,35 @@ class LocalApiContractTests(unittest.TestCase):
         self.assertFalse(status["codex"]["live_verified"])
         self.assertNotIn("EXAONE_API_KEY", status)
 
+    def test_approved_copilot_rule_reuses_the_saved_answer(self) -> None:
+        created = self.client.post(
+            "/v1/copilot/rules",
+            json={
+                "rule_id": "user-yield-review",
+                "domain": "AI Assistant 승인 Rule",
+                "situation": "수율 저하 원인을 검토한다.",
+                "answer": "온도와 압력의 시간 순서 데이터를 먼저 확인한 뒤, 안정성 검토 후 DOE를 계획하세요.",
+                "keywords": ["수율", "저하"],
+                "recommended_tool": "실험계획법(DOE)",
+                "menu_path": ["홈 (Home)", "실험계획법 (DOE)"],
+                "checklist": ["현상과 측정 단위를 확인합니다."],
+                "workflow_steps": ["데이터 확인", "안정성 검토", "DOE 계획"],
+                "source_reference": "AI Assistant 대화 승인",
+            },
+        )
+        guidance = self.client.post(
+            "/v1/copilot/guidance",
+            json={
+                "question": "수율 저하가 계속됩니다.",
+                "pathname": "/home",
+                "workspace": "홈 (Home)",
+            },
+        )
+
+        self.assertEqual(created.status_code, 201)
+        self.assertEqual(guidance.status_code, 200)
+        self.assertEqual(guidance.json()["answer"], "온도와 압력의 시간 순서 데이터를 먼저 확인한 뒤, 안정성 검토 후 DOE를 계획하세요.")
+
     def test_copilot_returns_a_reviewable_nelson_rule_draft(self) -> None:
         response = self.client.post(
             "/v1/copilot/guidance",

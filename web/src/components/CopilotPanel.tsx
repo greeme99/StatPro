@@ -17,6 +17,7 @@ type CopilotMessage = {
   checklist?: string[];
   workflowSteps?: string[];
   fallbackSteps?: Array<{ stage: string; status: "answered" | "unmatched" | "failed" | "unavailable" | "skipped"; detail: string }>;
+  question?: string;
 };
 type CopilotEvidence = {
   kind: "run" | "project";
@@ -30,6 +31,16 @@ type CopilotEvidence = {
 type WorkflowSession = {
   messageId: number;
   stepIndex: number;
+};
+type RuleProposal = {
+  messageId: number;
+  situation: string;
+  answer: string;
+  keywords: string;
+  recommendedTool: string;
+  menuPath: string[];
+  checklist: string[];
+  workflowSteps: string[];
 };
 type ModelPreference = "auto" | "rulebase" | "exaone" | "codex";
 
@@ -112,6 +123,9 @@ export function CopilotPanel() {
   const [ruleDraft, setRuleDraft] = useState({ situation: "", keywords: "", source: "직접 작성", content: "" });
   const [ruleSaving, setRuleSaving] = useState(false);
   const [ruleEditorOpen, setRuleEditorOpen] = useState(false);
+  const [ruleProposal, setRuleProposal] = useState<RuleProposal | null>(null);
+  const [proposalSaving, setProposalSaving] = useState(false);
+  const [ruleProposalStatus, setRuleProposalStatus] = useState("");
   const [messages, setMessages] = useState<CopilotMessage[]>([]);
   const [workflowSession, setWorkflowSession] = useState<WorkflowSession | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -255,6 +269,7 @@ export function CopilotPanel() {
         checklist: guidance.checklist,
         workflowSteps: guidance.workflow_steps,
         fallbackSteps: guidance.fallback_steps,
+        question: text,
       };
       setMessages((current) => [...current, assistantMessage]);
       if (guidance.workflow_steps.length > 0) setWorkflowSession({ messageId: assistantMessage.id, stepIndex: 0 });
@@ -276,6 +291,7 @@ export function CopilotPanel() {
         menuPath: guidance.menuPath,
         checklist: guidance.checklist,
         workflowSteps: guidance.workflowSteps,
+        question: text,
       };
       setMessages((current) => [...current, assistantMessage]);
       if (guidance.workflowSteps?.length) setWorkflowSession({ messageId: assistantMessage.id, stepIndex: 0 });
@@ -306,9 +322,45 @@ export function CopilotPanel() {
     setRuleSaving(true);
     try {
       const rule = await createCopilotRule({ rule_id: `user-rule-${Date.now()}`, domain: "사용자 보완", situation: ruleDraft.situation.trim(), keywords, recommended_tool: "사용자 정의 분석 가이드", menu_path: ["홈 (Home)", "AI Assistant", "분석 Case"], checklist: ["원본 문서와 현장 적용 범위를 검토합니다."], workflow_steps: ["정의 확인", "데이터 기준 검토", "현장 적용 전 검증"], source_reference: ruleDraft.source });
-      setCatalogRules((current) => [...current, rule]);
+      setCatalogRules((current) => Array.isArray(current) ? [...current, rule] : [rule]);
       setRuleDraft({ situation: "", keywords: "", source: "직접 작성", content: "" });
     } finally { setRuleSaving(false); }
+  };
+  const openRuleProposal = (message: CopilotMessage) => {
+    setRuleProposalStatus("");
+    setRuleProposal({
+      messageId: message.id,
+      situation: message.question ?? message.text,
+      answer: message.text,
+      keywords: "",
+      recommendedTool: message.recommendedTool ?? "AI Assistant 승인 가이드",
+      menuPath: message.menuPath?.length ? message.menuPath : ["홈 (Home)", "AI Assistant"],
+      checklist: message.checklist?.length ? message.checklist : ["현장 적용 전 근거와 데이터 조건을 검토합니다."],
+      workflowSteps: message.workflowSteps?.length ? message.workflowSteps : ["요청 확인", "현장 적용 검토", "분석 실행"],
+    });
+  };
+  const approveRuleProposal = async () => {
+    if (!ruleProposal || proposalSaving) return;
+    const keywords = ruleProposal.keywords.split(",").map((value) => value.trim()).filter(Boolean);
+    if (!ruleProposal.situation.trim() || !ruleProposal.answer.trim() || keywords.length === 0) return;
+    setProposalSaving(true);
+    try {
+      const rule = await createCopilotRule({
+        rule_id: `user-rule-${Date.now()}`,
+        domain: "AI Assistant 승인 Rule",
+        situation: ruleProposal.situation.trim(),
+        answer: ruleProposal.answer.trim(),
+        keywords,
+        recommended_tool: ruleProposal.recommendedTool,
+        menu_path: ruleProposal.menuPath,
+        checklist: ruleProposal.checklist,
+        workflow_steps: ruleProposal.workflowSteps,
+        source_reference: "AI Assistant 대화 승인",
+      });
+      setCatalogRules((current) => Array.isArray(current) ? [...current, rule] : [rule]);
+      setRuleProposal(null);
+      setRuleProposalStatus("승인한 대화 결과를 로컬 Rulebase에 저장했습니다.");
+    } finally { setProposalSaving(false); }
   };
 
   const latestWorkflow = [...messages].reverse().find((message) => message.role === "assistant" && message.workflowSteps && message.workflowSteps.length > 0);
@@ -336,6 +388,8 @@ export function CopilotPanel() {
     setShowCases(false);
     setSelectedCaseId(null);
     setCaseQuery("");
+    setRuleProposal(null);
+    setRuleProposalStatus("");
     window.requestAnimationFrame(() => inputRef.current?.focus());
   };
 
@@ -374,7 +428,8 @@ export function CopilotPanel() {
           <small>완료 표시는 이 브라우저 대화에서만 관리됩니다. 분석 설정·결과·프로젝트 문서는 사용자가 작업공간에서 별도로 저장해야 합니다.</small>
         </section>}
         <div className="copilot-messages" role="log" aria-live="polite" aria-relevant="additions">
-          {messages.map((message) => <div className={`copilot-message is-${message.role}`} key={message.id}><strong>{message.role === "assistant" ? "AI Assistant" : "사용자"}</strong><p>{message.text}</p>{message.fallbackSteps && message.fallbackSteps.length > 0 && <section className="copilot-guidance-block copilot-fallback-status" aria-label="AI Assistant 답변 생성 단계"><h3>답변 생성 단계</h3><ul>{message.fallbackSteps.map((step) => <li key={step.stage} data-status={step.status}><strong>{step.stage}: {step.status === "answered" ? "답변 생성" : step.status === "unmatched" ? "규칙 없음" : step.status === "failed" ? "오류" : step.status === "unavailable" ? "미설정" : "미호출"}</strong><span>{step.detail}</span></li>)}</ul></section>}{message.guidanceMode === "unmatched" && <section className="copilot-scope-notice" aria-label="StatPro 제공 범위 안내"><h3>StatPro 제공 범위 밖</h3><p>이 요청은 StatPro에서 분석·승인·자동 실행하지 않습니다. 권장 연계 도구와 데이터 계약을 별도로 확인하세요.</p></section>}{message.recommendedTool && <section className="copilot-guidance-block"><h3>{message.guidanceMode === "unmatched" ? "권장 연계 도구" : "추천 도구"}</h3><strong>{message.recommendedTool}</strong></section>}{message.menuPath && message.menuPath.length > 0 && <nav className="copilot-guidance-block" aria-label="추천 메뉴 경로"><h3>메뉴 경로</h3><ol>{message.menuPath.map((item) => <li key={item}>{item}</li>)}</ol></nav>}{message.checklist && message.checklist.length > 0 && <section className="copilot-guidance-block"><h3>실행 전 체크리스트</h3><ul>{message.checklist.map((item) => <li key={item}>{item}</li>)}</ul></section>}{message.workflowSteps && message.workflowSteps.length > 0 && <section className="copilot-guidance-block"><h3>업무절차 (Workflow)</h3><ol>{message.workflowSteps.map((item) => <li key={item}>{item}</li>)}</ol></section>}{message.provider && <small className="copilot-provider">응답 출처: {message.provider}{message.guidanceMode === "llm_fallback" ? " · 생성형 AI 보완" : message.guidanceMode === "rulebase" ? " · 검토된 Rulebase" : ""}</small>}{message.sources && message.sources.length > 0 && <details className="copilot-sources"><summary>근거 {message.sources.length}건</summary><ul>{message.sources.map((source) => <li key={source.reference}><span>{source.title}</span><code>{source.reference}</code></li>)}</ul></details>}{message.action && <Link className="copilot-action" to={message.action.href}>{message.action.label}<ChevronRight aria-hidden="true" /></Link>}</div>)}
+          {messages.map((message) => <div className={`copilot-message is-${message.role}`} key={message.id}><strong>{message.role === "assistant" ? "AI Assistant" : "사용자"}</strong><p>{message.text}</p>{message.fallbackSteps && message.fallbackSteps.length > 0 && <section className="copilot-guidance-block copilot-fallback-status" aria-label="AI Assistant 답변 생성 단계"><h3>답변 생성 단계</h3><ul>{message.fallbackSteps.map((step) => <li key={step.stage} data-status={step.status}><strong>{step.stage}: {step.status === "answered" ? "답변 생성" : step.status === "unmatched" ? "규칙 없음" : step.status === "failed" ? "오류" : step.status === "unavailable" ? "미설정" : "미호출"}</strong><span>{step.detail}</span></li>)}</ul></section>}{message.guidanceMode === "unmatched" && <section className="copilot-scope-notice" aria-label="StatPro 제공 범위 안내"><h3>StatPro 제공 범위 밖</h3><p>이 요청은 StatPro에서 분석·승인·자동 실행하지 않습니다. 권장 연계 도구와 데이터 계약을 별도로 확인하세요.</p></section>}{message.recommendedTool && <section className="copilot-guidance-block"><h3>{message.guidanceMode === "unmatched" ? "권장 연계 도구" : "추천 도구"}</h3><strong>{message.recommendedTool}</strong></section>}{message.menuPath && message.menuPath.length > 0 && <nav className="copilot-guidance-block" aria-label="추천 메뉴 경로"><h3>메뉴 경로</h3><ol>{message.menuPath.map((item) => <li key={item}>{item}</li>)}</ol></nav>}{message.checklist && message.checklist.length > 0 && <section className="copilot-guidance-block"><h3>실행 전 체크리스트</h3><ul>{message.checklist.map((item) => <li key={item}>{item}</li>)}</ul></section>}{message.workflowSteps && message.workflowSteps.length > 0 && <section className="copilot-guidance-block"><h3>업무절차 (Workflow)</h3><ol>{message.workflowSteps.map((item) => <li key={item}>{item}</li>)}</ol></section>}{message.provider && <small className="copilot-provider">응답 출처: {message.provider}{message.guidanceMode === "llm_fallback" ? " · 생성형 AI 보완" : message.guidanceMode === "rulebase" ? " · 검토된 Rulebase" : ""}</small>}{message.sources && message.sources.length > 0 && <details className="copilot-sources"><summary>근거 {message.sources.length}건</summary><ul>{message.sources.map((source) => <li key={source.reference}><span>{source.title}</span><code>{source.reference}</code></li>)}</ul></details>}{message.action && <Link className="copilot-action" to={message.action.href}>{message.action.label}<ChevronRight aria-hidden="true" /></Link>}{message.role === "assistant" && <button className="copilot-rule-proposal-trigger" type="button" onClick={() => openRuleProposal(message)}>Rule 초안 제안</button>}{ruleProposal?.messageId === message.id && <section className="copilot-rule-proposal" aria-label="Rulebase 업데이트 제안"><h3>Rulebase 업데이트 제안</h3><p>승인할 때만 이 요청과 응답이 로컬 Rulebase에 저장됩니다.</p><label><span>적용 상황</span><textarea aria-label="적용 상황" value={ruleProposal.situation} onChange={(event) => setRuleProposal((current) => current ? { ...current, situation: event.target.value } : current)} rows={2} /></label><label><span>매칭 키워드</span><input aria-label="매칭 키워드" value={ruleProposal.keywords} onChange={(event) => setRuleProposal((current) => current ? { ...current, keywords: event.target.value } : current)} placeholder="쉼표로 구분" /></label><label><span>저장될 답변</span><textarea aria-label="저장될 답변" value={ruleProposal.answer} onChange={(event) => setRuleProposal((current) => current ? { ...current, answer: event.target.value } : current)} rows={4} /></label><div className="copilot-rule-proposal-actions"><button type="button" className="button-primary" disabled={!ruleProposal.situation.trim() || !ruleProposal.answer.trim() || !ruleProposal.keywords.trim() || proposalSaving} onClick={() => void approveRuleProposal()}>{proposalSaving ? "저장 중" : "승인 후 Rulebase 업데이트"}</button><button type="button" className="button-secondary" disabled={proposalSaving} onClick={() => setRuleProposal(null)}>제안 닫기</button></div></section>}</div>)}
+          {ruleProposalStatus && <p className="copilot-rule-proposal-status" role="status">{ruleProposalStatus}</p>}
           {answerLoading && <div className="copilot-message is-assistant"><strong>AI Assistant</strong><p>검토된 로컬 근거를 확인하고 있습니다.</p></div>}
         </div>
         </>}

@@ -302,6 +302,7 @@ class CopilotUserRuleRequest(ApiModel):
     rule_id: RunId
     domain: str = Field(min_length=1, max_length=80)
     situation: str = Field(min_length=1, max_length=500)
+    answer: str | None = Field(default=None, min_length=1, max_length=2000)
     keywords: list[str] = Field(min_length=1, max_length=12)
     recommended_tool: str = Field(min_length=1, max_length=120)
     menu_path: list[str] = Field(min_length=1, max_length=8)
@@ -2288,7 +2289,7 @@ def create_app(
             keywords = rule.get("keywords", [])
             if keywords and all(isinstance(keyword, str) and keyword.casefold() in question_text for keyword in keywords):
                 return CopilotGuidanceResponse(
-                    answer=rule["situation"], provider="statpro-user-rulebase",
+                    answer=rule.get("answer") or rule["situation"], provider="statpro-user-rulebase",
                     sources=[CopilotSourceResponse(title="사용자 보완 Rule", reference=rule["source_reference"], evidence_kind="user_document")],
                     limitations=["사용자 문서에서 저장한 Rule입니다. 현장 적용 전 근거를 검토하세요."],
                     action=CopilotActionResponse(label="사용자 Rule 보기", href="/home"), guidance_mode="rulebase", rule_id=rule["rule_id"],

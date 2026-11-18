@@ -544,6 +544,33 @@ describe("StatPro UI", () => {
     expect(requests[0]).toMatchObject({ model_preference: "codex" });
   });
 
+  it("proposes a conversation result for Rulebase update and saves it only after approval", async () => {
+    const savedRules: unknown[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url.endsWith("/v1/copilot/guidance")) return new Response(JSON.stringify({ answer: "온도와 압력의 시간 순서 데이터를 확인한 뒤 DOE를 계획하세요.", provider: "statpro-rulebase-v2", sources: [], limitations: [], guidance_mode: "rulebase", recommended_tool: "실험계획법(DOE)", menu_path: ["홈 (Home)", "실험계획법(DOE)"], checklist: ["측정 단위를 확인합니다."], workflow_steps: ["데이터 확인", "DOE 계획"], fallback_steps: [] }), { status: 200 });
+      if (url.endsWith("/v1/copilot/rules") && (init as RequestInit | undefined)?.method === "POST") {
+        savedRules.push(JSON.parse(String((init as RequestInit).body)));
+        return new Response(JSON.stringify({ rule_id: "user-rule-1", domain: "AI Assistant 승인 Rule", situation: "수율 저하 원인을 알려줘", recommended_tool: "실험계획법(DOE)", menu_path: ["홈 (Home)"], action: { label: "사용자 Rule 보기", href: "/home" }, checklist: [], workflow_steps: [], source_reference: "AI Assistant 대화 승인", keywords: ["수율", "저하"] }), { status: 201 });
+      }
+      if (url.endsWith("/v1/copilot/rules")) return new Response(JSON.stringify([]), { status: 200 });
+      return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+    });
+    const user = userEvent.setup();
+    render(<MemoryRouter initialEntries={["/home"]}><App /></MemoryRouter>);
+    await user.click(await screen.findByRole("button", { name: "AI Assistant 보이기" }));
+    const panel = screen.getByRole("complementary", { name: "AI Assistant" });
+    await user.type(within(panel).getByLabelText("문의 및 작업 요청 · Text to Work"), "수율 저하 원인을 알려줘");
+    await user.click(within(panel).getByRole("button", { name: "작업 명령 보내기" }));
+    await user.click(await within(panel).findByRole("button", { name: "Rule 초안 제안" }));
+    expect(savedRules).toHaveLength(0);
+    expect(within(panel).getByRole("heading", { name: "Rulebase 업데이트 제안" })).toBeInTheDocument();
+    await user.type(within(panel).getByLabelText("매칭 키워드"), "수율, 저하");
+    await user.click(within(panel).getByRole("button", { name: "승인 후 Rulebase 업데이트" }));
+    await waitFor(() => expect(savedRules).toHaveLength(1));
+    expect(savedRules[0]).toMatchObject({ answer: "온도와 압력의 시간 순서 데이터를 확인한 뒤 DOE를 계획하세요.", keywords: ["수율", "저하"] });
+  });
+
   it("opens a registered analysis Case and continues its procedure in chat", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       const url = String(input);

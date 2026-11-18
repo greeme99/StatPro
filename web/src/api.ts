@@ -111,7 +111,7 @@ export function listCopilotRules(filters: { domain?: string; limit?: number } = 
   return request(`/v1/copilot/rules${suffix}`);
 }
 
-export function createCopilotRule(payload: { rule_id: string; domain: string; situation: string; keywords: string[]; recommended_tool: string; menu_path: string[]; checklist: string[]; workflow_steps: string[]; source_reference: string }): Promise<CopilotRule> {
+export function createCopilotRule(payload: { rule_id: string; domain: string; situation: string; answer?: string; keywords: string[]; recommended_tool: string; menu_path: string[]; checklist: string[]; workflow_steps: string[]; source_reference: string }): Promise<CopilotRule> {
   return request("/v1/copilot/rules", { method: "POST", body: JSON.stringify(payload) });
 }
 
