@@ -51,7 +51,7 @@ from statpro.analyses.msa import (
 from statpro.analyses.normality import jarque_bera_normality
 from statpro.analyses.hypothesis import independent_welch_t_test
 from statpro.analyses.hypothesis import paired_t_test
-from statpro.analyses.hypothesis import one_way_anova
+from statpro.analyses.hypothesis import chi_square_independence, one_way_anova
 from statpro.analyses.regression import linear_ols
 from statpro.analyses.spc import (
     c_chart,
@@ -420,6 +420,14 @@ class PairedTRunRequest(ApiModel):
 class OneWayAnovaRunRequest(ApiModel):
     run_id: RunId
     groups: dict[str, list[float]] = Field(min_length=2)
+    alpha: float = Field(default=0.05, ge=0.001, le=0.5)
+
+
+class ChiSquareIndependenceRunRequest(ApiModel):
+    run_id: RunId
+    rows: list[str] = Field(min_length=2)
+    columns: list[str] = Field(min_length=2)
+    counts: list[list[int]] = Field(min_length=2)
     alpha: float = Field(default=0.05, ge=0.001, le=0.5)
 
 
@@ -2685,6 +2693,12 @@ def create_app(
     @app.post("/v1/analysis-runs/one-way-anova", status_code=201, response_model=StoredRunResponse)
     def run_one_way_anova(request: OneWayAnovaRunRequest, response: Response) -> StoredRunResponse:
         stored = _save_run(repository, request.run_id, one_way_anova(request.groups, alpha=request.alpha))
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _response(stored)
+
+    @app.post("/v1/analysis-runs/chi-square-independence", status_code=201, response_model=StoredRunResponse)
+    def run_chi_square_independence(request: ChiSquareIndependenceRunRequest, response: Response) -> StoredRunResponse:
+        stored = _save_run(repository, request.run_id, chi_square_independence(request.rows, request.columns, request.counts, alpha=request.alpha))
         response.headers["ETag"] = f'"{stored.etag}"'
         return _response(stored)
 
