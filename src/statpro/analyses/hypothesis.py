@@ -77,3 +77,20 @@ def independent_welch_t_test(
         warnings=("This test does not establish practical significance; review the confidence interval against the engineering decision threshold.",),
         provenance=(NIST_TWO_SAMPLE_T_SOURCE,),
     )
+
+
+def paired_t_test(before: Sequence[float], after: Sequence[float], *, before_name: str = "Before", after_name: str = "After", alpha: float = 0.05) -> ResultBundle:
+    """Compare aligned paired measurements through their within-pair differences."""
+    values_before, values_after = finite_values(before, "before"), finite_values(after, "after")
+    if len(values_before) < 2 or len(values_before) != len(values_after):
+        raise AnalysisInputError("paired_length_mismatch", "Paired t-test requires equal-length groups with at least two pairs.", "before")
+    if not 0.001 <= alpha <= 0.5:
+        raise AnalysisInputError("invalid_alpha", "Alpha must be between 0.001 and 0.5.", "alpha")
+    differences = [left - right for left, right in zip(values_before, values_after, strict=True)]
+    mean_difference = fmean(differences); variance = _sample_variance(differences, mean_difference)
+    standard_error = math.sqrt(variance / len(differences))
+    if standard_error == 0.0:
+        raise AnalysisInputError("zero_standard_error", "Pair differences have zero variation; t inference is undefined.", "before")
+    degrees_of_freedom = len(differences) - 1; statistic = mean_difference / standard_error; p_value = _two_sided_t_probability(statistic, degrees_of_freedom); critical = _t_critical(alpha, degrees_of_freedom)
+    lower, upper = mean_difference - critical * standard_error, mean_difference + critical * standard_error
+    return ResultBundle(analysis_type="hypothesis.paired_t", engine_version=ENGINE_VERSION, input_digest=input_digest({"before": values_before, "after": values_after, "before_name": before_name, "after_name": after_name, "alpha": alpha}), parameters={"method": "paired_t", "alpha": alpha, "before_name": before_name, "after_name": after_name, "pair_count": len(differences), "alternative": "two_sided"}, tables={"test": {"columns": ["difference", "standard_error", "degrees_of_freedom", "t_statistic", "p_value", "confidence_interval_lower", "confidence_interval_upper", "significant"], "rows": [{"difference": mean_difference, "standard_error": standard_error, "degrees_of_freedom": degrees_of_freedom, "t_statistic": statistic, "p_value": p_value, "confidence_interval_lower": lower, "confidence_interval_upper": upper, "significant": p_value <= alpha}]}}, plots={}, diagnostics={"difference": mean_difference, "standard_error": standard_error, "degrees_of_freedom": degrees_of_freedom, "t_statistic": statistic, "p_value": p_value, "confidence_interval_lower": lower, "confidence_interval_upper": upper, "reject_equal_means": p_value <= alpha}, assumptions=("Each before/after row is the same matched unit.", "Pair differences are independent and approximately normal for small samples."), warnings=("This test evaluates paired mean difference, not practical significance.",), provenance=(NIST_TWO_SAMPLE_T_SOURCE,))
