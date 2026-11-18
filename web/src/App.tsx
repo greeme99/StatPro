@@ -81,6 +81,7 @@ function WorkspaceRoutes() {
           <Route path="/analyses" element={<AnalysisSelectionPage />} />
           <Route path="/analyses/normality" element={<BasicAnalysisSetupPage />} />
           <Route path="/analyses/regression/linear" element={<BasicAnalysisSetupPage />} />
+          <Route path="/analyses/regression/logistic" element={<BasicAnalysisSetupPage />} />
           <Route path="/analyses/hypothesis/independent-welch-t" element={<WelchTSetupPage />} />
           <Route path="/analyses/hypothesis/paired-t" element={<PairedTSetupPage />} />
           <Route path="/analyses/hypothesis/chi-square-independence" element={<ChiSquareSetupPage />} />
