@@ -492,6 +492,31 @@ describe("StatPro UI", () => {
     expect(within(panel).getByRole("link", { name: "p 관리도 설정 열기" })).toHaveAttribute("href", "/analyses/spc/attribute?chart=p");
   });
 
+  it("bypasses the default sequence when an EXAONE or SDK alias is named", async () => {
+    const requests: unknown[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      if (String(input).endsWith("/v1/copilot/guidance")) {
+        requests.push(JSON.parse(String((init as RequestInit).body)));
+        return new Response(JSON.stringify({ answer: "지정 모델 응답", provider: "selected", sources: [], limitations: [], guidance_mode: "llm_fallback", menu_path: [], checklist: [], workflow_steps: [], fallback_steps: [] }), { status: 200 });
+      }
+      if (String(input).endsWith("/v1/copilot/rules")) return new Response(JSON.stringify([]), { status: 200 });
+      return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+    });
+    const user = userEvent.setup();
+    render(<MemoryRouter initialEntries={["/home"]}><App /></MemoryRouter>);
+    await user.click(await screen.findByRole("button", { name: "AI Assistant 보이기" }));
+    const panel = screen.getByRole("complementary", { name: "AI Assistant" });
+    const input = within(panel).getByLabelText("문의 및 작업 요청 · Text to Work");
+    await user.type(input, "엑사원으로 이 설비 데이터를 설명해줘");
+    await user.click(within(panel).getByRole("button", { name: "작업 명령 보내기" }));
+    await waitFor(() => expect(requests).toHaveLength(1));
+    expect(requests[0]).toMatchObject({ model_preference: "exaone" });
+    await user.type(input, "에스디케이로 이 작업표를 검토해줘");
+    await user.click(within(panel).getByRole("button", { name: "작업 명령 보내기" }));
+    await waitFor(() => expect(requests).toHaveLength(2));
+    expect(requests[1]).toMatchObject({ model_preference: "codex" });
+  });
+
   it("opens a registered analysis Case and continues its procedure in chat", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       const url = String(input);

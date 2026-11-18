@@ -224,7 +224,7 @@ export function CopilotPanel() {
     setQuestion("");
     setAnswerLoading(true);
     const modelPreference = /(?:^|\s)\/?model\s+(rulebase|exaone|codex)\b/i.exec(text)?.[1]?.toLowerCase()
-      ?? (/(?:exaone|엑사원)\s*(?:api\s*)?(?:로|으로|만|사용)/i.test(text) ? "exaone" : /(?:codex|코덱스)\s*(?:sdk\s*)?(?:로|으로|만|사용)/i.test(text) ? "codex" : "auto");
+      ?? (/(?:\bexaone\b|엑사원)/i.test(text) ? "exaone" : /(?:\bcodex\b|\bsdk\b|코덱스|에스디케이)/i.test(text) ? "codex" : "auto");
     try {
       const guidance = await getCopilotGuidance({
         question: text,
