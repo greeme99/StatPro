@@ -49,6 +49,7 @@ from statpro.analyses.msa import (
     gage_rr_nested,
 )
 from statpro.analyses.normality import jarque_bera_normality
+from statpro.analyses.hypothesis import independent_welch_t_test
 from statpro.analyses.regression import linear_ols
 from statpro.analyses.spc import (
     c_chart,
@@ -89,6 +90,7 @@ from statpro.application.documents import (
 )
 from statpro.application.dmaic_reports import build_dmaic_report, render_dmaic_report_docx
 from statpro.application.enterprise_identity import EnterpriseApprovalAuthenticator
+from statpro.application.fmea_reports import project_fmea_review_report
 from statpro.application.reports import (
     build_doe_report,
     build_msa_report,
@@ -394,6 +396,15 @@ class LinearOlsRunRequest(ApiModel):
     response: list[float] = Field(min_length=3)
     predictors: dict[str, list[float]] = Field(min_length=1, max_length=20)
     response_name: str = Field(default="Response", min_length=1, max_length=255)
+    alpha: float = Field(default=0.05, ge=0.001, le=0.5)
+
+
+class IndependentWelchTRunRequest(ApiModel):
+    run_id: RunId
+    group_a: list[float] = Field(min_length=2)
+    group_b: list[float] = Field(min_length=2)
+    group_a_name: str = Field(default="Group A", min_length=1, max_length=255)
+    group_b_name: str = Field(default="Group B", min_length=1, max_length=255)
     alpha: float = Field(default=0.05, ge=0.001, le=0.5)
 
 
@@ -2629,6 +2640,28 @@ def create_app(
         return _response(stored)
 
     @app.post(
+        "/v1/analysis-runs/independent-welch-t",
+        status_code=201,
+        response_model=StoredRunResponse,
+    )
+    def run_independent_welch_t(
+        request: IndependentWelchTRunRequest, response: Response
+    ) -> StoredRunResponse:
+        stored = _save_run(
+            repository,
+            request.run_id,
+            independent_welch_t_test(
+                request.group_a,
+                request.group_b,
+                group_a_name=request.group_a_name,
+                group_b_name=request.group_b_name,
+                alpha=request.alpha,
+            ),
+        )
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _response(stored)
+
+    @app.post(
         "/v1/analysis-runs/doe-full-factorial",
         status_code=201,
         response_model=StoredRunResponse,
@@ -4496,6 +4529,26 @@ def create_app(
         )
         response.headers["ETag"] = f'"{input_digest(report)}"'
         return report
+
+    def _fmea_export_report(study_id: RunId) -> dict[str, Any]:
+        _stored, study = _load_fmea_study(repository, study_id)
+        review = build_study_report(study, evidence_checks=_check_fmea_analysis_evidence(repository, study))
+        return project_fmea_review_report(review)
+
+    @app.get("/v1/fmea-studies/{study_id}/report.html")
+    def get_fmea_study_report_html(study_id: RunId) -> Response:
+        report = _fmea_export_report(study_id)
+        return Response(content=render_doe_report_html(report), media_type="text/html", headers={"Content-Disposition": f'attachment; filename="{study_id}-fmea-report.html"', "ETag": f'"{report["report_digest"]}"'})
+
+    @app.get("/v1/fmea-studies/{study_id}/report.xlsx")
+    def get_fmea_study_report_xlsx(study_id: RunId) -> Response:
+        report = _fmea_export_report(study_id)
+        return Response(content=render_doe_report_xlsx(report), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers={"Content-Disposition": f'attachment; filename="{study_id}-fmea-report.xlsx"', "ETag": f'"{report["report_digest"]}"'})
+
+    @app.get("/v1/fmea-studies/{study_id}/report.pdf")
+    def get_fmea_study_report_pdf(study_id: RunId) -> Response:
+        report = _fmea_export_report(study_id)
+        return Response(content=render_doe_report_pdf(report), media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="{study_id}-fmea-report.pdf"', "ETag": f'"{report["report_digest"]}"'})
 
     @app.post(
         "/v1/fmea-studies/{study_id}/action-priority-policy",

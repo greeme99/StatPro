@@ -52,6 +52,7 @@ class LocalApiContractTests(unittest.TestCase):
         self.assertIn("/v1/analysis-runs/t-chart", openapi.json()["paths"])
         self.assertIn("/v1/analysis-runs/normality-jarque-bera", openapi.json()["paths"])
         self.assertIn("/v1/analysis-runs/regression-linear-ols", openapi.json()["paths"])
+        self.assertIn("/v1/analysis-runs/independent-welch-t", openapi.json()["paths"])
         self.assertIn("/v1/analysis-runs/pareto", openapi.json()["paths"])
         self.assertIn(
             "/v1/fmea-studies/{study_id}/approve-enterprise",
@@ -911,6 +912,11 @@ class LocalApiContractTests(unittest.TestCase):
                     "response_name": "Yield",
                 },
                 "regression.linear_ols",
+            ),
+            (
+                "/v1/analysis-runs/independent-welch-t",
+                {"run_id": "welch-t", "group_a": [1, 2, 3, 4], "group_b": [3, 4, 5, 6]},
+                "hypothesis.independent_welch_t",
             ),
             (
                 "/v1/analysis-runs/doe-full-factorial",
@@ -1816,6 +1822,15 @@ class LocalApiContractTests(unittest.TestCase):
         self.assertEqual(report["rows"][0]["control_plan_items"][0]["control_id"], "CP-001")
         self.assertIsNone(report["approval_record"])
         self.assertIn("statistical suitability", report["limitations"][0])
+        html_report = self.client.get("/v1/fmea-studies/PFMEA-TRACE/report.html")
+        xlsx_report = self.client.get("/v1/fmea-studies/PFMEA-TRACE/report.xlsx")
+        self.assertEqual(html_report.status_code, 200)
+        self.assertIn(b"FMEA", html_report.content)
+        self.assertEqual(
+            xlsx_report.headers["content-type"],
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        self.assertTrue(xlsx_report.content.startswith(b"PK"))
 
         spc_run = self.client.post(
             "/v1/analysis-runs/imr",
