@@ -243,6 +243,13 @@ describe("StatPro UI", () => {
     expect(JSON.parse(String((call?.[1] as RequestInit).body))).toMatchObject({ degree: 3, predictors: { 온도: [180, 185, 190, 195, 200, 205] } });
   });
 
+  it("submits the default hierarchical stepwise regression workspace", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({}), { status: 201, headers: { "Content-Type": "application/json" } }));
+    render(<MemoryRouter initialEntries={["/analyses/regression/stepwise"]}><App /></MemoryRouter>);
+    await userEvent.click(await screen.findByRole("button", { name: "단계선택 회귀 실행" }));
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith("/regression-stepwise-ols") && (init as RequestInit | undefined)?.method === "POST")).toBe(true));
+  });
+
   it("renders OLS fit, ANOVA, and residual review from the stored result contract", async () => {
     const user = userEvent.setup();
     const result = {

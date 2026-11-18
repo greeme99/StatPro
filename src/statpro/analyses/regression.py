@@ -194,6 +194,98 @@ def interaction_ols(
     )
 
 
+def _ols_information_criteria(result: ResultBundle) -> tuple[float, float]:
+    sample_size = int(result.parameters["sample_size"])
+    parameter_count = int(result.parameters["parameter_count"])
+    residuals = (result.tables["fitted_values"])["rows"]
+    residual_ss = sum(float(row["residual"]) ** 2 for row in residuals)
+    if residual_ss <= 0.0:
+        return (float("inf"), float("inf"))
+    log_likelihood = -0.5 * sample_size * (math.log(2.0 * math.pi) + 1.0 + math.log(residual_ss / sample_size))
+    aic = -2.0 * log_likelihood + 2.0 * parameter_count
+    aicc = aic + (2.0 * parameter_count * (parameter_count + 1) / (sample_size - parameter_count - 1)) if sample_size > parameter_count + 1 else float("inf")
+    return (aicc, -2.0 * log_likelihood + parameter_count * math.log(sample_size))
+
+
+def stepwise_ols(
+    response: Sequence[float],
+    predictors: Mapping[str, Sequence[float]],
+    *,
+    response_name: str = "Response",
+    interaction_terms: bool = False,
+    method: str = "stepwise",
+    criterion: str = "aicc",
+    alpha_enter: float = 0.05,
+    alpha_remove: float = 0.10,
+    alpha: float = 0.05,
+) -> ResultBundle:
+    """Fit a bounded hierarchical OLS model using deterministic term selection."""
+    if method not in {"forward", "backward", "stepwise"}:
+        raise AnalysisInputError("invalid_selection_method", "Use forward, backward, or stepwise selection.", "method")
+    if criterion not in {"aicc", "bic"} or not 0.001 <= alpha_enter <= alpha_remove <= 0.5:
+        raise AnalysisInputError("invalid_selection_options", "Check criterion and selection alpha levels.", "selection")
+    source = {name: finite_values(values, f"predictors.{name}") for name, values in predictors.items()}
+    terms = dict(source)
+    dependencies: dict[str, set[str]] = {name: set() for name in source}
+    if interaction_terms:
+        for left, right in combinations(source, 2):
+            name = f"{left}*{right}"
+            terms[name] = [a * b for a, b in zip(source[left], source[right], strict=True)]
+            dependencies[name] = {left, right}
+    if not terms or len(terms) > 20:
+        raise AnalysisInputError("too_many_selection_terms", "Use between 1 and 20 candidate main and interaction terms.", "predictors")
+
+    def fit(selected: list[str]) -> ResultBundle | None:
+        try:
+            return linear_ols(response, {name: terms[name] for name in selected}, response_name=response_name, alpha=alpha)
+        except AnalysisInputError:
+            return None
+
+    def p_value(result: ResultBundle, term: str) -> float:
+        row = next(row for row in result.tables["coefficients"]["rows"] if row["term"] == term)
+        return float(row["p_value"]) if row["p_value"] is not None else float("inf")
+
+    selected = list(terms) if method == "backward" else []
+    history: list[dict[str, float | str | int]] = []
+    while True:
+        changed = False
+        if method != "backward":
+            candidates = [name for name in terms if name not in selected and dependencies[name].issubset(selected)]
+            evaluated = [(name, result) for name in candidates if (result := fit([*selected, name])) is not None]
+            if evaluated:
+                best_name, best_result = min(evaluated, key=lambda item: _ols_information_criteria(item[1])[0 if criterion == "aicc" else 1])
+                if p_value(best_result, best_name) <= alpha_enter:
+                    selected.append(best_name)
+                    aicc, bic = _ols_information_criteria(best_result)
+                    history.append({"step": len(history) + 1, "action": "enter", "term": best_name, "aicc": aicc, "bic": bic})
+                    changed = True
+        if method in {"backward", "stepwise"} and selected:
+            current = fit(selected)
+            removable = [name for name in selected if not any(name in dependencies[other] for other in selected if other != name)]
+            if current and removable:
+                worst = max(removable, key=lambda name: p_value(current, name))
+                if p_value(current, worst) > alpha_remove:
+                    selected.remove(worst)
+                    next_result = fit(selected)
+                    if next_result:
+                        aicc, bic = _ols_information_criteria(next_result)
+                        history.append({"step": len(history) + 1, "action": "remove", "term": worst, "aicc": aicc, "bic": bic})
+                        changed = True
+        if not changed:
+            break
+    fitted = fit(selected)
+    if fitted is None:
+        raise AnalysisInputError("selection_no_model", "No selectable model retained residual degrees of freedom.", "predictors")
+    aicc, bic = _ols_information_criteria(fitted)
+    return ResultBundle(
+        analysis_type="regression.stepwise_ols", engine_version=fitted.engine_version,
+        input_digest=input_digest({"response": list(response), "predictors": predictors, "response_name": response_name, "interaction_terms": interaction_terms, "method": method, "criterion": criterion, "alpha_enter": alpha_enter, "alpha_remove": alpha_remove, "alpha": alpha}),
+        parameters={**fitted.parameters, "selected_terms": selected, "selection_method": method, "selection_criterion": criterion, "interaction_terms": interaction_terms},
+        tables={**fitted.tables, "selection_history": {"columns": ["step", "action", "term", "aicc", "bic"], "rows": history}}, plots=fitted.plots,
+        diagnostics={**fitted.diagnostics, "aicc": aicc, "bic": bic}, assumptions=(*fitted.assumptions, "Stepwise selection is exploratory and retains lower-order terms required by selected interactions."), warnings=(*fitted.warnings, "Automated selection does not replace engineering knowledge or independent validation."), provenance=fitted.provenance,
+    )
+
+
 def linear_ols(
     response: Sequence[float],
     predictors: Mapping[str, Sequence[float]],

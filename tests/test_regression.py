@@ -6,7 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from statpro.analyses.regression import interaction_ols, linear_ols, logistic_regression, polynomial_ols
+from statpro.analyses.regression import interaction_ols, linear_ols, logistic_regression, polynomial_ols, stepwise_ols
 from statpro.domain.errors import AnalysisInputError
 
 
@@ -112,6 +112,22 @@ class InteractionRegressionTests(unittest.TestCase):
         self.assertEqual(result.analysis_type, "regression.interaction_ols")
         self.assertIn("temperature*pressure", terms)
         self.assertEqual(result.parameters["interaction_order"], 2)
+
+
+class StepwiseRegressionTests(unittest.TestCase):
+    def test_forward_selection_keeps_main_effects_for_a_selected_interaction(self) -> None:
+        result = stepwise_ols(
+            [3, 5, 8, 12, 17, 23, 30, 38, 47, 57],
+            {"temperature": list(range(1, 11)), "pressure": [1, 2, 1, 2, 1, 2, 1, 2, 1, 2]},
+            interaction_terms=True,
+            method="forward",
+        )
+        selected = result.parameters["selected_terms"]
+        self.assertEqual(result.analysis_type, "regression.stepwise_ols")
+        self.assertIn("temperature", selected)
+        self.assertGreater(len(result.tables["selection_history"]["rows"]), 0)
+        self.assertIn("aicc", result.diagnostics)
+        self.assertIn("bic", result.diagnostics)
 
 
 if __name__ == "__main__":
