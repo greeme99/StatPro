@@ -587,6 +587,7 @@ export function createDescriptiveStatisticsRun(payload: { run_id: string; values
 export function createTwoSamplePowerRun(payload: { run_id: string; difference: number; standard_deviation: number; alpha: number; target_power: number }): Promise<StoredRun> { return request("/v1/analysis-runs/power-two-sample-mean", { method: "POST", body: JSON.stringify(payload) }); }
 export function createOneSampleTRun(payload: { run_id: string; values: number[]; target: number; alpha: number; variable_name: string }): Promise<StoredRun> { return request("/v1/analysis-runs/one-sample-t", { method: "POST", body: JSON.stringify(payload) }); }
 export function createOneSampleProportionRun(payload: { run_id: string; defects: number; opportunities: number; target: number; alpha: number }): Promise<StoredRun> { return request("/v1/analysis-runs/one-sample-proportion", { method: "POST", body: JSON.stringify(payload) }); }
+export function createTwoSampleProportionRun(payload: { run_id: string; defects_a: number; opportunities_a: number; defects_b: number; opportunities_b: number; alpha: number }): Promise<StoredRun> { return request("/v1/analysis-runs/two-sample-proportion", { method: "POST", body: JSON.stringify(payload) }); }
 
 export function createLinearOlsRun(payload: { run_id: string; response: number[]; predictors: Record<string, number[]>; response_name: string; alpha: number }): Promise<StoredRun> {
   return request("/v1/analysis-runs/regression-linear-ols", { method: "POST", body: JSON.stringify(payload) });

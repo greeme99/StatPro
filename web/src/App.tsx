@@ -71,6 +71,7 @@ const OneWayAnovaSetupPage = lazyNamed(() => import("./pages/OneWayAnovaSetupPag
 const PowerSetupPage = lazyNamed(() => import("./pages/PowerSetupPage"), "PowerSetupPage");
 const OneSampleTSetupPage = lazyNamed(() => import("./pages/OneSampleTSetupPage"), "OneSampleTSetupPage");
 const OneSampleProportionPage = lazyNamed(() => import("./pages/OneSampleProportionPage"), "OneSampleProportionPage");
+const TwoSampleProportionPage = lazyNamed(() => import("./pages/TwoSampleProportionPage"), "TwoSampleProportionPage");
 
 function ProtectedApp({ children }: { children: ReactNode }) {
   const location = useLocation();
@@ -106,6 +107,7 @@ function WorkspaceRoutes() {
           <Route path="/analyses/power/two-sample-mean" element={<PowerSetupPage />} />
           <Route path="/analyses/hypothesis/one-sample-t" element={<OneSampleTSetupPage />} />
           <Route path="/analyses/hypothesis/one-sample-proportion" element={<OneSampleProportionPage />} />
+          <Route path="/analyses/hypothesis/two-sample-proportion" element={<TwoSampleProportionPage />} />
           <Route path="/analyses/hypothesis/kruskal-wallis" element={<OneWayAnovaSetupPage />} />
           <Route path="/analyses/imr/new" element={<ImrSetupPage />} />
         <Route path="/analyses/capability" element={<CapabilitySetupPage />} />

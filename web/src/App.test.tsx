@@ -2456,6 +2456,14 @@ describe("StatPro UI", () => {
     await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith("/v1/analysis-runs/one-sample-proportion") && (init as RequestInit | undefined)?.method === "POST")).toBe(true));
   });
 
+  it("submits two independent defect counts through the two-proportion route", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => new Response(JSON.stringify(String(input).endsWith("/health") ? { ok: true, engine_version: "0.6.0", local_only: true } : { run_id: "two-proportion-ui", result: { analysis_type: "hypothesis.two_sample_proportion", diagnostics: { proportion_a: .2, proportion_b: .05, difference: .15, p_value: .002, confidence_interval_lower: .06, confidence_interval_upper: .24, significant: true }, tables: { test: { rows: [] } }, warnings: [], notes: [] } }), { status: 200 }));
+    render(<MemoryRouter initialEntries={["/analyses/hypothesis/two-sample-proportion"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "두 비율 비교" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "두 비율 검정 실행" }));
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith("/v1/analysis-runs/two-sample-proportion") && (init as RequestInit | undefined)?.method === "POST")).toBe(true));
+  });
+
   it("submits independent groups through the Kruskal–Wallis route", async () => {
     const stored = { run_id: "kruskal-ui", result: { analysis_type: "hypothesis.kruskal_wallis", diagnostics: {}, tables: { test: { rows: [] }, group_summary: { rows: [] } }, warnings: [], notes: [] } };
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {

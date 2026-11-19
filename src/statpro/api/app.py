@@ -52,6 +52,7 @@ from statpro.analyses.normality import jarque_bera_normality
 from statpro.analyses.descriptive import descriptive_statistics
 from statpro.analyses.power import two_sample_mean_sample_size
 from statpro.analyses.proportion import one_sample_proportion_test
+from statpro.analyses.proportion import two_sample_proportion_test
 from statpro.analyses.hypothesis import independent_tost_equivalence, independent_welch_t_test, mann_whitney_u_test
 from statpro.analyses.hypothesis import one_sample_t_test
 from statpro.analyses.hypothesis import paired_t_test, wilcoxon_signed_rank_test
@@ -423,6 +424,14 @@ class OneSampleProportionRunRequest(ApiModel):
     defects: int = Field(ge=0)
     opportunities: int = Field(gt=0)
     target: float = Field(gt=0, lt=1)
+    alpha: float = Field(default=0.05, ge=0.001, le=0.5)
+
+class TwoSampleProportionRunRequest(ApiModel):
+    run_id: RunId
+    defects_a: int = Field(ge=0)
+    opportunities_a: int = Field(gt=0)
+    defects_b: int = Field(ge=0)
+    opportunities_b: int = Field(gt=0)
     alpha: float = Field(default=0.05, ge=0.001, le=0.5)
 
 
@@ -2762,6 +2771,12 @@ def create_app(
     @app.post("/v1/analysis-runs/one-sample-proportion", status_code=201, response_model=StoredRunResponse)
     def run_one_sample_proportion(request: OneSampleProportionRunRequest, response: Response) -> StoredRunResponse:
         stored = _save_run(repository, request.run_id, one_sample_proportion_test(defects=request.defects, opportunities=request.opportunities, target=request.target, alpha=request.alpha))
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _response(stored)
+
+    @app.post("/v1/analysis-runs/two-sample-proportion", status_code=201, response_model=StoredRunResponse)
+    def run_two_sample_proportion(request: TwoSampleProportionRunRequest, response: Response) -> StoredRunResponse:
+        stored = _save_run(repository, request.run_id, two_sample_proportion_test(defects_a=request.defects_a, opportunities_a=request.opportunities_a, defects_b=request.defects_b, opportunities_b=request.opportunities_b, alpha=request.alpha))
         response.headers["ETag"] = f'"{stored.etag}"'
         return _response(stored)
 

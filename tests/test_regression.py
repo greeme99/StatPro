@@ -15,6 +15,7 @@ from statpro.analyses.hypothesis import independent_tost_equivalence
 from statpro.analyses.power import two_sample_mean_sample_size
 from statpro.analyses.hypothesis import one_sample_t_test
 from statpro.analyses.proportion import one_sample_proportion_test
+from statpro.analyses.proportion import two_sample_proportion_test
 from statpro.domain.errors import AnalysisInputError
 
 
@@ -287,6 +288,12 @@ class OneSampleProportionTests(unittest.TestCase):
         result = one_sample_proportion_test(defects=20, opportunities=100, target=.05)
         self.assertTrue(result.diagnostics["significant"])
         self.assertGreater(result.diagnostics["wilson_upper"], result.diagnostics["wilson_lower"])
+
+
+class TwoSampleProportionTests(unittest.TestCase):
+    def test_compares_independent_defect_rates(self) -> None:
+        result = two_sample_proportion_test(defects_a=20, opportunities_a=100, defects_b=5, opportunities_b=100)
+        self.assertTrue(result.diagnostics["significant"])
 
 
 if __name__ == "__main__":
