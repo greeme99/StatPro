@@ -139,7 +139,21 @@ def poisson_regression(response: Sequence[float], predictors: Mapping[str, Seque
         se=math.sqrt(max(0.0, inverse[index][index])); z=coefficients[index]/se if se else None; p=math.erfc(abs(z)/math.sqrt(2)) if z is not None else None; lower,upper=coefficients[index]-critical*se,coefficients[index]+critical*se
         rows.append({"term":term,"coefficient":coefficients[index],"incidence_rate_ratio":math.exp(coefficients[index]),"irr_ci_lower":math.exp(lower),"irr_ci_upper":math.exp(upper),"standard_error":se,"z_value":z,"p_value":p,"significant":p <= alpha if p is not None else False})
     deviance = 2*sum(0.0 if actual == 0 else actual*math.log(actual/mean) - (actual-mean) for actual,mean in zip(values,means,strict=True))
-    return ResultBundle(analysis_type="regression.poisson", engine_version=ENGINE_VERSION, input_digest=input_digest({"response":values,"predictors":columns,"response_name":response_name,"alpha":alpha}), parameters={"response_name":response_name,"predictor_names":names,"alpha":alpha,"sample_size":len(values)}, tables={"coefficients":{"columns":["term","coefficient","incidence_rate_ratio","irr_ci_lower","irr_ci_upper","standard_error","z_value","p_value","significant"],"rows":rows},"fitted_values":{"columns":["observation","actual","predicted_count"],"rows":[{"observation":index+1,"actual":values[index],"predicted_count":mean} for index,mean in enumerate(means)]}}, plots={}, diagnostics={"deviance":deviance,"residual_degrees_of_freedom":len(values)-len(coefficients),"predicted_count_total":sum(means)}, assumptions=("Rows are independent and counts follow a Poisson mean-variance relationship.",), warnings=("Overdispersion or excess zeros can invalidate Poisson standard errors; inspect deviance and process data.",), provenance=(NIST_LINEAR_LEAST_SQUARES_SOURCE,))
+    residual_df = len(values) - len(coefficients)
+    pearson_chi_square = sum((actual - mean) ** 2 / mean for actual, mean in zip(values, means, strict=True))
+    dispersion_ratio = pearson_chi_square / residual_df
+    dispersion_z_value = (pearson_chi_square - residual_df) / math.sqrt(2 * residual_df)
+    dispersion_p_value = math.erfc(abs(dispersion_z_value) / math.sqrt(2))
+    if dispersion_p_value <= alpha and dispersion_ratio > 1:
+        dispersion_status = "overdispersed"
+        warnings = ("Pearson dispersion diagnostic indicates overdispersion; Poisson standard errors and p-values may be too optimistic.",)
+    elif dispersion_p_value <= alpha and dispersion_ratio < 1:
+        dispersion_status = "underdispersed"
+        warnings = ("Pearson dispersion diagnostic indicates underdispersion; review the sampling and count-generation mechanism.",)
+    else:
+        dispersion_status = "consistent"
+        warnings = ("Overdispersion or excess zeros can invalidate Poisson standard errors; inspect deviance and process data.",)
+    return ResultBundle(analysis_type="regression.poisson", engine_version=ENGINE_VERSION, input_digest=input_digest({"response":values,"predictors":columns,"response_name":response_name,"alpha":alpha}), parameters={"response_name":response_name,"predictor_names":names,"alpha":alpha,"sample_size":len(values)}, tables={"coefficients":{"columns":["term","coefficient","incidence_rate_ratio","irr_ci_lower","irr_ci_upper","standard_error","z_value","p_value","significant"],"rows":rows},"fitted_values":{"columns":["observation","actual","predicted_count"],"rows":[{"observation":index+1,"actual":values[index],"predicted_count":mean} for index,mean in enumerate(means)]}}, plots={}, diagnostics={"deviance":deviance,"residual_degrees_of_freedom":residual_df,"predicted_count_total":sum(means),"pearson_chi_square":pearson_chi_square,"dispersion_ratio":dispersion_ratio,"dispersion_z_value":dispersion_z_value,"dispersion_p_value":dispersion_p_value,"dispersion_status":dispersion_status}, assumptions=("Rows are independent and counts follow a Poisson mean-variance relationship.", "The dispersion diagnostic uses a normal approximation to Pearson chi-square around its residual degrees of freedom."), warnings=warnings, provenance=(NIST_LINEAR_LEAST_SQUARES_SOURCE,))
 
 
 def polynomial_ols(

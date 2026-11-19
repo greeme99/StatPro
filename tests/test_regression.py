@@ -208,6 +208,12 @@ class CategoricalAndPoissonRegressionTests(unittest.TestCase):
         self.assertEqual(len(result.tables["fitted_values"]["rows"]), 8)
         self.assertIn("incidence_rate_ratio", result.tables["coefficients"]["columns"])
 
+    def test_flags_overdispersion_with_pearson_diagnostic(self) -> None:
+        result = poisson_regression([0, 20, 0, 20, 0, 20, 0, 20], {"time": list(range(8))})
+        self.assertEqual(result.diagnostics["dispersion_status"], "overdispersed")
+        self.assertGreater(result.diagnostics["dispersion_ratio"], 1)
+        self.assertLessEqual(result.diagnostics["dispersion_p_value"], 0.05)
+
 
 if __name__ == "__main__":
     unittest.main()

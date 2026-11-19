@@ -190,11 +190,20 @@ function OlsValidationResult({ result }: { result: StoredRun["result"] }) {
 function PoissonRegressionResult({ result }: { result: StoredRun["result"] }) {
   const coefficients = (result.tables.coefficients as { rows?: Array<Record<string, string | number | boolean | null>> } | undefined)?.rows ?? [];
   const fitted = (result.tables.fitted_values as { rows?: Array<Record<string, number>> } | undefined)?.rows ?? [];
+  const dispersionRatio = result.diagnostics.dispersion_ratio as number | undefined;
+  const dispersionStatus = result.diagnostics.dispersion_status as string | undefined;
+  const dispersionLabel = dispersionStatus === "overdispersed" ? "과산포 검토 필요" : dispersionStatus === "underdispersed" ? "과소산포 검토 필요" : "Poisson 가정과 일치";
   return <>
     <section className="metric-grid result-metrics" aria-label="Poisson 회귀 적합도 요약">
       <article className="metric-card"><span>Deviance</span><strong>{statistic(result.diagnostics.deviance as number | null)}</strong><small>작을수록 포화모형에 가까움</small></article>
       <article className="metric-card"><span>잔차 자유도</span><strong>{String(result.diagnostics.residual_degrees_of_freedom ?? "—")}</strong><small>추정 후 남은 정보</small></article>
       <article className="metric-card"><span>예측 건수 합계</span><strong>{statistic(result.diagnostics.predicted_count_total as number | null)}</strong><small>관측 건수와 비교</small></article>
+      <article className="metric-card"><span>Pearson 산포비</span><strong>{statistic(dispersionRatio ?? null)}</strong><small>{dispersionLabel}</small></article>
+    </section>
+    <section className="panel table-panel">
+      <header className="panel-heading"><div><span className="eyebrow">DISPERSION DIAGNOSTIC</span><h2>Poisson 산포 가정 점검</h2></div><span>{dispersionLabel}</span></header>
+      <p>{dispersionStatus === "overdispersed" ? "과산포 신호가 있어 현재 Poisson 표준오차와 p값이 과도하게 낙관적일 수 있습니다. 영과다·군집·누락된 설명변수를 확인하고, 필요하면 음이항 또는 준-Poisson 모형을 별도 검토하세요." : dispersionStatus === "underdispersed" ? "과소산포 신호가 있어 독립 표본과 계수 발생 과정을 재검토하세요." : "Pearson 산포 진단에서 Poisson 평균·분산 가정과 뚜렷하게 다른 증거는 나타나지 않았습니다. 표본 수와 공정 맥락은 별도로 검토하세요."}</p>
+      <div className="table-scroll"><table><caption>Pearson χ² 기반 산포 진단</caption><thead><tr><th scope="col">Pearson χ²</th><th scope="col">잔차 자유도</th><th scope="col">산포비</th><th scope="col">근사 p값</th><th scope="col">판정</th></tr></thead><tbody><tr><td>{statistic(result.diagnostics.pearson_chi_square as number | null)}</td><td>{String(result.diagnostics.residual_degrees_of_freedom ?? "—")}</td><td>{statistic(dispersionRatio ?? null)}</td><td>{statistic(result.diagnostics.dispersion_p_value as number | null)}</td><td>{dispersionLabel}</td></tr></tbody></table></div>
     </section>
     <section className="panel table-panel">
       <header className="panel-heading"><div><span className="eyebrow">POISSON REGRESSION</span><h2>발생률비와 유의성</h2></div></header>
