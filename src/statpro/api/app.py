@@ -49,6 +49,7 @@ from statpro.analyses.msa import (
     gage_rr_nested,
 )
 from statpro.analyses.normality import jarque_bera_normality
+from statpro.analyses.descriptive import descriptive_statistics
 from statpro.analyses.hypothesis import independent_welch_t_test
 from statpro.analyses.hypothesis import paired_t_test
 from statpro.analyses.hypothesis import chi_square_independence, one_way_anova
@@ -392,6 +393,13 @@ class JarqueBeraNormalityRunRequest(ApiModel):
     run_id: RunId
     values: list[float] = Field(min_length=3)
     alpha: float = Field(default=0.05, gt=0.0, lt=1.0)
+
+
+class DescriptiveStatisticsRunRequest(ApiModel):
+    run_id: RunId
+    values: list[float] = Field(min_length=2)
+    variable_name: str = Field(default="Measurement", min_length=1, max_length=255)
+    alpha: float = Field(default=0.05, ge=0.001, le=0.5)
 
 
 class LinearOlsRunRequest(ApiModel):
@@ -2687,6 +2695,12 @@ def create_app(
             request.run_id,
             jarque_bera_normality(request.values, alpha=request.alpha),
         )
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _response(stored)
+
+    @app.post("/v1/analysis-runs/descriptive-statistics", status_code=201, response_model=StoredRunResponse)
+    def run_descriptive_statistics(request: DescriptiveStatisticsRunRequest, response: Response) -> StoredRunResponse:
+        stored = _save_run(repository, request.run_id, descriptive_statistics(request.values, variable_name=request.variable_name, alpha=request.alpha))
         response.headers["ETag"] = f'"{stored.etag}"'
         return _response(stored)
 

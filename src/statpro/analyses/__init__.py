@@ -28,6 +28,7 @@ from statpro.analyses.msa import (
     gage_rr_nested,
 )
 from statpro.analyses.normality import jarque_bera_normality
+from statpro.analyses.descriptive import descriptive_statistics
 from statpro.analyses.hypothesis import independent_welch_t_test, one_way_anova, paired_t_test
 from statpro.analyses.regression import best_subsets_ols, categorical_ols, interaction_ols, linear_ols, poisson_regression, polynomial_ols, stepwise_ols, validate_ols
 from statpro.analyses.spc import (
@@ -64,6 +65,7 @@ __all__ = [
     "gage_bias_linearity",
     "individuals_moving_range",
     "jarque_bera_normality",
+    "descriptive_statistics",
     "independent_welch_t_test",
     "interaction_ols",
     "paired_t_test",

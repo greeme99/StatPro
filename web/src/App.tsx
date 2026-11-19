@@ -81,6 +81,7 @@ function WorkspaceRoutes() {
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/analyses" element={<AnalysisSelectionPage />} />
           <Route path="/analyses/normality" element={<BasicAnalysisSetupPage />} />
+          <Route path="/analyses/descriptive-statistics" element={<BasicAnalysisSetupPage />} />
           <Route path="/analyses/regression/linear" element={<BasicAnalysisSetupPage />} />
           <Route path="/analyses/regression/polynomial" element={<BasicAnalysisSetupPage />} />
           <Route path="/analyses/regression/interaction" element={<BasicAnalysisSetupPage />} />

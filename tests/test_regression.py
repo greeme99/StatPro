@@ -7,6 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from statpro.analyses.regression import best_subsets_ols, categorical_ols, interaction_ols, linear_ols, logistic_regression, poisson_regression, polynomial_ols, stepwise_ols, validate_ols
+from statpro.analyses.descriptive import descriptive_statistics
 from statpro.domain.errors import AnalysisInputError
 
 
@@ -213,6 +214,19 @@ class CategoricalAndPoissonRegressionTests(unittest.TestCase):
         self.assertEqual(result.diagnostics["dispersion_status"], "overdispersed")
         self.assertGreater(result.diagnostics["dispersion_ratio"], 1)
         self.assertLessEqual(result.diagnostics["dispersion_p_value"], 0.05)
+
+
+class DescriptiveStatisticsTests(unittest.TestCase):
+    def test_summarizes_center_spread_quantiles_and_mean_interval(self) -> None:
+        result = descriptive_statistics([1, 2, 3, 4, 5], variable_name="두께")
+        row = result.tables["summary"]["rows"][0]
+        self.assertEqual(result.analysis_type, "descriptive.univariate")
+        self.assertEqual(row["variable"], "두께")
+        self.assertEqual(row["n"], 5)
+        self.assertEqual(row["mean"], 3)
+        self.assertEqual(row["median"], 3)
+        self.assertLess(row["mean_confidence_interval_lower"], 3)
+        self.assertGreater(row["mean_confidence_interval_upper"], 3)
 
 
 if __name__ == "__main__":

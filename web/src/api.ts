@@ -581,6 +581,9 @@ export function createCapabilityRun(payload: {
 export function createJarqueBeraNormalityRun(payload: { run_id: string; values: number[]; alpha: number }): Promise<StoredRun> {
   return request("/v1/analysis-runs/normality-jarque-bera", { method: "POST", body: JSON.stringify(payload) });
 }
+export function createDescriptiveStatisticsRun(payload: { run_id: string; values: number[]; variable_name: string; alpha: number }): Promise<StoredRun> {
+  return request("/v1/analysis-runs/descriptive-statistics", { method: "POST", body: JSON.stringify(payload) });
+}
 
 export function createLinearOlsRun(payload: { run_id: string; response: number[]; predictors: Record<string, number[]>; response_name: string; alpha: number }): Promise<StoredRun> {
   return request("/v1/analysis-runs/regression-linear-ols", { method: "POST", body: JSON.stringify(payload) });

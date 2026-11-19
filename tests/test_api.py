@@ -935,6 +935,11 @@ class LocalApiContractTests(unittest.TestCase):
                 "normality.jarque_bera",
             ),
             (
+                "/v1/analysis-runs/descriptive-statistics",
+                {"run_id": "descriptive", "values": [1, 2, 3, 4, 5], "variable_name": "Thickness", "alpha": 0.05},
+                "descriptive.univariate",
+            ),
+            (
                 "/v1/analysis-runs/regression-linear-ols",
                 {
                     "run_id": "linear-ols",
