@@ -241,6 +241,22 @@ describe("StatPro UI", () => {
     expect(JSON.parse(String((call?.[1] as RequestInit).body))).toMatchObject({ response: [1, 2, 3, 5, 8, 13], predictors: { 온도: [180, 185, 190, 195, 200, 205] } });
   });
 
+  it("submits categorical OLS with the selected reference level", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      return new Response(JSON.stringify({ run_id: "categorical-test", storage_version: 1, etag: "a".repeat(64), result: { analysis_type: "regression.categorical_ols", engine_version: "0.6.0", input_digest: "b".repeat(64), warnings: [], assumptions: [], provenance: [], parameters: {}, diagnostics: {}, tables: {}, plots: {} } }), { status: 201 });
+    });
+    render(<MemoryRouter initialEntries={["/analyses/regression/categorical-ols"]}><App /></MemoryRouter>);
+
+    expect(await screen.findByRole("heading", { name: "범주형 OLS 회귀 설정" })).toBeInTheDocument();
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "기준 범주" }), "B");
+    await userEvent.click(screen.getByRole("button", { name: "범주형 OLS 회귀 실행" }));
+
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith("/regression-categorical-ols") && (init as RequestInit | undefined)?.method === "POST")).toBe(true));
+    const call = fetchMock.mock.calls.find(([url, init]) => String(url).endsWith("/regression-categorical-ols") && (init as RequestInit | undefined)?.method === "POST");
+    expect(JSON.parse(String((call?.[1] as RequestInit).body))).toMatchObject({ predictors: { "생산 라인": ["A", "A", "B", "B", "A", "A", "B", "B"] }, reference_levels: { "생산 라인": "B" } });
+  });
+
   it("submits the selected degree to the polynomial regression workspace", async () => {
     sessionStorage.setItem(AUTH_SESSION_KEY, "true");
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {

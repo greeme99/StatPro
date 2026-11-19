@@ -61,6 +61,7 @@ const QualityDashboardPage = lazyNamed(() => import("./pages/QualityDashboardPag
 const DefectAnalysisPage = lazyNamed(() => import("./pages/DefectAnalysisPage"), "DefectAnalysisPage");
 const AnalysisSelectionPage = lazyNamed(() => import("./pages/AnalysisSelectionPage"), "AnalysisSelectionPage");
 const BasicAnalysisSetupPage = lazyNamed(() => import("./pages/BasicAnalysisSetupPage"), "BasicAnalysisSetupPage");
+const CategoricalOlsSetupPage = lazyNamed(() => import("./pages/CategoricalOlsSetupPage"), "CategoricalOlsSetupPage");
 const WelchTSetupPage = lazyNamed(() => import("./pages/WelchTSetupPage"), "WelchTSetupPage");
 const PairedTSetupPage = lazyNamed(() => import("./pages/PairedTSetupPage"), "PairedTSetupPage");
 const ChiSquareSetupPage = lazyNamed(() => import("./pages/ChiSquareSetupPage"), "ChiSquareSetupPage");
@@ -86,6 +87,7 @@ function WorkspaceRoutes() {
           <Route path="/analyses/regression/stepwise" element={<BasicAnalysisSetupPage />} />
           <Route path="/analyses/regression/validation" element={<BasicAnalysisSetupPage />} />
           <Route path="/analyses/regression/best-subsets" element={<BasicAnalysisSetupPage />} />
+          <Route path="/analyses/regression/categorical-ols" element={<CategoricalOlsSetupPage />} />
           <Route path="/analyses/regression/poisson" element={<BasicAnalysisSetupPage />} />
           <Route path="/analyses/regression/logistic" element={<BasicAnalysisSetupPage />} />
           <Route path="/analyses/hypothesis/independent-welch-t" element={<WelchTSetupPage />} />
