@@ -17,6 +17,7 @@ NIST_TWO_SAMPLE_T_SOURCE = ProvenanceSource(
     url="https://www.itl.nist.gov/div898/handbook/eda/section3/eda353.htm",
 )
 NIST_CHI_SQUARE_SOURCE = ProvenanceSource(title="NIST/SEMATECH Chi-Square Test", url="https://www.itl.nist.gov/div898/handbook/eda/section3/eda35f.htm")
+NIST_RANK_SUM_SOURCE = ProvenanceSource(title="NIST/SEMATECH Rank-Sum Tests", url="https://www.itl.nist.gov/div898/handbook/eda/section3/eda35a.htm")
 
 
 def _sample_variance(values: list[float], mean: float) -> float:
@@ -95,6 +96,28 @@ def paired_t_test(before: Sequence[float], after: Sequence[float], *, before_nam
     degrees_of_freedom = len(differences) - 1; statistic = mean_difference / standard_error; p_value = _two_sided_t_probability(statistic, degrees_of_freedom); critical = _t_critical(alpha, degrees_of_freedom)
     lower, upper = mean_difference - critical * standard_error, mean_difference + critical * standard_error
     return ResultBundle(analysis_type="hypothesis.paired_t", engine_version=ENGINE_VERSION, input_digest=input_digest({"before": values_before, "after": values_after, "before_name": before_name, "after_name": after_name, "alpha": alpha}), parameters={"method": "paired_t", "alpha": alpha, "before_name": before_name, "after_name": after_name, "pair_count": len(differences), "alternative": "two_sided"}, tables={"test": {"columns": ["difference", "standard_error", "degrees_of_freedom", "t_statistic", "p_value", "confidence_interval_lower", "confidence_interval_upper", "significant"], "rows": [{"difference": mean_difference, "standard_error": standard_error, "degrees_of_freedom": degrees_of_freedom, "t_statistic": statistic, "p_value": p_value, "confidence_interval_lower": lower, "confidence_interval_upper": upper, "significant": p_value <= alpha}]}}, plots={}, diagnostics={"difference": mean_difference, "standard_error": standard_error, "degrees_of_freedom": degrees_of_freedom, "t_statistic": statistic, "p_value": p_value, "confidence_interval_lower": lower, "confidence_interval_upper": upper, "reject_equal_means": p_value <= alpha}, assumptions=("Each before/after row is the same matched unit.", "Pair differences are independent and approximately normal for small samples."), warnings=("This test evaluates paired mean difference, not practical significance.",), provenance=(NIST_TWO_SAMPLE_T_SOURCE,))
+
+
+def mann_whitney_u_test(group_a: Sequence[float], group_b: Sequence[float], *, group_a_name: str = "Group A", group_b_name: str = "Group B", alpha: float = 0.05) -> ResultBundle:
+    """Compare independent groups with average ranks and a tie-corrected normal approximation."""
+    values_a, values_b = finite_values(group_a, "group_a"), finite_values(group_b, "group_b")
+    names = (group_a_name.strip(), group_b_name.strip())
+    if len(values_a) < 2 or len(values_b) < 2: raise AnalysisInputError("insufficient_observations", "Each independent group requires at least two observations.", "group_a")
+    if not all(names) or names[0].casefold() == names[1].casefold(): raise AnalysisInputError("invalid_group_names", "Group names must be non-empty and distinct.", "group_a_name")
+    if not 0.001 <= alpha <= 0.5: raise AnalysisInputError("invalid_alpha", "Alpha must be between 0.001 and 0.5.", "alpha")
+    pooled = sorted([(value, 0) for value in values_a] + [(value, 1) for value in values_b]); ranks = [0.0] * len(pooled); tie_sizes: list[int] = []; index = 0
+    while index < len(pooled):
+        end = index + 1
+        while end < len(pooled) and pooled[end][0] == pooled[index][0]: end += 1
+        for position in range(index, end): ranks[position] = (index + 1 + end) / 2.0
+        tie_sizes.append(end - index); index = end
+    n_a, n_b, total = len(values_a), len(values_b), len(pooled); rank_sum_a = sum(rank for rank, (_, group) in zip(ranks, pooled, strict=True) if group == 0)
+    u_a = rank_sum_a - n_a * (n_a + 1) / 2.0; u_b = n_a * n_b - u_a; u = min(u_a, u_b); tie_adjustment = sum(size**3 - size for size in tie_sizes)
+    variance = n_a * n_b / 12.0 * ((total + 1) - tie_adjustment / (total * (total - 1)))
+    if variance <= 0.0: raise AnalysisInputError("zero_rank_variance", "All pooled values are tied; rank-sum inference is undefined.", "group_a")
+    mean_u = n_a * n_b / 2.0; continuity = 0.5 if u > mean_u else -0.5 if u < mean_u else 0.0; z_value = (u - mean_u - continuity) / math.sqrt(variance); p_value = math.erfc(abs(z_value) / math.sqrt(2.0))
+    row = {"u": u, "u_group_a": u_a, "u_group_b": u_b, "z_value": z_value, "p_value": p_value, "significant": p_value <= alpha}
+    return ResultBundle(analysis_type="hypothesis.mann_whitney_u", engine_version=ENGINE_VERSION, input_digest=input_digest({"group_a": values_a, "group_b": values_b, "group_a_name": names[0], "group_b_name": names[1], "alpha": alpha}), parameters={"method": "mann_whitney_u_normal_approximation", "alpha": alpha, "group_a_name": names[0], "group_b_name": names[1], "tie_correction": True, "continuity_correction": True}, tables={"group_summary": {"columns": ["group", "n", "mean_rank"], "rows": [{"group": names[0], "n": n_a, "mean_rank": rank_sum_a / n_a}, {"group": names[1], "n": n_b, "mean_rank": (total * (total + 1) / 2.0 - rank_sum_a) / n_b}]}, "test": {"columns": list(row), "rows": [row]}}, plots={}, diagnostics={**row, "rank_variance": variance, "reject_equal_distributions": p_value <= alpha}, assumptions=("Groups are independent and observations can be ranked.", "The normal approximation is more reliable with adequate samples; review small samples and ties."), warnings=("This is a two-sided, tie-corrected normal approximation; exact p-values are not calculated.",), provenance=(NIST_RANK_SUM_SOURCE,))
 
 
 def one_way_anova(groups: dict[str, Sequence[float]], *, alpha: float = 0.05) -> ResultBundle:

@@ -940,6 +940,11 @@ class LocalApiContractTests(unittest.TestCase):
                 "descriptive.univariate",
             ),
             (
+                "/v1/analysis-runs/mann-whitney-u",
+                {"run_id": "mann-whitney", "group_a": [1, 2, 3], "group_b": [7, 8, 9]},
+                "hypothesis.mann_whitney_u",
+            ),
+            (
                 "/v1/analysis-runs/regression-linear-ols",
                 {
                     "run_id": "linear-ols",

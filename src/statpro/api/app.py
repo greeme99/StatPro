@@ -50,7 +50,7 @@ from statpro.analyses.msa import (
 )
 from statpro.analyses.normality import jarque_bera_normality
 from statpro.analyses.descriptive import descriptive_statistics
-from statpro.analyses.hypothesis import independent_welch_t_test
+from statpro.analyses.hypothesis import independent_welch_t_test, mann_whitney_u_test
 from statpro.analyses.hypothesis import paired_t_test
 from statpro.analyses.hypothesis import chi_square_independence, one_way_anova
 from statpro.analyses.regression import best_subsets_ols, categorical_ols, interaction_ols, linear_ols, logistic_regression, poisson_regression, polynomial_ols, stepwise_ols, validate_ols
@@ -399,6 +399,15 @@ class DescriptiveStatisticsRunRequest(ApiModel):
     run_id: RunId
     values: list[float] = Field(min_length=2)
     variable_name: str = Field(default="Measurement", min_length=1, max_length=255)
+    alpha: float = Field(default=0.05, ge=0.001, le=0.5)
+
+
+class MannWhitneyRunRequest(ApiModel):
+    run_id: RunId
+    group_a: list[float] = Field(min_length=2)
+    group_b: list[float] = Field(min_length=2)
+    group_a_name: str = Field(default="Group A", min_length=1, max_length=255)
+    group_b_name: str = Field(default="Group B", min_length=1, max_length=255)
     alpha: float = Field(default=0.05, ge=0.001, le=0.5)
 
 
@@ -2701,6 +2710,12 @@ def create_app(
     @app.post("/v1/analysis-runs/descriptive-statistics", status_code=201, response_model=StoredRunResponse)
     def run_descriptive_statistics(request: DescriptiveStatisticsRunRequest, response: Response) -> StoredRunResponse:
         stored = _save_run(repository, request.run_id, descriptive_statistics(request.values, variable_name=request.variable_name, alpha=request.alpha))
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _response(stored)
+
+    @app.post("/v1/analysis-runs/mann-whitney-u", status_code=201, response_model=StoredRunResponse)
+    def run_mann_whitney_u(request: MannWhitneyRunRequest, response: Response) -> StoredRunResponse:
+        stored = _save_run(repository, request.run_id, mann_whitney_u_test(request.group_a, request.group_b, group_a_name=request.group_a_name, group_b_name=request.group_b_name, alpha=request.alpha))
         response.headers["ETag"] = f'"{stored.etag}"'
         return _response(stored)
 

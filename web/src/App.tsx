@@ -63,6 +63,7 @@ const AnalysisSelectionPage = lazyNamed(() => import("./pages/AnalysisSelectionP
 const BasicAnalysisSetupPage = lazyNamed(() => import("./pages/BasicAnalysisSetupPage"), "BasicAnalysisSetupPage");
 const CategoricalOlsSetupPage = lazyNamed(() => import("./pages/CategoricalOlsSetupPage"), "CategoricalOlsSetupPage");
 const WelchTSetupPage = lazyNamed(() => import("./pages/WelchTSetupPage"), "WelchTSetupPage");
+const MannWhitneySetupPage = lazyNamed(() => import("./pages/MannWhitneySetupPage"), "MannWhitneySetupPage");
 const PairedTSetupPage = lazyNamed(() => import("./pages/PairedTSetupPage"), "PairedTSetupPage");
 const ChiSquareSetupPage = lazyNamed(() => import("./pages/ChiSquareSetupPage"), "ChiSquareSetupPage");
 const OneWayAnovaSetupPage = lazyNamed(() => import("./pages/OneWayAnovaSetupPage"), "OneWayAnovaSetupPage");
@@ -92,6 +93,7 @@ function WorkspaceRoutes() {
           <Route path="/analyses/regression/poisson" element={<BasicAnalysisSetupPage />} />
           <Route path="/analyses/regression/logistic" element={<BasicAnalysisSetupPage />} />
           <Route path="/analyses/hypothesis/independent-welch-t" element={<WelchTSetupPage />} />
+          <Route path="/analyses/hypothesis/mann-whitney-u" element={<MannWhitneySetupPage />} />
           <Route path="/analyses/hypothesis/paired-t" element={<PairedTSetupPage />} />
           <Route path="/analyses/hypothesis/chi-square-independence" element={<ChiSquareSetupPage />} />
           <Route path="/analyses/hypothesis/one-way-anova" element={<OneWayAnovaSetupPage />} />

@@ -8,6 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from statpro.analyses.regression import best_subsets_ols, categorical_ols, interaction_ols, linear_ols, logistic_regression, poisson_regression, polynomial_ols, stepwise_ols, validate_ols
 from statpro.analyses.descriptive import descriptive_statistics
+from statpro.analyses.hypothesis import mann_whitney_u_test
 from statpro.domain.errors import AnalysisInputError
 
 
@@ -227,6 +228,15 @@ class DescriptiveStatisticsTests(unittest.TestCase):
         self.assertEqual(row["median"], 3)
         self.assertLess(row["mean_confidence_interval_lower"], 3)
         self.assertGreater(row["mean_confidence_interval_upper"], 3)
+
+
+class MannWhitneyTests(unittest.TestCase):
+    def test_uses_rank_sum_normal_approximation(self) -> None:
+        result = mann_whitney_u_test([1, 2, 2, 3, 4], [5, 6, 7, 8, 9])
+        row = result.tables["test"]["rows"][0]
+        self.assertEqual(result.analysis_type, "hypothesis.mann_whitney_u")
+        self.assertEqual(row["u"], 0.0)
+        self.assertLess(row["p_value"], 0.05)
 
 
 if __name__ == "__main__":

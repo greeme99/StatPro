@@ -92,6 +92,7 @@ export function AnalysisSelectionPage() {
           <Link className="analysis-choice" to="/analyses/regression/poisson"><strong>Poisson 회귀</strong><span>불량·고장 등 비음수 정수 건수(Y)의 발생률을 설명합니다.</span></Link>
           <Link className="analysis-choice" to="/analyses/regression/logistic"><strong>로지스틱 회귀</strong><span>합격·불합격 등 0/1 결과(Y)의 발생확률을 추정합니다.</span></Link>
           <Link className="analysis-choice" to="/analyses/hypothesis/independent-welch-t"><strong>독립표본 t-검정</strong><span>독립 두 집단의 평균차를 Welch 방법으로 비교합니다.</span></Link>
+          <Link className="analysis-choice" to="/analyses/hypothesis/mann-whitney-u"><strong>Mann–Whitney U 검정</strong><span>정규성 가정이 어려운 독립 두 집단을 순위로 비교합니다.</span></Link>
           <Link className="analysis-choice" to="/analyses/hypothesis/paired-t"><strong>대응표본 t-검정</strong><span>같은 대상의 전후 또는 짝지어진 두 측정값 차이를 비교합니다.</span></Link>
           <Link className="analysis-choice" to="/analyses/hypothesis/chi-square-independence"><strong>카이제곱 독립성 검정</strong><span>두 범주형 변수의 연관성을 분할표로 확인합니다.</span></Link>
           <Link className="analysis-choice" to="/analyses/hypothesis/one-way-anova"><strong>일원 분산분석</strong><span>세 개 이상 독립 집단의 평균을 비교합니다.</span></Link>
