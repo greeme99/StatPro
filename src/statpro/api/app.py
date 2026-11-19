@@ -52,6 +52,7 @@ from statpro.analyses.normality import jarque_bera_normality
 from statpro.analyses.descriptive import descriptive_statistics
 from statpro.analyses.power import two_sample_mean_sample_size
 from statpro.analyses.hypothesis import independent_tost_equivalence, independent_welch_t_test, mann_whitney_u_test
+from statpro.analyses.hypothesis import one_sample_t_test
 from statpro.analyses.hypothesis import paired_t_test, wilcoxon_signed_rank_test
 from statpro.analyses.hypothesis import chi_square_independence, kruskal_wallis_test, one_way_anova
 from statpro.analyses.regression import best_subsets_ols, categorical_ols, interaction_ols, linear_ols, logistic_regression, poisson_regression, polynomial_ols, stepwise_ols, validate_ols
@@ -408,6 +409,13 @@ class TwoSamplePowerRunRequest(ApiModel):
     standard_deviation: float = Field(gt=0)
     alpha: float = Field(default=0.05, ge=0.001, le=0.5)
     target_power: float = Field(default=0.8, gt=0.5, lt=0.999)
+
+class OneSampleTRunRequest(ApiModel):
+    run_id: RunId
+    values: list[float] = Field(min_length=2)
+    target: float
+    alpha: float = Field(default=0.05, ge=0.001, le=0.5)
+    variable_name: str = Field(default="Measurement", min_length=1, max_length=255)
 
 
 class MannWhitneyRunRequest(ApiModel):
@@ -2734,6 +2742,12 @@ def create_app(
     @app.post("/v1/analysis-runs/power-two-sample-mean", status_code=201, response_model=StoredRunResponse)
     def run_two_sample_power(request: TwoSamplePowerRunRequest, response: Response) -> StoredRunResponse:
         stored = _save_run(repository, request.run_id, two_sample_mean_sample_size(difference=request.difference, standard_deviation=request.standard_deviation, alpha=request.alpha, target_power=request.target_power))
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _response(stored)
+
+    @app.post("/v1/analysis-runs/one-sample-t", status_code=201, response_model=StoredRunResponse)
+    def run_one_sample_t(request: OneSampleTRunRequest, response: Response) -> StoredRunResponse:
+        stored = _save_run(repository, request.run_id, one_sample_t_test(request.values, target=request.target, alpha=request.alpha, variable_name=request.variable_name))
         response.headers["ETag"] = f'"{stored.etag}"'
         return _response(stored)
 

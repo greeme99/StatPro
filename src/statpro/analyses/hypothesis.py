@@ -43,6 +43,19 @@ def _t_critical(alpha: float, degrees_of_freedom: float) -> float:
     return (lower + upper) / 2.0
 
 
+def one_sample_t_test(values: Sequence[float], *, target: float, alpha: float = 0.05, variable_name: str = "Measurement") -> ResultBundle:
+    """Two-sided one-sample t-test with a confidence interval for the process mean."""
+    observations = finite_values(values, "values")
+    name = variable_name.strip()
+    if len(observations) < 2: raise AnalysisInputError("insufficient_observations", "At least two observations are required.", "values")
+    if not name or not 0.001 <= alpha <= 0.5: raise AnalysisInputError("invalid_one_sample_input", "Use a variable name and valid alpha.", "alpha")
+    mean = fmean(observations); variance = _sample_variance(observations, mean); standard_error = math.sqrt(variance / len(observations))
+    if standard_error == 0.0: raise AnalysisInputError("zero_standard_error", "Within-sample variation is required for t inference.", "values")
+    degrees = len(observations) - 1; difference = mean - target; t_value = difference / standard_error; p_value = _two_sided_t_probability(t_value, degrees); critical = _t_critical(alpha, degrees); lower, upper = mean - critical * standard_error, mean + critical * standard_error
+    row = {"variable": name, "n": len(observations), "mean": mean, "target": target, "difference": difference, "standard_error": standard_error, "degrees_of_freedom": degrees, "t_value": t_value, "p_value": p_value, "confidence_interval_lower": lower, "confidence_interval_upper": upper, "significant": p_value <= alpha}
+    return ResultBundle(analysis_type="hypothesis.one_sample_t", engine_version=ENGINE_VERSION, input_digest=input_digest({"values": observations, "target": target, "alpha": alpha, "variable_name": name}), parameters={"method": "one_sample_t", "alpha": alpha, "alternative": "two_sided", "target": target}, tables={"test": {"columns": list(row), "rows": [row]}}, plots={}, diagnostics=row, assumptions=("Observations are independent and the response is continuous.", "For small samples, the population distribution should be approximately normal."), warnings=("Statistical significance does not establish practical significance; compare the confidence interval with the engineering tolerance.",), provenance=(NIST_TWO_SAMPLE_T_SOURCE,))
+
+
 def independent_welch_t_test(
     group_a: Sequence[float], group_b: Sequence[float], *, group_a_name: str = "Group A", group_b_name: str = "Group B", alpha: float = 0.05
 ) -> ResultBundle:

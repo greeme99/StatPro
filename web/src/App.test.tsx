@@ -2440,6 +2440,14 @@ describe("StatPro UI", () => {
     await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith("/v1/analysis-runs/power-two-sample-mean") && (init as RequestInit | undefined)?.method === "POST")).toBe(true));
   });
 
+  it("submits a target and measurements through the one-sample t route", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => new Response(JSON.stringify(String(input).endsWith("/health") ? { ok: true, engine_version: "0.6.0", local_only: true } : { run_id: "one-sample-ui", result: { analysis_type: "hypothesis.one_sample_t", diagnostics: { difference: 3, p_value: 0.01, confidence_interval_lower: 1, confidence_interval_upper: 5, significant: true }, tables: { test: { rows: [] } }, warnings: [], notes: [] } }), { status: 200 }));
+    render(<MemoryRouter initialEntries={["/analyses/hypothesis/one-sample-t"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "단일 표본 t-검정" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "단일 표본 t-검정 실행" }));
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith("/v1/analysis-runs/one-sample-t") && (init as RequestInit | undefined)?.method === "POST")).toBe(true));
+  });
+
   it("submits independent groups through the Kruskal–Wallis route", async () => {
     const stored = { run_id: "kruskal-ui", result: { analysis_type: "hypothesis.kruskal_wallis", diagnostics: {}, tables: { test: { rows: [] }, group_summary: { rows: [] } }, warnings: [], notes: [] } };
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {

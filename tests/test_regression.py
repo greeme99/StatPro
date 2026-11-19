@@ -13,6 +13,7 @@ from statpro.analyses.hypothesis import wilcoxon_signed_rank_test
 from statpro.analyses.hypothesis import kruskal_wallis_test
 from statpro.analyses.hypothesis import independent_tost_equivalence
 from statpro.analyses.power import two_sample_mean_sample_size
+from statpro.analyses.hypothesis import one_sample_t_test
 from statpro.domain.errors import AnalysisInputError
 
 
@@ -271,6 +272,13 @@ class PowerAnalysisTests(unittest.TestCase):
         result = two_sample_mean_sample_size(difference=1, standard_deviation=1, alpha=0.05, target_power=0.8)
         self.assertEqual(result.analysis_type, "power.two_sample_mean")
         self.assertGreaterEqual(result.diagnostics["sample_size_per_group"], 16)
+
+
+class OneSampleTTests(unittest.TestCase):
+    def test_compares_process_mean_with_target(self) -> None:
+        result = one_sample_t_test([101, 102, 103, 104, 105], target=100, variable_name="강도")
+        self.assertEqual(result.analysis_type, "hypothesis.one_sample_t")
+        self.assertTrue(result.diagnostics["significant"])
 
 
 if __name__ == "__main__":
