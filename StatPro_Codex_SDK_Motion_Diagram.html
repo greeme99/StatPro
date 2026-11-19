@@ -1,0 +1,995 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StatPro Codex SDK — LLM-API 작동 원리 및 프로세스 모션 다이어그램</title>
+  <style>
+    :root, [data-theme="dark"] {
+      --bg: #0b0f19;
+      --surface: #111827;
+      --card: #161f33;
+      --card-hover: #1e2942;
+      --border: #26334d;
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+      --code-bg: #090d16;
+      --code-text: #e2e8f0;
+      --primary: #3b82f6;
+      --primary-glow: rgba(59, 130, 246, 0.32);
+      --primary-fg: #ffffff;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --error: #ef4444;
+      --link: #60a5fa;
+      --shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.5);
+    }
+    [data-theme="light"] {
+      --bg: #f8fafc;
+      --surface: #ffffff;
+      --card: #ffffff;
+      --card-hover: #f1f5f9;
+      --border: #cbd5e1;
+      --text: #0f172a;
+      --muted: #475569;
+      --code-bg: #0f172a;
+      --code-text: #f8fafc;
+      --primary: #2563eb;
+      --primary-glow: rgba(37, 99, 235, 0.22);
+      --primary-fg: #ffffff;
+      --success: #059669;
+      --warning: #d97706;
+      --error: #dc2626;
+      --link: #2563eb;
+      --shadow: 0 8px 24px -4px rgba(15, 23, 42, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Pretendard", "Segoe UI", Roboto, "Noto Sans KR", sans-serif;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .container {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 24px 20px 40px;
+    }
+
+    .header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding-bottom: 18px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 20px;
+    }
+    .title-group h1 {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .badge-pill {
+      font-size: 11px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: var(--primary);
+      color: var(--primary-fg);
+      font-weight: 600;
+    }
+    .title-group p {
+      margin: 4px 0 0;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 13px;
+      border-radius: 8px;
+      font-size: 12.5px;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--text);
+      transition: all 0.18s ease;
+      text-decoration: none;
+    }
+    .btn:hover {
+      border-color: var(--primary);
+      background: var(--card-hover);
+    }
+    .btn-primary {
+      background: var(--primary);
+      color: var(--primary-fg);
+      border-color: var(--primary);
+    }
+    .btn-primary:hover {
+      opacity: 0.92;
+      background: var(--primary);
+    }
+    .btn-success {
+      background: var(--success);
+      color: #ffffff;
+      border-color: var(--success);
+    }
+    .btn-success:hover {
+      opacity: 0.92;
+      background: var(--success);
+    }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .scenario-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .playback-controls {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .counter {
+      font-family: ui-monospace, SFMono-Regular, monospace;
+      font-size: 12.5px;
+      color: var(--muted);
+      min-width: 48px;
+      text-align: right;
+    }
+
+    .stage-card {
+      position: relative;
+      width: 100%;
+      height: 270px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      margin-bottom: 16px;
+    }
+    .zone-box {
+      position: absolute;
+      top: 14px;
+      height: 194px;
+      border: 1.5px dashed var(--primary);
+      border-radius: 10px;
+      background: var(--primary-glow);
+      opacity: 0.22;
+      pointer-events: none;
+      transition: all 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .zone-caption {
+      position: absolute;
+      top: 20px;
+      font-family: ui-monospace, SFMono-Regular, monospace;
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--link);
+      pointer-events: none;
+      transition: all 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .step-bar {
+      position: absolute;
+      bottom: 10px;
+      left: 14px;
+      right: 14px;
+      display: flex;
+      gap: 8px;
+    }
+    .step-pill {
+      flex: 1;
+      padding: 6px 8px;
+      border-radius: 7px;
+      font-size: 11.5px;
+      font-weight: 600;
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--muted);
+      cursor: pointer;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      transition: all 0.2s ease;
+    }
+    .step-pill:hover {
+      color: var(--text);
+      border-color: var(--primary);
+    }
+    .step-pill.active {
+      background: var(--primary);
+      color: var(--primary-fg);
+      border-color: var(--primary);
+    }
+
+    .details-grid {
+      display: grid;
+      grid-template-columns: 7fr 5fr;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    @media (max-width: 860px) {
+      .details-grid { grid-template-columns: 1fr; }
+    }
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px;
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 185px;
+    }
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    .panel-title-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .panel-title {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 700;
+    }
+    .symbol-tag {
+      font-family: ui-monospace, SFMono-Regular, monospace;
+      font-size: 11.5px;
+      color: var(--link);
+      background: var(--card);
+      padding: 2px 8px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+    }
+    .panel-desc {
+      margin: 4px 0 14px;
+      font-size: 13.5px;
+      color: var(--muted);
+      line-height: 1.65;
+    }
+    .point-box {
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: var(--card);
+      border-left: 3px solid var(--primary);
+      font-size: 12.5px;
+    }
+    .point-box strong {
+      color: var(--link);
+      margin-right: 6px;
+    }
+
+    .code-box {
+      background: var(--code-bg);
+      color: var(--code-text);
+      padding: 12px 14px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.55;
+      overflow-x: auto;
+      margin: 0;
+      flex: 1;
+      white-space: pre-wrap;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+    @media (max-width: 960px) {
+      .summary-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 560px) {
+      .summary-grid { grid-template-columns: 1fr; }
+    }
+    .summary-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px;
+    }
+    .summary-card h4 {
+      margin: 0 0 6px;
+      font-size: 13px;
+      color: var(--link);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .summary-card p {
+      margin: 0;
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+
+    @keyframes dashFlow {
+      to { stroke-dashoffset: -24; }
+    }
+    @keyframes pulseRing {
+      0% { transform: scale(0.96); opacity: 0.85; }
+      50% { transform: scale(1.05); opacity: 0.3; }
+      100% { transform: scale(0.96); opacity: 0.85; }
+    }
+    .dash-animate {
+      stroke-dasharray: 6 6;
+      animation: dashFlow 0.85s linear infinite;
+    }
+    .node-active-ring {
+      transform-box: fill-box;
+      transform-origin: center;
+      animation: pulseRing 1.8s ease-in-out infinite;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <div class="title-group">
+        <h1>
+          <span>StatPro Codex SDK → LLM-API 작동 원리 모션 다이어그램</span>
+          <span class="badge-pill">src/statpro/application/copilot.py</span>
+        </h1>
+        <p>상태 유지형(Stateful) 로컬 에이전트 SDK를 읽기 전용(Sandbox.read_only) 단발성 LLM-API처럼 래핑하여 운영하는 프로세스 시각화</p>
+      </div>
+      <div class="header-actions">
+        <button id="btn-theme" class="btn" title="다크/라이트 테마 전환">🌗 테마 전환</button>
+      </div>
+    </header>
+
+    <div class="toolbar">
+      <div class="scenario-tabs">
+        <button data-scenario="sdk" class="btn btn-primary scenario-btn">① Codex SDK → LLM-API 변환 원리 (6단계)</button>
+        <button data-scenario="fallback" class="btn scenario-btn">② 4단계 하이브리드 폴백 체인 (4단계)</button>
+        <button data-scenario="failclosed" class="btn scenario-btn">③ 계약 검증 실패 및 Fail-Closed 보호 (3단계)</button>
+      </div>
+
+      <div class="playback-controls">
+        <button id="btn-prev" class="btn" title="이전 단계">◀ 이전</button>
+        <button id="btn-play" class="btn btn-primary">
+          <span id="play-icon">⏸</span>
+          <span id="play-label">자동 재생 중</span>
+        </button>
+        <button id="btn-next" class="btn" title="다음 단계">다음 ▶</button>
+        <span id="step-counter" class="counter">1 / 6</span>
+      </div>
+    </div>
+
+    <div class="stage-card">
+      <div id="zone-highlight" class="zone-box" style="left: 20%; width: 58%;"></div>
+      <div id="zone-label" class="zone-caption" style="left: 21%;">Codex SDK를 단발성 LLM-API처럼 작동시키는 어댑터 경계 (copilot.py)</div>
+
+      <svg id="motion-svg" viewBox="0 0 920 245" style="width: 100%; height: 100%;">
+        <defs>
+          <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+            <feGaussianBlur stdDeviation="4" result="blur" />
+            <feComposite in="SourceGraphic" in2="blur" operator="over" />
+          </filter>
+          <marker id="arrow-muted" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+            <path d="M 0 1 L 8 5 L 0 9 z" fill="var(--muted)" opacity="0.45" />
+          </marker>
+          <marker id="arrow-active" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 1 L 8 5 L 0 9 z" fill="var(--primary)" />
+          </marker>
+        </defs>
+
+        <g id="svg-edges"></g>
+        <g id="svg-nodes"></g>
+
+        <g id="packet-group" style="opacity: 0;">
+          <circle r="11" fill="var(--primary)" opacity="0.28" filter="url(#glow)" />
+          <circle r="5.5" fill="var(--primary)" />
+          <g transform="translate(0, -20)">
+            <rect id="packet-badge-bg" x="-70" y="-12" width="140" height="21" rx="10.5" fill="var(--bg)" stroke="var(--primary)" stroke-width="1.4" />
+            <text id="packet-badge-text" x="0" y="2" text-anchor="middle" fill="var(--text)" font-size="11" font-family="monospace" font-weight="700">JSON-RPC</text>
+          </g>
+        </g>
+      </svg>
+
+      <div id="step-pills" class="step-bar"></div>
+    </div>
+
+    <div class="details-grid">
+      <div class="panel">
+        <div>
+          <div class="panel-header">
+            <div class="panel-title-wrap">
+              <span id="detail-badge" class="badge-pill">STEP 1</span>
+              <h3 id="detail-title" class="panel-title">동일한 CopilotProvider 인터페이스 호출</h3>
+            </div>
+            <span id="detail-symbol" class="symbol-tag">CodexSdkCopilotProvider.answer()</span>
+          </div>
+          <p id="detail-desc" class="panel-desc"></p>
+        </div>
+        <div class="point-box">
+          <strong>핵심 설계 포인트:</strong>
+          <span id="detail-point"></span>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <span id="code-title" style="font-size: 12.5px; font-weight: 700; color: var(--muted);">실시간 전송 페이로드 / 구현 코드</span>
+          <span id="code-tag" class="symbol-tag">copilot.py</span>
+        </div>
+        <pre id="code-content" class="code-box"></pre>
+      </div>
+    </div>
+
+    <div class="summary-grid">
+      <div class="summary-card">
+        <h4>1. 프로토콜 단일화 (CopilotProvider)</h4>
+        <p>HTTP 기반 <code>ExaoneCopilotProvider</code>와 로컬 <code>CodexSdkCopilotProvider</code>가 동일한 <code>answer() → CopilotGuidance</code> 시그니처를 구현하여 호출부에서 완벽히 교체 가능합니다.</p>
+      </div>
+      <div class="summary-card">
+        <h4>2. 프롬프트 행동 억제 & JSON 강제</h4>
+        <p>에이전트의 도구 실행·파일 수정을 프롬프트로 금지하고, <code>answer</code>, <code>recommended_tool</code>, <code>menu_path</code>, <code>checklist</code>, <code>workflow_steps</code> 단일 JSON 반환만 요구합니다.</p>
+      </div>
+      <div class="summary-card">
+        <h4>3. Read-Only 샌드박스 & 1-Turn</h4>
+        <p><code>codex.thread_start(sandbox=Sandbox.read_only)</code>로 파일 쓰기를 OS/SDK 차원에서 차단하고, <code>thread.run(prompt)</code> 1회 실행 후 즉시 스레드를 닫아 무상태 API로 동작합니다.</p>
+      </div>
+      <div class="summary-card">
+        <h4>4. 경계 검증 & Fail-Closed 전환</h4>
+        <p><code>_decode_llm_guidance_payload()</code>로 코드펜스를 제거하고 스키마를 검증합니다. 실패 시 미검증 응답을 노출하지 않고 즉시 수동 안내(<code>manual_guidance</code>)로 안전 전환합니다.</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const SCENARIOS = {
+      sdk: {
+        zone: { left: "20%", width: "58%", label: "Codex SDK를 단발성 LLM-API처럼 작동시키는 어댑터 경계 (copilot.py)" },
+        nodes: [
+          { id: "ui", x: 86, y: 112, w: 126, h: 60, title: "Copilot UI / API", sub: "POST /copilot/guidance", icon: "💬" },
+          { id: "provider", x: 266, y: 112, w: 144, h: 60, title: "CodexSdkProvider", sub: "프롬프트 + JSON 스키마 주입", icon: "📝" },
+          { id: "client", x: 458, y: 112, w: 148, h: 60, title: "OpenAICodexClient", sub: "Sandbox.read_only 고정", icon: "🔒" },
+          { id: "server", x: 650, y: 112, w: 140, h: 60, title: "Codex App-Server", sub: "JSON-RPC 단발 스레드", icon: "⚡" },
+          { id: "validator", x: 830, y: 112, w: 132, h: 60, title: "경계 계약 검증기", sub: "_decode_llm_guidance", icon: "✅" }
+        ],
+        edges: [
+          { from: "ui", to: "provider", yOffset: -9 },
+          { from: "provider", to: "client", yOffset: -9 },
+          { from: "client", to: "server", yOffset: -9 },
+          { from: "server", to: "client", yOffset: 13, dashed: true },
+          { from: "client", to: "validator", yOffset: 13 },
+          { from: "validator", to: "ui", yOffset: 30, arc: true }
+        ],
+        steps: [
+          {
+            badge: "STEP 1",
+            short: "1. 질문·문맥 전달",
+            activeNodes: ["ui", "provider"],
+            packet: { from: "ui", to: "provider", label: "question + workspace", yOffset: -9 },
+            title: "동일한 CopilotProvider 인터페이스 호출",
+            symbol: "CodexSdkCopilotProvider.answer()",
+            desc: "프론트엔드(CopilotPanel)나 상위 폴백 체인은 호출 대상이 HTTP LLM(EXAONE)인지 로컬 에이전트(Codex SDK)인지 구분하지 않고 동일한 answer() 시그니처로 질의와 작업공간 문맥을 전달합니다.",
+            point: "에이전트 SDK를 일반 REST LLM-API와 100% 동일한 프로토콜(CopilotProvider)로 추상화",
+            codeTitle: "호출 인터페이스 (Protocol)",
+            codeTag: "copilot.py",
+            code: `guidance = codex_provider.answer(\n  question="착색 방지 코팅 조건 최적화 방법",\n  pathname="/doe",\n  workspace="실험계획법 (DOE)",\n  evidence_context="선택한 실행 근거"\n)`
+          },
+          {
+            badge: "STEP 2",
+            short: "2. JSON 계약 프롬프트 래핑",
+            activeNodes: ["provider", "client"],
+            packet: { from: "provider", to: "client", label: "System Rule + JSON Schema", yOffset: -9 },
+            title: "에이전트 행동 억제 및 단일 JSON 스키마 강제",
+            symbol: "CodexSdkCopilotProvider → prompt",
+            desc: "원래 Codex는 파일 수정·명령 실행이 가능한 코딩 에이전트이지만, 프롬프트에서 도구 실행·파일 변경을 명시적으로 금지하고 오직 정해진 JSON 객체만 반환하도록 지시하여 텍스트 추론 API처럼 제어합니다.",
+            point: "도구 실행 금지 + 고정 JSON 스키마(answer, menu_path, checklist, workflow_steps) 강제",
+            codeTitle: "프롬프트 래핑 구조",
+            codeTag: "Prompt Injection Guard",
+            code: `"도구를 실행하거나 파일을 변경하지 마세요.\\n"\n"다음 JSON만 반환하세요: "\n'{"answer":str,"recommended_tool":str|null,'\n'"menu_path":str[],"checklist":str[],'\n'"workflow_steps":str[]}'`
+          },
+          {
+            badge: "STEP 3",
+            short: "3. Read-Only 샌드박스 스레드",
+            activeNodes: ["client", "server"],
+            packet: { from: "client", to: "server", label: "thread_start(read_only)", yOffset: -9 },
+            title: "지연 임포트 및 Read-Only 샌드박스 세션 생성",
+            symbol: "OpenAICodexSdkClient.run_read_only()",
+            desc: "STATPRO_COPILOT_CODEX_ENABLED=true일 때만 openai_codex를 지연(Lazy) 로드합니다. with Codex() 컨텍스트로 로컬 Codex App-Server에 연결하고 Sandbox.read_only 옵션으로 단발성 스레드를 시작합니다.",
+            point: "프롬프트 지시를 넘어 OS/SDK 수준에서 Sandbox.read_only로 파일 쓰기 원천 차단",
+            codeTitle: "샌드박스 격리 실행",
+            codeTag: "openai_codex SDK",
+            code: `from openai_codex import Codex, Sandbox\nwith Codex() as codex:\n  thread = codex.thread_start(\n    sandbox=Sandbox.read_only,\n    model=self._model\n  )`
+          },
+          {
+            badge: "STEP 4",
+            short: "4. JSON-RPC 단발 추론 실행",
+            activeNodes: ["server", "client"],
+            packet: { from: "server", to: "client", label: "result.final_response", yOffset: 13 },
+            title: "로컬 Codex App-Server를 통한 단일 턴(1-Turn) 추론",
+            symbol: "thread.run(prompt) → final_response",
+            desc: "별도의 API Key를 코드에 하드코딩하지 않고 로컬 Codex 인증 세션을 재사용하여 JSON-RPC로 thread.run(prompt)를 호출합니다. 추론이 끝나면 with 블록이 종료되며 세션이 즉시 정리(Stateless)됩니다.",
+            point: "로컬 Codex 인증 재사용 + 1회 요청·응답 후 즉시 스레드 종료(Stateless API화)",
+            codeTitle: "단일 턴 응답 추출",
+            codeTag: "JSON-RPC Response",
+            code: `result = thread.run(prompt)\n# 멀티턴/도구 루프 없이 최종 문자열만 추출\nif not isinstance(result.final_response, str):\n  raise ValueError("Invalid response")\nreturn result.final_response`
+          },
+          {
+            badge: "STEP 5",
+            short: "5. 출력 정규화·스키마 검증",
+            activeNodes: ["client", "validator"],
+            packet: { from: "client", to: "validator", label: "raw JSON string", yOffset: 13 },
+            title: "마크다운 코드펜스 제거 및 데이터 계약 검증",
+            symbol: "_guidance_from_provider_text()",
+            desc: "모델이 ```json 코드펜스를 포함해 응답하더라도 경계 파서(_decode_llm_guidance_payload)가 순수 JSON 객체만 추출합니다. 이후 필수 키와 리스트 타입, 길이 제한(menu_path 8개, checklist 12개)을 엄격히 검증합니다.",
+            point: "LLM의 비정형 텍스트 응답을 정형 도메인 객체(CopilotGuidance)로 변환",
+            codeTitle: "경계 정규화 및 계약 검증",
+            codeTag: "Boundary Validator",
+            code: `payload = _decode_llm_guidance_payload(text)\nreturn CopilotGuidance(\n  answer=payload["answer"].strip(),\n  provider=f"codex-sdk:{model or 'default'}",\n  guidance_mode="llm_fallback",\n  menu_path=tuple(payload["menu_path"][:8])\n)`
+          },
+          {
+            badge: "STEP 6",
+            short: "6. UI 가이드·워크플로 렌더링",
+            activeNodes: ["validator", "ui"],
+            packet: { from: "validator", to: "ui", label: "CopilotGuidance", yOffset: 30, arc: true },
+            title: "Copilot 패널에 추천 도구·체크리스트·폴백 배지 표시",
+            symbol: "CopilotPanel.tsx",
+            desc: "검증된 CopilotGuidance가 반환되면 UI는 일반 LLM API 응답과 동일하게 답변 본문, 메뉴 이동 경로, 체크리스트, 단계별 Workflow 및 폴백 체인 상태 배지(Codex SDK: answered)를 렌더링합니다.",
+            point: "사용자는 로컬 에이전트 SDK를 안전하고 일관된 업무 가이드 API로 경험",
+            codeTitle: "최종 반환 데이터 구조",
+            codeTag: "HTTP 200 JSON",
+            code: `{\n  "provider": "codex-sdk:default",\n  "guidance_mode": "llm_fallback",\n  "recommended_tool": "실험계획법 (DOE)",\n  "fallback_steps": [\n    {"stage": "Codex SDK", "status": "answered"}\n  ]\n}`
+          }
+        ]
+      },
+      fallback: {
+        zone: { left: "22%", width: "54%", label: "4단계 하이브리드 폴백 체인 (Rulebase → EXAONE → Codex SDK → Manual)" },
+        nodes: [
+          { id: "req", x: 84, y: 112, w: 122, h: 60, title: "사용자 질문", sub: "비정형·신규 공정 질의", icon: "❓" },
+          { id: "rule", x: 260, y: 112, w: 136, h: 60, title: "1. Rulebase", sub: "statpro-rulebase-v2", icon: "📚" },
+          { id: "exaone", x: 450, y: 112, w: 142, h: 60, title: "2. EXAONE API", sub: "HTTP REST (low/high)", icon: "☁️" },
+          { id: "codex", x: 642, y: 112, w: 142, h: 60, title: "3. Codex SDK", sub: "Read-Only 로컬 SDK", icon: "🛡️" },
+          { id: "out", x: 830, y: 112, w: 130, h: 60, title: "최종 가이드 응답", sub: "폴백 추적 이력 포함", icon: "✨" }
+        ],
+        edges: [
+          { from: "req", to: "rule", yOffset: 0 },
+          { from: "rule", to: "exaone", yOffset: 0 },
+          { from: "exaone", to: "codex", yOffset: 0 },
+          { from: "codex", to: "out", yOffset: 0 }
+        ],
+        steps: [
+          {
+            badge: "CHAIN 1",
+            short: "1. Rulebase 우선 검사",
+            activeNodes: ["req", "rule"],
+            nodeStatus: { rule: "unmatched" },
+            packet: { from: "req", to: "rule", label: "1차: 로컬 규칙 대조", yOffset: 0 },
+            title: "검토된 로컬 지식 규칙(Rulebase) 우선 매칭 시도",
+            symbol: "RuleFirstCopilotProvider.answer()",
+            desc: "모든 질문은 먼저 외부 전송 없이 LocalKnowledgeCopilotProvider(검토된 통계·품질 규칙 카탈로그)에서 매칭을 시도합니다. 규칙에 없는 복합 질문이면 unmatched 상태를 기록하고 FallbackChain으로 넘깁니다.",
+            point: "검증된 통계 규칙이 있으면 LLM을 호출하지 않고 즉시 응답 (비용·환각 최소화)",
+            codeTitle: "Rulebase 매칭 결과",
+            codeTag: "Tier 1: Unmatched",
+            code: `rule_guidance = self._rule_provider.answer(...)\n# guidance_mode == "unmatched"\nCopilotFallbackStep(\n  stage="Rulebase",\n  status="unmatched",\n  detail="직접 대응하는 검토 규칙을 찾지 못했습니다."\n)`
+          },
+          {
+            badge: "CHAIN 2",
+            short: "2. EXAONE API 시도",
+            activeNodes: ["rule", "exaone"],
+            nodeStatus: { rule: "unmatched", exaone: "failed" },
+            packet: { from: "rule", to: "exaone", label: "2차: EXAONE 호출", yOffset: 0 },
+            title: "질문 복잡도 판별 후 EXAONE API 호출 (미설정/한도 초과 시 폴백)",
+            symbol: "FallbackChainCopilotProvider",
+            desc: "질문 길이(>=180자)나 전문 키워드(DOE, FMEA, 코드 등)에 따라 reasoning_effort(low/high)를 선택해 EXAONE API를 호출합니다. 만약 미설정(unavailable)이거나 HTTP 429·타임아웃 발생 시 즉시 다음 티어로 이동합니다.",
+            point: "클라우드 LLM 장애·한도 초과(HTTP 429) 시 서비스 중단 없이 다음 단계로 이관",
+            codeTitle: "EXAONE 단계 상태 기록",
+            codeTag: "Tier 2: Failed / Unavailable",
+            code: `except (OSError, ValueError) as error:\n  steps.append(CopilotFallbackStep(\n    stage="EXAONE API",\n    status="failed",\n    detail="요청 한도(HTTP 429)에 도달했습니다."\n  ))`
+          },
+          {
+            badge: "CHAIN 3",
+            short: "3. Codex SDK 폴백 실행",
+            activeNodes: ["exaone", "codex"],
+            nodeStatus: { rule: "unmatched", exaone: "failed", codex: "answered" },
+            packet: { from: "exaone", to: "codex", label: "3차: Codex SDK 실행", yOffset: 0 },
+            title: "Read-Only Codex SDK가 LLM 백업 엔진으로 작동",
+            symbol: "CodexSdkCopilotProvider.answer()",
+            desc: "EXAONE을 사용할 수 없을 때 CodexSdkCopilotProvider가 호출됩니다. 로컬 Codex App-Server에 read_only 스레드를 열어 동일한 JSON 가이드 계약을 생성하고 answered 상태를 기록합니다.",
+            point: "로컬 Codex SDK가 이차 생성형 AI 추론 엔진 역할을 수행하여 가용성 확보",
+            codeTitle: "Codex SDK 폴백 성공",
+            codeTag: "Tier 3: Answered",
+            code: `guidance = self._codex.answer(...)\nsteps.append(CopilotFallbackStep(\n  stage="Codex SDK",\n  status="answered",\n  detail="답변을 생성했고 사용자에게 표시했습니다."\n))`
+          },
+          {
+            badge: "CHAIN 4",
+            short: "4. 폴백 추적과 함께 응답",
+            activeNodes: ["codex", "out"],
+            nodeStatus: { rule: "unmatched", exaone: "failed", codex: "answered", out: "answered" },
+            packet: { from: "codex", to: "out", label: "Guidance + Steps", yOffset: 0 },
+            title: "각 단계의 실행 이력(fallback_steps)을 투명하게 포함해 반환",
+            symbol: "replace(selected_guidance, fallback_steps=...)",
+            desc: "최종 응답에는 어느 단계(Rulebase → EXAONE → Codex SDK)가 왜 건너뛰어졌고 어느 엔진이 최종 답변했는지 모든 이력(fallback_steps)이 포함되어 사용자에게 투명한 근거를 제공합니다.",
+            point: "모든 폴백 판단 과정을 숨기지 않고 UI에 단계별 상태 배지로 투명하게 공개",
+            codeTitle: "폴백 체인 감사 로그",
+            codeTag: "fallback_steps",
+            code: `fallback_steps = (\n  Step("Rulebase", "unmatched", "규칙 미매칭"),\n  Step("EXAONE API", "failed", "HTTP 429"),\n  Step("Codex SDK", "answered", "답변 생성·표시")\n)`
+          }
+        ]
+      },
+      failclosed: {
+        zone: { left: "36%", width: "44%", label: "신뢰성 보호 경계 (Fail-Closed Safety Architecture)" },
+        nodes: [
+          { id: "codex_err", x: 105, y: 112, w: 148, h: 60, title: "Codex SDK 호출", sub: "미설치 / 비정상 응답", icon: "⚠️" },
+          { id: "guard", x: 340, y: 112, w: 162, h: 60, title: "경계 예외 포착기", sub: "OSError / ValueError", icon: "🛡️" },
+          { id: "manual", x: 585, y: 112, w: 162, h: 60, title: "4. 수동 입력 안내", sub: "manual_guidance 전환", icon: "🧭" },
+          { id: "status_api", x: 815, y: 112, w: 145, h: 60, title: "상태 확인 API", sub: "무호출 설정 검증", icon: "🔍" }
+        ],
+        edges: [
+          { from: "codex_err", to: "guard", yOffset: 0 },
+          { from: "guard", to: "manual", yOffset: 0 },
+          { from: "manual", to: "status_api", yOffset: 0, dashed: true }
+        ],
+        steps: [
+          {
+            badge: "SAFE 1",
+            short: "1. SDK 미설치·계약 위반 감지",
+            activeNodes: ["codex_err", "guard"],
+            nodeStatus: { codex_err: "failed", guard: "answered" },
+            packet: { from: "codex_err", to: "guard", label: "ValueError / OSError", yOffset: 0 },
+            title: "패키지 미설치 또는 JSON 스키마 불일치 시 즉시 차단",
+            symbol: "_decode_llm_guidance_payload()",
+            desc: "openai-codex가 설치되지 않았거나(OSError), 모델이 요청한 JSON 스키마(answer, menu_path 등)를 어기거나 빈 문자열을 반환하면(ValueError) 검증되지 않은 텍스트를 그대로 노출하지 않고 즉시 예외를 발생시킵니다.",
+            point: "검증되지 않은 자유 형식 텍스트나 환각 데이터가 UI에 노출되는 것을 원천 차단",
+            codeTitle: "엄격한 계약 검증 예외 처리",
+            codeTag: "Fail-Closed Check",
+            code: `if not isinstance(answer, str) or not answer.strip():\n  raise ValueError("LLM returned an empty answer")\nif not all(isinstance(v, list) for v in (...)):\n  raise ValueError("Invalid guidance contract")`
+          },
+          {
+            badge: "SAFE 2",
+            short: "2. 수동 안내(Manual)로 안전 전환",
+            activeNodes: ["guard", "manual"],
+            nodeStatus: { codex_err: "failed", manual: "answered" },
+            packet: { from: "guard", to: "manual", label: "Fail-Closed 전환", yOffset: 0 },
+            title: "서비스 장애 대신 '분석 선택 도우미(/analyses)' 수동 절차 안내",
+            symbol: "guidance_mode = 'manual_guidance'",
+            desc: "모든 AI 모델 호출이 실패하더라도 에러 화면을 띄우지 않고, 사용자가 직접 입력해야 할 4가지 체크리스트(분석 목표, 데이터형, 수집 구조, 현장 제약)와 '/analyses' 이동 액션을 안전하게 반환합니다.",
+            point: "AI 장애가 품질 엔지니어의 핵심 업무 중단으로 이어지지 않도록 설계(Graceful Degradation)",
+            codeTitle: "Fail-Closed 수동 안내 객체",
+            codeTag: "manual_guidance",
+            code: `return CopilotGuidance(\n  provider="statpro-fallback-unavailable",\n  guidance_mode="manual_guidance",\n  action=CopilotAction("분석 선택 시작", "/analyses"),\n  checklist=("분석 목표 입력", "데이터형 입력", ...)\n)`
+          },
+          {
+            badge: "SAFE 3",
+            short: "3. 무호출 런타임 상태 점검",
+            activeNodes: ["manual", "status_api"],
+            nodeStatus: { status_api: "answered" },
+            packet: { from: "manual", to: "status_api", label: "find_spec('openai_codex')", yOffset: 0 },
+            title: "상태 조회 시 외부/로컬 모델을 깨우지 않는 Zero-Probe 원칙",
+            symbol: "copilot_runtime_status()",
+            desc: "런타임 상태 확인 API(/api/copilot/status)는 importlib.util.find_spec('openai_codex')과 환경변수만 확인합니다. 상태 조회 때문에 의도치 않은 모델 호출이나 사용자 문맥 전송이 절대 발생하지 않습니다.",
+            point: "상태 점검(Health Check)과 실제 추론 호출을 철저히 분리하여 데이터 프라이버시 보장",
+            codeTitle: "Zero-Probe 상태 확인",
+            codeTag: "copilot_runtime_status()",
+            code: `codex_sdk_installed = (\n  importlib.util.find_spec("openai_codex") is not None\n)\nreturn {\n  "enabled": codex_enabled,\n  "sdk_installed": codex_sdk_installed,\n  "sandbox": "read_only"\n}`
+          }
+        ]
+      }
+    };
+
+    let currentScenarioKey = "sdk";
+    let currentStepIndex = 0;
+    let isPlaying = true;
+    let stepTimer = null;
+    let animFrame = null;
+
+    const svgEdges = document.getElementById("svg-edges");
+    const svgNodes = document.getElementById("svg-nodes");
+    const packetGroup = document.getElementById("packet-group");
+    const packetBadgeText = document.getElementById("packet-badge-text");
+    const packetBadgeBg = document.getElementById("packet-badge-bg");
+    const stepPills = document.getElementById("step-pills");
+
+    function getNodeMap(scenario) {
+      const map = {};
+      scenario.nodes.forEach((n) => { map[n.id] = n; });
+      return map;
+    }
+
+    function buildEdgePath(fromNode, toNode, yOffset = 0, arc = false) {
+      if (arc) {
+        const startX = fromNode.x;
+        const startY = fromNode.y + fromNode.h / 2;
+        const endX = toNode.x;
+        const endY = toNode.y + toNode.h / 2;
+        return `M ${startX} ${startY} C ${startX} ${startY + 54}, ${endX} ${endY + 54}, ${endX} ${endY}`;
+      }
+      const dir = toNode.x >= fromNode.x ? 1 : -1;
+      const startX = fromNode.x + (dir * fromNode.w) / 2;
+      const startY = fromNode.y + yOffset;
+      const endX = toNode.x - (dir * toNode.w) / 2;
+      const endY = toNode.y + yOffset;
+      return `M ${startX} ${startY} L ${endX} ${endY}`;
+    }
+
+    function renderDiagram() {
+      const scenario = SCENARIOS[currentScenarioKey];
+      const step = scenario.steps[currentStepIndex];
+      const nodeMap = getNodeMap(scenario);
+
+      const zoneEl = document.getElementById("zone-highlight");
+      const zoneLabel = document.getElementById("zone-label");
+      zoneEl.style.left = scenario.zone.left;
+      zoneEl.style.width = scenario.zone.width;
+      zoneLabel.style.left = `calc(${scenario.zone.left} + 12px)`;
+      zoneLabel.textContent = scenario.zone.label;
+
+      svgEdges.innerHTML = "";
+      scenario.edges.forEach((edge) => {
+        const fromNode = nodeMap[edge.from];
+        const toNode = nodeMap[edge.to];
+        const isCurrentEdge =
+          step.packet &&
+          step.packet.from === edge.from &&
+          step.packet.to === edge.to;
+
+        const pathD = buildEdgePath(fromNode, toNode, edge.yOffset || 0, edge.arc || false);
+        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        path.setAttribute("d", pathD);
+        path.setAttribute("fill", "none");
+        path.setAttribute("stroke", isCurrentEdge ? "var(--primary)" : "var(--border)");
+        path.setAttribute("stroke-width", isCurrentEdge ? "2.6" : "1.6");
+        path.setAttribute("marker-end", isCurrentEdge ? "url(#arrow-active)" : "url(#arrow-muted)");
+        if (isCurrentEdge || edge.dashed) {
+          path.setAttribute("class", "dash-animate");
+        }
+        svgEdges.appendChild(path);
+      });
+
+      svgNodes.innerHTML = "";
+      scenario.nodes.forEach((node) => {
+        const isActive = step.activeNodes.includes(node.id);
+        const status = step.nodeStatus && step.nodeStatus[node.id];
+
+        let strokeColor = isActive ? "var(--primary)" : "var(--border)";
+        let badgeColor = "var(--primary)";
+        let statusLabel = "";
+
+        if (status === "unmatched") {
+          strokeColor = "var(--warning)";
+          badgeColor = "var(--warning)";
+          statusLabel = "unmatched";
+        } else if (status === "failed") {
+          strokeColor = "var(--error)";
+          badgeColor = "var(--error)";
+          statusLabel = "failed";
+        } else if (status === "answered") {
+          strokeColor = "var(--success)";
+          badgeColor = "var(--success)";
+          statusLabel = "answered";
+        }
+
+        const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        g.style.cursor = "pointer";
+        g.addEventListener("click", () => {
+          const targetIdx = scenario.steps.findIndex((s) => s.activeNodes.includes(node.id));
+          if (targetIdx !== -1) setStep(targetIdx, false);
+        });
+
+        const rx = node.x - node.w / 2;
+        const ry = node.y - node.h / 2;
+
+        if (isActive) {
+          const halo = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+          halo.setAttribute("x", rx - 4);
+          halo.setAttribute("y", ry - 4);
+          halo.setAttribute("width", node.w + 8);
+          halo.setAttribute("height", node.h + 8);
+          halo.setAttribute("rx", "11");
+          halo.setAttribute("fill", "none");
+          halo.setAttribute("stroke", strokeColor);
+          halo.setAttribute("stroke-width", "1.8");
+          halo.setAttribute("class", "node-active-ring");
+          g.appendChild(halo);
+        }
+
+        const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        rect.setAttribute("x", rx);
+        rect.setAttribute("y", ry);
+        rect.setAttribute("width", node.w);
+        rect.setAttribute("height", node.h);
+        rect.setAttribute("rx", "9");
+        rect.setAttribute("fill", "var(--card)");
+        rect.setAttribute("stroke", strokeColor);
+        rect.setAttribute("stroke-width", isActive ? "2.2" : "1.3");
+        g.appendChild(rect);
+
+        const title = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        title.setAttribute("x", node.x);
+        title.setAttribute("y", node.y - 4);
+        title.setAttribute("text-anchor", "middle");
+        title.setAttribute("fill", "var(--text)");
+        title.setAttribute("font-size", "12");
+        title.setAttribute("font-weight", "700");
+        title.textContent = `${node.icon} ${node.title}`;
+        g.appendChild(title);
+
+        const sub = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        sub.setAttribute("x", node.x);
+        sub.setAttribute("y", node.y + 15);
+        sub.setAttribute("text-anchor", "middle");
+        sub.setAttribute("fill", "var(--muted)");
+        sub.setAttribute("font-size", "10.5");
+        sub.setAttribute("font-family", "monospace");
+        sub.textContent = node.sub;
+        g.appendChild(sub);
+
+        if (statusLabel) {
+          const sBg = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+          sBg.setAttribute("x", node.x + node.w / 2 - 62);
+          sBg.setAttribute("y", ry - 9);
+          sBg.setAttribute("width", "58");
+          sBg.setAttribute("height", "16");
+          sBg.setAttribute("rx", "8");
+          sBg.setAttribute("fill", badgeColor);
+          g.appendChild(sBg);
+
+          const sTxt = document.createElementNS("http://www.w3.org/2000/svg", "text");
+          sTxt.setAttribute("x", node.x + node.w / 2 - 33);
+          sTxt.setAttribute("y", ry + 2.5);
+          sTxt.setAttribute("text-anchor", "middle");
+          sTxt.setAttribute("fill", "#ffffff");
+          sTxt.setAttribute("font-size", "10");
+          sTxt.setAttribute("font-family", "monospace");
+          sTxt.setAttribute("font-weight", "700");
+          sTxt.textContent = statusLabel;
+          g.appendChild(sTxt);
+        }
+
+        svgNodes.appendChild(g);
+      });
+
+      stepPills.innerHTML = "";
+      scenario.steps.forEach((s, idx) => {
+        const btn = document.createElement("button");
+        btn.className = "step-pill" + (idx === currentStepIndex ? " active" : "");
+        btn.textContent = s.short;
+        btn.addEventListener("click", () => setStep(idx, false));
+        stepPills.appendChild(btn);
+      });
+
+      document.getElementById("step-counter").textContent = `${currentStepIndex + 1} / ${scenario.steps.length}`;
+      document.getElementById("detail-badge").textContent = step.badge;
+      document.getElementById("detail-title").textContent = step.title;
+      document.getElementById("detail-symbol").textContent = step.symbol;
+      document.getElementById("detail-desc").textContent = step.desc;
+      document.getElementById("detail-point").textContent = step.point;
+      document.getElementById("code-title").textContent = step.codeTitle;
+      document.getElementById("code-tag").textContent = step.codeTag;
+      document.getElementById("code-content").textContent = step.code;
+
+      animatePacket(step.packet, nodeMap);
+    }
+
+    function animatePacket(packetSpec, nodeMap) {
+      if (animFrame) cancelAnimationFrame(animFrame);
+      if (!packetSpec) {
+        packetGroup.style.opacity = "0";
+        return;
+      }
+
+      const fromNode = nodeMap[packetSpec.from];
+      const toNode = nodeMap[packetSpec.to];
+      const pathD = buildEdgePath(fromNode, toNode, packetSpec.yOffset || 0, packetSpec.arc || false);
+
+      const tempPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      tempPath.setAttribute("d", pathD);
+      const totalLen = tempPath.getTotalLength();
+
+      packetBadgeText.textContent = packetSpec.label;
+      const badgeWidth = Math.max(116, packetSpec.label.length * 7.4 + 22);
+      packetBadgeBg.setAttribute("width", badgeWidth);
+      packetBadgeBg.setAttribute("x", -badgeWidth / 2);
+
+      packetGroup.style.opacity = "1";
+      let startTime = null;
+      const duration = 1600;
+
+      function tick(ts) {
+        if (!startTime) startTime = ts;
+        const elapsed = (ts - startTime) % duration;
+        const progress = elapsed / duration;
+        const eased = progress < 0.5
+          ? 4 * progress * progress * progress
+          : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+
+        const pt = tempPath.getPointAtLength(eased * totalLen);
+        packetGroup.setAttribute("transform", `translate(${pt.x}, ${pt.y})`);
+        animFrame = requestAnimationFrame(tick);
+      }
+
+      animFrame = requestAnimationFrame(tick);
+    }
+
+    function setStep(index, keepAutoPlay = true) {
+      const scenario = SCENARIOS[currentScenarioKey];
+      currentStepIndex = (index + scenario.steps.length) % scenario.steps.length;
+      if (!keepAutoPlay && isPlaying) togglePlay(false);
+      renderDiagram();
+    }
+
+    function togglePlay(forceState) {
+      isPlaying = typeof forceState === "boolean" ? forceState : !isPlaying;
+      document.getElementById("play-icon").textContent = isPlaying ? "⏸" : "▶";
+      document.getElementById("play-label").textContent = isPlaying ? "자동 재생 중" : "일시정지됨";
+
+      if (stepTimer) clearInterval(stepTimer);
+      if (isPlaying) {
+        stepTimer = setInterval(() => {
+          setStep(currentStepIndex + 1, true);
+        }, 3800);
+      }
+    }
+
+    document.querySelectorAll(".scenario-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        currentScenarioKey = btn.getAttribute("data-scenario");
+        currentStepIndex = 0;
+        document.querySelectorAll(".scenario-btn").forEach((b) => {
+          const active = b.getAttribute("data-scenario") === currentScenarioKey;
+          b.className = active ? "btn btn-primary scenario-btn" : "btn scenario-btn";
+        });
+        renderDiagram();
+        if (isPlaying) togglePlay(true);
+      });
+    });
+
+    document.getElementById("btn-prev").addEventListener("click", () => setStep(currentStepIndex - 1, false));
+    document.getElementById("btn-next").addEventListener("click", () => setStep(currentStepIndex + 1, false));
+    document.getElementById("btn-play").addEventListener("click", () => togglePlay());
+
+    document.getElementById("btn-theme").addEventListener("click", () => {
+      const root = document.documentElement;
+      const next = root.getAttribute("data-theme") === "light" ? "dark" : "light";
+      root.setAttribute("data-theme", next);
+    });
+
+    renderDiagram();
+    togglePlay(true);
+  </script>
+</body>
+</html>
