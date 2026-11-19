@@ -18,3 +18,6 @@ coverage/
 web/vite.config.js
 web/vite.config.d.ts
 approval-identities.json
+.Codex/
+memory/
+*.skill
