@@ -1,12 +1,15 @@
-"""Prospective balanced two-sample sample-size planning."""
+"""Prospective balanced sample-size planning."""
 from __future__ import annotations
 import math
+from statpro.analyses.common import _regularized_beta
 from statpro.domain.errors import AnalysisInputError
 from statpro.domain.identity import input_digest
 from statpro.domain.models import ProvenanceSource, ResultBundle
 from statpro.version import ENGINE_VERSION
 
 NIST_POWER_SOURCE = ProvenanceSource(title="NIST/SEMATECH Sample Size and Power", url="https://www.itl.nist.gov/div898/handbook/prc/section2/prc222.htm")
+NIST_ANOVA_SOURCE = ProvenanceSource(title="NIST/SEMATECH One-Way ANOVA", url="https://www.itl.nist.gov/div898/handbook/prc/section4/prc433.htm")
+PWR_ANOVA_SOURCE = ProvenanceSource(title="R pwr one-way ANOVA power calculation", url="https://search.r-project.org/CRAN/refmans/pwr/html/pwr.anova.test.html")
 
 def _normal_quantile(probability: float) -> float:
     if not 0.0 < probability < 1.0: raise AnalysisInputError("invalid_probability", "Probability must be strictly between zero and one.", "probability")
@@ -16,6 +19,85 @@ def _normal_quantile(probability: float) -> float:
         if 0.5 * math.erfc(-mid / math.sqrt(2.0)) < probability: low = mid
         else: high = mid
     return (low + high) / 2.0
+
+
+def _f_quantile(probability: float, numerator_df: int, denominator_df: int) -> float:
+    low, high = 0.0, 1.0
+    def cdf(value: float) -> float:
+        transformed = numerator_df * value / (numerator_df * value + denominator_df)
+        return _regularized_beta(transformed, numerator_df / 2.0, denominator_df / 2.0)
+    while cdf(high) < probability:
+        high *= 2.0
+        if high > 1e12:
+            raise AnalysisInputError("distribution_not_converged", "The F critical value search exceeded its bound.", "distribution")
+    for _ in range(100):
+        midpoint = (low + high) / 2.0
+        if cdf(midpoint) < probability: low = midpoint
+        else: high = midpoint
+    return (low + high) / 2.0
+
+
+def _noncentral_f_cdf(value: float, numerator_df: int, denominator_df: int, noncentrality: float) -> float:
+    transformed = numerator_df * value / (numerator_df * value + denominator_df)
+    poisson_mean = noncentrality / 2.0
+    if poisson_mean == 0.0:
+        return _regularized_beta(transformed, numerator_df / 2.0, denominator_df / 2.0)
+    mode = int(poisson_mean)
+    mode_weight = math.exp(-poisson_mean + mode * math.log(poisson_mean) - math.lgamma(mode + 1.0))
+    total = mode_weight * _regularized_beta(transformed, numerator_df / 2.0 + mode, denominator_df / 2.0)
+    mass = mode_weight
+    lower_index = upper_index = mode
+    lower_weight = upper_weight = mode_weight
+    for _ in range(100_000):
+        if lower_index > 0:
+            lower_weight *= lower_index / poisson_mean
+            lower_index -= 1
+            mass += lower_weight
+            total += lower_weight * _regularized_beta(transformed, numerator_df / 2.0 + lower_index, denominator_df / 2.0)
+        upper_index += 1
+        upper_weight *= poisson_mean / upper_index
+        mass += upper_weight
+        total += upper_weight * _regularized_beta(transformed, numerator_df / 2.0 + upper_index, denominator_df / 2.0)
+        if 1.0 - mass <= 1e-12:
+            return min(1.0, max(0.0, total))
+    raise AnalysisInputError("distribution_not_converged", "The noncentral F probability calculation did not converge.", "distribution")
+
+
+def _one_way_anova_power(group_count: int, sample_size_per_group: int, effect_size: float, alpha: float) -> tuple[float, float]:
+    numerator_df = group_count - 1
+    denominator_df = group_count * (sample_size_per_group - 1)
+    critical_value = _f_quantile(1.0 - alpha, numerator_df, denominator_df)
+    noncentrality = group_count * sample_size_per_group * effect_size**2
+    power = 1.0 - _noncentral_f_cdf(critical_value, numerator_df, denominator_df, noncentrality)
+    return power, critical_value
+
+
+def one_way_anova_sample_size(*, group_count: int, effect_size: float, alpha: float = 0.05, target_power: float = 0.8) -> ResultBundle:
+    """Plan equal group sizes for a fixed-effects one-way omnibus ANOVA."""
+    if not 3 <= group_count <= 100:
+        raise AnalysisInputError("invalid_group_count", "Use between 3 and 100 groups for multi-group ANOVA planning.", "group_count")
+    if not 0.0 < effect_size <= 10.0:
+        raise AnalysisInputError("invalid_effect_size", "Cohen's f must be greater than zero and no more than 10.", "effect_size")
+    if not 0.001 <= alpha <= 0.5 or not 0.5 < target_power < 0.999:
+        raise AnalysisInputError("invalid_power_inputs", "Use valid alpha and target power above 0.5.", "target_power")
+    lower = upper = 2
+    achieved_power, critical_value = _one_way_anova_power(group_count, upper, effect_size, alpha)
+    while achieved_power < target_power:
+        lower = upper + 1
+        upper *= 2
+        if upper > 1_000_000:
+            raise AnalysisInputError("sample_size_limit_exceeded", "The requested ANOVA design needs more than 1,000,000 observations per group.", "effect_size")
+        achieved_power, critical_value = _one_way_anova_power(group_count, upper, effect_size, alpha)
+    while lower < upper:
+        midpoint = (lower + upper) // 2
+        midpoint_power, _ = _one_way_anova_power(group_count, midpoint, effect_size, alpha)
+        if midpoint_power >= target_power: upper = midpoint
+        else: lower = midpoint + 1
+    sample_size_per_group = upper
+    achieved_power, critical_value = _one_way_anova_power(group_count, sample_size_per_group, effect_size, alpha)
+    total_sample_size = group_count * sample_size_per_group
+    row = {"group_count": group_count, "effect_size": effect_size, "alpha": alpha, "target_power": target_power, "sample_size_per_group": sample_size_per_group, "total_sample_size": total_sample_size, "achieved_power": achieved_power, "numerator_degrees_of_freedom": group_count - 1, "denominator_degrees_of_freedom": total_sample_size - group_count, "noncentrality": total_sample_size * effect_size**2, "critical_value": critical_value}
+    return ResultBundle(analysis_type="power.one_way_anova", engine_version=ENGINE_VERSION, input_digest=input_digest(row), parameters={"method": "noncentral_f_balanced_fixed_effects_one_way_anova", "effect_size": "cohen_f", "alternative": "omnibus"}, tables={"plan": {"columns": list(row), "rows": [row]}}, plots={}, diagnostics=row, assumptions=("Groups are fixed, independent, and planned with equal sample sizes.", "Within-group observations are approximately normal with a common variance.", "Cohen's f is specified prospectively for the omnibus difference among group means."), warnings=("This is a prospective planning calculation, not a post-hoc observed-power interpretation.", "The omnibus design does not plan power for a specific pairwise or multiple-comparison procedure; add attrition separately."), provenance=(NIST_ANOVA_SOURCE, PWR_ANOVA_SOURCE))
 
 def two_sample_mean_sample_size(*, difference: float, standard_deviation: float, alpha: float = 0.05, target_power: float = 0.8) -> ResultBundle:
     """Estimate equal group sample size using a normal approximation for a two-sided two-sample mean test."""

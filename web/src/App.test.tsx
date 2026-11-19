@@ -2432,7 +2432,7 @@ describe("StatPro UI", () => {
   it("submits two-sample planning conditions through the power route", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
-      return new Response(JSON.stringify({ run_id: "power-ui", result: { analysis_type: "power.two_sample_mean", diagnostics: {}, tables: { plan: { rows: [] } }, warnings: [], notes: [] } }), { status: 200 });
+      return new Response(JSON.stringify({ run_id: "power-ui", result: { analysis_type: "power.two_sample_mean", diagnostics: { sample_size_per_group: 16, total_sample_size: 32, effect_size: 1 }, tables: { plan: { rows: [] } }, warnings: [], notes: [] } }), { status: 200 });
     });
     render(<MemoryRouter initialEntries={["/analyses/power/two-sample-mean"]}><App /></MemoryRouter>);
     expect(await screen.findByRole("heading", { name: "표본크기 계획" })).toBeInTheDocument();
@@ -2462,6 +2462,14 @@ describe("StatPro UI", () => {
     expect(await screen.findByRole("heading", { name: "대응 평균 표본수 계획" })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "필요 쌍 수 계산" }));
     await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith("/v1/analysis-runs/power-paired-mean") && (init as RequestInit | undefined)?.method === "POST")).toBe(true));
+  });
+
+  it("submits a balanced multi-group design through the ANOVA power route", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => new Response(JSON.stringify(String(input).endsWith("/health") ? { ok: true, engine_version: "0.6.0", local_only: true } : { run_id: "anova-power-ui", result: { analysis_type: "power.one_way_anova", diagnostics: { sample_size_per_group: 45, total_sample_size: 180, achieved_power: .804, effect_size: .25 }, tables: { plan: { rows: [] } }, warnings: [], notes: [] } }), { status: 200 }));
+    render(<MemoryRouter initialEntries={["/analyses/power/one-way-anova"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "ANOVA 검정력·표본수 계획" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "필요 표본 수 계산" }));
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith("/v1/analysis-runs/power-one-way-anova") && (init as RequestInit | undefined)?.method === "POST")).toBe(true));
   });
 
   it("submits a target and measurements through the one-sample t route", async () => {

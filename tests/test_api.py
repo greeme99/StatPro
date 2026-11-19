@@ -55,6 +55,7 @@ class LocalApiContractTests(unittest.TestCase):
         self.assertIn("/v1/analysis-runs/power-two-sample-proportion", openapi.json()["paths"])
         self.assertIn("/v1/analysis-runs/power-one-sample-proportion", openapi.json()["paths"])
         self.assertIn("/v1/analysis-runs/power-paired-mean", openapi.json()["paths"])
+        self.assertIn("/v1/analysis-runs/power-one-way-anova", openapi.json()["paths"])
         self.assertIn("/v1/analysis-runs/regression-linear-ols", openapi.json()["paths"])
         self.assertIn("/v1/analysis-runs/regression-polynomial-ols", openapi.json()["paths"])
         self.assertIn("/v1/analysis-runs/independent-welch-t", openapi.json()["paths"])
@@ -83,6 +84,19 @@ class LocalApiContractTests(unittest.TestCase):
         self.assertIn("/v1/worksheets/{worksheet_id}/filter-rows", openapi.json()["paths"])
         self.assertIn("/v1/worksheets/{worksheet_id}/sort-rows", openapi.json()["paths"])
         self.assertIn("/v1/worksheets/{worksheet_id}/derived-columns", openapi.json()["paths"])
+
+    def test_runs_one_way_anova_power_plan(self) -> None:
+        response = self.client.post(
+            "/v1/analysis-runs/power-one-way-anova",
+            json={"run_id": "anova-power-api", "group_count": 4, "effect_size": 0.25, "alpha": 0.05, "target_power": 0.8},
+        )
+
+        self.assertEqual(response.status_code, 201)
+        result = response.json()["result"]
+        self.assertEqual(result["analysis_type"], "power.one_way_anova")
+        self.assertEqual(result["diagnostics"]["sample_size_per_group"], 45)
+        self.assertEqual(len(result["assumptions"]), 3)
+        self.assertEqual(len(result["warnings"]), 2)
 
     def test_local_request_boundary_rejects_non_loopback_host_and_origin(self) -> None:
         foreign_host = self.client.get("/health", headers={"host": "example.test"})

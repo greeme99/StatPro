@@ -50,7 +50,7 @@ from statpro.analyses.msa import (
 )
 from statpro.analyses.normality import jarque_bera_normality
 from statpro.analyses.descriptive import descriptive_statistics
-from statpro.analyses.power import one_sample_proportion_sample_size, paired_mean_sample_size, two_sample_mean_sample_size, two_sample_proportion_sample_size
+from statpro.analyses.power import one_sample_proportion_sample_size, one_way_anova_sample_size, paired_mean_sample_size, two_sample_mean_sample_size, two_sample_proportion_sample_size
 from statpro.analyses.proportion import one_sample_proportion_test
 from statpro.analyses.proportion import two_sample_proportion_test
 from statpro.analyses.hypothesis import independent_tost_equivalence, independent_welch_t_test, mann_whitney_u_test
@@ -433,6 +433,14 @@ class PairedMeanPowerRunRequest(ApiModel):
     run_id: RunId
     difference: float = Field(gt=0)
     difference_standard_deviation: float = Field(gt=0)
+    alpha: float = Field(default=0.05, ge=0.001, le=0.5)
+    target_power: float = Field(default=0.8, gt=0.5, lt=0.999)
+
+
+class OneWayAnovaPowerRunRequest(ApiModel):
+    run_id: RunId
+    group_count: int = Field(ge=3, le=100)
+    effect_size: float = Field(gt=0, le=10)
     alpha: float = Field(default=0.05, ge=0.001, le=0.5)
     target_power: float = Field(default=0.8, gt=0.5, lt=0.999)
 
@@ -2801,6 +2809,12 @@ def create_app(
     @app.post("/v1/analysis-runs/power-paired-mean", status_code=201, response_model=StoredRunResponse)
     def run_paired_mean_power(request: PairedMeanPowerRunRequest, response: Response) -> StoredRunResponse:
         stored = _save_run(repository, request.run_id, paired_mean_sample_size(difference=request.difference, difference_standard_deviation=request.difference_standard_deviation, alpha=request.alpha, target_power=request.target_power))
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _response(stored)
+
+    @app.post("/v1/analysis-runs/power-one-way-anova", status_code=201, response_model=StoredRunResponse)
+    def run_one_way_anova_power(request: OneWayAnovaPowerRunRequest, response: Response) -> StoredRunResponse:
+        stored = _save_run(repository, request.run_id, one_way_anova_sample_size(group_count=request.group_count, effect_size=request.effect_size, alpha=request.alpha, target_power=request.target_power))
         response.headers["ETag"] = f'"{stored.etag}"'
         return _response(stored)
 

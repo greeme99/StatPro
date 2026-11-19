@@ -12,7 +12,7 @@ from statpro.analyses.hypothesis import mann_whitney_u_test
 from statpro.analyses.hypothesis import wilcoxon_signed_rank_test
 from statpro.analyses.hypothesis import kruskal_wallis_test
 from statpro.analyses.hypothesis import independent_tost_equivalence
-from statpro.analyses.power import one_sample_proportion_sample_size, paired_mean_sample_size, two_sample_mean_sample_size, two_sample_proportion_sample_size
+from statpro.analyses.power import one_sample_proportion_sample_size, one_way_anova_sample_size, paired_mean_sample_size, two_sample_mean_sample_size, two_sample_proportion_sample_size
 from statpro.analyses.hypothesis import one_sample_t_test
 from statpro.analyses.proportion import one_sample_proportion_test
 from statpro.analyses.proportion import two_sample_proportion_test
@@ -289,6 +289,18 @@ class PowerAnalysisTests(unittest.TestCase):
         result = paired_mean_sample_size(difference=1, difference_standard_deviation=1, alpha=0.05, target_power=0.8)
         self.assertEqual(result.analysis_type, "power.paired_mean")
         self.assertGreaterEqual(result.diagnostics["required_pairs"], 8)
+
+    def test_plans_balanced_one_way_anova_size_against_pwr_reference(self) -> None:
+        result = one_way_anova_sample_size(group_count=4, effect_size=0.25, alpha=0.05, target_power=0.8)
+        self.assertEqual(result.analysis_type, "power.one_way_anova")
+        self.assertEqual(result.diagnostics["sample_size_per_group"], 45)
+        self.assertEqual(result.diagnostics["total_sample_size"], 180)
+        self.assertGreaterEqual(result.diagnostics["achieved_power"], 0.8)
+
+    def test_rejects_two_group_anova_plan(self) -> None:
+        with self.assertRaises(AnalysisInputError) as raised:
+            one_way_anova_sample_size(group_count=2, effect_size=0.25)
+        self.assertEqual(raised.exception.detail.code, "invalid_group_count")
 
 
 class OneSampleTTests(unittest.TestCase):
