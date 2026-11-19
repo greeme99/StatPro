@@ -1,0 +1,26 @@
+{
+  "name": "motion-diagram-design",
+  "version": "3.0.0",
+  "description": "범용 인터랙티브 모션 그래픽 다이어그램 & 워크플로우 시각화 스킬",
+  "author": "Antigravity Engineering",
+  "entrypoint": "scripts/generate_motion_diagram.py",
+  "tags": [
+    "diagram",
+    "motion-graphics",
+    "workflow",
+    "system-architecture",
+    "infographics"
+  ],
+  "supported_themes": [
+    "swimlane",
+    "timeline",
+    "chevron",
+    "roadmap",
+    "hub",
+    "interlock",
+    "sketch",
+    "modern",
+    "docs",
+    "studio"
+  ]
+}

@@ -16,7 +16,12 @@
     "fastapi": {"declared_license": "MIT", "purpose": "Loopback HTTP API adapter", "boundary": "Optional api extra"},
     "httpx2": {"declared_license": "BSD-3-Clause", "purpose": "API contract tests", "boundary": "Optional test extra"},
     "jsonschema": {"declared_license": "MIT", "purpose": "ResultBundle schema validation", "boundary": "Optional test extra"},
+    "numpy": {"declared_license": "BSD-3-Clause", "purpose": "Numerical support for advanced statistical analysis", "boundary": "Optional advanced extra"},
+    "openai-codex": {"declared_license": "Apache-2.0", "purpose": "Read-only AI Copilot fallback SDK", "boundary": "Optional codex extra"},
     "pyjwt": {"declared_license": "MIT", "purpose": "Verified enterprise identity token decoding", "boundary": "Optional identity extra"},
+    "python-docx": {"declared_license": "MIT", "purpose": "DMAIC Word report generation", "boundary": "Optional advanced extra"},
+    "scipy": {"declared_license": "BSD-3-Clause", "purpose": "Advanced statistical routines", "boundary": "Optional advanced extra"},
+    "statsmodels": {"declared_license": "BSD-3-Clause", "purpose": "REML Gage R and R estimation", "boundary": "Optional advanced extra"},
     "uvicorn": {"declared_license": "BSD-3-Clause", "purpose": "Loopback ASGI server", "boundary": "Optional api extra"}
   },
   "npm_direct_dependencies": {

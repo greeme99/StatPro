@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StatPro 인터로킹 퍼즐 카드 체인 (Interlocking Process Chain)</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css">
+  <style>
+    :root {
+      --bg-page: #f8fafc;
+      --bg-card: #ffffff;
+      --text-main: #0f172a;
+      --text-sub: #64748b;
+      --border-color: #cbd5e1;
+      --card-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+    }
+    body.dark-mode {
+      --bg-page: #090d16;
+      --bg-card: #1e293b;
+      --text-main: #f8fafc;
+      --text-sub: #94a3b8;
+      --border-color: #334155;
+      --card-shadow: 0 10px 15px -3px rgba(0,0,0,0.4);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--bg-page);
+      color: var(--text-main);
+      font-family: 'Pretendard', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: auto;
+      transition: background 0.3s;
+    }
+    .container {
+      max-width: 1240px;
+      margin: 0 auto;
+      width: 100%;
+      padding: 24px;
+      min-width: 1050px;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+    }
+    .title-box h1 {
+      font-size: 24px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .badge {
+      font-size: 11px;
+      background: #e0f2fe;
+      color: #0369a1;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+    .controls { display: flex; gap: 8px; align-items: center; }
+    .btn {
+      padding: 8px 14px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+    .btn:hover { background: #f1f5f9; }
+    body.dark-mode .btn:hover { background: #334155; }
+    .btn-primary { background: #2563eb; border-color: #2563eb; color: #fff; }
+    .btn-primary:hover { background: #1d4ed8; }
+
+    /* Interlocking Chain Stage */
+    .interlock-stage {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 40px 24px;
+      margin-bottom: 24px;
+      box-shadow: var(--card-shadow);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      position: relative;
+    }
+
+    /* Interlocking Puzzle Card */
+    .puzzle-card {
+      flex: 1;
+      background: var(--bg-card);
+      border: 2px solid var(--border-color);
+      border-radius: 16px;
+      padding: 24px 18px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      cursor: pointer;
+      position: relative;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+      min-height: 240px;
+    }
+    .puzzle-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
+    }
+    .puzzle-card.active {
+      transform: translateY(-8px) scale(1.03);
+      box-shadow: 0 15px 25px -5px rgba(37,99,235,0.25);
+      border-color: #2563eb;
+      background: #f8faff;
+    }
+    body.dark-mode .puzzle-card.active {
+      background: #1e3a5f;
+    }
+
+    /* Notch Connector between cards */
+    .puzzle-card::after {
+      content: "▶";
+      position: absolute;
+      right: -15px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 14px;
+      color: #94a3b8;
+      z-index: 5;
+    }
+    .puzzle-card:last-child::after {
+      display: none;
+    }
+
+    .card-badge-circle {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-weight: 800;
+      font-size: 18px;
+      margin-bottom: 14px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+      transition: all 0.3s;
+    }
+    .puzzle-card.active .card-badge-circle {
+      transform: scale(1.1);
+    }
+
+    .card-icon {
+      font-size: 24px;
+      margin-bottom: 8px;
+    }
+    .card-title {
+      font-size: 14px;
+      font-weight: 800;
+      color: var(--text-main);
+      margin-bottom: 6px;
+    }
+    .card-desc {
+      font-size: 11px;
+      color: var(--text-sub);
+      line-height: 1.4;
+    }
+
+    /* Theme colors */
+    .color-1 { background: #0284c7; }
+    .color-2 { background: #0d9488; }
+    .color-3 { background: #16a34a; }
+    .color-4 { background: #eab308; }
+    .color-5 { background: #ea580c; }
+
+    /* Bottom Info Drawer */
+    .drawer {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 20px 24px;
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 24px;
+      box-shadow: var(--card-shadow);
+    }
+    .drawer h3 { font-size: 16px; font-weight: 800; margin-bottom: 8px; }
+    .drawer p { font-size: 13px; color: var(--text-sub); line-height: 1.6; margin-bottom: 12px; }
+    .checklist { list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: 12px; }
+    .check-item { display: flex; align-items: center; gap: 8px; }
+    .check-icon { color: #10b981; font-weight: bold; }
+    .meta-box {
+      border-left: 1px solid var(--border-color);
+      padding-left: 20px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 12px;
+      font-size: 12px;
+    }
+    .meta-item-label { color: var(--text-sub); font-size: 11px; text-transform: uppercase; font-weight: 600; }
+    .meta-item-val { font-size: 15px; font-weight: 700; color: var(--text-main); }
+  
+    .btn-speed {
+      min-width: 74px;
+      justify-content: center;
+      font-weight: 700;
+      color: #2563eb;
+      font-size: 12px;
+    }
+    body.dark-mode .btn-speed {
+      color: #38bdf8;
+    }
+
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <header class="header">
+      <div class="title-box">
+        <h1>StatPro 인터로킹 퍼즐 카드 체인</h1>
+        <span class="badge">INTERLOCKING PUZZLE CHAIN</span>
+      </div>
+      <div class="controls">
+        <button class="btn" id="btnPrev">&lt;</button>
+        <button class="btn btn-primary" id="btnPlay">
+          <span id="playIcon">▷</span> <span id="playText">체인 재생</span>
+        </button>
+        <button class="btn" id="btnNext">&gt;</button>
+        <button class="btn btn-speed" id="btnSpeed" title="재생 속도 조절">⚡ 1.0x</button>
+        <button class="btn" id="btnReset">↺</button>
+        <button class="btn" id="btnTheme">🌙</button>
+      </div>
+    </header>
+
+    <!-- Interlocking Stage -->
+    <div class="interlock-stage">
+      <div class="puzzle-card active" id="card-0" onclick="selectStep(0)">
+        <div class="card-badge-circle color-1">01</div>
+        <div class="card-icon">📂</div>
+        <div class="card-title">원천 데이터 로드</div>
+        <div class="card-desc">CSV · XLSX 계측 파일<br>D:\StatProData 에어갭 세션</div>
+      </div>
+
+      <div class="puzzle-card" id="card-1" onclick="selectStep(1)">
+        <div class="card-badge-circle color-2">02</div>
+        <div class="card-icon">🔍</div>
+        <div class="card-title">변수 &amp; 규격 매핑</div>
+        <div class="card-desc">결측치 0 대체 원천 금지<br>USL/LSL 공학규격 분리</div>
+      </div>
+
+      <div class="puzzle-card" id="card-2" onclick="selectStep(2)">
+        <div class="card-badge-circle color-3">03</div>
+        <div class="card-icon">⚙️</div>
+        <div class="card-title">통계 연산 코어</div>
+        <div class="card-desc">정규성 AD검정 · Gage R&amp;R<br>Nelson 8 Rules 판정</div>
+      </div>
+
+      <div class="puzzle-card" id="card-3" onclick="selectStep(3)">
+        <div class="card-badge-circle color-4">04</div>
+        <div class="card-icon">⚖️</div>
+        <div class="card-title">안정 판정 분기</div>
+        <div class="card-desc">Cpk ≥ 1.33 정상 확정<br>이상 감지 시 CAPA 분기</div>
+      </div>
+
+      <div class="puzzle-card" id="card-4" onclick="selectStep(4)">
+        <div class="card-badge-circle color-5">05</div>
+        <div class="card-icon">📋</div>
+        <div class="card-title">품질 보고서 출력</div>
+        <div class="card-desc">단일 HTML 리포트 발행<br>Parquet 영구 아카이빙</div>
+      </div>
+    </div>
+
+    <!-- Info Drawer -->
+    <div class="drawer">
+      <div>
+        <h3 id="drawerTitle">Step 1. 원천 데이터 준비 및 로컬 세션 격리</h3>
+        <p id="drawerDesc">
+          측정자가 현장 계측기(RS-232, 엑셀, CSV)로부터 데이터를 로드합니다. 모든 데이터는 네트워크를 타지 않고 D:\StatProData 에 안전하게 격리 보관됩니다.
+        </p>
+        <ul class="checklist" id="drawerChecklist">
+          <li class="check-item"><span class="check-icon">✓</span> 에어갭(Air-gapped) 환경 완전 보장</li>
+          <li class="check-item"><span class="check-icon">✓</span> 인코딩 자동 보정 (UTF-8, CP949, EUC-KR)</li>
+          <li class="check-item"><span class="check-icon">✓</span> Polars 고속 인메모리 파서 즉각 탑재</li>
+        </ul>
+      </div>
+      <div class="meta-box">
+        <div>
+          <div class="meta-item-label">파이프라인 단계</div>
+          <div class="meta-item-val" id="metaStep">Step 1 / 5</div>
+        </div>
+        <div>
+          <div class="meta-item-label">아키텍처 엔진</div>
+          <div class="meta-item-val" id="metaEngine">FastAPI Local Core Server</div>
+        </div>
+        <div>
+          <div class="meta-item-label">설계 준수</div>
+          <div class="meta-item-val" id="metaRule">DESIGN.md 5-Step 체인</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+
+    const speeds = [
+      { label: "⚡ 0.5x", ms: 4800 },
+      { label: "⚡ 1.0x", ms: 2800 },
+      { label: "⚡ 1.5x", ms: 1800 },
+      { label: "⚡ 2.0x", ms: 1100 }
+    ];
+    let speedIdx = 1;
+
+    function cycleSpeed() {
+      speedIdx = (speedIdx + 1) % speeds.length;
+      const b = document.getElementById('btnSpeed');
+      if (b) b.textContent = speeds[speedIdx].label;
+      if (typeof isPlaying !== 'undefined' && isPlaying) {
+        clearInterval(timer);
+        const stepFn = (typeof nextStep === 'function') ? nextStep : (typeof nextFlow === 'function' ? nextFlow : null);
+        if (stepFn) timer = setInterval(stepFn, speeds[speedIdx].ms);
+      }
+    }
+
+    const interlockSteps = [
+      {
+        title: "Step 1. 원천 데이터 준비 및 로컬 세션 격리",
+        desc: "측정자가 현장 계측기(RS-232, 엑셀, CSV)로부터 데이터를 로드합니다. 모든 데이터는 네트워크를 타지 않고 D:\\StatProData 에 안전하게 격리 보관됩니다.",
+        checks: ["에어갭(Air-gapped) 환경 완전 보장", "인코딩 자동 보정 (UTF-8, CP949, EUC-KR)", "Polars 고속 인메모리 파서 즉각 탑재"],
+        step: "Step 1 / 5", engine: "FastAPI Local Core Server", rule: "DESIGN.md 1단계 로드"
+      },
+      {
+        title: "Step 2. 변수 매핑 & 결측 무결성 검증",
+        desc: "관리특성치(Y)와 군(Subgroup)을 매핑하며, 엔지니어링 규격(USL/LSL)을 명확히 분리 정의합니다. 결측치 0 자동 대체는 엄격히 금지됩니다.",
+        checks: ["관리규격 vs 공학규격 엄격한 분리", "결측치 0 자동 대체 금지 (Null 격리 및 알림)", "가상화 그리드를 통한 실시간 데이터 프리뷰"],
+        step: "Step 2 / 5", engine: "Virtual Table Grid + Pydantic", rule: "결측치 보정 원천 금지"
+      },
+      {
+        title: "Step 3. 통계 연산 코어 & Nelson 8 Rules",
+        desc: "Anderson-Darling 정규성 검정과 Shewhart 관리도, 8가지 Nelson 이상 룰을 전수 판정합니다.",
+        checks: ["Anderson-Darling (p >= 0.05) 정규성 검정", "Nelson 8 Rules 이상 패턴 실시간 마킹", "Gage R&R (%GRR, ndc) 측정시스템 신뢰도 검증"],
+        step: "Step 3 / 5", engine: "NumPy / SciPy Vectorized Core", rule: "ISO 21747 / AIAG SPC 표준"
+      },
+      {
+        title: "Step 4. 공정 판정 & 조치 분기 (확정 vs 협의 대기)",
+        desc: "Cpk 1.33 이상은 표준 작업 유지 확정, 이상 룰 감지 시 CAPA 5Why 조치 대기로 분기됩니다.",
+        checks: ["정상: Cpk >= 1.33 관리상태 유지 승인", "이상: 관리한계 이탈 포인트 붉은 점 하이라이트", "5Why / CAPA 현장 원인분석 조치 기록 폼 활성화"],
+        step: "Step 4 / 5", engine: "SPC Decision Gate + Alarm Dispatcher", rule: "Fail-safe 조치 프로세스"
+      },
+      {
+        title: "Step 5. 품질 보고서 출력 & 영구 아카이빙",
+        desc: "Plotly 고해상도 벡터 차트와 분석 결과, 조치 이력이 결합된 단일 HTML 보고서를 생성합니다.",
+        checks: ["Self-contained 단일 파일 HTML 리포트 출력", "4K PNG / 벡터 SVG 차트 원클릭 내보내기", "Parquet 압축 스토리지로 로컬 이력 100% 영구 보존"],
+        step: "Step 5 / 5", engine: "Jinja2 Report Generator + Parquet", rule: "단일 파일 자립성 보장"
+      }
+    ];
+
+    let current = 0;
+    let timer = null;
+    let isPlaying = false;
+
+    function updateView() {
+      const data = interlockSteps[current];
+
+      for (let i = 0; i < 5; i++) {
+        const card = document.getElementById('card-' + i);
+        if (i === current) card.classList.add('active');
+        else card.classList.remove('active');
+      }
+
+      document.getElementById('drawerTitle').textContent = data.title;
+      document.getElementById('drawerDesc').textContent = data.desc;
+      document.getElementById('metaStep').textContent = data.step;
+      document.getElementById('metaEngine').textContent = data.engine;
+      document.getElementById('metaRule').textContent = data.rule;
+
+      const chkList = document.getElementById('drawerChecklist');
+      chkList.innerHTML = '';
+      data.checks.forEach(c => {
+        const li = document.createElement('li');
+        li.className = 'check-item';
+        li.innerHTML = `<span class="check-icon">✓</span> ${c}`;
+        chkList.appendChild(li);
+      });
+    }
+
+    function selectStep(idx) {
+      current = idx;
+      updateView();
+    }
+
+    function nextStep() {
+      current = (current + 1) % interlockSteps.length;
+      updateView();
+    }
+
+    function prevStep() {
+      current = (current - 1 + interlockSteps.length) % interlockSteps.length;
+      updateView();
+    }
+
+    function togglePlay() {
+      if (isPlaying) {
+        clearInterval(timer);
+        isPlaying = false;
+        document.getElementById('playIcon').textContent = '▷';
+        document.getElementById('playText').textContent = '체인 재생';
+      } else {
+        isPlaying = true;
+        document.getElementById('playIcon').textContent = '❚❚';
+        document.getElementById('playText').textContent = '일시 정지';
+        timer = setInterval(nextStep, speeds[speedIdx].ms);
+      }
+    }
+
+    function resetInterlock() {
+      if (isPlaying) togglePlay();
+      current = 0;
+      updateView();
+    }
+
+    document.getElementById('btnPlay').addEventListener('click', togglePlay);
+    document.getElementById('btnNext').addEventListener('click', () => { if(isPlaying) togglePlay(); nextStep(); });
+    document.getElementById('btnPrev').addEventListener('click', () => { if(isPlaying) togglePlay(); prevStep(); });
+    document.getElementById('btnReset').addEventListener('click', resetInterlock);
+    document.getElementById('btnTheme').addEventListener('click', () => {
+      document.body.classList.toggle('dark-mode');
+      document.getElementById('btnTheme').textContent = document.body.classList.contains('dark-mode') ? '☀️' : '🌙';
+    });
+
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
+      else if (e.code === 'ArrowRight') nextStep();
+      else if (e.code === 'ArrowLeft') prevStep();
+      else if (e.code === 'KeyR') resetInterlock();
+    });
+
+    updateView();
+  
+    const bSpeed = document.getElementById('btnSpeed');
+    if (bSpeed) bSpeed.addEventListener('click', cycleSpeed);
+
+  </script>
+</body>
+</html>

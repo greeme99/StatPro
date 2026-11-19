@@ -1,8 +1,9 @@
 import { AlertTriangle, ArrowLeft, CheckCircle2, ClipboardCheck, FilePlus2, GitBranch, Link2, ShieldAlert, Upload, Wrench } from "lucide-react";
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import { addFmeaAction, addFmeaControlPlanItem, addFmeaFailure, addFmeaProcessCharacteristic, addFmeaProcessStep, approveFmeaStudy, attachActionPriorityPolicy, completeFmeaAction, createActionPriorityPolicy, getFmeaStudy, getFmeaStudyReport, linkFmeaControlPlanAnalysisEvidence, listActionPriorityPolicies, submitFmeaForReview } from "../api";
+import { addFmeaAction, addFmeaControlPlanItem, addFmeaFailure, addFmeaProcessCharacteristic, addFmeaProcessStep, approveFmeaStudy, attachActionPriorityPolicy, completeFmeaAction, createActionPriorityPolicy, fmeaStudyArtifactUrl, getFmeaStudy, getFmeaStudyReport, linkFmeaControlPlanAnalysisEvidence, listActionPriorityPolicies, submitFmeaForReview } from "../api";
 import { Button } from "../components/Button";
+import { ReportPdfDownload } from "../components/ReportPdfDownload";
 import type { FailureAnalysis, FmeaStudyReport, RecommendedAction, StoredActionPriorityPolicy, StoredFmeaStudy } from "../types";
 
 const statusLabels = { draft: "작성 중", in_review: "검토 중", approved: "승인됨", archived: "보관됨" };
@@ -37,6 +38,7 @@ export function FmeaStudyPage() {
   const [report, setReport] = useState<FmeaStudyReport | null>(null);
   const [reportBusy, setReportBusy] = useState(false);
   const [reportError, setReportError] = useState("");
+  const [reportDownloadError, setReportDownloadError] = useState("");
   const selected = useMemo(() => stored?.study.items.find((item) => item.item_id === selectedId) ?? null, [stored, selectedId]);
 
   async function handleLoadReport() {
@@ -369,7 +371,8 @@ export function FmeaStudyPage() {
       </form>}
 
       <section className="panel" aria-labelledby="fmea-report-title">
-        <header className="panel-heading"><div><span className="eyebrow">STUDY REPORT</span><h2 id="fmea-report-title">FMEA 검토 보고서</h2></div><Button type="button" loading={reportBusy} onClick={handleLoadReport}>현재 revision 보기</Button></header>
+        <header className="panel-heading"><div><span className="eyebrow">STUDY REPORT</span><h2 id="fmea-report-title">FMEA 검토 보고서</h2></div><div className="result-actions"><a className="button button-secondary" href={fmeaStudyArtifactUrl(studyId, "html")} download>HTML 보고서</a><ReportPdfDownload href={fmeaStudyArtifactUrl(studyId, "pdf")} filename={`${studyId}-fmea-report.pdf`} onError={setReportDownloadError}>PDF 보고서</ReportPdfDownload><a className="button button-secondary" href={fmeaStudyArtifactUrl(studyId, "xlsx")} download>Excel 보고서</a><Button type="button" loading={reportBusy} onClick={handleLoadReport}>현재 revision 보기</Button></div></header>
+        {reportDownloadError && <div className="error-banner" role="alert"><AlertTriangle aria-hidden="true" /><p>{reportDownloadError}</p></div>}
         {reportError && <div className="error-banner" role="alert"><AlertTriangle aria-hidden="true" /><p>{reportError}</p></div>}
         {reportBusy && <p role="status">보고서를 불러오는 중입니다.</p>}
         {!reportBusy && !currentReport && !reportError && <p>현재 Study revision의 위험 분석, 조치, Control Plan 연결과 감사 기록을 확인할 수 있습니다.</p>}

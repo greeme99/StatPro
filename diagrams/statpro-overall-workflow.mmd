@@ -1,0 +1,72 @@
+flowchart TD
+    %% 전체 표준 워크플로우 (StatPro End-to-End Workflow)
+
+    subgraph Phase1["1. 진입 및 작업공간 선택 (Entry & Workspace)"]
+        Home["홈 (Home)<br/>대시보드 / 최근 실행 이력"]
+        WS_Data["데이터 작업공간 (/data)<br/>Dataset & Worksheet"]
+        WS_DOE["DOE 작업공간 (/doe)<br/>실험계획 & 최적화"]
+        WS_SPC["SPC 작업공간 (/spc)<br/>7대 도구 & 관리도"]
+        WS_FMEA["FMEA 작업공간 (/fmea)<br/>PFMEA & 관리계획서"]
+        WS_DMAIC["DMAIC 작업공간 (/home/dmaic)<br/>품질 개선 프로젝트"]
+
+        Home --> WS_Data
+        Home --> WS_DOE
+        Home --> WS_SPC
+        Home --> WS_FMEA
+        Home --> WS_DMAIC
+    end
+
+    subgraph Phase2["2. 데이터 준비 및 입력 (Data Ingestion & Input)"]
+        CSV["CSV 파일 업로드 / 수동 입력"]
+        DatasetSnapshot["Dataset Snapshot<br/>(불변 스키마, 원본 Digest)"]
+        WorksheetRev["Worksheet Revision<br/>(타입 프로파일링, 결측치 보존)"]
+
+        CSV --> DatasetSnapshot
+        WS_Data --> CSV
+        DatasetSnapshot --> WorksheetRev
+        WorksheetRev -.-> WS_DOE
+        WorksheetRev -.-> WS_SPC
+    end
+
+    subgraph Phase3["3. 분석 구성 및 실행 (Configuration & Execution)"]
+        Config["분석 파라미터 및 옵션 설정<br/>(가정 검증 / 완료 조건 체크)"]
+        AnalysisRun["Analysis Run 생성<br/>(입력 Digest, 엔진 버전 고정)"]
+        StatEngine["StatPro 로컬 통계 코어<br/>(FastAPI / Pure Python Engine)"]
+
+        WS_DOE --> Config
+        WS_SPC --> Config
+        Config --> AnalysisRun
+        AnalysisRun --> StatEngine
+    end
+
+    subgraph Phase4["4. 결과 검토 및 진단 (Review & Diagnostics)"]
+        ResultBundle["ResultBundle 경계 통과<br/>(JSON, ETag, Provenance)"]
+        VisualChart["반응형 시각화 차트<br/>(Recharts / 통계 관리한계선)"]
+        DiagReport["진단 표 & 이상 신호 감지<br/>(Nelson Rules, ANOVA, Cp/Cpk)"]
+
+        StatEngine --> ResultBundle
+        ResultBundle --> VisualChart
+        ResultBundle --> DiagReport
+    end
+
+    subgraph Phase5["5. 결과 내보내기 및 보존 (Export & Governance)"]
+        ExportHTML["브라우저 인쇄용 HTML / PDF"]
+        ExportZIP["결정론적 ZIP 패키지 (DOE)"]
+        ExportCSV["원천 수치 CSV / Excel"]
+        EvidenceRef["불변 증거 참조 (Evidence Ref)<br/>FMEA / DMAIC 인계"]
+
+        VisualChart --> ExportHTML
+        VisualChart --> ExportCSV
+        DiagReport --> ExportZIP
+        ResultBundle --> EvidenceRef
+    end
+
+    classDef primary fill:#2563eb,stroke:#1d4ed8,color:#ffffff,stroke-width:2px;
+    classDef process fill:#f8fafc,stroke:#94a3b8,color:#0f172a,stroke-width:1.5px;
+    classDef storage fill:#f1f5f9,stroke:#64748b,color:#0f172a,stroke-dasharray: 4 2;
+    classDef bundle fill:#10b981,stroke:#059669,color:#ffffff,stroke-width:2px;
+
+    class Home,StatEngine,ResultBundle primary;
+    class Config,AnalysisRun,VisualChart,DiagReport process;
+    class DatasetSnapshot,WorksheetRev,EvidenceRef storage;
+

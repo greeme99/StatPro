@@ -1,0 +1,119 @@
+# StatPro coding profile: keep non-coding plugins out of startup context.
+# Re-enable an individual plugin here only for a task that needs it.
+
+[plugins."codex-app-tools@openai-bundled"]
+enabled = true
+
+[plugins."chrome@openai-bundled"]
+enabled = false
+
+[plugins."visualize@openai-bundled"]
+enabled = false
+
+[plugins."browser@openai-bundled"]
+enabled = false
+
+[plugins."unified-computer-use@openai-bundled"]
+enabled = false
+
+[plugins."computer-use@openai-bundled"]
+enabled = false
+
+[plugins."google-calendar@openai-curated"]
+enabled = false
+
+[plugins."slack@openai-curated"]
+enabled = false
+
+[plugins."documents@openai-primary-runtime"]
+enabled = false
+
+[plugins."pdf@openai-primary-runtime"]
+enabled = false
+
+[plugins."spreadsheets@openai-primary-runtime"]
+enabled = false
+
+[plugins."presentations@openai-primary-runtime"]
+enabled = false
+
+[plugins."template-creator@openai-primary-runtime"]
+enabled = false
+
+[plugins."anthropic-skills@claude-cowork"]
+enabled = false
+
+[plugins."apollo@claude-cowork"]
+enabled = false
+
+[plugins."bio-research@claude-cowork"]
+enabled = false
+
+[plugins."brand-voice@claude-cowork"]
+enabled = false
+
+[plugins."canva@claude-cowork"]
+enabled = false
+
+[plugins."common-room@claude-cowork"]
+enabled = false
+
+[plugins."cowork-plugin-management@claude-cowork"]
+enabled = false
+
+[plugins."customer-support@claude-cowork"]
+enabled = false
+
+[plugins."data@claude-cowork"]
+enabled = false
+
+[plugins."design@claude-cowork"]
+enabled = false
+
+[plugins."desktop-commander@claude-cowork"]
+enabled = false
+
+[plugins."engineering@claude-cowork"]
+enabled = false
+
+[plugins."enterprise-search@claude-cowork"]
+enabled = false
+
+[plugins."figma@claude-cowork"]
+enabled = false
+
+[plugins."finance@claude-cowork"]
+enabled = false
+
+[plugins."human-resources@claude-cowork"]
+enabled = false
+
+[plugins."legal@claude-cowork"]
+enabled = false
+
+[plugins."marketing@claude-cowork"]
+enabled = false
+
+[plugins."operations@claude-cowork"]
+enabled = false
+
+[plugins."pdf-viewer@claude-cowork"]
+enabled = false
+
+[plugins."product-management@claude-cowork"]
+enabled = false
+
+[plugins."productivity@claude-cowork"]
+enabled = false
+
+[plugins."sales@claude-cowork"]
+enabled = false
+
+[plugins."slack-by-salesforce@claude-cowork"]
+enabled = false
+
+[plugins."small-business@claude-cowork"]
+enabled = false
+
+[plugins."wix@claude-cowork"]
+enabled = false

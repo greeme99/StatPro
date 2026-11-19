@@ -1,0 +1,81 @@
+flowchart LR
+    %% StatPro 도메인 간 연계 워크플로우 (Cross-Domain & DMAIC Integration)
+
+    subgraph DMAIC_D["1. 정의 (Define)"]
+        direction TB
+        D_Charter["프로젝트 헌장 (Charter)<br/>목표·범위·성공지표"]
+        D_VOC["고객의 소리 (VOC)<br/>요구사항·CTQ 도출"]
+        D_SIPOC["SIPOC 공정 맵<br/>공급자-입력-공정-출력-고객"]
+        D_Prob["문제 정의 & 이해관계자"]
+
+        D_Charter --- D_VOC
+        D_VOC --- D_SIPOC
+        D_SIPOC --- D_Prob
+    end
+
+    subgraph DMAIC_M["2. 측정 (Measure)"]
+        direction TB
+        M_Plan["데이터 수집 계획<br/>(표본추출·수집전략)"]
+        M_MSA["MSA Gage R&R<br/>(측정시스템 신뢰성 검증)"]
+        M_Baseline["기준선 SPC & 공정능력<br/>(I-MR, Xbar-R, Cp/Cpk)"]
+
+        M_Plan --> M_MSA
+        M_MSA --> M_Baseline
+    end
+
+    subgraph DMAIC_A["3. 분석 (Analyze)"]
+        direction TB
+        A_Pareto["파레토 분석 (Pareto)<br/>(핵심 불량/손실 요인 선별)"]
+        A_Fishbone["6M 특성요인도 (Fishbone)<br/>(잠재원인 체계화 & 가설)"]
+        A_RCA["근본원인 분석 (RCA)<br/>(검증된 원인 도출)"]
+
+        A_Pareto --> A_Fishbone
+        A_Fishbone --> A_RCA
+    end
+
+    subgraph DMAIC_I["4. 개선 (Improve)"]
+        direction TB
+        I_DOE["실험계획법 (DOE)<br/>(요인설계·스크리닝)"]
+        I_Surface["반응표면 & 최적화<br/>(CCD, BBD, Desirability)"]
+        I_Solution["개선안 선정 & 파일럿<br/>(Solution Matrix, Pilot)"]
+
+        I_DOE --> I_Surface
+        I_Surface --> I_Solution
+    end
+
+    subgraph DMAIC_C["5. 관리 (Control)"]
+        direction TB
+        C_FMEA["FMEA 관리계획서<br/>(Control Plan / 7단계 위험평가)"]
+        C_SPC["SPC 공정 관리도<br/>(관리한계선 실시간 이상신호 감지)"]
+        C_Dash["품질 대시보드 & 결함분석<br/>(불변 지표 스냅샷 / DPMO)"]
+        C_Handoff["관리 인수인계 (Handoff)<br/>(반응계획 & 주기적 검토)"]
+
+        C_FMEA --> C_SPC
+        C_SPC --> C_Dash
+        C_Dash --> C_Handoff
+    end
+
+    %% 도메인 간 상호 연계선 (Evidence Reference & Integration Flow)
+    DMAIC_D ==>|"CTQ 및 공정 경계 인계"| DMAIC_M
+    DMAIC_M ==>|"데이터 및 초기 관리도 결과"| DMAIC_A
+    DMAIC_A ==>|"핵심 영향 인자 (X's) 전달"| DMAIC_I
+    DMAIC_I ==>|"최적 공정 조건 (Recipe)"| DMAIC_C
+
+    %% FMEA와 SPC/MSA 간의 직접 피드백 루프 (Evidence Reference)
+    C_FMEA -.->|"관리항목 모니터링 요구"| C_SPC
+    C_SPC -.->|"이상 신호 발생 시 FMEA 조치 피드백 (Evidence Ref)"| C_FMEA
+    M_MSA -.->|"측정 불확도 근거 연계 (Evidence Ref)"| C_FMEA
+    I_Surface -.->|"최적화 결과 증적 (ResultBundle)"| C_Handoff
+
+    classDef define fill:#f0f9ff,stroke:#0284c7,color:#0369a1,stroke-width:1.5px;
+    classDef measure fill:#fefce8,stroke:#ca8a04,color:#854d0e,stroke-width:1.5px;
+    classDef analyze fill:#fdf2f8,stroke:#db2777,color:#9d174d,stroke-width:1.5px;
+    classDef improve fill:#f0fdf4,stroke:#16a34a,color:#15803d,stroke-width:1.5px;
+    classDef control fill:#faf5ff,stroke:#9333ea,color:#6b21a8,stroke-width:1.5px;
+
+    class D_Charter,D_VOC,D_SIPOC,D_Prob define;
+    class M_Plan,M_MSA,M_Baseline measure;
+    class A_Pareto,A_Fishbone,A_RCA analyze;
+    class I_DOE,I_Surface,I_Solution improve;
+    class C_FMEA,C_SPC,C_Dash,C_Handoff control;
+

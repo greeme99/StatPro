@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StatPro 다이아몬드 코어 & 방사형 허브 (Strategy Diamond Hub & Spoke)</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css">
+  <style>
+    :root {
+      --bg-page: #f8fafc;
+      --bg-card: #ffffff;
+      --text-main: #0f172a;
+      --text-sub: #64748b;
+      --border-color: #e2e8f0;
+      --hub-color: #2563eb;
+      --card-shadow: 0 4px 6px -1px rgba(0,0,0,0.06);
+    }
+    body.dark-mode {
+      --bg-page: #090d16;
+      --bg-card: #1e293b;
+      --text-main: #f8fafc;
+      --text-sub: #94a3b8;
+      --border-color: #334155;
+      --card-shadow: 0 10px 15px -3px rgba(0,0,0,0.4);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--bg-page);
+      color: var(--text-main);
+      font-family: 'Pretendard', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: auto;
+      transition: background 0.3s;
+    }
+    .container {
+      max-width: 1240px;
+      margin: 0 auto;
+      width: 100%;
+      padding: 24px;
+      min-width: 1000px;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    .title-box h1 {
+      font-size: 24px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .badge {
+      font-size: 11px;
+      background: #e0f2fe;
+      color: #0369a1;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+    .controls { display: flex; gap: 8px; align-items: center; }
+    .btn {
+      padding: 8px 14px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+    .btn:hover { background: #f1f5f9; }
+    body.dark-mode .btn:hover { background: #334155; }
+    .btn-primary { background: #2563eb; border-color: #2563eb; color: #fff; }
+    .btn-primary:hover { background: #1d4ed8; }
+
+    /* Hub Stage Layout */
+    .hub-stage {
+      position: relative;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 50px 30px;
+      margin-bottom: 24px;
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      align-items: center;
+      box-shadow: var(--card-shadow);
+      min-height: 480px;
+    }
+
+    /* Central Diamond Hub */
+    .hub-center-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+    .diamond-card {
+      width: 220px;
+      height: 220px;
+      background: linear-gradient(135deg, #ffffff 0%, #f1f5f9 100%);
+      border: 4px solid #2563eb;
+      border-radius: 28px;
+      transform: rotate(45deg);
+      box-shadow: 0 15px 35px rgba(37,99,235,0.25);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    body.dark-mode .diamond-card {
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+      border-color: #3b82f6;
+    }
+    .diamond-inner {
+      transform: rotate(-45deg);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      padding: 10px;
+    }
+    .diamond-icon {
+      font-size: 36px;
+      margin-bottom: 6px;
+      animation: hubPulse 2s infinite ease-in-out;
+    }
+    @keyframes hubPulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.08); }
+    }
+    .diamond-title {
+      font-size: 16px;
+      font-weight: 800;
+      color: var(--text-main);
+    }
+    .diamond-sub {
+      font-size: 11px;
+      color: var(--text-sub);
+      margin-top: 4px;
+      line-height: 1.3;
+    }
+
+    /* Radial Spokes & Pill Cards */
+    .spokes-container {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      padding-left: 40px;
+      position: relative;
+    }
+    .svg-spokes {
+      position: absolute;
+      top: 0;
+      left: -80px;
+      width: 120px;
+      height: 100%;
+      pointer-events: none;
+    }
+    .spoke-line {
+      fill: none;
+      stroke: #94a3b8;
+      stroke-width: 2;
+      stroke-dasharray: 4, 4;
+      transition: all 0.3s;
+    }
+    .spoke-line.active {
+      stroke: #2563eb;
+      stroke-width: 3;
+      stroke-dasharray: 6, 6;
+      animation: spokeDash 1s linear infinite;
+    }
+    @keyframes spokeDash {
+      from { stroke-dashoffset: 24; }
+      to { stroke-dashoffset: 0; }
+    }
+
+    /* Pill Cards */
+    .pill-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 9999px;
+      padding: 10px 24px 10px 14px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      position: relative;
+      user-select: none;
+    }
+    .pill-card:hover {
+      transform: translateX(6px);
+      border-color: #94a3b8;
+    }
+    .pill-card.active {
+      transform: translateX(10px);
+      box-shadow: 0 8px 20px -4px rgba(37,99,235,0.25);
+      border-width: 2px;
+    }
+
+    .pill-badge {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 16px;
+      color: #fff;
+      flex-shrink: 0;
+      box-shadow: 0 3px 6px rgba(0,0,0,0.15);
+    }
+    .pill-info {
+      flex: 1;
+    }
+    .pill-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .pill-desc {
+      font-size: 12px;
+      color: var(--text-sub);
+      margin-top: 2px;
+    }
+
+    /* Card Specific Colors */
+    .card-1.active { border-color: #eab308; background: #fefce8; }
+    .card-2.active { border-color: #10b981; background: #f0fdf4; }
+    .card-3.active { border-color: #3b82f6; background: #eff6ff; }
+    .card-4.active { border-color: #8b5cf6; background: #f5f3ff; }
+    .card-5.active { border-color: #ec4899; background: #fdf2f8; }
+
+    body.dark-mode .card-1.active { background: #422006; }
+    body.dark-mode .card-2.active { background: #064e3b; }
+    body.dark-mode .card-3.active { background: #1e3a5f; }
+    body.dark-mode .card-4.active { background: #2e1065; }
+    body.dark-mode .card-5.active { background: #500724; }
+
+    /* Bottom Info Drawer */
+    .drawer {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 20px 24px;
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 24px;
+      box-shadow: var(--card-shadow);
+    }
+    .drawer h3 { font-size: 16px; font-weight: 800; margin-bottom: 8px; }
+    .drawer p { font-size: 13px; color: var(--text-sub); line-height: 1.6; margin-bottom: 12px; }
+    .checklist { list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: 12px; }
+    .check-item { display: flex; align-items: center; gap: 8px; }
+    .check-icon { color: #10b981; font-weight: bold; }
+    .meta-box {
+      border-left: 1px solid var(--border-color);
+      padding-left: 20px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 12px;
+      font-size: 12px;
+    }
+    .meta-item-label { color: var(--text-sub); font-size: 11px; text-transform: uppercase; font-weight: 600; }
+    .meta-item-val { font-size: 15px; font-weight: 700; color: var(--text-main); }
+  
+    .btn-speed {
+      min-width: 74px;
+      justify-content: center;
+      font-weight: 700;
+      color: #2563eb;
+      font-size: 12px;
+    }
+    body.dark-mode .btn-speed {
+      color: #38bdf8;
+    }
+
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <header class="header">
+      <div class="title-box">
+        <h1>StatPro 다이아몬드 코어 &amp; 방사형 허브</h1>
+        <span class="badge">STRATEGY DIAMOND HUB THEME</span>
+      </div>
+      <div class="controls">
+        <button class="btn" id="btnPrev">&lt;</button>
+        <button class="btn btn-primary" id="btnPlay">
+          <span id="playIcon">▷</span> <span id="playText">허브 순환</span>
+        </button>
+        <button class="btn" id="btnNext">&gt;</button>
+        <button class="btn btn-speed" id="btnSpeed" title="재생 속도 조절">⚡ 1.0x</button>
+        <button class="btn" id="btnReset">↺</button>
+        <button class="btn" id="btnTheme">🌙</button>
+      </div>
+    </header>
+
+    <!-- Hub Stage -->
+    <div class="hub-stage">
+      <!-- Left: Central Diamond Core Hub -->
+      <div class="hub-center-container">
+        <div class="diamond-card" id="centerDiamond">
+          <div class="diamond-inner">
+            <div class="diamond-icon">💎</div>
+            <div class="diamond-title">StatPro Core</div>
+            <div class="diamond-sub">Local-First<br>Engine &amp; Storage</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Spoke Pill Cards -->
+      <div class="spokes-container">
+        <svg class="svg-spokes" viewBox="0 0 120 380">
+          <path id="spoke-0" class="spoke-line active" d="M 0 190 C 40 190, 40 30, 120 30" />
+          <path id="spoke-1" class="spoke-line" d="M 0 190 C 40 190, 40 100, 120 100" />
+          <path id="spoke-2" class="spoke-line" d="M 0 190 L 120 190" />
+          <path id="spoke-3" class="spoke-line" d="M 0 190 C 40 190, 40 280, 120 280" />
+          <path id="spoke-4" class="spoke-line" d="M 0 190 C 40 190, 40 350, 120 350" />
+        </svg>
+
+        <div class="pill-card card-1 active" id="card-0" onclick="selectStep(0)">
+          <div class="pill-badge" style="background: #eab308;">01</div>
+          <div class="pill-info">
+            <div class="pill-title">
+              <span>원천 데이터 수집 &amp; 로컬 격리</span>
+              <span style="font-size: 11px; color: #eab308;">INPUT</span>
+            </div>
+            <div class="pill-desc">CSV · XLSX 계측기 데이터 로드 및 D:\StatProData 에어갭 세션 초기화</div>
+          </div>
+        </div>
+
+        <div class="pill-card card-2" id="card-1" onclick="selectStep(1)">
+          <div class="pill-badge" style="background: #10b981;">02</div>
+          <div class="pill-info">
+            <div class="pill-title">
+              <span>변수 매핑 &amp; 결측 무결성 검증</span>
+              <span style="font-size: 11px; color: #10b981;">VALIDATION</span>
+            </div>
+            <div class="pill-desc">결측치 0 대체 원천 금지, 공학규격(USL/LSL) 분리 입력 및 그리드 프리뷰</div>
+          </div>
+        </div>
+
+        <div class="pill-card card-3" id="card-2" onclick="selectStep(2)">
+          <div class="pill-badge" style="background: #3b82f6;">03</div>
+          <div class="pill-info">
+            <div class="pill-title">
+              <span>통계 연산 코어 &amp; Nelson 8 Rules</span>
+              <span style="font-size: 11px; color: #3b82f6;">COMPUTE</span>
+            </div>
+            <div class="pill-desc">Anderson-Darling 정규성, Gage R&amp;R, 8대 Nelson 이상 패턴 실시간 판정</div>
+          </div>
+        </div>
+
+        <div class="pill-card card-4" id="card-3" onclick="selectStep(3)">
+          <div class="pill-badge" style="background: #8b5cf6;">04</div>
+          <div class="pill-info">
+            <div class="pill-title">
+              <span>공정 안정 판정 분기 (확정 vs 조치)</span>
+              <span style="font-size: 11px; color: #8b5cf6;">DECISION</span>
+            </div>
+            <div class="pill-desc">Cpk ≥ 1.33 정상 확정 vs 이상 감지 시 CAPA 5Why 조치 대기 분기 배분</div>
+          </div>
+        </div>
+
+        <div class="pill-card card-5" id="card-4" onclick="selectStep(4)">
+          <div class="pill-badge" style="background: #ec4899;">05</div>
+          <div class="pill-info">
+            <div class="pill-title">
+              <span>품질 보고서 출력 &amp; 영구 아카이빙</span>
+              <span style="font-size: 11px; color: #ec4899;">REPORT</span>
+            </div>
+            <div class="pill-desc">단일 HTML 리포트 발행, 4K 벡터 차트 내보내기, Parquet 영구 보존</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Info Drawer -->
+    <div class="drawer">
+      <div>
+        <h3 id="drawerTitle">Step 1. 원천 데이터 수집 &amp; 로컬 격리 세션</h3>
+        <p id="drawerDesc">
+          현장 계측기나 파일로부터 데이터를 불러와 로컬 PC 내부(D:\StatProData)에 안전하게 저장합니다.
+        </p>
+        <ul class="checklist" id="drawerChecklist">
+          <li class="check-item"><span class="check-icon">✓</span> 에어갭(Air-gapped) 환경 완전 보장</li>
+          <li class="check-item"><span class="check-icon">✓</span> 인코딩 자동 보정 (UTF-8, CP949, EUC-KR)</li>
+          <li class="check-item"><span class="check-icon">✓</span> Polars 고속 인메모리 파서 즉각 탑재</li>
+        </ul>
+      </div>
+      <div class="meta-box">
+        <div>
+          <div class="meta-item-label">선택 단계</div>
+          <div class="meta-item-val" id="metaStep">Step 1 / 5</div>
+        </div>
+        <div>
+          <div class="meta-item-label">아키텍처 레이어</div>
+          <div class="meta-item-val" id="metaEngine">FastAPI Local Core Server</div>
+        </div>
+        <div>
+          <div class="meta-item-label">설계 준수</div>
+          <div class="meta-item-val" id="metaRule">DESIGN.md 1단계 로드</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+
+    const speeds = [
+      { label: "⚡ 0.5x", ms: 4800 },
+      { label: "⚡ 1.0x", ms: 2800 },
+      { label: "⚡ 1.5x", ms: 1800 },
+      { label: "⚡ 2.0x", ms: 1100 }
+    ];
+    let speedIdx = 1;
+
+    function cycleSpeed() {
+      speedIdx = (speedIdx + 1) % speeds.length;
+      const b = document.getElementById('btnSpeed');
+      if (b) b.textContent = speeds[speedIdx].label;
+      if (typeof isPlaying !== 'undefined' && isPlaying) {
+        clearInterval(timer);
+        const stepFn = (typeof nextStep === 'function') ? nextStep : (typeof nextFlow === 'function' ? nextFlow : null);
+        if (stepFn) timer = setInterval(stepFn, speeds[speedIdx].ms);
+      }
+    }
+
+    const hubSteps = [
+      {
+        title: "Step 1. 원천 데이터 수집 & 로컬 격리 세션",
+        desc: "현장 계측기나 파일로부터 데이터를 불러와 로컬 PC 내부(D:\\StatProData)에 안전하게 저장합니다.",
+        checks: ["에어갭(Air-gapped) 환경 완전 보장", "인코딩 자동 보정 (UTF-8, CP949, EUC-KR)", "Polars 고속 인메모리 파서 즉각 탑재"],
+        step: "Step 1 / 5", engine: "FastAPI Local Core Server", rule: "DESIGN.md 1단계 로드"
+      },
+      {
+        title: "Step 2. 변수 매핑 & 결측 무결성 검증",
+        desc: "관리특성치(Y)와 군(Subgroup)을 매핑하며, 엔지니어링 규격(USL/LSL)을 명확히 분리 정의합니다. 결측치 0 자동 대체는 엄격히 금지됩니다.",
+        checks: ["관리규격 vs 공학규격 엄격한 분리", "결측치 0 자동 대체 금지 (Null 격리 및 알림)", "가상화 그리드를 통한 실시간 데이터 프리뷰"],
+        step: "Step 2 / 5", engine: "Virtual Table Grid + Pydantic", rule: "결측치 보정 원천 금지"
+      },
+      {
+        title: "Step 3. 통계 연산 코어 & Nelson 8 Rules",
+        desc: "Anderson-Darling 정규성 검정과 Shewhart 관리도, 8가지 Nelson 이상 룰을 전수 판정합니다.",
+        checks: ["Anderson-Darling (p >= 0.05) 정규성 검정", "Nelson 8 Rules 이상 패턴 실시간 마킹", "Gage R&R (%GRR, ndc) 측정시스템 신뢰도 검증"],
+        step: "Step 3 / 5", engine: "NumPy / SciPy Vectorized Core", rule: "ISO 21747 / AIAG SPC 표준"
+      },
+      {
+        title: "Step 4. 공정 판정 & 조치 분기 (확정 vs 협의 대기)",
+        desc: "Cpk 1.33 이상은 표준 작업 유지 확정, 이상 룰 감지 시 CAPA 5Why 조치 대기로 분기됩니다.",
+        checks: ["정상: Cpk >= 1.33 관리상태 유지 승인", "이상: 관리한계 이탈 포인트 붉은 점 하이라이트", "5Why / CAPA 현장 원인분석 조치 기록 폼 활성화"],
+        step: "Step 4 / 5", engine: "SPC Decision Gate + Alarm Dispatcher", rule: "Fail-safe 조치 프로세스"
+      },
+      {
+        title: "Step 5. 품질 보고서 출력 & 영구 아카이빙",
+        desc: "Plotly 고해상도 벡터 차트와 분석 결과, 조치 이력이 결합된 단일 HTML 보고서를 생성합니다.",
+        checks: ["Self-contained 단일 파일 HTML 리포트 출력", "4K PNG / 벡터 SVG 차트 원클릭 내보내기", "Parquet 압축 스토리지로 로컬 이력 100% 영구 보존"],
+        step: "Step 5 / 5", engine: "Jinja2 Report Generator + Parquet", rule: "단일 파일 자립성 보장"
+      }
+    ];
+
+    let current = 0;
+    let timer = null;
+    let isPlaying = false;
+
+    function updateView() {
+      const data = hubSteps[current];
+
+      for (let i = 0; i < 5; i++) {
+        const card = document.getElementById('card-' + i);
+        const spoke = document.getElementById('spoke-' + i);
+        if (i === current) {
+          card.classList.add('active');
+          spoke.classList.add('active');
+        } else {
+          card.classList.remove('active');
+          spoke.classList.remove('active');
+        }
+      }
+
+      document.getElementById('drawerTitle').textContent = data.title;
+      document.getElementById('drawerDesc').textContent = data.desc;
+      document.getElementById('metaStep').textContent = data.step;
+      document.getElementById('metaEngine').textContent = data.engine;
+      document.getElementById('metaRule').textContent = data.rule;
+
+      const chkList = document.getElementById('drawerChecklist');
+      chkList.innerHTML = '';
+      data.checks.forEach(c => {
+        const li = document.createElement('li');
+        li.className = 'check-item';
+        li.innerHTML = `<span class="check-icon">✓</span> ${c}`;
+        chkList.appendChild(li);
+      });
+    }
+
+    function selectStep(idx) {
+      current = idx;
+      updateView();
+    }
+
+    function nextStep() {
+      current = (current + 1) % hubSteps.length;
+      updateView();
+    }
+
+    function prevStep() {
+      current = (current - 1 + hubSteps.length) % hubSteps.length;
+      updateView();
+    }
+
+    function togglePlay() {
+      if (isPlaying) {
+        clearInterval(timer);
+        isPlaying = false;
+        document.getElementById('playIcon').textContent = '▷';
+        document.getElementById('playText').textContent = '허브 순환';
+      } else {
+        isPlaying = true;
+        document.getElementById('playIcon').textContent = '❚❚';
+        document.getElementById('playText').textContent = '일시 정지';
+        timer = setInterval(nextStep, speeds[speedIdx].ms);
+      }
+    }
+
+    function resetHub() {
+      if (isPlaying) togglePlay();
+      current = 0;
+      updateView();
+    }
+
+    document.getElementById('btnPlay').addEventListener('click', togglePlay);
+    document.getElementById('btnNext').addEventListener('click', () => { if(isPlaying) togglePlay(); nextStep(); });
+    document.getElementById('btnPrev').addEventListener('click', () => { if(isPlaying) togglePlay(); prevStep(); });
+    document.getElementById('btnReset').addEventListener('click', resetHub);
+    document.getElementById('btnTheme').addEventListener('click', () => {
+      document.body.classList.toggle('dark-mode');
+      document.getElementById('btnTheme').textContent = document.body.classList.contains('dark-mode') ? '☀️' : '🌙';
+    });
+
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
+      else if (e.code === 'ArrowRight') nextStep();
+      else if (e.code === 'ArrowLeft') prevStep();
+      else if (e.code === 'KeyR') resetHub();
+    });
+
+    updateView();
+  
+    const bSpeed = document.getElementById('btnSpeed');
+    if (bSpeed) bSpeed.addEventListener('click', cycleSpeed);
+
+  </script>
+</body>
+</html>

@@ -3064,6 +3064,48 @@
     },
     {
       "type": "library",
+      "bom-ref": "pkg:pypi/numpy?declared=true",
+      "name": "numpy",
+      "scope": "optional",
+      "licenses": [
+        {
+          "expression": "BSD-3-Clause"
+        }
+      ],
+      "properties": [
+        {
+          "name": "statpro:resolution",
+          "value": "declared-not-locked"
+        },
+        {
+          "name": "statpro:extras",
+          "value": "advanced"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:pypi/openai-codex?declared=true",
+      "name": "openai-codex",
+      "scope": "optional",
+      "licenses": [
+        {
+          "expression": "Apache-2.0"
+        }
+      ],
+      "properties": [
+        {
+          "name": "statpro:resolution",
+          "value": "declared-not-locked"
+        },
+        {
+          "name": "statpro:extras",
+          "value": "codex"
+        }
+      ]
+    },
+    {
+      "type": "library",
       "bom-ref": "pkg:pypi/pyjwt?declared=true",
       "name": "pyjwt",
       "scope": "optional",
@@ -3080,6 +3122,69 @@
         {
           "name": "statpro:extras",
           "value": "identity"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:pypi/python-docx?declared=true",
+      "name": "python-docx",
+      "scope": "optional",
+      "licenses": [
+        {
+          "expression": "MIT"
+        }
+      ],
+      "properties": [
+        {
+          "name": "statpro:resolution",
+          "value": "declared-not-locked"
+        },
+        {
+          "name": "statpro:extras",
+          "value": "advanced"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:pypi/scipy?declared=true",
+      "name": "scipy",
+      "scope": "optional",
+      "licenses": [
+        {
+          "expression": "BSD-3-Clause"
+        }
+      ],
+      "properties": [
+        {
+          "name": "statpro:resolution",
+          "value": "declared-not-locked"
+        },
+        {
+          "name": "statpro:extras",
+          "value": "advanced"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:pypi/statsmodels?declared=true",
+      "name": "statsmodels",
+      "scope": "optional",
+      "licenses": [
+        {
+          "expression": "BSD-3-Clause"
+        }
+      ],
+      "properties": [
+        {
+          "name": "statpro:resolution",
+          "value": "declared-not-locked"
+        },
+        {
+          "name": "statpro:extras",
+          "value": "advanced"
         }
       ]
     },
