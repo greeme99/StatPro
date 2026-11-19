@@ -115,6 +115,12 @@ _SCOPE_SOURCE = CopilotSource(
     "StatPro 지원 범위 및 후속 연계 항목",
     "docs/10.StatPro_AI_Copilot_Rule_Catalog.md",
 )
+_ASSISTANT_REFERENCE = (
+    "StatPro 제공 기능: DOE(요인·반응표면·최적화), SPC(Xbar-R/S·I-MR·p/np/c/u·EWMA·CUSUM·G/T·능력), "
+    "MSA(Gage R&R·편의/선형성·속성 일치도), FMEA·DMAIC, 회귀(OLS·다항·교호작용·로지스틱·단계선택·검증·Best Subsets). "
+    "범주형 X·Poisson, Laney·다변량 SPC, 혼합물·Taguchi·D-optimal DOE는 현재 제공하지 않는다. "
+    "메뉴 경로·입력 점검·확인실험을 안내하되 실행 또는 승인 완료를 주장하지 않는다."
+)
 
 _OUT_OF_SCOPE_GUIDANCE: tuple[tuple[tuple[str, ...], str, str], ...] = (
     (("ppap", "8d", "capa"), "고객 품질·시정조치 관리", "고객 포털·QMS·CAPA/8D 시스템"),
@@ -924,6 +930,7 @@ class ExaoneCopilotProvider:
             "당신은 제조·품질 통계 소프트웨어 StatPro의 한국어 업무 가이드입니다. "
             "검증되지 않은 수치나 기능을 만들지 말고, 초보자가 검토 후 실행할 수 있도록 설명하세요. "
             "분석 설정을 자동 변경했다고 말하지 마세요.\n"
+            f"제품 참조: {_ASSISTANT_REFERENCE}\n"
             f"현재 작업공간: {workspace}\n현재 경로: {pathname}\n"
             f"사용자 질문: {question}\n"
             f"사용자가 선택한 근거 문맥: {evidence_context or '없음'}"
@@ -992,6 +999,7 @@ class CodexSdkCopilotProvider:
             "도구를 실행하거나 파일을 변경하지 마세요. 분석 설정을 자동 변경했다고 말하지 마세요. "
             "다음 JSON만 반환하세요: "
             '{"answer":string,"recommended_tool":string|null,"menu_path":string[],"checklist":string[],"workflow_steps":string[]}.\n'
+            f"제품 참조: {_ASSISTANT_REFERENCE}\n"
             f"현재 작업공간: {workspace}\n현재 경로: {pathname}\n"
             f"사용자 질문: {question}\n"
             f"사용자가 선택한 근거 문맥: {evidence_context or '없음'}"

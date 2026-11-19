@@ -572,6 +572,22 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
         self.assertGreaterEqual(len(guidance.checklist), 2)
         self.assertGreaterEqual(len(guidance.workflow_steps), 4)
 
+    def test_catalog_rule_routes_statpro_feature_questions_without_calling_llm(self) -> None:
+        fallback = RecordingFallbackProvider()
+        provider = RuleFirstCopilotProvider(LocalKnowledgeCopilotProvider(), fallback)
+
+        guidance = provider.answer(
+            question="StatPro 기능과 메뉴 사용법에서 어떤 분석 방법을 선택하나요?",
+            pathname="/home",
+            workspace="홈 (Home)",
+            evidence_context=None,
+        )
+
+        self.assertEqual(fallback.questions, [])
+        self.assertEqual(guidance.rule_id, "statpro-feature-guide")
+        self.assertEqual(guidance.action.href, "/analyses")
+        self.assertEqual(guidance.sources[0].reference, "docs/12.StatPro_AI_Assistant_Reference.md")
+
     def test_catalog_rule_routes_nested_gage_rr_without_calling_llm(self) -> None:
         fallback = RecordingFallbackProvider()
         provider = RuleFirstCopilotProvider(LocalKnowledgeCopilotProvider(), fallback)
