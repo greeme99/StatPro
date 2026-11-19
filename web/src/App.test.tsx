@@ -249,12 +249,34 @@ describe("StatPro UI", () => {
     render(<MemoryRouter initialEntries={["/analyses/regression/categorical-ols"]}><App /></MemoryRouter>);
 
     expect(await screen.findByRole("heading", { name: "범주형 OLS 회귀 설정" })).toBeInTheDocument();
-    await userEvent.selectOptions(screen.getByRole("combobox", { name: "기준 범주" }), "B");
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "생산 라인 기준 범주" }), "B");
     await userEvent.click(screen.getByRole("button", { name: "범주형 OLS 회귀 실행" }));
 
     await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith("/regression-categorical-ols") && (init as RequestInit | undefined)?.method === "POST")).toBe(true));
     const call = fetchMock.mock.calls.find(([url, init]) => String(url).endsWith("/regression-categorical-ols") && (init as RequestInit | undefined)?.method === "POST");
     expect(JSON.parse(String((call?.[1] as RequestInit).body))).toMatchObject({ predictors: { "생산 라인": ["A", "A", "B", "B", "A", "A", "B", "B"] }, reference_levels: { "생산 라인": "B" } });
+  });
+
+  it("submits multiple categorical predictors with independent references", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      return new Response(JSON.stringify({ run_id: "categorical-multi", storage_version: 1, etag: "a".repeat(64), result: { analysis_type: "regression.categorical_ols", engine_version: "0.6.0", input_digest: "b".repeat(64), warnings: [], assumptions: [], provenance: [], parameters: {}, diagnostics: {}, tables: {}, plots: {} } }), { status: 201 });
+    });
+    render(<MemoryRouter initialEntries={["/analyses/regression/categorical-ols"]}><App /></MemoryRouter>);
+
+    await screen.findByRole("heading", { name: "범주형 OLS 회귀 설정" });
+    await userEvent.click(screen.getByRole("button", { name: "범주형 변수 추가" }));
+    const names = screen.getAllByRole("textbox", { name: "설명변수 이름" });
+    await userEvent.clear(names[1]);
+    await userEvent.type(names[1], "작업조");
+    await userEvent.type(screen.getByRole("textbox", { name: /작업조 범주\(X\)/ }), "주간\n야간\n주간\n야간\n주간\n야간\n주간\n야간");
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "생산 라인 기준 범주" }), "B");
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "작업조 기준 범주" }), "야간");
+    await userEvent.click(screen.getByRole("button", { name: "범주형 OLS 회귀 실행" }));
+
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith("/regression-categorical-ols") && (init as RequestInit | undefined)?.method === "POST")).toBe(true));
+    const call = fetchMock.mock.calls.find(([url, init]) => String(url).endsWith("/regression-categorical-ols") && (init as RequestInit | undefined)?.method === "POST");
+    expect(JSON.parse(String((call?.[1] as RequestInit).body))).toMatchObject({ reference_levels: { "생산 라인": "B", "작업조": "야간" } });
   });
 
   it("submits the selected degree to the polynomial regression workspace", async () => {
