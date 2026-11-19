@@ -50,7 +50,7 @@ from statpro.analyses.msa import (
 )
 from statpro.analyses.normality import jarque_bera_normality
 from statpro.analyses.descriptive import descriptive_statistics
-from statpro.analyses.power import two_sample_mean_sample_size, two_sample_proportion_sample_size
+from statpro.analyses.power import one_sample_proportion_sample_size, two_sample_mean_sample_size, two_sample_proportion_sample_size
 from statpro.analyses.proportion import one_sample_proportion_test
 from statpro.analyses.proportion import two_sample_proportion_test
 from statpro.analyses.hypothesis import independent_tost_equivalence, independent_welch_t_test, mann_whitney_u_test
@@ -417,6 +417,14 @@ class TwoSampleProportionPowerRunRequest(ApiModel):
     run_id: RunId
     proportion_a: float = Field(ge=0.0, le=1.0)
     proportion_b: float = Field(ge=0.0, le=1.0)
+    alpha: float = Field(default=0.05, ge=0.001, le=0.5)
+    target_power: float = Field(default=0.8, gt=0.5, lt=0.999)
+
+
+class OneSampleProportionPowerRunRequest(ApiModel):
+    run_id: RunId
+    null_proportion: float = Field(gt=0.0, lt=1.0)
+    expected_proportion: float = Field(gt=0.0, lt=1.0)
     alpha: float = Field(default=0.05, ge=0.001, le=0.5)
     target_power: float = Field(default=0.8, gt=0.5, lt=0.999)
 
@@ -2773,6 +2781,12 @@ def create_app(
     @app.post("/v1/analysis-runs/power-two-sample-proportion", status_code=201, response_model=StoredRunResponse)
     def run_two_sample_proportion_power(request: TwoSampleProportionPowerRunRequest, response: Response) -> StoredRunResponse:
         stored = _save_run(repository, request.run_id, two_sample_proportion_sample_size(proportion_a=request.proportion_a, proportion_b=request.proportion_b, alpha=request.alpha, target_power=request.target_power))
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _response(stored)
+
+    @app.post("/v1/analysis-runs/power-one-sample-proportion", status_code=201, response_model=StoredRunResponse)
+    def run_one_sample_proportion_power(request: OneSampleProportionPowerRunRequest, response: Response) -> StoredRunResponse:
+        stored = _save_run(repository, request.run_id, one_sample_proportion_sample_size(null_proportion=request.null_proportion, expected_proportion=request.expected_proportion, alpha=request.alpha, target_power=request.target_power))
         response.headers["ETag"] = f'"{stored.etag}"'
         return _response(stored)
 

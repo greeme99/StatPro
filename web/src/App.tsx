@@ -70,6 +70,7 @@ const ChiSquareSetupPage = lazyNamed(() => import("./pages/ChiSquareSetupPage"),
 const OneWayAnovaSetupPage = lazyNamed(() => import("./pages/OneWayAnovaSetupPage"), "OneWayAnovaSetupPage");
 const PowerSetupPage = lazyNamed(() => import("./pages/PowerSetupPage"), "PowerSetupPage");
 const TwoSampleProportionPowerPage = lazyNamed(() => import("./pages/TwoSampleProportionPowerPage"), "TwoSampleProportionPowerPage");
+const OneSampleProportionPowerPage = lazyNamed(() => import("./pages/OneSampleProportionPowerPage"), "OneSampleProportionPowerPage");
 const OneSampleTSetupPage = lazyNamed(() => import("./pages/OneSampleTSetupPage"), "OneSampleTSetupPage");
 const OneSampleProportionPage = lazyNamed(() => import("./pages/OneSampleProportionPage"), "OneSampleProportionPage");
 const TwoSampleProportionPage = lazyNamed(() => import("./pages/TwoSampleProportionPage"), "TwoSampleProportionPage");
@@ -107,6 +108,7 @@ function WorkspaceRoutes() {
           <Route path="/analyses/hypothesis/one-way-anova" element={<OneWayAnovaSetupPage />} />
           <Route path="/analyses/power/two-sample-mean" element={<PowerSetupPage />} />
           <Route path="/analyses/power/two-sample-proportion" element={<TwoSampleProportionPowerPage />} />
+          <Route path="/analyses/power/one-sample-proportion" element={<OneSampleProportionPowerPage />} />
           <Route path="/analyses/hypothesis/one-sample-t" element={<OneSampleTSetupPage />} />
           <Route path="/analyses/hypothesis/one-sample-proportion" element={<OneSampleProportionPage />} />
           <Route path="/analyses/hypothesis/two-sample-proportion" element={<TwoSampleProportionPage />} />

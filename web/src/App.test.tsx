@@ -2448,6 +2448,14 @@ describe("StatPro UI", () => {
     await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith("/v1/analysis-runs/power-two-sample-proportion") && (init as RequestInit | undefined)?.method === "POST")).toBe(true));
   });
 
+  it("submits target and expected defect rates through the one-proportion power route", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => new Response(JSON.stringify(String(input).endsWith("/health") ? { ok: true, engine_version: "0.6.0", local_only: true } : { run_id: "one-proportion-power-ui", result: { analysis_type: "power.one_sample_proportion", diagnostics: { required_sample_size: 141, absolute_difference: .07 }, tables: { plan: { rows: [] } }, warnings: [], notes: [] } }), { status: 200 }));
+    render(<MemoryRouter initialEntries={["/analyses/power/one-sample-proportion"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "단일 비율 표본수 계획" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "필요 검사 수 계산" }));
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith("/v1/analysis-runs/power-one-sample-proportion") && (init as RequestInit | undefined)?.method === "POST")).toBe(true));
+  });
+
   it("submits a target and measurements through the one-sample t route", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => new Response(JSON.stringify(String(input).endsWith("/health") ? { ok: true, engine_version: "0.6.0", local_only: true } : { run_id: "one-sample-ui", result: { analysis_type: "hypothesis.one_sample_t", diagnostics: { difference: 3, p_value: 0.01, confidence_interval_lower: 1, confidence_interval_upper: 5, significant: true }, tables: { test: { rows: [] } }, warnings: [], notes: [] } }), { status: 200 }));
     render(<MemoryRouter initialEntries={["/analyses/hypothesis/one-sample-t"]}><App /></MemoryRouter>);

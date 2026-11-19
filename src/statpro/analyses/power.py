@@ -40,3 +40,18 @@ def two_sample_proportion_sample_size(*, proportion_a: float, proportion_b: floa
     per_group = math.ceil((numerator / difference) ** 2)
     row = {"proportion_a": proportion_a, "proportion_b": proportion_b, "absolute_difference": difference, "alpha": alpha, "target_power": target_power, "sample_size_per_group": per_group, "total_sample_size": 2 * per_group}
     return ResultBundle(analysis_type="power.two_sample_proportion", engine_version=ENGINE_VERSION, input_digest=input_digest(row), parameters={"method": "normal_approximation_balanced_two_proportion", "alternative": "two_sided"}, tables={"plan": {"columns": list(row), "rows": [row]}}, plots={}, diagnostics=row, assumptions=("Groups are independent with equal planned sample sizes.", "Expected defect outcomes follow a binomial model and the normal approximation is adequate for planning."), warnings=("This is a prospective planning calculation; assess rare-defect and continuity-correction needs before finalizing the protocol.",), provenance=(NIST_POWER_SOURCE,))
+
+
+def one_sample_proportion_sample_size(*, null_proportion: float, expected_proportion: float, alpha: float = 0.05, target_power: float = 0.8) -> ResultBundle:
+    """Estimate required observations for a two-sided one-sample proportion test."""
+    if not 0.0 < null_proportion < 1.0 or not 0.0 < expected_proportion < 1.0 or null_proportion == expected_proportion:
+        raise AnalysisInputError("invalid_proportion_effect", "Use two different proportions strictly between zero and one.", "null_proportion")
+    if not 0.001 <= alpha <= 0.5 or not 0.5 < target_power < 0.999:
+        raise AnalysisInputError("invalid_power_inputs", "Use valid alpha and target power above 0.5.", "target_power")
+    z_alpha = _normal_quantile(1 - alpha / 2.0)
+    z_power = _normal_quantile(target_power)
+    difference = abs(expected_proportion - null_proportion)
+    numerator = z_alpha * math.sqrt(null_proportion * (1.0 - null_proportion)) + z_power * math.sqrt(expected_proportion * (1.0 - expected_proportion))
+    required = math.ceil((numerator / difference) ** 2)
+    row = {"null_proportion": null_proportion, "expected_proportion": expected_proportion, "absolute_difference": difference, "alpha": alpha, "target_power": target_power, "required_sample_size": required}
+    return ResultBundle(analysis_type="power.one_sample_proportion", engine_version=ENGINE_VERSION, input_digest=input_digest(row), parameters={"method": "normal_approximation_one_sample_proportion", "alternative": "two_sided"}, tables={"plan": {"columns": list(row), "rows": [row]}}, plots={}, diagnostics=row, assumptions=("Each opportunity produces an independent binary outcome.", "The normal approximation is adequate for the target and expected defect rates."), warnings=("This is a prospective planning calculation; use an exact or continuity-corrected design for rare events when required by the protocol.",), provenance=(NIST_POWER_SOURCE,))
