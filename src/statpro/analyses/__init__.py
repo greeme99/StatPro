@@ -29,6 +29,7 @@ from statpro.analyses.msa import (
 )
 from statpro.analyses.normality import jarque_bera_normality
 from statpro.analyses.descriptive import descriptive_statistics
+from statpro.analyses.power import two_sample_mean_sample_size
 from statpro.analyses.hypothesis import independent_tost_equivalence, independent_welch_t_test, kruskal_wallis_test, mann_whitney_u_test, one_way_anova, paired_t_test, wilcoxon_signed_rank_test
 from statpro.analyses.regression import best_subsets_ols, categorical_ols, interaction_ols, linear_ols, poisson_regression, polynomial_ols, stepwise_ols, validate_ols
 from statpro.analyses.spc import (
@@ -66,6 +67,7 @@ __all__ = [
     "individuals_moving_range",
     "jarque_bera_normality",
     "descriptive_statistics",
+    "two_sample_mean_sample_size",
     "independent_welch_t_test",
     "independent_tost_equivalence",
     "mann_whitney_u_test",

@@ -82,6 +82,7 @@ export function AnalysisSelectionPage() {
         <div className="analysis-choice-grid is-compact">
           <Link className="analysis-choice" to="/analyses/normality"><strong>정규성 검정</strong><span>측정값의 정규성 가정을 Jarque–Bera 검정으로 점검합니다.</span></Link>
           <Link className="analysis-choice" to="/analyses/descriptive-statistics"><strong>기초통계</strong><span>연속형 데이터의 중심·산포·사분위수와 평균 신뢰구간을 요약합니다.</span></Link>
+          <Link className="analysis-choice" to="/analyses/power/two-sample-mean"><strong>표본크기 계획</strong><span>독립 두 집단 평균 비교에 필요한 표본 수를 사전에 산정합니다.</span></Link>
           <Link className="analysis-choice" to="/analyses/regression/linear"><strong>선형회귀 분석</strong><span>연속형 결과(Y)와 하나 이상의 설명변수(X) 관계를 추정합니다.</span></Link>
           <Link className="analysis-choice" to="/analyses/regression/polynomial"><strong>다항회귀 분석</strong><span>관측 범위 안에서 곡선형 X–Y 관계를 2차 또는 3차 항으로 추정합니다.</span></Link>
           <Link className="analysis-choice" to="/analyses/regression/interaction"><strong>교호작용 회귀 분석</strong><span>두 X의 결합 효과가 연속형 결과(Y)에 미치는 변화를 추정합니다.</span></Link>

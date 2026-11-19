@@ -68,6 +68,7 @@ const PairedTSetupPage = lazyNamed(() => import("./pages/PairedTSetupPage"), "Pa
 const WilcoxonSignedRankSetupPage = lazyNamed(() => import("./pages/WilcoxonSignedRankSetupPage"), "WilcoxonSignedRankSetupPage");
 const ChiSquareSetupPage = lazyNamed(() => import("./pages/ChiSquareSetupPage"), "ChiSquareSetupPage");
 const OneWayAnovaSetupPage = lazyNamed(() => import("./pages/OneWayAnovaSetupPage"), "OneWayAnovaSetupPage");
+const PowerSetupPage = lazyNamed(() => import("./pages/PowerSetupPage"), "PowerSetupPage");
 
 function ProtectedApp({ children }: { children: ReactNode }) {
   const location = useLocation();
@@ -100,6 +101,7 @@ function WorkspaceRoutes() {
           <Route path="/analyses/hypothesis/wilcoxon-signed-rank" element={<WilcoxonSignedRankSetupPage />} />
           <Route path="/analyses/hypothesis/chi-square-independence" element={<ChiSquareSetupPage />} />
           <Route path="/analyses/hypothesis/one-way-anova" element={<OneWayAnovaSetupPage />} />
+          <Route path="/analyses/power/two-sample-mean" element={<PowerSetupPage />} />
           <Route path="/analyses/hypothesis/kruskal-wallis" element={<OneWayAnovaSetupPage />} />
           <Route path="/analyses/imr/new" element={<ImrSetupPage />} />
         <Route path="/analyses/capability" element={<CapabilitySetupPage />} />

@@ -12,6 +12,7 @@ from statpro.analyses.hypothesis import mann_whitney_u_test
 from statpro.analyses.hypothesis import wilcoxon_signed_rank_test
 from statpro.analyses.hypothesis import kruskal_wallis_test
 from statpro.analyses.hypothesis import independent_tost_equivalence
+from statpro.analyses.power import two_sample_mean_sample_size
 from statpro.domain.errors import AnalysisInputError
 
 
@@ -263,6 +264,13 @@ class IndependentTostTests(unittest.TestCase):
         result = independent_tost_equivalence([100, 101, 99, 100], [100.1, 99.9, 100.2, 100], lower_margin=-2, upper_margin=2)
         self.assertEqual(result.analysis_type, "hypothesis.independent_tost_equivalence")
         self.assertTrue(result.diagnostics["equivalent"])
+
+
+class PowerAnalysisTests(unittest.TestCase):
+    def test_plans_balanced_two_sample_size(self) -> None:
+        result = two_sample_mean_sample_size(difference=1, standard_deviation=1, alpha=0.05, target_power=0.8)
+        self.assertEqual(result.analysis_type, "power.two_sample_mean")
+        self.assertGreaterEqual(result.diagnostics["sample_size_per_group"], 16)
 
 
 if __name__ == "__main__":
