@@ -29,7 +29,7 @@ from statpro.analyses.msa import (
 )
 from statpro.analyses.normality import jarque_bera_normality
 from statpro.analyses.hypothesis import independent_welch_t_test, one_way_anova, paired_t_test
-from statpro.analyses.regression import interaction_ols, linear_ols, polynomial_ols, stepwise_ols, validate_ols
+from statpro.analyses.regression import best_subsets_ols, interaction_ols, linear_ols, polynomial_ols, stepwise_ols, validate_ols
 from statpro.analyses.spc import (
     c_chart,
     individuals_moving_range,
@@ -71,6 +71,7 @@ __all__ = [
     "linear_ols",
     "polynomial_ols",
     "stepwise_ols",
+    "best_subsets_ols",
     "validate_ols",
     "nonnormal_process_capability",
     "normal_process_capability",

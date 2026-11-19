@@ -997,6 +997,16 @@ class LocalApiContractTests(unittest.TestCase):
                 "regression.ols_validation",
             ),
             (
+                "/v1/analysis-runs/regression-best-subsets-ols",
+                {
+                    "run_id": "best-subsets",
+                    "response": [8.1, 12.9, 13.1, 17.9, 18.1, 22.9, 23.1, 27.9],
+                    "predictors": {"temperature": [1, 2, 1, 2, 1, 2, 1, 2], "pressure": [1, 1, 2, 2, 3, 3, 4, 4]},
+                    "top_models_per_size": 1,
+                },
+                "regression.best_subsets_ols",
+            ),
+            (
                 "/v1/analysis-runs/independent-welch-t",
                 {"run_id": "welch-t", "group_a": [1, 2, 3, 4], "group_b": [3, 4, 5, 6]},
                 "hypothesis.independent_welch_t",

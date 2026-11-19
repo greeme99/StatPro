@@ -286,6 +286,60 @@ def stepwise_ols(
     )
 
 
+def best_subsets_ols(
+    response: Sequence[float],
+    predictors: Mapping[str, Sequence[float]],
+    *,
+    response_name: str = "Response",
+    top_models_per_size: int = 1,
+    alpha: float = 0.05,
+) -> ResultBundle:
+    """Compare every non-empty OLS subset for at most fifteen numeric predictors."""
+    values = finite_values(response, "response")
+    columns = {name: finite_values(column, f"predictors.{name}") for name, column in predictors.items()}
+    if not columns or any(len(column) != len(values) for column in columns.values()):
+        raise AnalysisInputError("invalid_subset_predictors", "Predictors must align with the response.", "predictors")
+    if len(columns) > 15:
+        raise AnalysisInputError("too_many_subset_predictors", "Best subsets supports at most 15 candidate predictors.", "predictors")
+    if not isinstance(top_models_per_size, int) or isinstance(top_models_per_size, bool) or not 1 <= top_models_per_size <= 10:
+        raise AnalysisInputError("invalid_subset_count", "Choose between 1 and 10 models per subset size.", "top_models_per_size")
+    full = linear_ols(values, columns, response_name=response_name, alpha=alpha)
+    full_standard_error = full.diagnostics["residual_standard_error"]
+    full_mse = float(full_standard_error) ** 2 if isinstance(full_standard_error, (float, int)) else None
+    if full_mse is None or full_mse <= 0:
+        raise AnalysisInputError("invalid_full_subset_model", "The full model needs positive residual variation for Mallows' Cp.", "predictors")
+    names = list(columns)
+    candidates: list[dict[str, object]] = []
+    skipped_singular = 0
+    for size in range(1, len(names) + 1):
+        for subset in combinations(names, size):
+            try:
+                fitted = linear_ols(values, {name: columns[name] for name in subset}, response_name=response_name, alpha=alpha)
+            except AnalysisInputError:
+                skipped_singular += 1
+                continue
+            fitted_rows = fitted.tables["fitted_values"]["rows"]
+            residual_ss = sum(float(row["residual"]) ** 2 for row in fitted_rows)
+            press = sum((float(row["residual"]) / (1.0 - float(row["leverage"]))) ** 2 for row in fitted_rows if float(row["leverage"]) < 1.0)
+            parameter_count = int(fitted.parameters["parameter_count"])
+            aicc, bic = _ols_information_criteria(fitted)
+            candidates.append({"terms": list(subset), "term_count": size, "r_squared": fitted.diagnostics["r_squared"], "adjusted_r_squared": fitted.diagnostics["adjusted_r_squared"], "press": press, "mallows_cp": residual_ss / float(full_mse) - (len(values) - 2 * parameter_count), "aicc": aicc, "bic": bic})
+    if not candidates:
+        raise AnalysisInputError("no_subset_models", "No non-singular subset retained residual degrees of freedom.", "predictors")
+    ranked: list[dict[str, object]] = []
+    for size in range(1, len(names) + 1):
+        ranked.extend(sorted((row for row in candidates if row["term_count"] == size), key=lambda row: (float(row["aicc"]), float(row["bic"])))[:top_models_per_size])
+    ranked.sort(key=lambda row: (float(row["aicc"]), float(row["bic"])))
+    return ResultBundle(
+        analysis_type="regression.best_subsets_ols", engine_version=ENGINE_VERSION,
+        input_digest=input_digest({"response": values, "predictors": columns, "response_name": response_name, "top_models_per_size": top_models_per_size, "alpha": alpha}),
+        parameters={"response_name": response_name, "candidate_predictor_names": names, "top_models_per_size": top_models_per_size, "examined_model_count": len(candidates), "skipped_singular_model_count": skipped_singular},
+        tables={"model_comparison": {"columns": ["terms", "term_count", "r_squared", "adjusted_r_squared", "press", "mallows_cp", "aicc", "bic"], "rows": ranked}}, plots={},
+        diagnostics={"best_aicc": ranked[0]["aicc"], "best_bic": ranked[0]["bic"], "best_press": min(float(row["press"]) for row in ranked)},
+        assumptions=("All candidate terms are numeric, rows are independent, and every eligible non-empty subset is evaluated.",), warnings=("Best-subsets ranking is exploratory; compare process feasibility, validation error, and collinearity before selecting an operating model.",), provenance=(NIST_LINEAR_LEAST_SQUARES_SOURCE,),
+    )
+
+
 def validate_ols(
     response: Sequence[float],
     predictors: Mapping[str, Sequence[float]],

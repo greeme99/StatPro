@@ -6,7 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from statpro.analyses.regression import interaction_ols, linear_ols, logistic_regression, polynomial_ols, stepwise_ols, validate_ols
+from statpro.analyses.regression import best_subsets_ols, interaction_ols, linear_ols, logistic_regression, polynomial_ols, stepwise_ols, validate_ols
 from statpro.domain.errors import AnalysisInputError
 
 
@@ -169,6 +169,24 @@ class OlsValidationTests(unittest.TestCase):
         self.assertEqual(result.parameters["validation_method"], "holdout")
         self.assertEqual([row["observation"] for row in predictions], [9, 10])
         self.assertIsNotNone(result.diagnostics["r_squared_pred"])
+
+
+class BestSubsetsRegressionTests(unittest.TestCase):
+    def test_ranks_the_known_two_predictor_model_first(self) -> None:
+        result = best_subsets_ols(
+            [8.1, 12.9, 13.1, 17.9, 18.1, 22.9, 23.1, 27.9],
+            {"temperature": [1, 2, 1, 2, 1, 2, 1, 2], "pressure": [1, 1, 2, 2, 3, 3, 4, 4]},
+        )
+        top = result.tables["model_comparison"]["rows"][0]
+        self.assertEqual(result.analysis_type, "regression.best_subsets_ols")
+        self.assertEqual(top["terms"], ["temperature", "pressure"])
+        self.assertIn("press", top)
+        self.assertIn("mallows_cp", top)
+
+    def test_rejects_more_than_fifteen_candidate_predictors(self) -> None:
+        with self.assertRaises(AnalysisInputError) as raised:
+            best_subsets_ols([float(index) for index in range(20)], {f"x{index}": [float(index + row) for row in range(20)] for index in range(16)})
+        self.assertEqual(raised.exception.detail.code, "too_many_subset_predictors")
 
 
 if __name__ == "__main__":

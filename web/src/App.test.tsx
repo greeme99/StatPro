@@ -265,6 +265,13 @@ describe("StatPro UI", () => {
     expect(JSON.parse(String((call?.[1] as RequestInit).body))).toMatchObject({ method: "k_fold", folds: 3, holdout_fraction: 0.2 });
   });
 
+  it("submits the best subsets comparison workspace", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({}), { status: 201, headers: { "Content-Type": "application/json" } }));
+    render(<MemoryRouter initialEntries={["/analyses/regression/best-subsets"]}><App /></MemoryRouter>);
+    await userEvent.click(await screen.findByRole("button", { name: "최적 부분집합 비교 실행" }));
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith("/regression-best-subsets-ols") && (init as RequestInit | undefined)?.method === "POST")).toBe(true));
+  });
+
   it("renders OLS fit, ANOVA, and residual review from the stored result contract", async () => {
     const user = userEvent.setup();
     const result = {
