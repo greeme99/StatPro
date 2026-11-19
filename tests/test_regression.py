@@ -14,6 +14,7 @@ from statpro.analyses.hypothesis import kruskal_wallis_test
 from statpro.analyses.hypothesis import independent_tost_equivalence
 from statpro.analyses.power import two_sample_mean_sample_size
 from statpro.analyses.hypothesis import one_sample_t_test
+from statpro.analyses.proportion import one_sample_proportion_test
 from statpro.domain.errors import AnalysisInputError
 
 
@@ -279,6 +280,13 @@ class OneSampleTTests(unittest.TestCase):
         result = one_sample_t_test([101, 102, 103, 104, 105], target=100, variable_name="강도")
         self.assertEqual(result.analysis_type, "hypothesis.one_sample_t")
         self.assertTrue(result.diagnostics["significant"])
+
+
+class OneSampleProportionTests(unittest.TestCase):
+    def test_compares_defect_rate_with_target_and_reports_wilson_interval(self) -> None:
+        result = one_sample_proportion_test(defects=20, opportunities=100, target=.05)
+        self.assertTrue(result.diagnostics["significant"])
+        self.assertGreater(result.diagnostics["wilson_upper"], result.diagnostics["wilson_lower"])
 
 
 if __name__ == "__main__":

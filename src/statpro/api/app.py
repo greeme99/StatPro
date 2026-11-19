@@ -51,6 +51,7 @@ from statpro.analyses.msa import (
 from statpro.analyses.normality import jarque_bera_normality
 from statpro.analyses.descriptive import descriptive_statistics
 from statpro.analyses.power import two_sample_mean_sample_size
+from statpro.analyses.proportion import one_sample_proportion_test
 from statpro.analyses.hypothesis import independent_tost_equivalence, independent_welch_t_test, mann_whitney_u_test
 from statpro.analyses.hypothesis import one_sample_t_test
 from statpro.analyses.hypothesis import paired_t_test, wilcoxon_signed_rank_test
@@ -416,6 +417,13 @@ class OneSampleTRunRequest(ApiModel):
     target: float
     alpha: float = Field(default=0.05, ge=0.001, le=0.5)
     variable_name: str = Field(default="Measurement", min_length=1, max_length=255)
+
+class OneSampleProportionRunRequest(ApiModel):
+    run_id: RunId
+    defects: int = Field(ge=0)
+    opportunities: int = Field(gt=0)
+    target: float = Field(gt=0, lt=1)
+    alpha: float = Field(default=0.05, ge=0.001, le=0.5)
 
 
 class MannWhitneyRunRequest(ApiModel):
@@ -2748,6 +2756,12 @@ def create_app(
     @app.post("/v1/analysis-runs/one-sample-t", status_code=201, response_model=StoredRunResponse)
     def run_one_sample_t(request: OneSampleTRunRequest, response: Response) -> StoredRunResponse:
         stored = _save_run(repository, request.run_id, one_sample_t_test(request.values, target=request.target, alpha=request.alpha, variable_name=request.variable_name))
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _response(stored)
+
+    @app.post("/v1/analysis-runs/one-sample-proportion", status_code=201, response_model=StoredRunResponse)
+    def run_one_sample_proportion(request: OneSampleProportionRunRequest, response: Response) -> StoredRunResponse:
+        stored = _save_run(repository, request.run_id, one_sample_proportion_test(defects=request.defects, opportunities=request.opportunities, target=request.target, alpha=request.alpha))
         response.headers["ETag"] = f'"{stored.etag}"'
         return _response(stored)
 

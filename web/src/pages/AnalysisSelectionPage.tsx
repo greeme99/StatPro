@@ -83,6 +83,7 @@ export function AnalysisSelectionPage() {
           <Link className="analysis-choice" to="/analyses/normality"><strong>정규성 검정</strong><span>측정값의 정규성 가정을 Jarque–Bera 검정으로 점검합니다.</span></Link>
           <Link className="analysis-choice" to="/analyses/descriptive-statistics"><strong>기초통계</strong><span>연속형 데이터의 중심·산포·사분위수와 평균 신뢰구간을 요약합니다.</span></Link>
           <Link className="analysis-choice" to="/analyses/hypothesis/one-sample-t"><strong>단일 표본 t-검정</strong><span>공정 평균을 사전 정의한 목표값과 비교합니다.</span></Link>
+          <Link className="analysis-choice" to="/analyses/hypothesis/one-sample-proportion"><strong>단일 비율 검정</strong><span>불량률을 목표 불량률과 비교하고 Wilson 신뢰구간을 확인합니다.</span></Link>
           <Link className="analysis-choice" to="/analyses/power/two-sample-mean"><strong>표본크기 계획</strong><span>독립 두 집단 평균 비교에 필요한 표본 수를 사전에 산정합니다.</span></Link>
           <Link className="analysis-choice" to="/analyses/regression/linear"><strong>선형회귀 분석</strong><span>연속형 결과(Y)와 하나 이상의 설명변수(X) 관계를 추정합니다.</span></Link>
           <Link className="analysis-choice" to="/analyses/regression/polynomial"><strong>다항회귀 분석</strong><span>관측 범위 안에서 곡선형 X–Y 관계를 2차 또는 3차 항으로 추정합니다.</span></Link>
