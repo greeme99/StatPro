@@ -51,7 +51,7 @@ from statpro.analyses.msa import (
 from statpro.analyses.normality import jarque_bera_normality
 from statpro.analyses.descriptive import descriptive_statistics
 from statpro.analyses.hypothesis import independent_welch_t_test, mann_whitney_u_test
-from statpro.analyses.hypothesis import paired_t_test
+from statpro.analyses.hypothesis import paired_t_test, wilcoxon_signed_rank_test
 from statpro.analyses.hypothesis import chi_square_independence, one_way_anova
 from statpro.analyses.regression import best_subsets_ols, categorical_ols, interaction_ols, linear_ols, logistic_regression, poisson_regression, polynomial_ols, stepwise_ols, validate_ols
 from statpro.analyses.spc import (
@@ -482,6 +482,9 @@ class PairedTRunRequest(ApiModel):
     before_name: str = Field(default="Before", min_length=1, max_length=255)
     after_name: str = Field(default="After", min_length=1, max_length=255)
     alpha: float = Field(default=0.05, ge=0.001, le=0.5)
+
+class WilcoxonSignedRankRunRequest(PairedTRunRequest):
+    pass
 
 class OneWayAnovaRunRequest(ApiModel):
     run_id: RunId
@@ -2844,6 +2847,12 @@ def create_app(
     @app.post("/v1/analysis-runs/paired-t", status_code=201, response_model=StoredRunResponse)
     def run_paired_t(request: PairedTRunRequest, response: Response) -> StoredRunResponse:
         stored = _save_run(repository, request.run_id, paired_t_test(request.before, request.after, before_name=request.before_name, after_name=request.after_name, alpha=request.alpha))
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _response(stored)
+
+    @app.post("/v1/analysis-runs/wilcoxon-signed-rank", status_code=201, response_model=StoredRunResponse)
+    def run_wilcoxon_signed_rank(request: WilcoxonSignedRankRunRequest, response: Response) -> StoredRunResponse:
+        stored = _save_run(repository, request.run_id, wilcoxon_signed_rank_test(request.before, request.after, before_name=request.before_name, after_name=request.after_name, alpha=request.alpha))
         response.headers["ETag"] = f'"{stored.etag}"'
         return _response(stored)
 

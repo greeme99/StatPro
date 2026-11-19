@@ -65,6 +65,7 @@ const CategoricalOlsSetupPage = lazyNamed(() => import("./pages/CategoricalOlsSe
 const WelchTSetupPage = lazyNamed(() => import("./pages/WelchTSetupPage"), "WelchTSetupPage");
 const MannWhitneySetupPage = lazyNamed(() => import("./pages/MannWhitneySetupPage"), "MannWhitneySetupPage");
 const PairedTSetupPage = lazyNamed(() => import("./pages/PairedTSetupPage"), "PairedTSetupPage");
+const WilcoxonSignedRankSetupPage = lazyNamed(() => import("./pages/WilcoxonSignedRankSetupPage"), "WilcoxonSignedRankSetupPage");
 const ChiSquareSetupPage = lazyNamed(() => import("./pages/ChiSquareSetupPage"), "ChiSquareSetupPage");
 const OneWayAnovaSetupPage = lazyNamed(() => import("./pages/OneWayAnovaSetupPage"), "OneWayAnovaSetupPage");
 
@@ -95,6 +96,7 @@ function WorkspaceRoutes() {
           <Route path="/analyses/hypothesis/independent-welch-t" element={<WelchTSetupPage />} />
           <Route path="/analyses/hypothesis/mann-whitney-u" element={<MannWhitneySetupPage />} />
           <Route path="/analyses/hypothesis/paired-t" element={<PairedTSetupPage />} />
+          <Route path="/analyses/hypothesis/wilcoxon-signed-rank" element={<WilcoxonSignedRankSetupPage />} />
           <Route path="/analyses/hypothesis/chi-square-independence" element={<ChiSquareSetupPage />} />
           <Route path="/analyses/hypothesis/one-way-anova" element={<OneWayAnovaSetupPage />} />
           <Route path="/analyses/imr/new" element={<ImrSetupPage />} />

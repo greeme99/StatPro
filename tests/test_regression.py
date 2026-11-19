@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from statpro.analyses.regression import best_subsets_ols, categorical_ols, interaction_ols, linear_ols, logistic_regression, poisson_regression, polynomial_ols, stepwise_ols, validate_ols
 from statpro.analyses.descriptive import descriptive_statistics
 from statpro.analyses.hypothesis import mann_whitney_u_test
+from statpro.analyses.hypothesis import wilcoxon_signed_rank_test
 from statpro.domain.errors import AnalysisInputError
 
 
@@ -237,6 +238,15 @@ class MannWhitneyTests(unittest.TestCase):
         self.assertEqual(result.analysis_type, "hypothesis.mann_whitney_u")
         self.assertEqual(row["u"], 0.0)
         self.assertLess(row["p_value"], 0.05)
+
+
+class WilcoxonSignedRankTests(unittest.TestCase):
+    def test_excludes_zero_differences_and_reports_signed_ranks(self) -> None:
+        result = wilcoxon_signed_rank_test([1, 2, 3, 4, 5], [1, 4, 5, 7, 8])
+        row = result.tables["test"]["rows"][0]
+        self.assertEqual(result.analysis_type, "hypothesis.wilcoxon_signed_rank")
+        self.assertEqual(result.parameters["zero_difference_count"], 1)
+        self.assertEqual(row["w"], 0.0)
 
 
 if __name__ == "__main__":

@@ -120,6 +120,28 @@ def mann_whitney_u_test(group_a: Sequence[float], group_b: Sequence[float], *, g
     return ResultBundle(analysis_type="hypothesis.mann_whitney_u", engine_version=ENGINE_VERSION, input_digest=input_digest({"group_a": values_a, "group_b": values_b, "group_a_name": names[0], "group_b_name": names[1], "alpha": alpha}), parameters={"method": "mann_whitney_u_normal_approximation", "alpha": alpha, "group_a_name": names[0], "group_b_name": names[1], "tie_correction": True, "continuity_correction": True}, tables={"group_summary": {"columns": ["group", "n", "mean_rank"], "rows": [{"group": names[0], "n": n_a, "mean_rank": rank_sum_a / n_a}, {"group": names[1], "n": n_b, "mean_rank": (total * (total + 1) / 2.0 - rank_sum_a) / n_b}]}, "test": {"columns": list(row), "rows": [row]}}, plots={}, diagnostics={**row, "rank_variance": variance, "reject_equal_distributions": p_value <= alpha}, assumptions=("Groups are independent and observations can be ranked.", "The normal approximation is more reliable with adequate samples; review small samples and ties."), warnings=("This is a two-sided, tie-corrected normal approximation; exact p-values are not calculated.",), provenance=(NIST_RANK_SUM_SOURCE,))
 
 
+def wilcoxon_signed_rank_test(before: Sequence[float], after: Sequence[float], *, before_name: str = "Before", after_name: str = "After", alpha: float = 0.05) -> ResultBundle:
+    """Compare paired values with signed ranks; zero differences are excluded."""
+    values_before, values_after = finite_values(before, "before"), finite_values(after, "after")
+    names = (before_name.strip(), after_name.strip())
+    if len(values_before) < 2 or len(values_before) != len(values_after): raise AnalysisInputError("paired_length_mismatch", "Wilcoxon signed-rank requires equal-length groups with at least two pairs.", "before")
+    if not all(names) or names[0].casefold() == names[1].casefold(): raise AnalysisInputError("invalid_group_names", "Measurement names must be non-empty and distinct.", "before_name")
+    if not 0.001 <= alpha <= 0.5: raise AnalysisInputError("invalid_alpha", "Alpha must be between 0.001 and 0.5.", "alpha")
+    differences = [left - right for left, right in zip(values_before, values_after, strict=True)]; nonzero = [value for value in differences if value != 0.0]
+    if len(nonzero) < 2: raise AnalysisInputError("insufficient_nonzero_differences", "At least two nonzero paired differences are required.", "before")
+    ranked = sorted((abs(value), value) for value in nonzero); ranks = [0.0] * len(ranked); tie_sizes: list[int] = []; index = 0
+    while index < len(ranked):
+        end = index + 1
+        while end < len(ranked) and ranked[end][0] == ranked[index][0]: end += 1
+        for position in range(index, end): ranks[position] = (index + 1 + end) / 2.0
+        tie_sizes.append(end - index); index = end
+    w_plus = sum(rank for rank, (_, value) in zip(ranks, ranked, strict=True) if value > 0); w_minus = sum(rank for rank, (_, value) in zip(ranks, ranked, strict=True) if value < 0); n = len(nonzero); statistic = min(w_plus, w_minus)
+    expected = n * (n + 1) / 4.0; variance = n * (n + 1) * (2 * n + 1) / 24.0 - sum(size**3 - size for size in tie_sizes) / 48.0
+    if variance <= 0.0: raise AnalysisInputError("zero_rank_variance", "All nonzero absolute differences are tied; inference is undefined.", "before")
+    continuity = 0.5 if statistic > expected else -0.5 if statistic < expected else 0.0; z_value = (statistic - expected - continuity) / math.sqrt(variance); p_value = math.erfc(abs(z_value) / math.sqrt(2.0)); row = {"w": statistic, "w_plus": w_plus, "w_minus": w_minus, "z_value": z_value, "p_value": p_value, "significant": p_value <= alpha}
+    return ResultBundle(analysis_type="hypothesis.wilcoxon_signed_rank", engine_version=ENGINE_VERSION, input_digest=input_digest({"before": values_before, "after": values_after, "before_name": names[0], "after_name": names[1], "alpha": alpha}), parameters={"method": "wilcoxon_signed_rank_normal_approximation", "alpha": alpha, "before_name": names[0], "after_name": names[1], "zero_difference_count": len(differences) - n, "tie_correction": True, "continuity_correction": True}, tables={"test": {"columns": list(row), "rows": [row]}}, plots={}, diagnostics={**row, "effective_pair_count": n, "rank_variance": variance, "reject_equal_locations": p_value <= alpha}, assumptions=("Each row is a paired measurement from the same unit.", "Paired differences are symmetrically distributed for location-shift interpretation."), warnings=("This is a two-sided, tie-corrected normal approximation; zero differences are excluded and exact p-values are not calculated.",), provenance=(NIST_RANK_SUM_SOURCE,))
+
+
 def one_way_anova(groups: dict[str, Sequence[float]], *, alpha: float = 0.05) -> ResultBundle:
     if len(groups) < 2 or not 0.001 <= alpha <= 0.5: raise AnalysisInputError("invalid_anova_input", "ANOVA needs two or more groups and valid alpha.", "groups")
     normalized = {name: finite_values(values, f"groups.{name}") for name, values in groups.items()}
