@@ -10,6 +10,7 @@ from statpro.analyses.regression import best_subsets_ols, categorical_ols, inter
 from statpro.analyses.descriptive import descriptive_statistics
 from statpro.analyses.hypothesis import mann_whitney_u_test
 from statpro.analyses.hypothesis import wilcoxon_signed_rank_test
+from statpro.analyses.hypothesis import kruskal_wallis_test
 from statpro.domain.errors import AnalysisInputError
 
 
@@ -247,6 +248,13 @@ class WilcoxonSignedRankTests(unittest.TestCase):
         self.assertEqual(result.analysis_type, "hypothesis.wilcoxon_signed_rank")
         self.assertEqual(result.parameters["zero_difference_count"], 1)
         self.assertEqual(row["w"], 0.0)
+
+
+class KruskalWallisTests(unittest.TestCase):
+    def test_compares_independent_group_ranks(self) -> None:
+        result = kruskal_wallis_test({"A": [1, 2, 3], "B": [5, 6, 7], "C": [9, 10, 11]})
+        self.assertEqual(result.analysis_type, "hypothesis.kruskal_wallis")
+        self.assertLess(result.diagnostics["p_value"], 0.05)
 
 
 if __name__ == "__main__":

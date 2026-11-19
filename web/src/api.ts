@@ -618,6 +618,7 @@ export function createMannWhitneyRun(payload: { run_id: string; group_a: number[
 export function createPairedTRun(payload: { run_id: string; before: number[]; after: number[]; before_name: string; after_name: string; alpha: number }): Promise<StoredRun> { return request("/v1/analysis-runs/paired-t", { method: "POST", body: JSON.stringify(payload) }); }
 export function createWilcoxonSignedRankRun(payload: { run_id: string; before: number[]; after: number[]; before_name: string; after_name: string; alpha: number }): Promise<StoredRun> { return request("/v1/analysis-runs/wilcoxon-signed-rank", { method: "POST", body: JSON.stringify(payload) }); }
 export function createOneWayAnovaRun(payload: { run_id: string; groups: Record<string, number[]>; alpha: number }): Promise<StoredRun> { return request("/v1/analysis-runs/one-way-anova", { method: "POST", body: JSON.stringify(payload) }); }
+export function createKruskalWallisRun(payload: { run_id: string; groups: Record<string, number[]>; alpha: number }): Promise<StoredRun> { return request("/v1/analysis-runs/kruskal-wallis", { method: "POST", body: JSON.stringify(payload) }); }
 export function createChiSquareIndependenceRun(payload: { run_id: string; rows: string[]; columns: string[]; counts: number[][]; alpha: number }): Promise<StoredRun> { return request("/v1/analysis-runs/chi-square-independence", { method: "POST", body: JSON.stringify(payload) }); }
 
 export function createGageRrRun(payload: {

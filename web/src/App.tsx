@@ -99,6 +99,7 @@ function WorkspaceRoutes() {
           <Route path="/analyses/hypothesis/wilcoxon-signed-rank" element={<WilcoxonSignedRankSetupPage />} />
           <Route path="/analyses/hypothesis/chi-square-independence" element={<ChiSquareSetupPage />} />
           <Route path="/analyses/hypothesis/one-way-anova" element={<OneWayAnovaSetupPage />} />
+          <Route path="/analyses/hypothesis/kruskal-wallis" element={<OneWayAnovaSetupPage />} />
           <Route path="/analyses/imr/new" element={<ImrSetupPage />} />
         <Route path="/analyses/capability" element={<CapabilitySetupPage />} />
         <Route path="/analyses/msa/gage-rr" element={<GageRrSetupPage />} />

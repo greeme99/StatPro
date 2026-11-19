@@ -94,6 +94,7 @@ export function AnalysisSelectionPage() {
           <Link className="analysis-choice" to="/analyses/hypothesis/independent-welch-t"><strong>독립표본 t-검정</strong><span>독립 두 집단의 평균차를 Welch 방법으로 비교합니다.</span></Link>
           <Link className="analysis-choice" to="/analyses/hypothesis/mann-whitney-u"><strong>Mann–Whitney U 검정</strong><span>정규성 가정이 어려운 독립 두 집단을 순위로 비교합니다.</span></Link>
           <Link className="analysis-choice" to="/analyses/hypothesis/paired-t"><strong>대응표본 t-검정</strong><span>같은 대상의 전후 또는 짝지어진 두 측정값 차이를 비교합니다.</span></Link>
+          <Link className="analysis-choice" to="/analyses/hypothesis/kruskal-wallis"><strong>Kruskal–Wallis 검정</strong><span>세 집단 이상을 순위로 비교하는 비모수 검정입니다.</span></Link>
           <Link className="analysis-choice" to="/analyses/hypothesis/wilcoxon-signed-rank"><strong>Wilcoxon 부호순위 검정</strong><span>정규성 가정이 어려운 대응 측정값을 순위로 비교합니다.</span></Link>
           <Link className="analysis-choice" to="/analyses/hypothesis/chi-square-independence"><strong>카이제곱 독립성 검정</strong><span>두 범주형 변수의 연관성을 분할표로 확인합니다.</span></Link>
           <Link className="analysis-choice" to="/analyses/hypothesis/one-way-anova"><strong>일원 분산분석</strong><span>세 개 이상 독립 집단의 평균을 비교합니다.</span></Link>

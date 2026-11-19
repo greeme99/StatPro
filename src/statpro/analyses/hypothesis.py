@@ -142,6 +142,24 @@ def wilcoxon_signed_rank_test(before: Sequence[float], after: Sequence[float], *
     return ResultBundle(analysis_type="hypothesis.wilcoxon_signed_rank", engine_version=ENGINE_VERSION, input_digest=input_digest({"before": values_before, "after": values_after, "before_name": names[0], "after_name": names[1], "alpha": alpha}), parameters={"method": "wilcoxon_signed_rank_normal_approximation", "alpha": alpha, "before_name": names[0], "after_name": names[1], "zero_difference_count": len(differences) - n, "tie_correction": True, "continuity_correction": True}, tables={"test": {"columns": list(row), "rows": [row]}}, plots={}, diagnostics={**row, "effective_pair_count": n, "rank_variance": variance, "reject_equal_locations": p_value <= alpha}, assumptions=("Each row is a paired measurement from the same unit.", "Paired differences are symmetrically distributed for location-shift interpretation."), warnings=("This is a two-sided, tie-corrected normal approximation; zero differences are excluded and exact p-values are not calculated.",), provenance=(NIST_RANK_SUM_SOURCE,))
 
 
+def kruskal_wallis_test(groups: dict[str, Sequence[float]], *, alpha: float = 0.05) -> ResultBundle:
+    """Compare three or more independent groups using tie-corrected pooled ranks."""
+    if len(groups) < 3 or not 0.001 <= alpha <= 0.5: raise AnalysisInputError("invalid_kruskal_wallis_input", "Kruskal-Wallis needs three or more groups and valid alpha.", "groups")
+    normalized = {name.strip(): finite_values(values, f"groups.{name}") for name, values in groups.items()}
+    if any(not name or len(values) < 2 for name, values in normalized.items()) or len(normalized) != len(groups): raise AnalysisInputError("insufficient_observations", "Each group needs a unique non-empty name and at least two observations.", "groups")
+    pooled = sorted((value, name) for name, values in normalized.items() for value in values); ranks = [0.0] * len(pooled); ties: list[int] = []; index = 0
+    while index < len(pooled):
+        end = index + 1
+        while end < len(pooled) and pooled[end][0] == pooled[index][0]: end += 1
+        for position in range(index, end): ranks[position] = (index + 1 + end) / 2.0
+        ties.append(end - index); index = end
+    total = len(pooled); rank_sums = {name: sum(rank for rank, (_, owner) in zip(ranks, pooled, strict=True) if owner == name) for name in normalized}; raw_h = 12.0 / (total * (total + 1)) * sum(rank_sums[name] ** 2 / len(values) for name, values in normalized.items()) - 3 * (total + 1); correction = 1.0 - sum(size**3 - size for size in ties) / (total**3 - total)
+    if correction <= 0.0: raise AnalysisInputError("zero_rank_variance", "All pooled values are tied; rank comparison is undefined.", "groups")
+    h_value = raw_h / correction; degrees = len(normalized) - 1; p_value = chi_square_survival(h_value, degrees); row = {"h_value": h_value, "degrees_of_freedom": degrees, "p_value": p_value, "significant": p_value <= alpha}
+    summary = [{"group": name, "n": len(values), "mean_rank": rank_sums[name] / len(values)} for name, values in normalized.items()]
+    return ResultBundle(analysis_type="hypothesis.kruskal_wallis", engine_version=ENGINE_VERSION, input_digest=input_digest({"groups": normalized, "alpha": alpha}), parameters={"method": "kruskal_wallis_tie_corrected", "alpha": alpha, "tie_correction": correction}, tables={"group_summary": {"columns": ["group", "n", "mean_rank"], "rows": summary}, "test": {"columns": list(row), "rows": [row]}}, plots={}, diagnostics={**row, "tie_correction": correction, "reject_equal_distributions": p_value <= alpha if p_value is not None else False}, assumptions=("Groups are independent and observations can be ranked.",), warnings=("A significant omnibus result does not identify which groups differ; apply a separately validated post-hoc comparison.",), provenance=(NIST_RANK_SUM_SOURCE,))
+
+
 def one_way_anova(groups: dict[str, Sequence[float]], *, alpha: float = 0.05) -> ResultBundle:
     if len(groups) < 2 or not 0.001 <= alpha <= 0.5: raise AnalysisInputError("invalid_anova_input", "ANOVA needs two or more groups and valid alpha.", "groups")
     normalized = {name: finite_values(values, f"groups.{name}") for name, values in groups.items()}

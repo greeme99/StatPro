@@ -52,7 +52,7 @@ from statpro.analyses.normality import jarque_bera_normality
 from statpro.analyses.descriptive import descriptive_statistics
 from statpro.analyses.hypothesis import independent_welch_t_test, mann_whitney_u_test
 from statpro.analyses.hypothesis import paired_t_test, wilcoxon_signed_rank_test
-from statpro.analyses.hypothesis import chi_square_independence, one_way_anova
+from statpro.analyses.hypothesis import chi_square_independence, kruskal_wallis_test, one_way_anova
 from statpro.analyses.regression import best_subsets_ols, categorical_ols, interaction_ols, linear_ols, logistic_regression, poisson_regression, polynomial_ols, stepwise_ols, validate_ols
 from statpro.analyses.spc import (
     c_chart,
@@ -490,6 +490,9 @@ class OneWayAnovaRunRequest(ApiModel):
     run_id: RunId
     groups: dict[str, list[float]] = Field(min_length=2)
     alpha: float = Field(default=0.05, ge=0.001, le=0.5)
+
+class KruskalWallisRunRequest(OneWayAnovaRunRequest):
+    pass
 
 
 class ChiSquareIndependenceRunRequest(ApiModel):
@@ -2859,6 +2862,12 @@ def create_app(
     @app.post("/v1/analysis-runs/one-way-anova", status_code=201, response_model=StoredRunResponse)
     def run_one_way_anova(request: OneWayAnovaRunRequest, response: Response) -> StoredRunResponse:
         stored = _save_run(repository, request.run_id, one_way_anova(request.groups, alpha=request.alpha))
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _response(stored)
+
+    @app.post("/v1/analysis-runs/kruskal-wallis", status_code=201, response_model=StoredRunResponse)
+    def run_kruskal_wallis(request: KruskalWallisRunRequest, response: Response) -> StoredRunResponse:
+        stored = _save_run(repository, request.run_id, kruskal_wallis_test(request.groups, alpha=request.alpha))
         response.headers["ETag"] = f'"{stored.etag}"'
         return _response(stored)
 

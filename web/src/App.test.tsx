@@ -2418,6 +2418,18 @@ describe("StatPro UI", () => {
     await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith("/v1/analysis-runs/one-way-anova") && (init as RequestInit | undefined)?.method === "POST")).toBe(true));
   });
 
+  it("submits independent groups through the Kruskal–Wallis route", async () => {
+    const stored = { run_id: "kruskal-ui", result: { analysis_type: "hypothesis.kruskal_wallis", diagnostics: {}, tables: { test: { rows: [] }, group_summary: { rows: [] } }, warnings: [], notes: [] } };
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      return new Response(JSON.stringify(stored), { status: 200 });
+    });
+    render(<MemoryRouter initialEntries={["/analyses/hypothesis/kruskal-wallis"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "Kruskal–Wallis 검정 설정" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Kruskal–Wallis 실행" }));
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith("/v1/analysis-runs/kruskal-wallis") && (init as RequestInit | undefined)?.method === "POST")).toBe(true));
+  });
+
   it("submits aligned measurements through the paired t-test route", async () => {
     const stored = { run_id: "paired-ui", result: { analysis_type: "hypothesis.paired_t", diagnostics: { difference: -3, standard_error: 0.2, degrees_of_freedom: 3, t_statistic: -15, p_value: 0.001, confidence_interval_lower: -3.6, confidence_interval_upper: -2.4, reject_equal_means: true }, tables: { test: { rows: [] } }, warnings: [], notes: [] } };
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
