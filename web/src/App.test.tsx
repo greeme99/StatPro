@@ -243,11 +243,16 @@ describe("StatPro UI", () => {
     expect(JSON.parse(String((call?.[1] as RequestInit).body))).toMatchObject({ degree: 3, predictors: { 온도: [180, 185, 190, 195, 200, 205] } });
   });
 
-  it("submits the default hierarchical stepwise regression workspace", async () => {
+  it("submits the selected hierarchical stepwise regression options", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({}), { status: 201, headers: { "Content-Type": "application/json" } }));
     render(<MemoryRouter initialEntries={["/analyses/regression/stepwise"]}><App /></MemoryRouter>);
+    await userEvent.selectOptions(await screen.findByRole("combobox", { name: "선택 방식" }), "forward");
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "비교 기준" }), "bic");
+    await userEvent.click(screen.getByRole("checkbox", { name: "2요인 교호작용 후보 포함" }));
     await userEvent.click(await screen.findByRole("button", { name: "단계선택 회귀 실행" }));
     await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith("/regression-stepwise-ols") && (init as RequestInit | undefined)?.method === "POST")).toBe(true));
+    const call = fetchMock.mock.calls.find(([url, init]) => String(url).endsWith("/regression-stepwise-ols") && (init as RequestInit | undefined)?.method === "POST");
+    expect(JSON.parse(String((call?.[1] as RequestInit).body))).toMatchObject({ method: "forward", criterion: "bic", interaction_terms: true, alpha_enter: 0.05, alpha_remove: 0.1 });
   });
 
   it("renders OLS fit, ANOVA, and residual review from the stored result contract", async () => {
@@ -260,6 +265,7 @@ describe("StatPro UI", () => {
         anova: { rows: [{ source: "Model", degrees_of_freedom: 1, sum_squares: 12, mean_square: 12, f_value: 12.3, p_value: 0.01 }] },
         fitted_values: { rows: [{ observation: 1, actual: 10, fitted: 9.5, residual: 0.5, leverage: 0.2, prediction_interval_lower: 7.1, prediction_interval_upper: 11.9, standardized_residual: 0.4, studentized_residual: 0.42, cooks_distance: 0.12, dffits: 0.21 }] },
         collinearity: { rows: [{ term: "온도", vif: 2.4, tolerance: 0.4167 }] },
+        selection_history: { rows: [{ step: 1, action: "enter", term: "온도", aicc: 12.3, bic: 14.1 }] },
       },
     };
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
@@ -272,6 +278,7 @@ describe("StatPro UI", () => {
     expect(screen.getByRole("heading", { name: "공선성 진단" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "관측값별 적합과 잔차" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "영향 관측치 진단" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "모형 선택 이력" })).toBeInTheDocument();
     expect(screen.getByRole("table", { name: "원 관측값, 모형 적합값과 잔차" })).toBeInTheDocument();
     expect(screen.getByRole("table", { name: "설명변수별 분산팽창계수와 허용도" })).toBeInTheDocument();
     expect(screen.getByText("7.1000 ~ 11.9000")).toBeInTheDocument();

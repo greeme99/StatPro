@@ -116,18 +116,32 @@ class InteractionRegressionTests(unittest.TestCase):
 
 class StepwiseRegressionTests(unittest.TestCase):
     def test_forward_selection_keeps_main_effects_for_a_selected_interaction(self) -> None:
+        pairs = [(temperature, pressure) for temperature in [-2, -1, 0, 1, 2] for pressure in [-1, 1] for _ in range(2)]
         result = stepwise_ols(
-            [3, 5, 8, 12, 17, 23, 30, 38, 47, 57],
-            {"temperature": list(range(1, 11)), "pressure": [1, 2, 1, 2, 1, 2, 1, 2, 1, 2]},
+            [2 + 3 * temperature + 10 * pressure + 5 * temperature * pressure + (0.2 if index % 2 else -0.2) for index, (temperature, pressure) in enumerate(pairs)],
+            {"temperature": [temperature for temperature, _ in pairs], "pressure": [pressure for _, pressure in pairs]},
             interaction_terms=True,
             method="forward",
         )
         selected = result.parameters["selected_terms"]
         self.assertEqual(result.analysis_type, "regression.stepwise_ols")
         self.assertIn("temperature", selected)
+        self.assertIn("pressure", selected)
+        self.assertIn("temperature*pressure", selected)
         self.assertGreater(len(result.tables["selection_history"]["rows"]), 0)
         self.assertIn("aicc", result.diagnostics)
         self.assertIn("bic", result.diagnostics)
+
+    def test_backward_selection_removes_non_significant_terms(self) -> None:
+        result = stepwise_ols(
+            [3, 5, 8, 12, 17, 23, 30, 38, 47, 57],
+            {"temperature": list(range(1, 11)), "pressure": [1, 2, 1, 2, 1, 2, 1, 2, 1, 2]},
+            interaction_terms=True,
+            method="backward",
+        )
+
+        self.assertEqual(result.parameters["selected_terms"], ["temperature"])
+        self.assertEqual([row["action"] for row in result.tables["selection_history"]["rows"]], ["remove", "remove"])
 
 
 if __name__ == "__main__":

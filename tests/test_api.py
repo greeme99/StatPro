@@ -969,6 +969,23 @@ class LocalApiContractTests(unittest.TestCase):
                 "regression.interaction_ols",
             ),
             (
+                "/v1/analysis-runs/regression-stepwise-ols",
+                {
+                    "run_id": "stepwise-ols",
+                    "response": [2, 3, 5, 7, 11, 13],
+                    "predictors": {
+                        "temperature": [0, 1, 2, 3, 4, 5],
+                        "pressure": [1, 2, 1, 2, 1, 2],
+                    },
+                    "response_name": "Yield",
+                    "method": "stepwise",
+                    "criterion": "aicc",
+                    "alpha_enter": 0.05,
+                    "alpha_remove": 0.10,
+                },
+                "regression.stepwise_ols",
+            ),
+            (
                 "/v1/analysis-runs/independent-welch-t",
                 {"run_id": "welch-t", "group_a": [1, 2, 3, 4], "group_b": [3, 4, 5, 6]},
                 "hypothesis.independent_welch_t",

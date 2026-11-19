@@ -64,11 +64,11 @@
 - Consumes: Task 1's OLS result rows unchanged.
 - Produces: `stepwise_ols(response, predictors, method, criterion, alpha_enter, alpha_remove, interaction_terms)` returning `regression.stepwise_ols` with per-step selection history and AICc/BIC.
 
-- [ ] Write failing tests for forward selection, backward removal, and mandatory lower-order terms for a selected interaction.
-- [ ] Run focused tests and verify no stepwise adapter exists.
-- [ ] Implement bounded, deterministic hierarchical forward/backward/stepwise selection (20 candidate expanded terms maximum), with explicit AICc/BIC diagnostics.
-- [ ] Add the analysis-run endpoint and a Korean setup/result workflow.
-- [ ] Run backend/API/frontend focused checks and commit `feat(regression): add hierarchical stepwise selection`.
+- [x] Write failing tests for forward selection, backward removal, and mandatory lower-order terms for a selected interaction.
+- [x] Run focused tests and verify no stepwise adapter exists.
+- [x] Implement bounded, deterministic hierarchical forward/backward/stepwise selection (20 candidate expanded terms maximum), with explicit AICc/BIC diagnostics.
+- [x] Add the analysis-run endpoint and a Korean setup/result workflow.
+- [x] Run backend/API/frontend focused checks and commit `feat(regression): add hierarchical stepwise selection`.
 
 ### Task 3: Holdout and k-fold validation
 
