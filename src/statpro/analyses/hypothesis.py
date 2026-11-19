@@ -160,6 +160,25 @@ def kruskal_wallis_test(groups: dict[str, Sequence[float]], *, alpha: float = 0.
     return ResultBundle(analysis_type="hypothesis.kruskal_wallis", engine_version=ENGINE_VERSION, input_digest=input_digest({"groups": normalized, "alpha": alpha}), parameters={"method": "kruskal_wallis_tie_corrected", "alpha": alpha, "tie_correction": correction}, tables={"group_summary": {"columns": ["group", "n", "mean_rank"], "rows": summary}, "test": {"columns": list(row), "rows": [row]}}, plots={}, diagnostics={**row, "tie_correction": correction, "reject_equal_distributions": p_value <= alpha if p_value is not None else False}, assumptions=("Groups are independent and observations can be ranked.",), warnings=("A significant omnibus result does not identify which groups differ; apply a separately validated post-hoc comparison.",), provenance=(NIST_RANK_SUM_SOURCE,))
 
 
+def independent_tost_equivalence(group_a: Sequence[float], group_b: Sequence[float], *, lower_margin: float, upper_margin: float, group_a_name: str = "Group A", group_b_name: str = "Group B", alpha: float = 0.05) -> ResultBundle:
+    """Welch two one-sided tests for a pre-specified mean-difference equivalence interval."""
+    values_a, values_b = finite_values(group_a, "group_a"), finite_values(group_b, "group_b")
+    names = (group_a_name.strip(), group_b_name.strip())
+    if len(values_a) < 2 or len(values_b) < 2: raise AnalysisInputError("insufficient_observations", "Each group requires at least two observations.", "group_a")
+    if not all(names) or names[0].casefold() == names[1].casefold(): raise AnalysisInputError("invalid_group_names", "Group names must be non-empty and distinct.", "group_a_name")
+    if not 0.001 <= alpha <= 0.5 or not lower_margin < upper_margin: raise AnalysisInputError("invalid_equivalence_bounds", "Use valid alpha and lower margin strictly below upper margin.", "lower_margin")
+    mean_a, mean_b = fmean(values_a), fmean(values_b); variance_a, variance_b = _sample_variance(values_a, mean_a), _sample_variance(values_b, mean_b); terms = variance_a / len(values_a), variance_b / len(values_b); standard_error = math.sqrt(sum(terms))
+    if standard_error == 0.0: raise AnalysisInputError("zero_standard_error", "Within-group variation is required for TOST inference.", "group_a")
+    degrees = sum(terms) ** 2 / (terms[0] ** 2 / (len(values_a) - 1) + terms[1] ** 2 / (len(values_b) - 1)); difference = mean_a - mean_b
+    def upper_tail(t_value: float) -> float:
+        two_sided = _two_sided_t_probability(t_value, degrees)
+        return two_sided / 2.0 if t_value >= 0 else 1.0 - two_sided / 2.0
+    lower_t, upper_t = (difference - lower_margin) / standard_error, (difference - upper_margin) / standard_error
+    lower_p, upper_p = upper_tail(lower_t), 1.0 - upper_tail(upper_t); critical = _t_critical(2 * alpha, degrees); ci_lower, ci_upper = difference - critical * standard_error, difference + critical * standard_error; equivalent = lower_p <= alpha and upper_p <= alpha
+    row = {"difference": difference, "lower_margin": lower_margin, "upper_margin": upper_margin, "lower_t": lower_t, "lower_p_value": lower_p, "upper_t": upper_t, "upper_p_value": upper_p, "confidence_interval_lower": ci_lower, "confidence_interval_upper": ci_upper, "equivalent": equivalent}
+    return ResultBundle(analysis_type="hypothesis.independent_tost_equivalence", engine_version=ENGINE_VERSION, input_digest=input_digest({"group_a": values_a, "group_b": values_b, "lower_margin": lower_margin, "upper_margin": upper_margin, "group_a_name": names[0], "group_b_name": names[1], "alpha": alpha}), parameters={"method": "welch_tost", "alpha": alpha, "confidence_level": 1 - 2 * alpha, "group_a_name": names[0], "group_b_name": names[1]}, tables={"test": {"columns": list(row), "rows": [row]}}, plots={}, diagnostics={**row, "degrees_of_freedom": degrees, "standard_error": standard_error}, assumptions=("Groups are independent and observations are continuous.", "Equivalence margins were defined before examining the data."), warnings=("Failure to reject a difference test does not establish equivalence; interpret both one-sided tests and the confidence interval.",), provenance=(NIST_TWO_SAMPLE_T_SOURCE,))
+
+
 def one_way_anova(groups: dict[str, Sequence[float]], *, alpha: float = 0.05) -> ResultBundle:
     if len(groups) < 2 or not 0.001 <= alpha <= 0.5: raise AnalysisInputError("invalid_anova_input", "ANOVA needs two or more groups and valid alpha.", "groups")
     normalized = {name: finite_values(values, f"groups.{name}") for name, values in groups.items()}

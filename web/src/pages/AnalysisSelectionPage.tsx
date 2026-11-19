@@ -92,6 +92,7 @@ export function AnalysisSelectionPage() {
           <Link className="analysis-choice" to="/analyses/regression/poisson"><strong>Poisson 회귀</strong><span>불량·고장 등 비음수 정수 건수(Y)의 발생률을 설명합니다.</span></Link>
           <Link className="analysis-choice" to="/analyses/regression/logistic"><strong>로지스틱 회귀</strong><span>합격·불합격 등 0/1 결과(Y)의 발생확률을 추정합니다.</span></Link>
           <Link className="analysis-choice" to="/analyses/hypothesis/independent-welch-t"><strong>독립표본 t-검정</strong><span>독립 두 집단의 평균차를 Welch 방법으로 비교합니다.</span></Link>
+          <Link className="analysis-choice" to="/analyses/hypothesis/independent-tost-equivalence"><strong>등가성 검정 (TOST)</strong><span>사전 정의한 허용차 안에서 두 집단 평균이 실질적으로 같은지 확인합니다.</span></Link>
           <Link className="analysis-choice" to="/analyses/hypothesis/mann-whitney-u"><strong>Mann–Whitney U 검정</strong><span>정규성 가정이 어려운 독립 두 집단을 순위로 비교합니다.</span></Link>
           <Link className="analysis-choice" to="/analyses/hypothesis/paired-t"><strong>대응표본 t-검정</strong><span>같은 대상의 전후 또는 짝지어진 두 측정값 차이를 비교합니다.</span></Link>
           <Link className="analysis-choice" to="/analyses/hypothesis/kruskal-wallis"><strong>Kruskal–Wallis 검정</strong><span>세 집단 이상을 순위로 비교하는 비모수 검정입니다.</span></Link>

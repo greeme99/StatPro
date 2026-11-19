@@ -94,6 +94,7 @@ function WorkspaceRoutes() {
           <Route path="/analyses/regression/poisson" element={<BasicAnalysisSetupPage />} />
           <Route path="/analyses/regression/logistic" element={<BasicAnalysisSetupPage />} />
           <Route path="/analyses/hypothesis/independent-welch-t" element={<WelchTSetupPage />} />
+          <Route path="/analyses/hypothesis/independent-tost-equivalence" element={<WelchTSetupPage />} />
           <Route path="/analyses/hypothesis/mann-whitney-u" element={<MannWhitneySetupPage />} />
           <Route path="/analyses/hypothesis/paired-t" element={<PairedTSetupPage />} />
           <Route path="/analyses/hypothesis/wilcoxon-signed-rank" element={<WilcoxonSignedRankSetupPage />} />

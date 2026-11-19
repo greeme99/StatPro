@@ -2418,6 +2418,17 @@ describe("StatPro UI", () => {
     await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith("/v1/analysis-runs/one-way-anova") && (init as RequestInit | undefined)?.method === "POST")).toBe(true));
   });
 
+  it("submits pre-specified equivalence margins through the TOST route", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      return new Response(JSON.stringify({ run_id: "tost-ui", result: { analysis_type: "hypothesis.independent_tost_equivalence", diagnostics: {}, tables: { test: { rows: [] } }, warnings: [], notes: [] } }), { status: 200 });
+    });
+    render(<MemoryRouter initialEntries={["/analyses/hypothesis/independent-tost-equivalence"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "등가성 검정 (TOST) 설정" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "TOST 등가성 검정 실행" }));
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith("/v1/analysis-runs/independent-tost-equivalence") && (init as RequestInit | undefined)?.method === "POST")).toBe(true));
+  });
+
   it("submits independent groups through the Kruskal–Wallis route", async () => {
     const stored = { run_id: "kruskal-ui", result: { analysis_type: "hypothesis.kruskal_wallis", diagnostics: {}, tables: { test: { rows: [] }, group_summary: { rows: [] } }, warnings: [], notes: [] } };
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {

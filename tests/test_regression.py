@@ -11,6 +11,7 @@ from statpro.analyses.descriptive import descriptive_statistics
 from statpro.analyses.hypothesis import mann_whitney_u_test
 from statpro.analyses.hypothesis import wilcoxon_signed_rank_test
 from statpro.analyses.hypothesis import kruskal_wallis_test
+from statpro.analyses.hypothesis import independent_tost_equivalence
 from statpro.domain.errors import AnalysisInputError
 
 
@@ -255,6 +256,13 @@ class KruskalWallisTests(unittest.TestCase):
         result = kruskal_wallis_test({"A": [1, 2, 3], "B": [5, 6, 7], "C": [9, 10, 11]})
         self.assertEqual(result.analysis_type, "hypothesis.kruskal_wallis")
         self.assertLess(result.diagnostics["p_value"], 0.05)
+
+
+class IndependentTostTests(unittest.TestCase):
+    def test_establishes_equivalence_when_interval_is_inside_margins(self) -> None:
+        result = independent_tost_equivalence([100, 101, 99, 100], [100.1, 99.9, 100.2, 100], lower_margin=-2, upper_margin=2)
+        self.assertEqual(result.analysis_type, "hypothesis.independent_tost_equivalence")
+        self.assertTrue(result.diagnostics["equivalent"])
 
 
 if __name__ == "__main__":
