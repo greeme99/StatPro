@@ -58,7 +58,7 @@ export function ResultPage() {
   const reportKind = result ? analysisReportKind(result.analysis_type) : null;
   const reportDescriptor = reportKind ? ANALYSIS_REPORT_REGISTRY[reportKind] : null;
   const normality = result?.analysis_type === "normality.jarque_bera";
-  const regression = result?.analysis_type === "regression.linear_ols" || result?.analysis_type === "regression.polynomial_ols" || result?.analysis_type === "regression.interaction_ols" || result?.analysis_type === "regression.stepwise_ols" || result?.analysis_type === "regression.logistic" || result?.analysis_type === "regression.ols_validation" || result?.analysis_type === "regression.best_subsets_ols";
+  const regression = result?.analysis_type === "regression.linear_ols" || result?.analysis_type === "regression.categorical_ols" || result?.analysis_type === "regression.polynomial_ols" || result?.analysis_type === "regression.interaction_ols" || result?.analysis_type === "regression.stepwise_ols" || result?.analysis_type === "regression.logistic" || result?.analysis_type === "regression.poisson" || result?.analysis_type === "regression.ols_validation" || result?.analysis_type === "regression.best_subsets_ols";
   const welchT = result?.analysis_type === "hypothesis.independent_welch_t";
   const pairedT = result?.analysis_type === "hypothesis.paired_t";
   const anova = result?.analysis_type === "hypothesis.one_way_anova" || result?.analysis_type === "hypothesis.chi_square_independence";
@@ -146,6 +146,7 @@ function LinearRegressionResult({ result }: { result: StoredRun["result"] }) {
   if (result.analysis_type === "regression.best_subsets_ols") return <BestSubsetsResult result={result} />;
   if (result.analysis_type === "regression.ols_validation") return <OlsValidationResult result={result} />;
   if (result.analysis_type === "regression.logistic") return <LogisticRegressionResult result={result} />;
+  if (result.analysis_type === "regression.poisson") return <PoissonRegressionResult result={result} />;
   const polynomial = result.analysis_type === "regression.polynomial_ols";
   const interaction = result.analysis_type === "regression.interaction_ols";
   const stepwise = result.analysis_type === "regression.stepwise_ols";
@@ -183,6 +184,27 @@ function OlsValidationResult({ result }: { result: StoredRun["result"] }) {
   const folds = (result.tables.fold_summary as { rows?: Array<Record<string, number>> } | undefined)?.rows ?? [];
   const predictions = (result.tables.held_out_predictions as { rows?: Array<Record<string, number>> } | undefined)?.rows ?? [];
   return <><section className="metric-grid result-metrics" aria-label="회귀 모형 검증 요약"><article className="metric-card"><span>RMSE</span><strong>{statistic(result.diagnostics.rmse as number | null)}</strong><small>홀드아웃 예측 오차</small></article><article className="metric-card"><span>MAE</span><strong>{statistic(result.diagnostics.mae as number | null)}</strong><small>절대오차 평균</small></article><article className="metric-card"><span>예측 R²</span><strong>{statistic(result.diagnostics.r_squared_pred as number | null)}</strong><small>검증 행 설명력</small></article></section><section className="panel table-panel"><header className="panel-heading"><div><span className="eyebrow">MODEL VALIDATION</span><h2>분할별 예측오차</h2></div><span>{String(result.parameters.validation_method ?? "—")} · {String(result.parameters.fold_count ?? "—")}개 분할</span></header><p>각 행은 해당 분할의 학습에 포함되지 않은 예측 결과입니다. 시간 순서·공정 변경·데이터 누출 가능성을 별도로 검토하세요.</p><div className="table-scroll"><table><caption>분할별 학습 및 검증 오차</caption><thead><tr><th>분할</th><th>학습 수</th><th>검증 수</th><th>RMSE</th><th>MAE</th></tr></thead><tbody>{folds.map((row) => <tr key={row.fold}><th>{row.fold}</th><td>{row.train_size}</td><td>{row.test_size}</td><td>{statistic(row.rmse)}</td><td>{statistic(row.mae)}</td></tr>)}</tbody></table></div></section><section className="panel table-panel"><header className="panel-heading"><div><span className="eyebrow">HELD-OUT PREDICTIONS</span><h2>검증 행 예측값</h2></div></header><div className="table-scroll"><table><caption>학습에서 제외된 관측값의 실제·예측값</caption><thead><tr><th>분할</th><th>관측</th><th>실제값</th><th>예측값</th><th>잔차</th></tr></thead><tbody>{predictions.map((row) => <tr key={row.observation}><td>{row.fold}</td><th>{row.observation}</th><td>{statistic(row.actual)}</td><td>{statistic(row.predicted)}</td><td>{statistic(row.residual)}</td></tr>)}</tbody></table></div></section></>;
+}
+
+function PoissonRegressionResult({ result }: { result: StoredRun["result"] }) {
+  const coefficients = (result.tables.coefficients as { rows?: Array<Record<string, string | number | boolean | null>> } | undefined)?.rows ?? [];
+  const fitted = (result.tables.fitted_values as { rows?: Array<Record<string, number>> } | undefined)?.rows ?? [];
+  return <>
+    <section className="metric-grid result-metrics" aria-label="Poisson 회귀 적합도 요약">
+      <article className="metric-card"><span>Deviance</span><strong>{statistic(result.diagnostics.deviance as number | null)}</strong><small>작을수록 포화모형에 가까움</small></article>
+      <article className="metric-card"><span>잔차 자유도</span><strong>{String(result.diagnostics.residual_degrees_of_freedom ?? "—")}</strong><small>추정 후 남은 정보</small></article>
+      <article className="metric-card"><span>예측 건수 합계</span><strong>{statistic(result.diagnostics.predicted_count_total as number | null)}</strong><small>관측 건수와 비교</small></article>
+    </section>
+    <section className="panel table-panel">
+      <header className="panel-heading"><div><span className="eyebrow">POISSON REGRESSION</span><h2>발생률비와 유의성</h2></div></header>
+      <p>발생률비(IRR)는 다른 변수가 고정된 상태에서 X가 1단위 증가할 때 기대 발생 건수가 몇 배로 바뀌는지 나타냅니다. Poisson의 평균·분산 가정이 맞는지 별도로 검토하세요.</p>
+      <div className="table-scroll"><table><caption>Poisson 회귀 계수, 발생률비와 95% 신뢰구간</caption><thead><tr><th scope="col">항</th><th scope="col">계수</th><th scope="col">IRR</th><th scope="col">IRR 95% 신뢰구간</th><th scope="col">표준오차</th><th scope="col">z</th><th scope="col">p값</th><th scope="col">판정</th></tr></thead><tbody>{coefficients.map((row) => <tr key={String(row.term)}><th scope="row">{row.term}</th><td>{statistic(row.coefficient as number | null)}</td><td>{statistic(row.incidence_rate_ratio as number | null)}</td><td>{statistic(row.irr_ci_lower as number | null)} ~ {statistic(row.irr_ci_upper as number | null)}</td><td>{statistic(row.standard_error as number | null)}</td><td>{statistic(row.z_value as number | null)}</td><td>{statistic(row.p_value as number | null)}</td><td>{row.significant ? "유의" : "비유의"}</td></tr>)}</tbody></table></div>
+    </section>
+    <section className="panel table-panel">
+      <header className="panel-heading"><div><span className="eyebrow">FITTED COUNTS</span><h2>관측별 예측 건수</h2></div></header>
+      <div className="table-scroll"><table><caption>실제 건수와 Poisson 모형 예측 건수</caption><thead><tr><th scope="col">관측</th><th scope="col">실제 건수</th><th scope="col">예측 건수</th></tr></thead><tbody>{fitted.map((row) => <tr key={row.observation}><th scope="row">{row.observation}</th><td>{statistic(row.actual)}</td><td>{statistic(row.predicted_count)}</td></tr>)}</tbody></table></div>
+    </section>
+  </>;
 }
 
 function LogisticRegressionResult({ result }: { result: StoredRun["result"] }) {

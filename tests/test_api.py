@@ -1007,6 +1007,25 @@ class LocalApiContractTests(unittest.TestCase):
                 "regression.best_subsets_ols",
             ),
             (
+                "/v1/analysis-runs/regression-poisson",
+                {
+                    "run_id": "poisson",
+                    "response": [1, 2, 3, 5, 8, 13, 21, 34],
+                    "predictors": {"exposure": list(range(8))},
+                },
+                "regression.poisson",
+            ),
+            (
+                "/v1/analysis-runs/regression-categorical-ols",
+                {
+                    "run_id": "categorical-ols",
+                    "response": [10, 11, 15, 16, 10, 11, 15, 16],
+                    "predictors": {"line": ["A", "A", "B", "B", "A", "A", "B", "B"]},
+                    "reference_levels": {"line": "A"},
+                },
+                "regression.categorical_ols",
+            ),
+            (
                 "/v1/analysis-runs/independent-welch-t",
                 {"run_id": "welch-t", "group_a": [1, 2, 3, 4], "group_b": [3, 4, 5, 6]},
                 "hypothesis.independent_welch_t",

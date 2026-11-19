@@ -102,6 +102,46 @@ def logistic_regression(response: Sequence[float], predictors: Mapping[str, Sequ
     return ResultBundle(analysis_type="regression.logistic", engine_version=ENGINE_VERSION, input_digest=input_digest({"response":values,"predictors":columns,"response_name":response_name,"alpha":alpha}), parameters={"response_name":response_name,"predictor_names":names,"alpha":alpha,"sample_size":len(values)}, tables={"coefficients":{"columns":["term","coefficient","odds_ratio","odds_ratio_ci_lower","odds_ratio_ci_upper","standard_error","z_value","p_value","significant"],"rows":rows},"fitted_values":{"columns":["observation","actual","predicted_probability"],"rows":[{"observation":i+1,"actual":values[i],"predicted_probability":probabilities[i]} for i in range(len(values))]}}, plots={}, diagnostics={"event_count":sum(values),"predicted_event_count":sum(probabilities),"classification_threshold":classification_threshold,"classification_accuracy":classification_accuracy,"log_likelihood":log_likelihood}, assumptions=("Rows are independent and the response is coded 0 or 1.",), warnings=("Wald inference can be unstable with small samples or separation; review coefficients and event counts.",), provenance=(NIST_LINEAR_LEAST_SQUARES_SOURCE,))
 
 
+def categorical_ols(response: Sequence[float], predictors: Mapping[str, Sequence[str]], *, reference_levels: Mapping[str, str], response_name: str = "Response", alpha: float = 0.05) -> ResultBundle:
+    """Fit OLS after explicit reference-level dummy coding of categorical X variables."""
+    values = finite_values(response, "response")
+    expanded: dict[str, list[float]] = {}
+    resolved: dict[str, str] = {}
+    for name, raw_levels in predictors.items():
+        levels = [str(level).strip() for level in raw_levels]
+        if len(levels) != len(values) or not all(levels): raise AnalysisInputError("invalid_categorical_predictor", "Categorical values must be non-empty and align with the response.", f"predictors.{name}")
+        available = sorted(set(levels)); reference = reference_levels.get(name)
+        if reference not in available: raise AnalysisInputError("unknown_categorical_reference", "Reference level must appear in the categorical predictor.", f"reference_levels.{name}")
+        resolved[name] = reference
+        for level in available:
+            if level != reference: expanded[f"{name}[{level}]"] = [1.0 if value == level else 0.0 for value in levels]
+    fitted = linear_ols(values, expanded, response_name=response_name, alpha=alpha)
+    return ResultBundle(analysis_type="regression.categorical_ols", engine_version=fitted.engine_version, input_digest=input_digest({"response": values, "predictors": predictors, "reference_levels": resolved, "response_name": response_name, "alpha": alpha}), parameters={**fitted.parameters, "reference_levels": resolved, "categorical_predictor_names": list(predictors)}, tables=fitted.tables, plots=fitted.plots, diagnostics=fitted.diagnostics, assumptions=(*fitted.assumptions, "Each categorical predictor is reference-coded; coefficients compare each level with its stated reference."), warnings=fitted.warnings, provenance=fitted.provenance)
+
+
+def poisson_regression(response: Sequence[float], predictors: Mapping[str, Sequence[float]], *, response_name: str = "Count", alpha: float = 0.05) -> ResultBundle:
+    """Fit a bounded Poisson log-link GLM with IRLS for non-negative count Y."""
+    values = finite_values(response, "response"); names = list(predictors); columns = {name: finite_values(column, f"predictors.{name}") for name, column in predictors.items()}
+    if not columns or any(value < 0 or value != int(value) for value in values) or any(len(column) != len(values) for column in columns.values()): raise AnalysisInputError("invalid_poisson_input", "Poisson regression needs aligned numeric predictors and non-negative integer counts.", "response")
+    if len(values) < len(names) + 3: raise AnalysisInputError("insufficient_observations", "Poisson regression needs residual degrees of freedom.", "response")
+    matrix = [[1.0, *(columns[name][index] for name in names)] for index in range(len(values))]; coefficients = [0.0] * (len(names) + 1); inverse = None
+    for _ in range(100):
+        eta = [max(-20.0, min(20.0, sum(value * beta for value, beta in zip(row, coefficients, strict=True)))) for row in matrix]; means = [math.exp(value) for value in eta]
+        information = [[sum(means[row_index] * matrix[row_index][left] * matrix[row_index][right] for row_index in range(len(values))) for right in range(len(coefficients))] for left in range(len(coefficients))]
+        inverse = invert_matrix(information, field="predictors")
+        score = [sum(matrix[row_index][column_index] * (values[row_index] - means[row_index]) for row_index in range(len(values))) for column_index in range(len(coefficients))]
+        updated = [coefficients[index] + sum(inverse[index][column] * score[column] for column in range(len(coefficients))) for index in range(len(coefficients))]
+        if max(abs(left-right) for left, right in zip(updated, coefficients, strict=True)) < 1e-8: coefficients = updated; break
+        coefficients = updated
+    else: raise AnalysisInputError("poisson_not_converged", "Poisson fitting did not converge; review separation, scale, and sparse counts.", "predictors")
+    means = [math.exp(max(-20.0, min(20.0, sum(value * beta for value, beta in zip(row, coefficients, strict=True))))) for row in matrix]; critical = NormalDist().inv_cdf(1-alpha/2); rows=[]
+    for index, term in enumerate(["Intercept", *names]):
+        se=math.sqrt(max(0.0, inverse[index][index])); z=coefficients[index]/se if se else None; p=math.erfc(abs(z)/math.sqrt(2)) if z is not None else None; lower,upper=coefficients[index]-critical*se,coefficients[index]+critical*se
+        rows.append({"term":term,"coefficient":coefficients[index],"incidence_rate_ratio":math.exp(coefficients[index]),"irr_ci_lower":math.exp(lower),"irr_ci_upper":math.exp(upper),"standard_error":se,"z_value":z,"p_value":p,"significant":p <= alpha if p is not None else False})
+    deviance = 2*sum(0.0 if actual == 0 else actual*math.log(actual/mean) - (actual-mean) for actual,mean in zip(values,means,strict=True))
+    return ResultBundle(analysis_type="regression.poisson", engine_version=ENGINE_VERSION, input_digest=input_digest({"response":values,"predictors":columns,"response_name":response_name,"alpha":alpha}), parameters={"response_name":response_name,"predictor_names":names,"alpha":alpha,"sample_size":len(values)}, tables={"coefficients":{"columns":["term","coefficient","incidence_rate_ratio","irr_ci_lower","irr_ci_upper","standard_error","z_value","p_value","significant"],"rows":rows},"fitted_values":{"columns":["observation","actual","predicted_count"],"rows":[{"observation":index+1,"actual":values[index],"predicted_count":mean} for index,mean in enumerate(means)]}}, plots={}, diagnostics={"deviance":deviance,"residual_degrees_of_freedom":len(values)-len(coefficients),"predicted_count_total":sum(means)}, assumptions=("Rows are independent and counts follow a Poisson mean-variance relationship.",), warnings=("Overdispersion or excess zeros can invalidate Poisson standard errors; inspect deviance and process data.",), provenance=(NIST_LINEAR_LEAST_SQUARES_SOURCE,))
+
+
 def polynomial_ols(
     response: Sequence[float],
     predictors: Mapping[str, Sequence[float]],

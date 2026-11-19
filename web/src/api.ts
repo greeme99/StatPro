@@ -602,6 +602,10 @@ export function createOlsValidationRun(payload: { run_id: string; response: numb
 export function createBestSubsetsOlsRun(payload: { run_id: string; response: number[]; predictors: Record<string, number[]>; response_name: string; alpha: number; top_models_per_size: number }): Promise<StoredRun> {
   return request("/v1/analysis-runs/regression-best-subsets-ols", { method: "POST", body: JSON.stringify(payload) });
 }
+
+export function createPoissonRegressionRun(payload: { run_id: string; response: number[]; predictors: Record<string, number[]>; response_name: string; alpha: number }): Promise<StoredRun> {
+  return request("/v1/analysis-runs/regression-poisson", { method: "POST", body: JSON.stringify(payload) });
+}
 export function createLogisticRegressionRun(payload: { run_id: string; response: number[]; predictors: Record<string, number[]>; response_name: string; alpha: number }): Promise<StoredRun> { return request("/v1/analysis-runs/regression-logistic", { method: "POST", body: JSON.stringify(payload) }); }
 export function createIndependentWelchTRun(payload: { run_id: string; group_a: number[]; group_b: number[]; group_a_name: string; group_b_name: string; alpha: number }): Promise<StoredRun> { return request("/v1/analysis-runs/independent-welch-t", { method: "POST", body: JSON.stringify(payload) }); }
 export function createPairedTRun(payload: { run_id: string; before: number[]; after: number[]; before_name: string; after_name: string; alpha: number }): Promise<StoredRun> { return request("/v1/analysis-runs/paired-t", { method: "POST", body: JSON.stringify(payload) }); }

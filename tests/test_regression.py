@@ -6,7 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from statpro.analyses.regression import best_subsets_ols, interaction_ols, linear_ols, logistic_regression, polynomial_ols, stepwise_ols, validate_ols
+from statpro.analyses.regression import best_subsets_ols, categorical_ols, interaction_ols, linear_ols, logistic_regression, poisson_regression, polynomial_ols, stepwise_ols, validate_ols
 from statpro.domain.errors import AnalysisInputError
 
 
@@ -187,6 +187,26 @@ class BestSubsetsRegressionTests(unittest.TestCase):
         with self.assertRaises(AnalysisInputError) as raised:
             best_subsets_ols([float(index) for index in range(20)], {f"x{index}": [float(index + row) for row in range(20)] for index in range(16)})
         self.assertEqual(raised.exception.detail.code, "too_many_subset_predictors")
+
+
+class CategoricalAndPoissonRegressionTests(unittest.TestCase):
+    def test_reference_codes_categorical_predictors_for_ols(self) -> None:
+        result = categorical_ols([10, 11, 15, 16, 10, 11, 15, 16], {"line": ["A", "A", "B", "B", "A", "A", "B", "B"]}, reference_levels={"line": "A"})
+        terms = [row["term"] for row in result.tables["coefficients"]["rows"]]
+        self.assertEqual(result.analysis_type, "regression.categorical_ols")
+        self.assertIn("line[B]", terms)
+        self.assertEqual(result.parameters["reference_levels"], {"line": "A"})
+
+    def test_rejects_unknown_reference_level(self) -> None:
+        with self.assertRaises(AnalysisInputError) as raised:
+            categorical_ols([10, 11, 15, 16], {"line": ["A", "A", "B", "B"]}, reference_levels={"line": "C"})
+        self.assertEqual(raised.exception.detail.code, "unknown_categorical_reference")
+
+    def test_fits_non_negative_count_response_with_poisson_log_link(self) -> None:
+        result = poisson_regression([1, 2, 3, 5, 8, 13, 21, 34], {"exposure": list(range(8))})
+        self.assertEqual(result.analysis_type, "regression.poisson")
+        self.assertEqual(len(result.tables["fitted_values"]["rows"]), 8)
+        self.assertIn("incidence_rate_ratio", result.tables["coefficients"]["columns"])
 
 
 if __name__ == "__main__":
