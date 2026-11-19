@@ -7,6 +7,7 @@ import hashlib
 import io
 import math
 import re
+import sqlite3
 import zipfile
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
@@ -307,6 +308,98 @@ def import_csv_bytes(
         ),
         columns=tuple(columns),
         row_count=len(data_rows),
+    )
+
+
+def import_sqlite_bytes(
+    source_bytes: bytes,
+    *,
+    location: str,
+    table_name: str,
+    type_hints: Mapping[str, DataType] | None = None,
+    error_field: str = "content",
+) -> DatasetSnapshot:
+    """Import one ordinary SQLite table without accepting executable SQL."""
+
+    if not table_name.strip():
+        raise AnalysisInputError("empty_sqlite_table", "SQLite import requires a table name.", "table_name")
+    if len(source_bytes) > 20_000_000:
+        raise AnalysisInputError("dataset_too_large", "SQLite import supports at most 20,000,000 bytes.", error_field)
+    connection = sqlite3.connect(":memory:")
+    try:
+        connection.deserialize(source_bytes)
+        connection.execute("PRAGMA query_only = ON")
+        connection.execute("PRAGMA trusted_schema = OFF")
+        schema_row = connection.execute(
+            "SELECT sql FROM sqlite_schema WHERE type = 'table' AND name = ? AND name NOT LIKE 'sqlite_%'",
+            (table_name,),
+        ).fetchone()
+        if schema_row is None:
+            raise AnalysisInputError("sqlite_table_not_found", "The requested SQLite table does not exist.", "table_name")
+        if schema_row[0] is None or "CREATE VIRTUAL TABLE" in str(schema_row[0]).upper():
+            raise AnalysisInputError("sqlite_table_not_supported", "SQLite virtual tables are not imported.", "table_name")
+        escaped_table = table_name.replace('"', '""')
+        cursor = connection.execute(f'SELECT * FROM "{escaped_table}"')
+        headers = [str(column[0]) for column in cursor.description or ()]
+        if not headers:
+            raise AnalysisInputError("empty_sqlite_table", "SQLite table requires at least one column.", "table_name")
+        if len(headers) > _XLSX_MAX_COLUMNS:
+            raise AnalysisInputError("sqlite_too_wide", "SQLite table exceeds the supported column limit.", "table_name")
+        rows = cursor.fetchmany(1_000_001)
+        if len(rows) > 1_000_000:
+            raise AnalysisInputError("dataset_too_large", "SQLite import supports at most 1,000,000 rows.", "table_name")
+    except AnalysisInputError:
+        raise
+    except (sqlite3.DatabaseError, OverflowError, ValueError) as error:
+        raise AnalysisInputError("sqlite_read_failed", "SQLite content or table data is invalid.", error_field) from error
+    finally:
+        connection.close()
+
+    source_digest = hashlib.sha256(source_bytes).hexdigest()
+    missing_token = f"__statpro_sqlite_null_{source_digest}__"
+    observed_text = {str(value) for row in rows for value in row if value is not None}
+    while missing_token in observed_text:
+        missing_token += "_"
+    text_rows: list[list[str]] = []
+    for row_index, row in enumerate(rows):
+        text_row: list[str] = []
+        for column_index, value in enumerate(row):
+            if value is None:
+                text_row.append(missing_token)
+            elif isinstance(value, bytes):
+                raise AnalysisInputError("sqlite_blob_not_supported", "SQLite BLOB values are not imported.", f"rows[{row_index}][{headers[column_index]}]")
+            elif isinstance(value, float) and not math.isfinite(value):
+                raise AnalysisInputError("non_finite_value", "Numeric values must be finite.", f"rows[{row_index}][{headers[column_index]}]")
+            else:
+                text_row.append(str(value))
+        text_rows.append(text_row)
+    csv_stream = io.StringIO(newline="")
+    writer = csv.writer(csv_stream, lineterminator="\n")
+    writer.writerow(headers)
+    writer.writerows(text_rows)
+    parsed = import_csv_bytes(
+        csv_stream.getvalue().encode("utf-8"),
+        location=location,
+        type_hints=type_hints,
+        missing_tokens=(missing_token,),
+        error_field=error_field,
+    )
+    normalized_payload = {
+        "columns": [column.to_dict() for column in parsed.columns],
+        "format": "sqlite-table",
+        "table_name": table_name,
+    }
+    digest = input_digest(normalized_payload)
+    return replace(
+        parsed,
+        dataset_id=f"ds_{digest[:16]}",
+        digest=digest,
+        source=DatasetSource(
+            kind="sqlite",
+            location=f"{location}#table={table_name}",
+            media_type="application/vnd.sqlite3",
+            content_digest=source_digest,
+        ),
     )
 
 

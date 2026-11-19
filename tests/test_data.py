@@ -3,7 +3,9 @@ from __future__ import annotations
 import sys
 import tempfile
 import unittest
+import hashlib
 import io
+import sqlite3
 import zipfile
 from pathlib import Path
 
@@ -16,6 +18,7 @@ from statpro.domain.data import (
     filter_worksheet_rows,
     import_csv_bytes,
     import_csv_dataset,
+    import_sqlite_bytes,
     import_xlsx_bytes,
     replace_worksheet_cell,
     sort_worksheet_rows,
@@ -24,6 +27,19 @@ from statpro.domain.errors import AnalysisInputError
 
 
 class DatasetImportTests(unittest.TestCase):
+    @staticmethod
+    def _sqlite_bytes() -> bytes:
+        connection = sqlite3.connect(":memory:")
+        try:
+            connection.execute("CREATE TABLE measurements(value REAL, part TEXT, note TEXT)")
+            connection.executemany(
+                "INSERT INTO measurements VALUES (?, ?, ?)",
+                ((10.5, "A", "ok"), (None, "B", "")),
+            )
+            return connection.serialize()
+        finally:
+            connection.close()
+
     @staticmethod
     def _xlsx_bytes(*, formula: bool = False) -> bytes:
         cell = '<c r="A2"><f>1+1</f><v>2</v></c>' if formula else '<c r="A2"><v>10.5</v></c>'
@@ -109,6 +125,40 @@ class DatasetImportTests(unittest.TestCase):
             import_xlsx_bytes(self._xlsx_bytes(), location="process.xlsx", sheet_name="Missing")
 
         self.assertEqual(context.exception.detail.code, "xlsx_sheet_not_found")
+
+    def test_sqlite_selected_table_preserves_source_and_nulls(self) -> None:
+        source = self._sqlite_bytes()
+        dataset = import_sqlite_bytes(
+            source, location="process.sqlite", table_name="measurements"
+        )
+
+        columns = {column.name: column for column in dataset.columns}
+        self.assertEqual(dataset.source.kind, "sqlite")
+        self.assertEqual(dataset.source.location, "process.sqlite#table=measurements")
+        self.assertEqual(dataset.source.content_digest, hashlib.sha256(source).hexdigest())
+        self.assertEqual(dataset.row_count, 2)
+        self.assertEqual(columns["value"].values, (10.5, None))
+        self.assertEqual(columns["note"].values, ("ok", ""))
+
+    def test_sqlite_rejects_unknown_table_and_blob_values(self) -> None:
+        with self.assertRaises(AnalysisInputError) as missing:
+            import_sqlite_bytes(
+                self._sqlite_bytes(), location="process.sqlite", table_name="missing"
+            )
+        connection = sqlite3.connect(":memory:")
+        try:
+            connection.execute("CREATE TABLE payloads(value BLOB)")
+            connection.execute("INSERT INTO payloads VALUES (?)", (b"binary",))
+            blob_source = connection.serialize()
+        finally:
+            connection.close()
+        with self.assertRaises(AnalysisInputError) as blob:
+            import_sqlite_bytes(
+                blob_source, location="payloads.sqlite", table_name="payloads"
+            )
+
+        self.assertEqual(missing.exception.detail.code, "sqlite_table_not_found")
+        self.assertEqual(blob.exception.detail.code, "sqlite_blob_not_supported")
 
     def test_normalized_digest_is_independent_of_file_location(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

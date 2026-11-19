@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import io
+import sqlite3
 import sys
 import unittest
 import zipfile
@@ -84,6 +85,7 @@ class LocalApiContractTests(unittest.TestCase):
         self.assertIn("/v1/worksheets/{worksheet_id}/filter-rows", openapi.json()["paths"])
         self.assertIn("/v1/worksheets/{worksheet_id}/sort-rows", openapi.json()["paths"])
         self.assertIn("/v1/worksheets/{worksheet_id}/derived-columns", openapi.json()["paths"])
+        self.assertIn("/v1/worksheets/import-sqlite", openapi.json()["paths"])
 
     def test_runs_one_way_anova_power_plan(self) -> None:
         response = self.client.post(
@@ -2364,6 +2366,30 @@ class LocalApiContractTests(unittest.TestCase):
         payload = response.json()
         self.assertEqual(payload["dataset"]["source"]["kind"], "xlsx")
         self.assertEqual(payload["worksheet"]["columns"][0]["values"], [10.5])
+
+    def test_sqlite_worksheet_imports_selected_table_read_only(self) -> None:
+        connection = sqlite3.connect(":memory:")
+        try:
+            connection.execute("CREATE TABLE measurements(value REAL, part TEXT)")
+            connection.executemany(
+                "INSERT INTO measurements VALUES (?, ?)", ((10.5, "A"), (None, "B"))
+            )
+            content = base64.b64encode(connection.serialize()).decode("ascii")
+        finally:
+            connection.close()
+
+        response = self.client.post("/v1/worksheets/import-sqlite", json={
+            "file_name": "process.sqlite",
+            "worksheet_name": "SQLite Measurements",
+            "content_base64": content,
+            "table_name": "measurements",
+        })
+
+        self.assertEqual(response.status_code, 201)
+        payload = response.json()
+        self.assertEqual(payload["dataset"]["source"]["kind"], "sqlite")
+        self.assertEqual(payload["dataset"]["source"]["location"], "process.sqlite#table=measurements")
+        self.assertEqual(payload["worksheet"]["columns"][0]["values"], [10.5, None])
 
     def test_worksheet_filter_sort_and_derived_column_create_revisions(self) -> None:
         content = base64.b64encode(

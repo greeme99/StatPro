@@ -154,6 +154,7 @@ from statpro.domain.data import (
     create_worksheet,
     filter_worksheet_rows,
     import_csv_bytes,
+    import_sqlite_bytes,
     import_xlsx_bytes,
     replace_worksheet_cell,
     sort_worksheet_rows,
@@ -1315,6 +1316,14 @@ class ImportCsvWorksheetRequest(ApiModel):
 
 class ImportXlsxWorksheetRequest(ImportCsvWorksheetRequest):
     sheet_name: str | None = Field(default=None, min_length=1, max_length=255)
+
+
+class ImportSqliteWorksheetRequest(ApiModel):
+    file_name: str = Field(min_length=1, max_length=255)
+    worksheet_name: str = Field(min_length=1, max_length=255)
+    content_base64: str = Field(min_length=1, max_length=28_000_000)
+    table_name: str = Field(min_length=1, max_length=255)
+    type_hints: dict[str, DataType] = Field(default_factory=dict)
 
 
 class ReplaceWorksheetCellRequest(ApiModel):
@@ -3823,6 +3832,32 @@ def create_app(
             sheet_name=request.sheet_name,
             type_hints=request.type_hints,
             missing_tokens=request.missing_tokens,
+        )
+        _ensure_dataset(repository, dataset)
+        worksheet = create_worksheet(dataset, name=request.worksheet_name)
+        stored = _save_worksheet(repository, worksheet, expected_version=0)
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _worksheet_response(stored, dataset=dataset)
+
+    @app.post(
+        "/v1/worksheets/import-sqlite",
+        status_code=201,
+        response_model=StoredWorksheetResponse,
+    )
+    def import_worksheet_sqlite(
+        request: ImportSqliteWorksheetRequest, response: Response
+    ) -> StoredWorksheetResponse:
+        try:
+            source_bytes = base64.b64decode(request.content_base64, validate=True)
+        except (binascii.Error, ValueError) as error:
+            raise AnalysisInputError(
+                "invalid_base64", "SQLite content is not valid base64.", "content_base64"
+            ) from error
+        dataset = import_sqlite_bytes(
+            source_bytes,
+            location=request.file_name,
+            table_name=request.table_name,
+            type_hints=request.type_hints,
         )
         _ensure_dataset(repository, dataset)
         worksheet = create_worksheet(dataset, name=request.worksheet_name)
