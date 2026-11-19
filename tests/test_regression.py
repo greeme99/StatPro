@@ -6,7 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from statpro.analyses.regression import interaction_ols, linear_ols, logistic_regression, polynomial_ols, stepwise_ols
+from statpro.analyses.regression import interaction_ols, linear_ols, logistic_regression, polynomial_ols, stepwise_ols, validate_ols
 from statpro.domain.errors import AnalysisInputError
 
 
@@ -142,6 +142,33 @@ class StepwiseRegressionTests(unittest.TestCase):
 
         self.assertEqual(result.parameters["selected_terms"], ["temperature"])
         self.assertEqual([row["action"] for row in result.tables["selection_history"]["rows"]], ["remove", "remove"])
+
+
+class OlsValidationTests(unittest.TestCase):
+    def test_reports_deterministic_k_fold_metrics(self) -> None:
+        result = validate_ols(
+            [2, 3, 5, 7, 11, 13, 17, 19, 23, 29],
+            {"temperature": list(range(10))},
+            method="k_fold",
+            folds=5,
+        )
+
+        self.assertEqual(result.analysis_type, "regression.ols_validation")
+        self.assertEqual(result.parameters["fold_count"], 5)
+        self.assertEqual(len(result.tables["fold_summary"]["rows"]), 5)
+        self.assertIn("rmse", result.diagnostics)
+
+    def test_rejects_k_fold_with_insufficient_rows(self) -> None:
+        with self.assertRaises(AnalysisInputError) as raised:
+            validate_ols([2, 3, 5, 7], {"temperature": [0, 1, 2, 3]}, method="k_fold", folds=5)
+        self.assertEqual(raised.exception.detail.code, "insufficient_validation_observations")
+
+    def test_reports_holdout_metrics_for_last_rows(self) -> None:
+        result = validate_ols([2, 3, 5, 7, 11, 13, 17, 19, 23, 29], {"temperature": list(range(10))}, method="holdout")
+        predictions = result.tables["held_out_predictions"]["rows"]
+        self.assertEqual(result.parameters["validation_method"], "holdout")
+        self.assertEqual([row["observation"] for row in predictions], [9, 10])
+        self.assertIsNotNone(result.diagnostics["r_squared_pred"])
 
 
 if __name__ == "__main__":

@@ -286,6 +286,68 @@ def stepwise_ols(
     )
 
 
+def validate_ols(
+    response: Sequence[float],
+    predictors: Mapping[str, Sequence[float]],
+    *,
+    response_name: str = "Response",
+    method: str = "k_fold",
+    folds: int = 5,
+    holdout_fraction: float = 0.2,
+    alpha: float = 0.05,
+) -> ResultBundle:
+    """Evaluate OLS on deterministic holdout or k-fold partitions without train/test leakage."""
+    values = finite_values(response, "response")
+    columns = {name: finite_values(column, f"predictors.{name}") for name, column in predictors.items()}
+    if not columns or any(len(column) != len(values) for column in columns.values()):
+        raise AnalysisInputError("invalid_validation_predictors", "Predictors must align with the response.", "predictors")
+    parameter_count = len(columns) + 1
+    if method == "k_fold":
+        if not isinstance(folds, int) or isinstance(folds, bool) or folds < 2 or len(values) < folds * 2:
+            raise AnalysisInputError("insufficient_validation_observations", "K-fold validation needs at least two observations per fold.", "folds")
+        partitions = [list(range(index, len(values), folds)) for index in range(folds)]
+    elif method == "holdout":
+        if not 0.1 <= holdout_fraction <= 0.5:
+            raise AnalysisInputError("invalid_holdout_fraction", "Use a holdout fraction between 0.10 and 0.50.", "holdout_fraction")
+        holdout_size = max(1, round(len(values) * holdout_fraction))
+        partitions = [list(range(len(values) - holdout_size, len(values)))]
+    else:
+        raise AnalysisInputError("invalid_validation_method", "Use k_fold or holdout validation.", "method")
+    if any(len(values) - len(test_rows) <= parameter_count + 1 for test_rows in partitions):
+        raise AnalysisInputError("insufficient_validation_observations", "Each training partition needs residual degrees of freedom.", "response")
+
+    predictions: list[dict[str, float | int]] = []
+    fold_rows: list[dict[str, float | int]] = []
+    for fold_index, test_rows in enumerate(partitions, start=1):
+        test_set = set(test_rows)
+        train_rows = [index for index in range(len(values)) if index not in test_set]
+        fitted = linear_ols(
+            [values[index] for index in train_rows],
+            {name: [column[index] for index in train_rows] for name, column in columns.items()},
+            response_name=response_name,
+            alpha=alpha,
+        )
+        coefficients = {str(row["term"]): float(row["coefficient"]) for row in fitted.tables["coefficients"]["rows"]}
+        fold_errors: list[float] = []
+        for index in test_rows:
+            predicted = coefficients["Intercept"] + sum(coefficients[name] * columns[name][index] for name in columns)
+            error = values[index] - predicted
+            fold_errors.append(error)
+            predictions.append({"fold": fold_index, "observation": index + 1, "actual": values[index], "predicted": predicted, "residual": error})
+        fold_rows.append({"fold": fold_index, "train_size": len(train_rows), "test_size": len(test_rows), "rmse": math.sqrt(sum(error * error for error in fold_errors) / len(fold_errors)), "mae": sum(abs(error) for error in fold_errors) / len(fold_errors)})
+    residual_ss = sum(float(row["residual"]) ** 2 for row in predictions)
+    mean_actual = fmean(float(row["actual"]) for row in predictions)
+    total_ss = sum((float(row["actual"]) - mean_actual) ** 2 for row in predictions)
+    return ResultBundle(
+        analysis_type="regression.ols_validation", engine_version=ENGINE_VERSION,
+        input_digest=input_digest({"response": values, "predictors": columns, "response_name": response_name, "method": method, "folds": folds, "holdout_fraction": holdout_fraction, "alpha": alpha}),
+        parameters={"response_name": response_name, "predictor_names": list(columns), "validation_method": method, "fold_count": len(partitions), "sample_size": len(values)},
+        tables={"fold_summary": {"columns": ["fold", "train_size", "test_size", "rmse", "mae"], "rows": fold_rows}, "held_out_predictions": {"columns": ["fold", "observation", "actual", "predicted", "residual"], "rows": predictions}}, plots={},
+        diagnostics={"rmse": math.sqrt(residual_ss / len(predictions)), "mae": sum(abs(float(row["residual"])) for row in predictions) / len(predictions), "r_squared_pred": 1.0 - residual_ss / total_ss if total_ss else None},
+        assumptions=("Validation folds retain the input row order and are deterministic; use time-aware splits when order encodes process time.",), warnings=("Validation estimates prediction error for comparable future observations; review drift, leakage, and process constraints.",), provenance=(NIST_LINEAR_LEAST_SQUARES_SOURCE,),
+    )
+
+
 def linear_ols(
     response: Sequence[float],
     predictors: Mapping[str, Sequence[float]],

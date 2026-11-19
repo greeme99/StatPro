@@ -594,6 +594,10 @@ export function createInteractionOlsRun(payload: { run_id: string; response: num
 export function createStepwiseOlsRun(payload: { run_id: string; response: number[]; predictors: Record<string, number[]>; response_name: string; alpha: number; interaction_terms: boolean; method: string; criterion: string; alpha_enter: number; alpha_remove: number }): Promise<StoredRun> {
   return request("/v1/analysis-runs/regression-stepwise-ols", { method: "POST", body: JSON.stringify(payload) });
 }
+
+export function createOlsValidationRun(payload: { run_id: string; response: number[]; predictors: Record<string, number[]>; response_name: string; alpha: number; method: string; folds: number; holdout_fraction: number }): Promise<StoredRun> {
+  return request("/v1/analysis-runs/regression-ols-validation", { method: "POST", body: JSON.stringify(payload) });
+}
 export function createLogisticRegressionRun(payload: { run_id: string; response: number[]; predictors: Record<string, number[]>; response_name: string; alpha: number }): Promise<StoredRun> { return request("/v1/analysis-runs/regression-logistic", { method: "POST", body: JSON.stringify(payload) }); }
 export function createIndependentWelchTRun(payload: { run_id: string; group_a: number[]; group_b: number[]; group_a_name: string; group_b_name: string; alpha: number }): Promise<StoredRun> { return request("/v1/analysis-runs/independent-welch-t", { method: "POST", body: JSON.stringify(payload) }); }
 export function createPairedTRun(payload: { run_id: string; before: number[]; after: number[]; before_name: string; after_name: string; alpha: number }): Promise<StoredRun> { return request("/v1/analysis-runs/paired-t", { method: "POST", body: JSON.stringify(payload) }); }

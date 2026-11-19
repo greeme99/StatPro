@@ -85,10 +85,10 @@
 - Consumes: Task 2's selected-term model configuration.
 - Produces: deterministic validation diagnostics `rmse`, `mae`, `r_squared_pred`, fold/holdout sizes, and per-fold summary tables.
 
-- [ ] Write failing tests for deterministic 5-fold validation, holdout metrics, and insufficient data rejection.
-- [ ] Run focused tests and verify validation diagnostics are absent.
-- [ ] Implement row-index deterministic holdout/k-fold evaluation that refits only on train rows and aggregates held-out predictions.
-- [ ] Present validation summaries in the result workflow.
+- [x] Write failing tests for deterministic 5-fold validation, holdout metrics, and insufficient data rejection.
+- [x] Run focused tests and verify validation diagnostics are absent.
+- [x] Implement row-index deterministic holdout/k-fold evaluation that refits only on train rows and aggregates held-out predictions.
+- [x] Present validation summaries in the result workflow.
 - [ ] Run backend/API/frontend focused checks and commit `feat(regression): add model validation metrics`.
 
 ### Task 4: Best subsets comparison

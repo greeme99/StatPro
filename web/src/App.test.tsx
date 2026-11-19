@@ -255,6 +255,16 @@ describe("StatPro UI", () => {
     expect(JSON.parse(String((call?.[1] as RequestInit).body))).toMatchObject({ method: "forward", criterion: "bic", interaction_terms: true, alpha_enter: 0.05, alpha_remove: 0.1 });
   });
 
+  it("submits k-fold OLS validation options", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({}), { status: 201, headers: { "Content-Type": "application/json" } }));
+    render(<MemoryRouter initialEntries={["/analyses/regression/validation"]}><App /></MemoryRouter>);
+    await userEvent.selectOptions(await screen.findByRole("combobox", { name: "분할 수 k" }), "3");
+    await userEvent.click(screen.getByRole("button", { name: "회귀 모형 검증 실행" }));
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith("/regression-ols-validation") && (init as RequestInit | undefined)?.method === "POST")).toBe(true));
+    const call = fetchMock.mock.calls.find(([url, init]) => String(url).endsWith("/regression-ols-validation") && (init as RequestInit | undefined)?.method === "POST");
+    expect(JSON.parse(String((call?.[1] as RequestInit).body))).toMatchObject({ method: "k_fold", folds: 3, holdout_fraction: 0.2 });
+  });
+
   it("renders OLS fit, ANOVA, and residual review from the stored result contract", async () => {
     const user = userEvent.setup();
     const result = {

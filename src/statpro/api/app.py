@@ -52,7 +52,7 @@ from statpro.analyses.normality import jarque_bera_normality
 from statpro.analyses.hypothesis import independent_welch_t_test
 from statpro.analyses.hypothesis import paired_t_test
 from statpro.analyses.hypothesis import chi_square_independence, one_way_anova
-from statpro.analyses.regression import interaction_ols, linear_ols, logistic_regression, polynomial_ols, stepwise_ols
+from statpro.analyses.regression import interaction_ols, linear_ols, logistic_regression, polynomial_ols, stepwise_ols, validate_ols
 from statpro.analyses.spc import (
     c_chart,
     cusum_chart,
@@ -416,6 +416,12 @@ class StepwiseOlsRunRequest(LinearOlsRunRequest):
     criterion: str = "aicc"
     alpha_enter: float = Field(default=0.05, ge=0.001, le=0.5)
     alpha_remove: float = Field(default=0.10, ge=0.001, le=0.5)
+
+
+class OlsValidationRunRequest(LinearOlsRunRequest):
+    method: str = "k_fold"
+    folds: StrictInt = Field(default=5, ge=2, le=20)
+    holdout_fraction: float = Field(default=0.2, ge=0.1, le=0.5)
 
 
 class LogisticRegressionRunRequest(ApiModel):
@@ -2733,6 +2739,12 @@ def create_app(
     @app.post("/v1/analysis-runs/regression-stepwise-ols", status_code=201, response_model=StoredRunResponse)
     def run_stepwise_ols(request: StepwiseOlsRunRequest, response: Response) -> StoredRunResponse:
         stored = _save_run(repository, request.run_id, stepwise_ols(request.response, request.predictors, response_name=request.response_name, interaction_terms=request.interaction_terms, method=request.method, criterion=request.criterion, alpha_enter=request.alpha_enter, alpha_remove=request.alpha_remove, alpha=request.alpha))
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _response(stored)
+
+    @app.post("/v1/analysis-runs/regression-ols-validation", status_code=201, response_model=StoredRunResponse)
+    def run_ols_validation(request: OlsValidationRunRequest, response: Response) -> StoredRunResponse:
+        stored = _save_run(repository, request.run_id, validate_ols(request.response, request.predictors, response_name=request.response_name, method=request.method, folds=request.folds, holdout_fraction=request.holdout_fraction, alpha=request.alpha))
         response.headers["ETag"] = f'"{stored.etag}"'
         return _response(stored)
 

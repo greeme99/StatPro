@@ -986,6 +986,17 @@ class LocalApiContractTests(unittest.TestCase):
                 "regression.stepwise_ols",
             ),
             (
+                "/v1/analysis-runs/regression-ols-validation",
+                {
+                    "run_id": "ols-validation",
+                    "response": [2, 3, 5, 7, 11, 13, 17, 19, 23, 29],
+                    "predictors": {"temperature": list(range(10))},
+                    "method": "k_fold",
+                    "folds": 5,
+                },
+                "regression.ols_validation",
+            ),
+            (
                 "/v1/analysis-runs/independent-welch-t",
                 {"run_id": "welch-t", "group_a": [1, 2, 3, 4], "group_b": [3, 4, 5, 6]},
                 "hypothesis.independent_welch_t",
