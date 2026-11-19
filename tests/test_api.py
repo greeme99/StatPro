@@ -54,6 +54,7 @@ class LocalApiContractTests(unittest.TestCase):
         self.assertIn("/v1/analysis-runs/power-two-sample-mean", openapi.json()["paths"])
         self.assertIn("/v1/analysis-runs/power-two-sample-proportion", openapi.json()["paths"])
         self.assertIn("/v1/analysis-runs/power-one-sample-proportion", openapi.json()["paths"])
+        self.assertIn("/v1/analysis-runs/power-paired-mean", openapi.json()["paths"])
         self.assertIn("/v1/analysis-runs/regression-linear-ols", openapi.json()["paths"])
         self.assertIn("/v1/analysis-runs/regression-polynomial-ols", openapi.json()["paths"])
         self.assertIn("/v1/analysis-runs/independent-welch-t", openapi.json()["paths"])

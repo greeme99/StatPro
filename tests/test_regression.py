@@ -12,7 +12,7 @@ from statpro.analyses.hypothesis import mann_whitney_u_test
 from statpro.analyses.hypothesis import wilcoxon_signed_rank_test
 from statpro.analyses.hypothesis import kruskal_wallis_test
 from statpro.analyses.hypothesis import independent_tost_equivalence
-from statpro.analyses.power import one_sample_proportion_sample_size, two_sample_mean_sample_size, two_sample_proportion_sample_size
+from statpro.analyses.power import one_sample_proportion_sample_size, paired_mean_sample_size, two_sample_mean_sample_size, two_sample_proportion_sample_size
 from statpro.analyses.hypothesis import one_sample_t_test
 from statpro.analyses.proportion import one_sample_proportion_test
 from statpro.analyses.proportion import two_sample_proportion_test
@@ -284,6 +284,11 @@ class PowerAnalysisTests(unittest.TestCase):
         result = one_sample_proportion_sample_size(null_proportion=0.05, expected_proportion=0.12, alpha=0.05, target_power=0.8)
         self.assertEqual(result.analysis_type, "power.one_sample_proportion")
         self.assertGreater(result.diagnostics["required_sample_size"], 0)
+
+    def test_plans_paired_mean_size(self) -> None:
+        result = paired_mean_sample_size(difference=1, difference_standard_deviation=1, alpha=0.05, target_power=0.8)
+        self.assertEqual(result.analysis_type, "power.paired_mean")
+        self.assertGreaterEqual(result.diagnostics["required_pairs"], 8)
 
 
 class OneSampleTTests(unittest.TestCase):

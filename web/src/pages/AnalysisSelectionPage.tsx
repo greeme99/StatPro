@@ -88,6 +88,7 @@ export function AnalysisSelectionPage() {
           <Link className="analysis-choice" to="/analyses/power/two-sample-mean"><strong>표본크기 계획</strong><span>독립 두 집단 평균 비교에 필요한 표본 수를 사전에 산정합니다.</span></Link>
           <Link className="analysis-choice" to="/analyses/power/two-sample-proportion"><strong>두 비율 표본수 계획</strong><span>두 생산라인의 예상 불량률 차이를 검출할 검사 수를 사전에 산정합니다.</span></Link>
           <Link className="analysis-choice" to="/analyses/power/one-sample-proportion"><strong>단일 비율 표본수 계획</strong><span>목표 불량률과 검출하려는 불량률 차이에 필요한 검사 수를 산정합니다.</span></Link>
+          <Link className="analysis-choice" to="/analyses/power/paired-mean"><strong>대응 평균 표본수 계획</strong><span>같은 설비·제품의 개선 전후 차이를 검출할 필요한 쌍 수를 산정합니다.</span></Link>
           <Link className="analysis-choice" to="/analyses/regression/linear"><strong>선형회귀 분석</strong><span>연속형 결과(Y)와 하나 이상의 설명변수(X) 관계를 추정합니다.</span></Link>
           <Link className="analysis-choice" to="/analyses/regression/polynomial"><strong>다항회귀 분석</strong><span>관측 범위 안에서 곡선형 X–Y 관계를 2차 또는 3차 항으로 추정합니다.</span></Link>
           <Link className="analysis-choice" to="/analyses/regression/interaction"><strong>교호작용 회귀 분석</strong><span>두 X의 결합 효과가 연속형 결과(Y)에 미치는 변화를 추정합니다.</span></Link>

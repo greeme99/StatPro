@@ -55,3 +55,17 @@ def one_sample_proportion_sample_size(*, null_proportion: float, expected_propor
     required = math.ceil((numerator / difference) ** 2)
     row = {"null_proportion": null_proportion, "expected_proportion": expected_proportion, "absolute_difference": difference, "alpha": alpha, "target_power": target_power, "required_sample_size": required}
     return ResultBundle(analysis_type="power.one_sample_proportion", engine_version=ENGINE_VERSION, input_digest=input_digest(row), parameters={"method": "normal_approximation_one_sample_proportion", "alternative": "two_sided"}, tables={"plan": {"columns": list(row), "rows": [row]}}, plots={}, diagnostics=row, assumptions=("Each opportunity produces an independent binary outcome.", "The normal approximation is adequate for the target and expected defect rates."), warnings=("This is a prospective planning calculation; use an exact or continuity-corrected design for rare events when required by the protocol.",), provenance=(NIST_POWER_SOURCE,))
+
+
+def paired_mean_sample_size(*, difference: float, difference_standard_deviation: float, alpha: float = 0.05, target_power: float = 0.8) -> ResultBundle:
+    """Estimate required matched pairs for a two-sided paired mean comparison."""
+    if difference <= 0 or difference_standard_deviation <= 0:
+        raise AnalysisInputError("invalid_effect_inputs", "Difference and paired-difference standard deviation must be positive.", "difference")
+    if not 0.001 <= alpha <= 0.5 or not 0.5 < target_power < 0.999:
+        raise AnalysisInputError("invalid_power_inputs", "Use valid alpha and target power above 0.5.", "target_power")
+    effect_size = difference / difference_standard_deviation
+    z_alpha = _normal_quantile(1 - alpha / 2.0)
+    z_power = _normal_quantile(target_power)
+    required_pairs = math.ceil(((z_alpha + z_power) / effect_size) ** 2)
+    row = {"difference": difference, "difference_standard_deviation": difference_standard_deviation, "paired_effect_size": effect_size, "alpha": alpha, "target_power": target_power, "required_pairs": required_pairs}
+    return ResultBundle(analysis_type="power.paired_mean", engine_version=ENGINE_VERSION, input_digest=input_digest(row), parameters={"method": "normal_approximation_paired_mean", "alternative": "two_sided"}, tables={"plan": {"columns": list(row), "rows": [row]}}, plots={}, diagnostics=row, assumptions=("Each before/after pair belongs to the same unit and pairs are independent of each other.", "The paired differences have a planning standard deviation suitable for a normal approximation."), warnings=("This is a prospective planning calculation; estimate the standard deviation from paired pilot data, not separate marginal standard deviations.",), provenance=(NIST_POWER_SOURCE,))
