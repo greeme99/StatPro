@@ -8,9 +8,11 @@
     "BSD-3-Clause",
     "CC0-1.0",
     "ISC",
+    "LGPL-3.0-or-later",
     "MIT",
     "MIT-0",
     "MPL-2.0"
+    ,"PSF-2.0"
   ],
   "python_direct_dependencies": {
     "fastapi": {"declared_license": "MIT", "purpose": "Loopback HTTP API adapter", "boundary": "Optional api extra"},
@@ -19,7 +21,9 @@
     "numpy": {"declared_license": "BSD-3-Clause", "purpose": "Numerical support for advanced statistical analysis", "boundary": "Optional advanced extra"},
     "openai-codex": {"declared_license": "Apache-2.0", "purpose": "Read-only AI Copilot fallback SDK", "boundary": "Optional codex extra"},
     "pyjwt": {"declared_license": "MIT", "purpose": "Verified enterprise identity token decoding", "boundary": "Optional identity extra"},
+    "psycopg": {"declared_license": "LGPL-3.0-or-later", "purpose": "Approved PostgreSQL read-only connector", "boundary": "Optional external-sql extra"},
     "python-docx": {"declared_license": "MIT", "purpose": "DMAIC Word report generation", "boundary": "Optional advanced extra"},
+    "pywin32": {"declared_license": "PSF-2.0", "purpose": "Windows Credential Manager secret adapter", "boundary": "Optional external-sql extra"},
     "scipy": {"declared_license": "BSD-3-Clause", "purpose": "Advanced statistical routines", "boundary": "Optional advanced extra"},
     "statsmodels": {"declared_license": "BSD-3-Clause", "purpose": "REML Gage R and R estimation", "boundary": "Optional advanced extra"},
     "uvicorn": {"declared_license": "BSD-3-Clause", "purpose": "Loopback ASGI server", "boundary": "Optional api extra"}

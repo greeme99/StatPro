@@ -8,7 +8,9 @@
 - **통계적 공정관리(SPC)**: I-MR, Xbar-R, Xbar-S, EWMA, CUSUM, p/np/c/u, Laney P′/U′, 희귀사건 G/T, 정규·경험적 비정규 공정능력
 - **측정시스템분석(MSA)**: 균형 교차·중첩 Gage R&R(비풀링 ANOVA F·p 판정, 반복성 분산의 정확 95% 신뢰구간), Attribute Agreement, Gage 편의·선형성
 - **고장 형태 및 영향 분석(FMEA)**: 불변 개정, AIAG/VDA 7단계, 조치·재평가·검토·승인, 외부 Action Priority 정책, PFMEA–Control Plan 추적, SPC/MSA Run 연결
-- **데이터·실행 관리**: UTF-8 CSV, 값 전용 XLSX, 평면 scalar Parquet와 지정 SQLite 일반 테이블 Dataset snapshot, 필터·정렬·열 선택·열 이름 변경·선택형 사칙연산 파생 열·단일 키 내부 조인·현재 revision CSV 내보내기를 갖춘 Worksheet, Analysis Run, ETag/낙관적 동시성, cursor paging, ResultBundle
+- **데이터·실행 관리**: UTF-8 CSV, 값 전용 XLSX, 평면 scalar Parquet, 지정 SQLite 일반 테이블 및 승인된 PostgreSQL 프로필의 고정 테이블 Dataset snapshot, 필터·정렬·열 선택·열 이름 변경·선택형 사칙연산 파생 열·단일 키 내부 조인·현재 revision CSV 내보내기를 갖춘 Worksheet, Analysis Run, ETag/낙관적 동시성, cursor paging, ResultBundle
+
+승인된 PostgreSQL 가져오기는 `statpro-api --external-sql-profiles profiles.json`으로 시작합니다. 프로필은 `profile_id`, `host`, `port`, `database`, `user`, `credential_target`, `allowed_schema`, `allowed_table`과 선택 제한값만 포함하는 JSON 배열이며 암호 필드는 거부됩니다. 암호는 Windows Credential Manager의 Generic Credential(`credential_target`)에서만 읽고, API는 해당 프로필의 고정 테이블에 대한 제한된 `SELECT *`만 실행합니다. 실제 서버·TLS 인증서·읽기 전용 계정 검증은 각 운영 환경에서 별도로 수행해야 합니다.
 - **기초 분석·결과 출력**: Jarque–Bera 정규성 진단과 다중 예측변수 OLS 선형회귀를 실행하며, 모든 Analysis Run의 읽기 전용 인쇄 보고서·JSON·CSV·Excel 호환 표를 제공합니다. OLS는 엔진이 산출한 적합값·잔차가 모두 있을 때 잔차–적합값 PNG·SVG와 전용 인쇄 보고서를 추가로 제공합니다.
 - **품질 도구와 DMAIC 연결**: 체크 시트, 일반 파레토, 특성요인도, 홈 기반 DMAIC 작업 흐름과 학습 리소스
 - **품질 대시보드**: 저장된 ResultBundle의 수치 경로를 불변 지표 스냅샷으로 연결하고 상태·담당·검토 주기·원본 Run 증거를 함께 표시

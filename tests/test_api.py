@@ -91,6 +91,8 @@ class LocalApiContractTests(unittest.TestCase):
         self.assertIn("/v1/worksheets/{worksheet_id}/select-columns", openapi.json()["paths"])
         self.assertIn("/v1/worksheets/{worksheet_id}/rename-column", openapi.json()["paths"])
         self.assertIn("/v1/worksheets/import-sqlite", openapi.json()["paths"])
+        self.assertIn("/v1/external-sql/profiles", openapi.json()["paths"])
+        self.assertIn("/v1/worksheets/import-external-postgres", openapi.json()["paths"])
         self.assertIn("/v1/worksheets/import-parquet", openapi.json()["paths"])
         self.assertIn("/v1/worksheets/{worksheet_id}/inner-join", openapi.json()["paths"])
 

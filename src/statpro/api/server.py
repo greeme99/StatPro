@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 from collections.abc import Sequence
 from pathlib import Path
@@ -18,6 +19,31 @@ _COPILOT_ENV_KEYS = {
     "STATPRO_COPILOT_CODEX_ENABLED",
     "STATPRO_COPILOT_CODEX_MODEL",
 }
+
+
+def load_external_sql_profiles(path: Path | None):
+    """Load administrator-approved PostgreSQL profiles without accepting secrets."""
+    if path is None:
+        return {}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise ValueError(f"Invalid external SQL profile file: {path}") from error
+    if not isinstance(payload, list):
+        raise ValueError("External SQL profile file must contain a JSON array.")
+    from statpro.application.external_sql import PostgreSqlProfile
+    profiles = {}
+    for index, item in enumerate(payload):
+        if not isinstance(item, dict) or "password" in item:
+            raise ValueError(f"External SQL profile {index} is invalid or contains a forbidden secret.")
+        try:
+            profile = PostgreSqlProfile(**item)
+        except (TypeError, ValueError) as error:
+            raise ValueError(f"External SQL profile {index} is invalid.") from error
+        if profile.profile_id in profiles:
+            raise ValueError(f"External SQL profile ID is duplicated: {profile.profile_id}")
+        profiles[profile.profile_id] = profile
+    return profiles
 
 
 def load_copilot_env(path: Path) -> None:
@@ -46,11 +72,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--approval-identities", type=Path)
     parser.add_argument("--env-file", type=Path, default=Path(".env"))
+    parser.add_argument("--external-sql-profiles", type=Path)
     args = parser.parse_args(argv)
     if args.host not in {"127.0.0.1", "::1", "localhost"}:
         parser.error("StatPro API is local-only; host must be a loopback address.")
     try:
         load_copilot_env(args.env_file)
+        external_sql_profiles = load_external_sql_profiles(args.external_sql_profiles)
     except (OSError, UnicodeError, ValueError) as error:
         parser.error(str(error))
 
@@ -59,7 +87,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     from statpro.api.app import create_local_app
 
     uvicorn.run(
-        create_local_app(args.storage, args.approval_identities),
+        create_local_app(args.storage, args.approval_identities, external_sql_profiles=external_sql_profiles),
         host=args.host,
         port=args.port,
     )

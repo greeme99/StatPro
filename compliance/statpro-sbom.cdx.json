@@ -3106,6 +3106,27 @@
     },
     {
       "type": "library",
+      "bom-ref": "pkg:pypi/psycopg?declared=true",
+      "name": "psycopg",
+      "scope": "optional",
+      "licenses": [
+        {
+          "expression": "LGPL-3.0-or-later"
+        }
+      ],
+      "properties": [
+        {
+          "name": "statpro:resolution",
+          "value": "declared-not-locked"
+        },
+        {
+          "name": "statpro:extras",
+          "value": "external-sql"
+        }
+      ]
+    },
+    {
+      "type": "library",
       "bom-ref": "pkg:pypi/pyjwt?declared=true",
       "name": "pyjwt",
       "scope": "optional",
@@ -3143,6 +3164,27 @@
         {
           "name": "statpro:extras",
           "value": "advanced"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:pypi/pywin32?declared=true",
+      "name": "pywin32",
+      "scope": "optional",
+      "licenses": [
+        {
+          "expression": "PSF-2.0"
+        }
+      ],
+      "properties": [
+        {
+          "name": "statpro:resolution",
+          "value": "declared-not-locked"
+        },
+        {
+          "name": "statpro:extras",
+          "value": "external-sql"
         }
       ]
     },

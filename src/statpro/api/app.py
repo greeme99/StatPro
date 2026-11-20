@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import binascii
 import re
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, Any, Literal
@@ -167,6 +168,7 @@ from statpro.domain.errors import AnalysisInputError, DomainInputError
 from statpro.domain.identity import input_digest
 from statpro.domain.models import ResultBundle
 from statpro.domain.schema import result_bundle_schema
+from statpro.application.external_sql import PostgreSqlProfile, WindowsCredentialManager, import_approved_postgres_table
 from statpro.fmea import (
     ActionPriorityEntry,
     ActionPriorityPolicy,
@@ -253,6 +255,13 @@ RunId = Annotated[str, Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")]
 
 class ApiModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
+
+
+class ImportExternalPostgresWorksheetRequest(ApiModel):
+    profile_id: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+    worksheet_name: str = Field(min_length=1, max_length=255)
+    type_hints: dict[str, DataType] = Field(default_factory=dict)
+    missing_tokens: list[str] = Field(default_factory=lambda: [""], max_length=100)
 
 
 class CopilotGuidanceRequest(ApiModel):
@@ -2308,10 +2317,12 @@ def create_app(
     approval_authenticator: LocalApprovalAuthenticator | None = None,
     enterprise_approval_authenticator: EnterpriseApprovalAuthenticator | None = None,
     copilot_provider: CopilotProvider | None = None,
+    external_sql_profiles: Mapping[str, PostgreSqlProfile] | None = None,
 ) -> FastAPI:
     """Create a testable local API with an injected persistence adapter."""
 
     active_copilot_provider = copilot_provider or build_default_copilot_provider()
+    approved_external_sql_profiles = dict(external_sql_profiles or {})
     app = FastAPI(
         title="StatPro Local API",
         version=ENGINE_VERSION,
@@ -3839,6 +3850,22 @@ def create_app(
             type_hints=request.type_hints,
             missing_tokens=request.missing_tokens,
         )
+        _ensure_dataset(repository, dataset)
+        worksheet = create_worksheet(dataset, name=request.worksheet_name)
+        stored = _save_worksheet(repository, worksheet, expected_version=0)
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _worksheet_response(stored, dataset=dataset)
+
+    @app.get("/v1/external-sql/profiles")
+    def list_external_sql_profiles() -> dict[str, object]:
+        return {"items": [profile.to_dict() for _, profile in sorted(approved_external_sql_profiles.items())]}
+
+    @app.post("/v1/worksheets/import-external-postgres", status_code=201, response_model=StoredWorksheetResponse)
+    def import_approved_postgres_worksheet(request: ImportExternalPostgresWorksheetRequest, response: Response) -> StoredWorksheetResponse:
+        profile = approved_external_sql_profiles.get(request.profile_id)
+        if profile is None:
+            raise AnalysisInputError("external_sql_profile_not_found", "The requested external SQL profile is not approved.", "profile_id")
+        dataset = import_approved_postgres_table(profile, WindowsCredentialManager(), type_hints=request.type_hints, missing_tokens=request.missing_tokens)
         _ensure_dataset(repository, dataset)
         worksheet = create_worksheet(dataset, name=request.worksheet_name)
         stored = _save_worksheet(repository, worksheet, expected_version=0)
@@ -5410,10 +5437,10 @@ def create_app(
 
 
 def create_local_app(
-    storage_root: Path, approval_identity_file: Path | None = None
+    storage_root: Path, approval_identity_file: Path | None = None, *, external_sql_profiles: Mapping[str, PostgreSqlProfile] | None = None
 ) -> FastAPI:
     identity_file = approval_identity_file or storage_root / "approval-identities.json"
     authenticator = (
         LocalApprovalAuthenticator.from_file(identity_file) if identity_file.exists() else None
     )
-    return create_app(AtomicJsonDocumentRepository(storage_root), authenticator)
+    return create_app(AtomicJsonDocumentRepository(storage_root), authenticator, external_sql_profiles=external_sql_profiles)
