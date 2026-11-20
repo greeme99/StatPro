@@ -57,7 +57,7 @@ from statpro.analyses.hypothesis import independent_tost_equivalence, independen
 from statpro.analyses.hypothesis import one_sample_t_test
 from statpro.analyses.hypothesis import paired_t_test, wilcoxon_signed_rank_test
 from statpro.analyses.hypothesis import chi_square_independence, kruskal_wallis_test, one_way_anova
-from statpro.analyses.regression import best_subsets_ols, categorical_ols, interaction_ols, linear_ols, logistic_regression, poisson_regression, polynomial_ols, stepwise_ols, validate_ols
+from statpro.analyses.regression import best_subsets_ols, categorical_ols, interaction_ols, linear_ols, logistic_regression, negative_binomial_regression, poisson_regression, polynomial_ols, stepwise_ols, validate_ols
 from statpro.analyses.spc import (
     c_chart,
     cusum_chart,
@@ -518,6 +518,10 @@ class BestSubsetsOlsRunRequest(LinearOlsRunRequest):
 
 class PoissonRegressionRunRequest(LinearOlsRunRequest):
     response_name: str = Field(default="Count", min_length=1, max_length=255)
+
+
+class NegativeBinomialRegressionRunRequest(PoissonRegressionRunRequest):
+    pass
 
 
 class CategoricalOlsRunRequest(ApiModel):
@@ -2965,6 +2969,12 @@ def create_app(
     @app.post("/v1/analysis-runs/regression-poisson", status_code=201, response_model=StoredRunResponse)
     def run_poisson_regression(request: PoissonRegressionRunRequest, response: Response) -> StoredRunResponse:
         stored = _save_run(repository, request.run_id, poisson_regression(request.response, request.predictors, response_name=request.response_name, alpha=request.alpha))
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _response(stored)
+
+    @app.post("/v1/analysis-runs/regression-negative-binomial", status_code=201, response_model=StoredRunResponse)
+    def run_negative_binomial_regression(request: NegativeBinomialRegressionRunRequest, response: Response) -> StoredRunResponse:
+        stored = _save_run(repository, request.run_id, negative_binomial_regression(request.response, request.predictors, response_name=request.response_name, alpha=request.alpha))
         response.headers["ETag"] = f'"{stored.etag}"'
         return _response(stored)
 

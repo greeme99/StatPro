@@ -100,6 +100,7 @@ function WorkspaceRoutes() {
           <Route path="/analyses/regression/best-subsets" element={<BasicAnalysisSetupPage />} />
           <Route path="/analyses/regression/categorical-ols" element={<CategoricalOlsSetupPage />} />
           <Route path="/analyses/regression/poisson" element={<BasicAnalysisSetupPage />} />
+          <Route path="/analyses/regression/negative-binomial" element={<BasicAnalysisSetupPage />} />
           <Route path="/analyses/regression/logistic" element={<BasicAnalysisSetupPage />} />
           <Route path="/analyses/hypothesis/independent-welch-t" element={<WelchTSetupPage />} />
           <Route path="/analyses/hypothesis/independent-tost-equivalence" element={<WelchTSetupPage />} />

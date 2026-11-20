@@ -241,6 +241,19 @@ describe("StatPro UI", () => {
     expect(JSON.parse(String((call?.[1] as RequestInit).body))).toMatchObject({ response: [1, 2, 3, 5, 8, 13], predictors: { 온도: [180, 185, 190, 195, 200, 205] } });
   });
 
+  it("submits non-negative integer counts to the negative binomial workspace", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      return new Response(JSON.stringify({ run_id: "negative-binomial-test", storage_version: 1, etag: "a".repeat(64), result: { analysis_type: "regression.negative_binomial", engine_version: "0.6.0", input_digest: "b".repeat(64), warnings: [], assumptions: [], provenance: [], parameters: {}, diagnostics: {}, tables: {}, plots: {} } }), { status: 201 });
+    });
+    render(<MemoryRouter initialEntries={["/analyses/regression/negative-binomial"]}><App /></MemoryRouter>);
+
+    expect(await screen.findByRole("heading", { name: "음이항 회귀 설정" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "음이항 회귀 실행" }));
+
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith("/regression-negative-binomial") && (init as RequestInit | undefined)?.method === "POST")).toBe(true));
+  });
+
   it("submits measurements to the descriptive statistics workspace", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       if (String(input).endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });

@@ -6,7 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from statpro.analyses.regression import best_subsets_ols, categorical_ols, interaction_ols, linear_ols, logistic_regression, poisson_regression, polynomial_ols, stepwise_ols, validate_ols
+from statpro.analyses.regression import best_subsets_ols, categorical_ols, interaction_ols, linear_ols, logistic_regression, negative_binomial_regression, poisson_regression, polynomial_ols, stepwise_ols, validate_ols
 from statpro.analyses.descriptive import descriptive_statistics
 from statpro.analyses.hypothesis import mann_whitney_u_test
 from statpro.analyses.hypothesis import wilcoxon_signed_rank_test
@@ -247,6 +247,15 @@ class CategoricalAndPoissonRegressionTests(unittest.TestCase):
         self.assertEqual(result.diagnostics["dispersion_status"], "overdispersed")
         self.assertGreater(result.diagnostics["dispersion_ratio"], 1)
         self.assertLessEqual(result.diagnostics["dispersion_p_value"], 0.05)
+
+    def test_fits_negative_binomial_count_model_with_estimated_dispersion(self) -> None:
+        result = negative_binomial_regression([0, 20, 0, 20, 0, 20, 0, 20], {"time": list(range(8))})
+
+        self.assertEqual(result.analysis_type, "regression.negative_binomial")
+        self.assertEqual(result.parameters["variance_function"], "mu + alpha * mu^2")
+        self.assertEqual(len(result.tables["fitted_values"]["rows"]), 8)
+        self.assertGreater(result.diagnostics["dispersion_alpha"], 0)
+        self.assertIn("incidence_rate_ratio", result.tables["coefficients"]["columns"])
 
 
 class DescriptiveStatisticsTests(unittest.TestCase):

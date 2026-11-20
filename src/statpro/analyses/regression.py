@@ -25,6 +25,10 @@ NIST_REGRESSION_DIAGNOSTICS_SOURCE = ProvenanceSource(
     title="NIST Regression Diagnostics",
     url="https://www.itl.nist.gov/div898/handbook/pmd/section4/pmd44.htm",
 )
+STATSMODELS_NEGATIVE_BINOMIAL_SOURCE = ProvenanceSource(
+    title="statsmodels NegativeBinomial",
+    url="https://www.statsmodels.org/stable/generated/statsmodels.discrete.discrete_model.NegativeBinomial.html",
+)
 
 
 def _two_sided_t_critical(alpha: float, degrees_of_freedom: int) -> float:
@@ -227,6 +231,55 @@ def poisson_regression(response: Sequence[float], predictors: Mapping[str, Seque
         dispersion_status = "consistent"
         warnings = ("Overdispersion or excess zeros can invalidate Poisson standard errors; inspect deviance and process data.",)
     return ResultBundle(analysis_type="regression.poisson", engine_version=ENGINE_VERSION, input_digest=input_digest({"response":values,"predictors":columns,"response_name":response_name,"alpha":alpha}), parameters={"response_name":response_name,"predictor_names":names,"alpha":alpha,"sample_size":len(values)}, tables={"coefficients":{"columns":["term","coefficient","incidence_rate_ratio","irr_ci_lower","irr_ci_upper","standard_error","z_value","p_value","significant"],"rows":rows},"fitted_values":{"columns":["observation","actual","predicted_count"],"rows":[{"observation":index+1,"actual":values[index],"predicted_count":mean} for index,mean in enumerate(means)]}}, plots={}, diagnostics={"deviance":deviance,"residual_degrees_of_freedom":residual_df,"predicted_count_total":sum(means),"pearson_chi_square":pearson_chi_square,"dispersion_ratio":dispersion_ratio,"dispersion_z_value":dispersion_z_value,"dispersion_p_value":dispersion_p_value,"dispersion_status":dispersion_status}, assumptions=("Rows are independent and counts follow a Poisson mean-variance relationship.", "The dispersion diagnostic uses a normal approximation to Pearson chi-square around its residual degrees of freedom."), warnings=warnings, provenance=(NIST_LINEAR_LEAST_SQUARES_SOURCE,))
+
+
+def negative_binomial_regression(response: Sequence[float], predictors: Mapping[str, Sequence[float]], *, response_name: str = "Count", alpha: float = 0.05) -> ResultBundle:
+    """Fit an NB2 count model with an estimated overdispersion parameter.
+
+    This is deliberately an optional advanced workflow: statsmodels owns the
+    likelihood optimisation and covariance calculation, while this boundary
+    owns input validation and the stable ResultBundle contract.
+    """
+    values = finite_values(response, "response")
+    names = list(predictors)
+    columns = {name: finite_values(column, f"predictors.{name}") for name, column in predictors.items()}
+    if not columns or any(value < 0 or value != int(value) for value in values) or any(len(column) != len(values) for column in columns.values()):
+        raise AnalysisInputError("invalid_negative_binomial_input", "Negative binomial regression needs aligned numeric predictors and non-negative integer counts.", "response")
+    if len(values) < len(names) + 3 or not 0.001 <= alpha <= 0.5 or not response_name.strip():
+        raise AnalysisInputError("insufficient_observations", "Use a response name, valid alpha, and enough observations for residual degrees of freedom.", "response")
+    try:
+        import numpy as np
+        from statsmodels.discrete.discrete_model import NegativeBinomial
+    except ImportError as error:
+        raise AnalysisInputError("advanced_dependency_unavailable", "Install StatPro with the 'advanced' extra to use negative binomial regression.", "environment") from error
+    matrix = np.column_stack((np.ones(len(values)), *(np.asarray(columns[name], dtype=float) for name in names)))
+    try:
+        fitted = NegativeBinomial(np.asarray(values, dtype=float), matrix, loglike_method="nb2").fit(disp=False, maxiter=100)
+    except (ArithmeticError, ValueError, np.linalg.LinAlgError) as error:
+        raise AnalysisInputError("negative_binomial_not_converged", "Negative binomial fitting failed; review separation, scaling, and predictor collinearity.", "predictors") from error
+    if not bool(fitted.mle_retvals.get("converged", False)):
+        raise AnalysisInputError("negative_binomial_not_converged", "Negative binomial fitting did not converge; review scaling and predictor collinearity.", "predictors")
+    coefficient_count = len(names) + 1
+    critical = NormalDist().inv_cdf(1 - alpha / 2)
+    rows = []
+    for index, term in enumerate(["Intercept", *names]):
+        coefficient = float(fitted.params[index]); standard_error = float(fitted.bse[index]); z_value = float(fitted.tvalues[index]); p_value = float(fitted.pvalues[index])
+        lower, upper = coefficient - critical * standard_error, coefficient + critical * standard_error
+        rows.append({"term": term, "coefficient": coefficient, "incidence_rate_ratio": math.exp(coefficient), "irr_ci_lower": math.exp(lower), "irr_ci_upper": math.exp(upper), "standard_error": standard_error, "z_value": z_value, "p_value": p_value, "significant": p_value <= alpha})
+    means = [float(value) for value in fitted.predict()]
+    residual_df = len(values) - coefficient_count
+    pearson_chi_square = sum((actual - mean) ** 2 / (mean + float(fitted.params[-1]) * mean * mean) for actual, mean in zip(values, means, strict=True))
+    dispersion_alpha = float(fitted.params[-1])
+    return ResultBundle(
+        analysis_type="regression.negative_binomial", engine_version=ENGINE_VERSION,
+        input_digest=input_digest({"response": values, "predictors": columns, "response_name": response_name, "alpha": alpha}),
+        parameters={"response_name": response_name, "predictor_names": names, "alpha": alpha, "sample_size": len(values), "variance_function": "mu + alpha * mu^2"},
+        tables={"coefficients": {"columns": ["term", "coefficient", "incidence_rate_ratio", "irr_ci_lower", "irr_ci_upper", "standard_error", "z_value", "p_value", "significant"], "rows": rows}, "fitted_values": {"columns": ["observation", "actual", "predicted_count"], "rows": [{"observation": index + 1, "actual": actual, "predicted_count": mean} for index, (actual, mean) in enumerate(zip(values, means, strict=True))]}},
+        plots={}, diagnostics={"log_likelihood": float(fitted.llf), "aic": float(fitted.aic), "residual_degrees_of_freedom": residual_df, "predicted_count_total": sum(means), "dispersion_alpha": dispersion_alpha, "dispersion_alpha_standard_error": float(fitted.bse[-1]), "pearson_chi_square": pearson_chi_square, "pearson_dispersion_ratio": pearson_chi_square / residual_df},
+        assumptions=("Rows are independent and counts follow an NB2 variance function (mu + alpha * mu^2).", "The estimated dispersion parameter is non-negative and captures overdispersion relative to Poisson."),
+        warnings=("Negative binomial accommodates overdispersion but does not establish the source of clustering, excess zeros, or omitted predictors.",),
+        provenance=(STATSMODELS_NEGATIVE_BINOMIAL_SOURCE,),
+    )
 
 
 def polynomial_ols(

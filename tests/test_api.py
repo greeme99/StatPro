@@ -1058,6 +1058,15 @@ class LocalApiContractTests(unittest.TestCase):
                 "regression.poisson",
             ),
             (
+                "/v1/analysis-runs/regression-negative-binomial",
+                {
+                    "run_id": "negative-binomial",
+                    "response": [0, 20, 0, 20, 0, 20, 0, 20],
+                    "predictors": {"exposure": list(range(8))},
+                },
+                "regression.negative_binomial",
+            ),
+            (
                 "/v1/analysis-runs/regression-categorical-ols",
                 {
                     "run_id": "categorical-ols",

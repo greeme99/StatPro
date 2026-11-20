@@ -1,7 +1,7 @@
 import { AlertTriangle, ArrowLeft, Plus, Play, Trash2 } from "lucide-react";
 import { type FormEvent, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { createBestSubsetsOlsRun, createDescriptiveStatisticsRun, createInteractionOlsRun, createJarqueBeraNormalityRun, createLinearOlsRun, createLogisticRegressionRun, createOlsValidationRun, createPoissonRegressionRun, createPolynomialOlsRun, createStepwiseOlsRun } from "../api";
+import { createBestSubsetsOlsRun, createDescriptiveStatisticsRun, createInteractionOlsRun, createJarqueBeraNormalityRun, createLinearOlsRun, createLogisticRegressionRun, createNegativeBinomialRegressionRun, createOlsValidationRun, createPoissonRegressionRun, createPolynomialOlsRun, createStepwiseOlsRun } from "../api";
 import { Button } from "../components/Button";
 
 type PredictorInput = { id: number; name: string; values: string };
@@ -20,10 +20,11 @@ export function BasicAnalysisSetupPage() {
   const validation = useLocation().pathname.endsWith("/validation");
   const bestSubsets = useLocation().pathname.endsWith("/best-subsets");
   const poisson = useLocation().pathname.endsWith("/poisson");
+  const negativeBinomial = useLocation().pathname.endsWith("/negative-binomial");
   const logistic = useLocation().pathname.endsWith("/logistic");
   const navigate = useNavigate();
-  const [runId, setRunId] = useState(id(normality ? "normality" : descriptive ? "descriptive" : logistic ? "logistic" : poisson ? "poisson" : polynomial ? "polynomial" : interaction ? "interaction" : stepwise ? "stepwise" : validation ? "validation" : bestSubsets ? "best-subsets" : "regression"));
-  const [values, setValues] = useState(logistic ? "0\n1\n0\n1\n1\n0\n1\n0" : poisson ? "1\n2\n3\n5\n8\n13" : "98.7\n99.2\n100.1\n99.5\n100.4\n101.0");
+  const [runId, setRunId] = useState(id(normality ? "normality" : descriptive ? "descriptive" : logistic ? "logistic" : negativeBinomial ? "negative-binomial" : poisson ? "poisson" : polynomial ? "polynomial" : interaction ? "interaction" : stepwise ? "stepwise" : validation ? "validation" : bestSubsets ? "best-subsets" : "regression"));
+  const [values, setValues] = useState(logistic ? "0\n1\n0\n1\n1\n0\n1\n0" : poisson || negativeBinomial ? "1\n2\n3\n5\n8\n13" : "98.7\n99.2\n100.1\n99.5\n100.4\n101.0");
   const [responseName, setResponseName] = useState("수율");
   const [predictors, setPredictors] = useState<PredictorInput[]>(() => interaction ? [initialPredictor(), interactionPredictor()] : [initialPredictor()]);
   const [alpha, setAlpha] = useState("0.05");
@@ -53,8 +54,8 @@ export function BasicAnalysisSetupPage() {
   async function submit(event: FormEvent) {
     event.preventDefault();
     const alphaValue = Number(alpha);
-    if (parsed.length < (descriptive ? 2 : logistic || poisson ? 4 : 3) || parsed.some((value) => !Number.isFinite(value)) || (logistic && parsed.some((value) => value !== 0 && value !== 1)) || (poisson && parsed.some((value) => value < 0 || !Number.isInteger(value))) || !Number.isFinite(alphaValue) || !(alphaValue >= 0.001 && alphaValue <= 0.5)) {
-      setError(poisson ? "Poisson 회귀에는 0 이상 정수인 건수 4개 이상과 0.001~0.5 사이의 유의수준을 입력하세요." : "유한한 숫자 3개 이상과 0.001~0.5 사이의 유의수준을 입력하세요.");
+    if (parsed.length < (descriptive ? 2 : logistic || poisson || negativeBinomial ? 4 : 3) || parsed.some((value) => !Number.isFinite(value)) || (logistic && parsed.some((value) => value !== 0 && value !== 1)) || ((poisson || negativeBinomial) && parsed.some((value) => value < 0 || !Number.isInteger(value))) || !Number.isFinite(alphaValue) || !(alphaValue >= 0.001 && alphaValue <= 0.5)) {
+      setError(poisson || negativeBinomial ? "건수 회귀에는 0 이상 정수인 건수 4개 이상과 0.001~0.5 사이의 유의수준을 입력하세요." : "유한한 숫자 3개 이상과 0.001~0.5 사이의 유의수준을 입력하세요.");
       valuesRef.current?.focus();
       return;
     }
@@ -86,7 +87,7 @@ export function BasicAnalysisSetupPage() {
           predictors: Object.fromEntries(predictorColumns.map((predictor) => [predictor.name.trim(), predictor.parsed])),
           response_name: responseName.trim() || "Response",
           alpha: alphaValue,
-        }; if (logistic) await createLogisticRegressionRun(payload); else if (poisson) await createPoissonRegressionRun(payload); else if (polynomial) await createPolynomialOlsRun({ ...payload, degree }); else if (interaction) await createInteractionOlsRun(payload); else if (stepwise) await createStepwiseOlsRun({ ...payload, interaction_terms: includeInteractions, method: selectionMethod, criterion: selectionCriterion, alpha_enter: alphaValue, alpha_remove: 0.1 }); else if (validation) await createOlsValidationRun({ ...payload, method: validationMethod, folds: validationFolds, holdout_fraction: 0.2 }); else if (bestSubsets) await createBestSubsetsOlsRun({ ...payload, top_models_per_size: 1 }); else await createLinearOlsRun(payload);
+        }; if (logistic) await createLogisticRegressionRun(payload); else if (negativeBinomial) await createNegativeBinomialRegressionRun(payload); else if (poisson) await createPoissonRegressionRun(payload); else if (polynomial) await createPolynomialOlsRun({ ...payload, degree }); else if (interaction) await createInteractionOlsRun(payload); else if (stepwise) await createStepwiseOlsRun({ ...payload, interaction_terms: includeInteractions, method: selectionMethod, criterion: selectionCriterion, alpha_enter: alphaValue, alpha_remove: 0.1 }); else if (validation) await createOlsValidationRun({ ...payload, method: validationMethod, folds: validationFolds, holdout_fraction: 0.2 }); else if (bestSubsets) await createBestSubsetsOlsRun({ ...payload, top_models_per_size: 1 }); else await createLinearOlsRun(payload);
       }
       navigate(`/runs/${runId}`);
     } catch (caught) {
@@ -97,10 +98,10 @@ export function BasicAnalysisSetupPage() {
     }
   }
 
-  const title = normality ? "정규성 검정 설정" : descriptive ? "기초통계 설정" : logistic ? "로지스틱 회귀 설정" : poisson ? "Poisson 회귀 설정" : polynomial ? "다항회귀 분석 설정" : interaction ? "교호작용 회귀 분석 설정" : stepwise ? "단계선택 회귀 설정" : validation ? "회귀 모형 검증 설정" : bestSubsets ? "최적 부분집합 회귀 설정" : "선형회귀 분석 설정";
+  const title = normality ? "정규성 검정 설정" : descriptive ? "기초통계 설정" : logistic ? "로지스틱 회귀 설정" : negativeBinomial ? "음이항 회귀 설정" : poisson ? "Poisson 회귀 설정" : polynomial ? "다항회귀 분석 설정" : interaction ? "교호작용 회귀 분석 설정" : stepwise ? "단계선택 회귀 설정" : validation ? "회귀 모형 검증 설정" : bestSubsets ? "최적 부분집합 회귀 설정" : "선형회귀 분석 설정";
   return <div className="page form-page" data-density="comfortable">
     <Link className="back-link" to="/analyses"><ArrowLeft aria-hidden="true" /> 분석 선택</Link>
-    <section className="page-heading"><div><span className="eyebrow">STATISTICAL ANALYSIS</span><h1>{title}</h1><p>{normality ? "Jarque–Bera 검정으로 데이터의 정규성 가정을 점검합니다." : descriptive ? "연속형 데이터의 중심·산포·분포 형태와 평균의 신뢰구간을 요약합니다." : logistic ? "0/1 결과(Y)의 발생확률과 오즈비를 추정합니다." : poisson ? "불량·고장처럼 0 이상 정수로 기록된 건수(Y)의 발생률을 log-link Poisson 모형으로 추정합니다." : polynomial ? "연속형 결과(Y)의 곡선 관계를 2차 또는 3차 다항 OLS로 추정합니다." : interaction ? "연속형 결과(Y)에서 두 X의 결합 효과를 모든 2요인 교호작용 OLS로 추정합니다." : stepwise ? "후보 X에서 정보기준 또는 유의수준으로 항을 탐색합니다. 결과는 확인 실험 전의 후보 모형입니다." : validation ? "학습에 사용하지 않은 행으로 RMSE·MAE·예측 R²를 계산합니다. 시간 순서가 중요하면 홀드아웃을 사용하세요." : "연속형 결과(Y)와 하나 이상의 설명변수(X) 관계를 OLS로 추정합니다."}</p></div></section>
+    <section className="page-heading"><div><span className="eyebrow">STATISTICAL ANALYSIS</span><h1>{title}</h1><p>{normality ? "Jarque–Bera 검정으로 데이터의 정규성 가정을 점검합니다." : descriptive ? "연속형 데이터의 중심·산포·분포 형태와 평균의 신뢰구간을 요약합니다." : logistic ? "0/1 결과(Y)의 발생확률과 오즈비를 추정합니다." : negativeBinomial ? "과산포가 있는 0 이상 정수 건수(Y)의 발생률을 NB2 분산모형으로 추정합니다." : poisson ? "불량·고장처럼 0 이상 정수로 기록된 건수(Y)의 발생률을 log-link Poisson 모형으로 추정합니다." : polynomial ? "연속형 결과(Y)의 곡선 관계를 2차 또는 3차 다항 OLS로 추정합니다." : interaction ? "연속형 결과(Y)에서 두 X의 결합 효과를 모든 2요인 교호작용 OLS로 추정합니다." : stepwise ? "후보 X에서 정보기준 또는 유의수준으로 항을 탐색합니다. 결과는 확인 실험 전의 후보 모형입니다." : validation ? "학습에 사용하지 않은 행으로 RMSE·MAE·예측 R²를 계산합니다. 시간 순서가 중요하면 홀드아웃을 사용하세요." : "연속형 결과(Y)와 하나 이상의 설명변수(X) 관계를 OLS로 추정합니다."}</p></div></section>
     {error && <div className="error-banner" role="alert"><AlertTriangle aria-hidden="true" /><div><strong>입력을 확인하세요</strong><p>{error}</p></div></div>}
     <form className="analysis-form" onSubmit={submit}>
       <section className="form-panel"><header><span className="step-index">01</span><div><h2>분석 실행 정보</h2><p>분석 실행은 입력값과 엔진 버전을 고정해 보존합니다.</p></div></header><div className="inline-fields"><label className="field"><span>Run ID</span><input value={runId} onChange={(event) => setRunId(event.target.value)} required pattern="[A-Za-z0-9][A-Za-z0-9._-]{0,127}" /></label><label className="field"><span>유의수준 α</span><input type="number" step="0.001" min="0.001" max="0.5" value={alpha} onChange={(event) => setAlpha(event.target.value)} /></label>{polynomial && <label className="field"><span>다항 차수</span><select value={degree} onChange={(event) => setDegree(Number(event.target.value) as 2 | 3)}><option value={2}>2차</option><option value={3}>3차</option></select><small>상호작용 항은 포함하지 않습니다.</small></label>}{stepwise && <><label className="field"><span>선택 방식</span><select value={selectionMethod} onChange={(event) => setSelectionMethod(event.target.value as "forward" | "backward" | "stepwise")}><option value="stepwise">단계선택 (진입·제거)</option><option value="forward">전진 선택</option><option value="backward">후진 제거</option></select></label><label className="field"><span>비교 기준</span><select value={selectionCriterion} onChange={(event) => setSelectionCriterion(event.target.value as "aicc" | "bic")}><option value="aicc">AICc</option><option value="bic">BIC</option></select></label><label className="field"><span>후보 항</span><span><input type="checkbox" aria-label="2요인 교호작용 후보 포함" checked={includeInteractions} onChange={(event) => setIncludeInteractions(event.target.checked)} /> 2요인 교호작용 후보 포함</span><small>교호작용이 선택되면 하위 주효과를 함께 유지합니다.</small></label></>}{!normality && <label className="field"><span>응답변수 이름</span><input value={responseName} onChange={(event) => setResponseName(event.target.value)} required /></label>}</div></section>

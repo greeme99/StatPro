@@ -98,6 +98,7 @@ export function AnalysisSelectionPage() {
           <Link className="analysis-choice" to="/analyses/regression/best-subsets"><strong>최적 부분집합 회귀</strong><span>모든 X 조합을 AICc·BIC·PRESS·Cp로 비교합니다.</span></Link>
           <Link className="analysis-choice" to="/analyses/regression/categorical-ols"><strong>범주형 OLS 회귀</strong><span>라인·설비 등 범주형 X를 기준 범주와 비교해 연속형 결과(Y)를 추정합니다.</span></Link>
           <Link className="analysis-choice" to="/analyses/regression/poisson"><strong>Poisson 회귀</strong><span>불량·고장 등 비음수 정수 건수(Y)의 발생률을 설명합니다.</span></Link>
+          <Link className="analysis-choice" to="/analyses/regression/negative-binomial"><strong>음이항 회귀</strong><span>과산포가 있는 비음수 정수 건수(Y)의 발생률을 NB2 분산모형으로 추정합니다.</span></Link>
           <Link className="analysis-choice" to="/analyses/regression/logistic"><strong>로지스틱 회귀</strong><span>합격·불합격 등 0/1 결과(Y)의 발생확률을 추정합니다.</span></Link>
           <Link className="analysis-choice" to="/analyses/hypothesis/independent-welch-t"><strong>독립표본 t-검정</strong><span>독립 두 집단의 평균차를 Welch 방법으로 비교합니다.</span></Link>
           <Link className="analysis-choice" to="/analyses/hypothesis/independent-tost-equivalence"><strong>등가성 검정 (TOST)</strong><span>사전 정의한 허용차 안에서 두 집단 평균이 실질적으로 같은지 확인합니다.</span></Link>

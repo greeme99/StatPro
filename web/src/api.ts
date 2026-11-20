@@ -617,6 +617,9 @@ export function createBestSubsetsOlsRun(payload: { run_id: string; response: num
 export function createPoissonRegressionRun(payload: { run_id: string; response: number[]; predictors: Record<string, number[]>; response_name: string; alpha: number }): Promise<StoredRun> {
   return request("/v1/analysis-runs/regression-poisson", { method: "POST", body: JSON.stringify(payload) });
 }
+export function createNegativeBinomialRegressionRun(payload: { run_id: string; response: number[]; predictors: Record<string, number[]>; response_name: string; alpha: number }): Promise<StoredRun> {
+  return request("/v1/analysis-runs/regression-negative-binomial", { method: "POST", body: JSON.stringify(payload) });
+}
 export function createCategoricalOlsRun(payload: { run_id: string; response: number[]; predictors: Record<string, string[]>; reference_levels: Record<string, string>; response_name: string; alpha: number }): Promise<StoredRun> {
   return request("/v1/analysis-runs/regression-categorical-ols", { method: "POST", body: JSON.stringify(payload) });
 }
