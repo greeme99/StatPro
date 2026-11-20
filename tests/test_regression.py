@@ -76,6 +76,31 @@ class LinearOlsTests(unittest.TestCase):
         self.assertGreater(outlier["dffits"], 1.0)
         self.assertEqual(result.diagnostics["influence_thresholds"]["cooks_distance"], 0.5)
 
+    def test_reports_residual_normality_and_constant_variance_diagnostics(self) -> None:
+        result = linear_ols(
+            [2.2, 3.8, 6.3, 7.5, 10.6, 11.1, 14.8, 15.0],
+            {"temperature": list(range(1, 9))},
+        )
+
+        self.assertEqual(result.diagnostics["residual_normality_method"], "jarque_bera_asymptotic")
+        self.assertEqual(result.diagnostics["residual_normality_status"], "available")
+        self.assertIsNotNone(result.diagnostics["residual_normality_p_value"])
+        self.assertEqual(result.diagnostics["heteroscedasticity_method"], "breusch_pagan_lm")
+        self.assertEqual(result.diagnostics["heteroscedasticity_status"], "available")
+        self.assertEqual(result.diagnostics["heteroscedasticity_degrees_of_freedom"], 1)
+        self.assertIsNotNone(result.diagnostics["heteroscedasticity_p_value"])
+        self.assertLess(result.diagnostics["heteroscedasticity_p_value"], 0.05)
+        self.assertTrue(result.diagnostics["reject_constant_variance"])
+        self.assertTrue(any("Breusch-Pagan" in warning for warning in result.warnings))
+
+    def test_marks_assumption_tests_unavailable_for_zero_residual_variance(self) -> None:
+        result = linear_ols([2, 4, 6, 8, 10], {"temperature": [1, 2, 3, 4, 5]})
+
+        self.assertEqual(result.diagnostics["residual_normality_status"], "unavailable_zero_variation")
+        self.assertIsNone(result.diagnostics["reject_residual_normality"])
+        self.assertEqual(result.diagnostics["heteroscedasticity_status"], "unavailable_zero_variation")
+        self.assertIsNone(result.diagnostics["reject_constant_variance"])
+
 
 class LogisticRegressionTests(unittest.TestCase):
     def test_returns_odds_ratio_intervals_and_probabilities(self) -> None:

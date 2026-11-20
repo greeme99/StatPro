@@ -7,7 +7,7 @@ from collections.abc import Mapping, Sequence
 from itertools import combinations
 from statistics import NormalDist, fmean
 
-from statpro.analyses.common import f_survival, finite_values, invert_matrix
+from statpro.analyses.common import chi_square_survival, f_survival, finite_values, invert_matrix
 from statpro.domain.errors import AnalysisInputError
 from statpro.domain.identity import input_digest
 from statpro.domain.models import ProvenanceSource, ResultBundle
@@ -20,6 +20,10 @@ NIST_LINEAR_LEAST_SQUARES_SOURCE = ProvenanceSource(
 NIST_LEAST_SQUARES_GLOSSARY_SOURCE = ProvenanceSource(
     title="NIST StRD Linear Least Squares Regression Glossary",
     url="https://www.itl.nist.gov/div898/strd/lls/data/LINKS/c-NoInt2.shtml",
+)
+NIST_REGRESSION_DIAGNOSTICS_SOURCE = ProvenanceSource(
+    title="NIST Regression Diagnostics",
+    url="https://www.itl.nist.gov/div898/handbook/pmd/section4/pmd44.htm",
 )
 
 
@@ -63,6 +67,75 @@ def _collinearity_rows(predictors: Mapping[str, Sequence[float]]) -> list[dict[s
         {"term": name, "vif": inverse[index][index], "tolerance": 1.0 / inverse[index][index]}
         for index, name in enumerate(names)
     ]
+
+
+def _ols_assumption_diagnostics(
+    residuals: Sequence[float],
+    matrix: Sequence[Sequence[float]],
+    inverse_cross_product: Sequence[Sequence[float]],
+    *,
+    alpha: float,
+) -> dict[str, float | int | bool | str | None]:
+    """Compute residual diagnostics at the OLS producer boundary."""
+    sample_size = len(residuals)
+    residual_mean = fmean(residuals)
+    centered = [residual - residual_mean for residual in residuals]
+    second_moment = fmean(value * value for value in centered)
+    normality: dict[str, float | int | bool | str | None] = {
+        "residual_normality_method": "jarque_bera_asymptotic",
+        "residual_normality_statistic": None,
+        "residual_normality_p_value": None,
+        "residual_normality_status": "unavailable_zero_variation" if second_moment == 0.0 else "available",
+        "reject_residual_normality": None,
+    }
+    if second_moment > 0.0:
+        skewness = fmean(value**3 for value in centered) / second_moment**1.5
+        kurtosis = fmean(value**4 for value in centered) / second_moment**2
+        statistic = sample_size / 6.0 * (skewness**2 + (kurtosis - 3.0) ** 2 / 4.0)
+        p_value = chi_square_survival(statistic, 2)
+        normality.update({
+            "residual_skewness": skewness,
+            "residual_kurtosis": kurtosis,
+            "residual_normality_statistic": statistic,
+            "residual_normality_p_value": p_value,
+            "reject_residual_normality": p_value <= alpha if p_value is not None else None,
+        })
+
+    squared_residuals = [residual * residual for residual in residuals]
+    squared_mean = fmean(squared_residuals)
+    squared_total = sum((value - squared_mean) ** 2 for value in squared_residuals)
+    degrees_of_freedom = len(matrix[0]) - 1
+    heteroscedasticity: dict[str, float | int | bool | str | None] = {
+        "heteroscedasticity_method": "breusch_pagan_lm",
+        "heteroscedasticity_statistic": None,
+        "heteroscedasticity_p_value": None,
+        "heteroscedasticity_degrees_of_freedom": degrees_of_freedom,
+        "heteroscedasticity_status": "unavailable_zero_variation" if squared_total == 0.0 else "available",
+        "reject_constant_variance": None,
+    }
+    if squared_total > 0.0:
+        cross_response = [
+            sum(row[column] * value for row, value in zip(matrix, squared_residuals, strict=True))
+            for column in range(len(matrix[0]))
+        ]
+        coefficients = [
+            sum(inverse_cross_product[row][column] * cross_response[column] for column in range(len(matrix[0])))
+            for row in range(len(matrix[0]))
+        ]
+        auxiliary_fitted = [
+            sum(value * coefficient for value, coefficient in zip(row, coefficients, strict=True))
+            for row in matrix
+        ]
+        auxiliary_r_squared = max(0.0, min(1.0, 1.0 - sum((actual - fitted) ** 2 for actual, fitted in zip(squared_residuals, auxiliary_fitted, strict=True)) / squared_total))
+        statistic = sample_size * auxiliary_r_squared
+        p_value = chi_square_survival(statistic, degrees_of_freedom)
+        heteroscedasticity.update({
+            "heteroscedasticity_auxiliary_r_squared": auxiliary_r_squared,
+            "heteroscedasticity_statistic": statistic,
+            "heteroscedasticity_p_value": p_value,
+            "reject_constant_variance": p_value <= alpha if p_value is not None else None,
+        })
+    return {**normality, **heteroscedasticity}
 
 
 def logistic_regression(response: Sequence[float], predictors: Mapping[str, Sequence[float]], *, response_name: str = "Outcome", alpha: float = 0.05) -> ResultBundle:
@@ -526,6 +599,7 @@ def linear_ols(
         for row in matrix
     ]
     residuals = [actual - prediction for actual, prediction in zip(values, fitted, strict=True)]
+    assumption_diagnostics = _ols_assumption_diagnostics(residuals, matrix, inverse, alpha=normalized_alpha)
     response_mean = fmean(values)
     total_ss = sum((value - response_mean) ** 2 for value in values)
     residual_ss = sum(residual * residual for residual in residuals)
@@ -596,6 +670,10 @@ def linear_ols(
     maximum_vif = max(row["vif"] for row in collinearity_rows)
     if maximum_vif >= 10.0:
         warnings.append("High predictor collinearity: at least one VIF is 10 or higher; review redundant X variables before operational use.")
+    if assumption_diagnostics["reject_residual_normality"]:
+        warnings.append("Residual normality diagnostic rejected the normal-error approximation; treat coefficient and model p-values cautiously.")
+    if assumption_diagnostics["reject_constant_variance"]:
+        warnings.append("Breusch-Pagan residual diagnostic rejected constant variance; review variance structure and consider an appropriate alternative model.")
     return ResultBundle(
         analysis_type="regression.linear_ols",
         engine_version=ENGINE_VERSION,
@@ -612,12 +690,12 @@ def linear_ols(
             "collinearity": {"columns": ["term", "vif", "tolerance"], "rows": collinearity_rows},
         },
         plots={},
-        diagnostics={"r_squared": r_squared, "adjusted_r_squared": adjusted_r_squared, "residual_standard_error": math.sqrt(residual_ms), "residual_degrees_of_freedom": residual_df, "model_f_statistic": model_f, "model_p_value": model_p, "prediction_interval_confidence": 1.0 - normalized_alpha, "maximum_vif": maximum_vif, "influence_thresholds": influence_thresholds},
+        diagnostics={"r_squared": r_squared, "adjusted_r_squared": adjusted_r_squared, "residual_standard_error": math.sqrt(residual_ms), "residual_degrees_of_freedom": residual_df, "model_f_statistic": model_f, "model_p_value": model_p, "prediction_interval_confidence": 1.0 - normalized_alpha, "maximum_vif": maximum_vif, "influence_thresholds": influence_thresholds, **assumption_diagnostics},
         assumptions=(
             "The response is continuous and observations are aligned by row.",
             "Errors are independent with approximately constant variance.",
             "Coefficient and model inference additionally use the usual normal-error approximation.",
         ),
         warnings=tuple(warnings),
-        provenance=(NIST_LINEAR_LEAST_SQUARES_SOURCE, NIST_LEAST_SQUARES_GLOSSARY_SOURCE),
+        provenance=(NIST_LINEAR_LEAST_SQUARES_SOURCE, NIST_LEAST_SQUARES_GLOSSARY_SOURCE, NIST_REGRESSION_DIAGNOSTICS_SOURCE),
     )

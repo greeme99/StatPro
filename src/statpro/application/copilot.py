@@ -118,7 +118,7 @@ _SCOPE_SOURCE = CopilotSource(
 _ASSISTANT_REFERENCE = (
     "StatPro 제공 기능: DOE(요인·반응표면·최적화), SPC(Xbar-R/S·I-MR·p/np/c/u·EWMA·CUSUM·G/T·능력), "
     "MSA(Gage R&R·편의/선형성·속성 일치도), FMEA·DMAIC, 회귀(OLS·다항·교호작용·로지스틱·단계선택·검증·Best Subsets). "
-    "범주형 X·Poisson, Laney·다변량 SPC, 혼합물·Taguchi·D-optimal DOE는 현재 제공하지 않는다. "
+    "Laney·다변량 SPC, 혼합물·Taguchi·D-optimal DOE는 현재 제공하지 않는다. "
     "메뉴 경로·입력 점검·확인실험을 안내하되 실행 또는 승인 완료를 주장하지 않는다."
 )
 
