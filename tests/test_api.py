@@ -8,6 +8,9 @@ import unittest
 import zipfile
 from pathlib import Path
 
+import pyarrow as pa
+import pyarrow.parquet as pq
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from fastapi.testclient import TestClient
@@ -86,6 +89,7 @@ class LocalApiContractTests(unittest.TestCase):
         self.assertIn("/v1/worksheets/{worksheet_id}/sort-rows", openapi.json()["paths"])
         self.assertIn("/v1/worksheets/{worksheet_id}/derived-columns", openapi.json()["paths"])
         self.assertIn("/v1/worksheets/import-sqlite", openapi.json()["paths"])
+        self.assertIn("/v1/worksheets/import-parquet", openapi.json()["paths"])
         self.assertIn("/v1/worksheets/{worksheet_id}/inner-join", openapi.json()["paths"])
 
     def test_runs_one_way_anova_power_plan(self) -> None:
@@ -2390,6 +2394,22 @@ class LocalApiContractTests(unittest.TestCase):
         payload = response.json()
         self.assertEqual(payload["dataset"]["source"]["kind"], "sqlite")
         self.assertEqual(payload["dataset"]["source"]["location"], "process.sqlite#table=measurements")
+        self.assertEqual(payload["worksheet"]["columns"][0]["values"], [10.5, None])
+
+    def test_parquet_worksheet_imports_flat_scalar_columns(self) -> None:
+        stream = pa.BufferOutputStream()
+        pq.write_table(pa.table({"value": [10.5, None], "part": ["A", "B"]}), stream)
+        content = base64.b64encode(stream.getvalue().to_pybytes()).decode("ascii")
+
+        response = self.client.post("/v1/worksheets/import-parquet", json={
+            "file_name": "process.parquet",
+            "worksheet_name": "Parquet Measurements",
+            "content_base64": content,
+        })
+
+        self.assertEqual(response.status_code, 201)
+        payload = response.json()
+        self.assertEqual(payload["dataset"]["source"]["kind"], "parquet")
         self.assertEqual(payload["worksheet"]["columns"][0]["values"], [10.5, None])
 
     def test_worksheet_inner_join_creates_a_traced_left_revision(self) -> None:

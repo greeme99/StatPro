@@ -1142,6 +1142,17 @@ export function importXlsxWorksheet(payload: {
   });
 }
 
+export function importParquetWorksheet(payload: {
+  file_name: string;
+  worksheet_name: string;
+  content_base64: string;
+}): Promise<StoredWorksheet> {
+  return request("/v1/worksheets/import-parquet", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function importSqliteWorksheet(payload: {
   file_name: string;
   worksheet_name: string;

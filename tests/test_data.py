@@ -9,6 +9,9 @@ import sqlite3
 import zipfile
 from pathlib import Path
 
+import pyarrow as pa
+import pyarrow.parquet as pq
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from statpro.domain.data import (
@@ -19,6 +22,7 @@ from statpro.domain.data import (
     import_csv_bytes,
     import_csv_dataset,
     inner_join_worksheet,
+    import_parquet_bytes,
     import_sqlite_bytes,
     import_xlsx_bytes,
     replace_worksheet_cell,
@@ -28,6 +32,12 @@ from statpro.domain.errors import AnalysisInputError
 
 
 class DatasetImportTests(unittest.TestCase):
+    @staticmethod
+    def _parquet_bytes(table: pa.Table) -> bytes:
+        stream = pa.BufferOutputStream()
+        pq.write_table(table, stream)
+        return stream.getvalue().to_pybytes()
+
     @staticmethod
     def _sqlite_bytes() -> bytes:
         connection = sqlite3.connect(":memory:")
@@ -160,6 +170,32 @@ class DatasetImportTests(unittest.TestCase):
 
         self.assertEqual(missing.exception.detail.code, "sqlite_table_not_found")
         self.assertEqual(blob.exception.detail.code, "sqlite_blob_not_supported")
+
+    def test_parquet_flat_scalar_columns_preserve_types_and_nulls(self) -> None:
+        source = self._parquet_bytes(pa.table({
+            "value": pa.array([10.5, None], type=pa.float64()),
+            "accepted": pa.array([True, False], type=pa.bool_()),
+            "part": pa.array(["A", "B"], type=pa.string()),
+        }))
+
+        dataset = import_parquet_bytes(source, location="process.parquet")
+
+        columns = {column.name: column for column in dataset.columns}
+        self.assertEqual(dataset.source.kind, "parquet")
+        self.assertEqual(dataset.source.location, "process.parquet")
+        self.assertEqual(dataset.source.content_digest, hashlib.sha256(source).hexdigest())
+        self.assertEqual(dataset.row_count, 2)
+        self.assertEqual(columns["value"].values, (10.5, None))
+        self.assertEqual(columns["accepted"].values, (True, False))
+        self.assertEqual(columns["part"].values, ("A", "B"))
+
+    def test_parquet_rejects_nested_columns(self) -> None:
+        source = self._parquet_bytes(pa.table({"parts": pa.array([["A"], ["B"]])}))
+
+        with self.assertRaises(AnalysisInputError) as context:
+            import_parquet_bytes(source, location="nested.parquet")
+
+        self.assertEqual(context.exception.detail.code, "parquet_type_not_supported")
 
     def test_normalized_digest_is_independent_of_file_location(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

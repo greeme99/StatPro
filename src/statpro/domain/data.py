@@ -17,6 +17,9 @@ from pathlib import Path
 from typing import Any
 from xml.etree import ElementTree
 
+import pyarrow as pa
+import pyarrow.parquet as pq
+
 from statpro.domain.errors import AnalysisInputError
 from statpro.domain.identity import input_digest
 
@@ -30,6 +33,7 @@ _XLSX_REL_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationsh
 _XLSX_PACKAGE_REL_NS = "http://schemas.openxmlformats.org/package/2006/relationships"
 _XLSX_CELL_REF = re.compile(r"^([A-Z]{1,3})([1-9][0-9]*)$")
 _MAX_JOIN_ROWS = 1_000_000
+_MAX_PARQUET_UNCOMPRESSED_BYTES = 50_000_000
 
 
 class DataType(str, Enum):
@@ -401,6 +405,98 @@ def import_sqlite_bytes(
             media_type="application/vnd.sqlite3",
             content_digest=source_digest,
         ),
+    )
+
+
+def import_parquet_bytes(
+    source_bytes: bytes,
+    *,
+    location: str,
+    type_hints: Mapping[str, DataType] | None = None,
+    error_field: str = "content",
+) -> DatasetSnapshot:
+    """Import a bounded local Parquet file with flat scalar columns only."""
+
+    if len(source_bytes) > 20_000_000:
+        raise AnalysisInputError("dataset_too_large", "Parquet import supports at most 20,000,000 bytes.", error_field)
+    try:
+        parquet = pq.ParquetFile(pa.BufferReader(source_bytes))
+        metadata = parquet.metadata
+        if metadata is None:
+            raise AnalysisInputError("parquet_read_failed", "Parquet metadata is missing.", error_field)
+        if metadata.num_rows > _MAX_JOIN_ROWS:
+            raise AnalysisInputError("dataset_too_large", "Parquet import supports at most 1,000,000 rows.", error_field)
+        if sum(
+            metadata.row_group(row_group).column(column).total_uncompressed_size
+            for row_group in range(metadata.num_row_groups)
+            for column in range(metadata.row_group(row_group).num_columns)
+        ) > _MAX_PARQUET_UNCOMPRESSED_BYTES:
+            raise AnalysisInputError("dataset_too_large", "Parquet decompressed content exceeds 50,000,000 bytes.", error_field)
+        table = parquet.read()
+    except AnalysisInputError:
+        raise
+    except (OSError, pa.ArrowException, ValueError) as error:
+        raise AnalysisInputError("parquet_read_failed", "Parquet content is invalid or unsupported.", error_field) from error
+
+    headers = list(table.column_names)
+    if not headers:
+        raise AnalysisInputError("empty_parquet", "Parquet input requires at least one column.", error_field)
+    if len(headers) > _XLSX_MAX_COLUMNS:
+        raise AnalysisInputError("parquet_too_wide", "Parquet exceeds the supported column limit.", error_field)
+    if any(not header.strip() for header in headers):
+        raise AnalysisInputError("empty_column_name", "Every Parquet column needs a name.", "header")
+    if len(set(headers)) != len(headers):
+        raise AnalysisInputError("duplicate_column_name", "Parquet column names must be unique.", "header")
+    hints = dict(type_hints or {})
+    unknown_hints = sorted(set(hints) - set(headers))
+    if unknown_hints:
+        raise AnalysisInputError("unknown_type_hint", f"Type hints reference unknown columns: {', '.join(unknown_hints)}.", "type_hints")
+
+    columns: list[DataColumn] = []
+    for index, name in enumerate(headers):
+        field = table.schema.field(index)
+        if not _is_supported_parquet_type(field.type):
+            raise AnalysisInputError("parquet_type_not_supported", f"Parquet column '{name}' has unsupported type '{field.type}'.", f"columns[{name}]")
+        raw_values = table.column(index).to_pylist()
+        observed = [str(value) for value in raw_values if value is not None]
+        data_type = hints.get(name, _infer_type(observed))
+        columns.append(DataColumn(
+            name=name,
+            data_type=data_type,
+            values=tuple(
+                None if value is None else _parse_value(str(value), data_type, f"columns[{name}][{row_index}]")
+                for row_index, value in enumerate(raw_values)
+            ),
+        ))
+    normalized_payload = {
+        "columns": [column.to_dict() for column in columns],
+        "format": "parquet-flat-scalar",
+    }
+    digest = input_digest(normalized_payload)
+    return DatasetSnapshot(
+        dataset_id=f"ds_{digest[:16]}",
+        digest=digest,
+        source=DatasetSource(
+            kind="parquet",
+            location=location,
+            media_type="application/vnd.apache.parquet",
+            content_digest=hashlib.sha256(source_bytes).hexdigest(),
+        ),
+        columns=tuple(columns),
+        row_count=table.num_rows,
+    )
+
+
+def _is_supported_parquet_type(data_type: pa.DataType) -> bool:
+    return (
+        pa.types.is_null(data_type)
+        or pa.types.is_boolean(data_type)
+        or pa.types.is_integer(data_type)
+        or pa.types.is_floating(data_type)
+        or pa.types.is_string(data_type)
+        or pa.types.is_large_string(data_type)
+        or pa.types.is_timestamp(data_type)
+        or pa.types.is_date(data_type)
     )
 
 

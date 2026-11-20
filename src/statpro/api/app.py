@@ -155,6 +155,7 @@ from statpro.domain.data import (
     filter_worksheet_rows,
     import_csv_bytes,
     inner_join_worksheet,
+    import_parquet_bytes,
     import_sqlite_bytes,
     import_xlsx_bytes,
     replace_worksheet_cell,
@@ -1317,6 +1318,13 @@ class ImportCsvWorksheetRequest(ApiModel):
 
 class ImportXlsxWorksheetRequest(ImportCsvWorksheetRequest):
     sheet_name: str | None = Field(default=None, min_length=1, max_length=255)
+
+
+class ImportParquetWorksheetRequest(ApiModel):
+    file_name: str = Field(min_length=1, max_length=255)
+    worksheet_name: str = Field(min_length=1, max_length=255)
+    content_base64: str = Field(min_length=1, max_length=28_000_000)
+    type_hints: dict[str, DataType] = Field(default_factory=dict)
 
 
 class ImportSqliteWorksheetRequest(ApiModel):
@@ -3840,6 +3848,31 @@ def create_app(
             sheet_name=request.sheet_name,
             type_hints=request.type_hints,
             missing_tokens=request.missing_tokens,
+        )
+        _ensure_dataset(repository, dataset)
+        worksheet = create_worksheet(dataset, name=request.worksheet_name)
+        stored = _save_worksheet(repository, worksheet, expected_version=0)
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _worksheet_response(stored, dataset=dataset)
+
+    @app.post(
+        "/v1/worksheets/import-parquet",
+        status_code=201,
+        response_model=StoredWorksheetResponse,
+    )
+    def import_worksheet_parquet(
+        request: ImportParquetWorksheetRequest, response: Response
+    ) -> StoredWorksheetResponse:
+        try:
+            source_bytes = base64.b64decode(request.content_base64, validate=True)
+        except (binascii.Error, ValueError) as error:
+            raise AnalysisInputError(
+                "invalid_base64", "Parquet content is not valid base64.", "content_base64"
+            ) from error
+        dataset = import_parquet_bytes(
+            source_bytes,
+            location=request.file_name,
+            type_hints=request.type_hints,
         )
         _ensure_dataset(repository, dataset)
         worksheet = create_worksheet(dataset, name=request.worksheet_name)
