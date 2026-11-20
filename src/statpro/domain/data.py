@@ -29,6 +29,7 @@ _XLSX_MAIN_NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
 _XLSX_REL_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 _XLSX_PACKAGE_REL_NS = "http://schemas.openxmlformats.org/package/2006/relationships"
 _XLSX_CELL_REF = re.compile(r"^([A-Z]{1,3})([1-9][0-9]*)$")
+_MAX_JOIN_ROWS = 1_000_000
 
 
 class DataType(str, Enum):
@@ -850,5 +851,58 @@ def add_derived_numeric_column(
             "arithmetic": operation,
             "operand_column": operand_column,
             "operand_constant": operand_constant,
+        },
+    )
+
+
+def inner_join_worksheet(
+    worksheet: WorksheetSnapshot,
+    *,
+    right_worksheet: WorksheetSnapshot,
+    left_column: str,
+    right_column: str,
+) -> WorksheetSnapshot:
+    """Create a left worksheet revision from a bounded, single-key inner join."""
+
+    if worksheet.worksheet_id == right_worksheet.worksheet_id:
+        raise AnalysisInputError("same_join_worksheet", "Join requires a different right worksheet.", "right_worksheet_id")
+    left_key = _worksheet_column(worksheet, left_column)
+    right_key = _worksheet_column(right_worksheet, right_column)
+    if left_key.data_type != right_key.data_type:
+        raise AnalysisInputError("incompatible_join_columns", "Join columns must have the same data type.", "right_column")
+    left_names = {column.name for column in worksheet.columns}
+    right_columns = tuple(column for column in right_worksheet.columns if column.name != right_column)
+    collisions = sorted(column.name for column in right_columns if column.name in left_names)
+    if collisions:
+        raise AnalysisInputError("join_column_collision", f"Right worksheet columns conflict: {', '.join(collisions)}.", "right_worksheet_id")
+    right_indexes: dict[CellValue, list[int]] = {}
+    for index, value in enumerate(right_key.values):
+        if value is not None:
+            right_indexes.setdefault(value, []).append(index)
+    row_pairs: list[tuple[int, int]] = []
+    for left_index, value in enumerate(left_key.values):
+        if value is None:
+            continue
+        for right_index in right_indexes.get(value, []):
+            if len(row_pairs) >= _MAX_JOIN_ROWS:
+                raise AnalysisInputError("dataset_too_large", "Joined worksheet supports at most 1,000,000 rows.", "right_worksheet_id")
+            row_pairs.append((left_index, right_index))
+    columns = tuple(
+        replace(column, values=tuple(column.values[left_index] for left_index, _ in row_pairs))
+        for column in worksheet.columns
+    ) + tuple(
+        replace(column, values=tuple(column.values[right_index] for _, right_index in row_pairs))
+        for column in right_columns
+    )
+    return _revise_worksheet(
+        worksheet,
+        columns=columns,
+        transformation={
+            "operation": "inner_join_rows",
+            "left_column": left_column,
+            "right_worksheet_id": right_worksheet.worksheet_id,
+            "right_worksheet_digest": right_worksheet.digest,
+            "right_column": right_column,
+            "joined_row_count": len(row_pairs),
         },
     )

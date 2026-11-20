@@ -1203,6 +1203,18 @@ export function addDerivedNumericColumn(worksheetId: string, payload: {
   });
 }
 
+export function innerJoinWorksheet(worksheetId: string, payload: {
+  expected_storage_version: number;
+  right_worksheet_id: string;
+  left_column: string;
+  right_column: string;
+}): Promise<StoredWorksheet> {
+  return request(`/v1/worksheets/${encodeURIComponent(worksheetId)}/inner-join`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function createCheckSheet(payload: {
   sheet_id: string;
   title: string;

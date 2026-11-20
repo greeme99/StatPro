@@ -154,6 +154,7 @@ from statpro.domain.data import (
     create_worksheet,
     filter_worksheet_rows,
     import_csv_bytes,
+    inner_join_worksheet,
     import_sqlite_bytes,
     import_xlsx_bytes,
     replace_worksheet_cell,
@@ -1355,6 +1356,13 @@ class AddDerivedNumericColumnRequest(ApiModel):
     operation: Literal["copy", "add", "subtract", "multiply", "divide"]
     operand_column: str | None = Field(default=None, min_length=1)
     operand_constant: float | None = None
+
+
+class InnerJoinWorksheetRequest(ApiModel):
+    expected_storage_version: int = Field(ge=1)
+    right_worksheet_id: RunId
+    left_column: str = Field(min_length=1)
+    right_column: str = Field(min_length=1)
 
 
 class StoredWorksheetResponse(ApiModel):
@@ -3969,6 +3977,27 @@ def create_app(
             operation=request.operation,
             operand_column=request.operand_column,
             operand_constant=request.operand_constant,
+        )
+        saved = _save_worksheet(repository, revised, expected_version=request.expected_storage_version)
+        response.headers["ETag"] = f'"{saved.etag}"'
+        return _worksheet_response(saved)
+
+    @app.post(
+        "/v1/worksheets/{worksheet_id}/inner-join",
+        response_model=StoredWorksheetResponse,
+    )
+    def inner_join_rows(
+        worksheet_id: RunId,
+        request: InnerJoinWorksheetRequest,
+        response: Response,
+    ) -> StoredWorksheetResponse:
+        _stored, worksheet = _load_worksheet(repository, worksheet_id)
+        _right_stored, right_worksheet = _load_worksheet(repository, request.right_worksheet_id)
+        revised = inner_join_worksheet(
+            worksheet,
+            right_worksheet=right_worksheet,
+            left_column=request.left_column,
+            right_column=request.right_column,
         )
         saved = _save_worksheet(repository, revised, expected_version=request.expected_storage_version)
         response.headers["ETag"] = f'"{saved.etag}"'

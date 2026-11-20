@@ -18,6 +18,7 @@ from statpro.domain.data import (
     filter_worksheet_rows,
     import_csv_bytes,
     import_csv_dataset,
+    inner_join_worksheet,
     import_sqlite_bytes,
     import_xlsx_bytes,
     replace_worksheet_cell,
@@ -270,6 +271,41 @@ class WorksheetRevisionTests(unittest.TestCase):
             )
         self.assertEqual(zero_context.exception.detail.code, "division_by_zero")
         self.assertEqual(duplicate_context.exception.detail.code, "duplicate_column_name")
+
+    def test_inner_join_creates_a_left_revision_and_records_right_evidence(self) -> None:
+        left = create_worksheet(
+            import_csv_bytes(b"part,value\nA,10\nB,20\nA,30\n", location="left.csv"),
+            name="Measurements",
+        )
+        right = create_worksheet(
+            import_csv_bytes(b"part,operator\nA,Kim\nA,Lee\nC,Park\n", location="right.csv"),
+            name="Operators",
+        )
+
+        joined = inner_join_worksheet(
+            left, right_worksheet=right, left_column="part", right_column="part"
+        )
+
+        self.assertEqual(left.revision, 1)
+        self.assertEqual(joined.revision, 2)
+        self.assertEqual(joined.parent_digest, left.digest)
+        self.assertEqual([column.name for column in joined.columns], ["part", "value", "operator"])
+        self.assertEqual(joined.columns[1].values, (10.0, 10.0, 30.0, 30.0))
+        self.assertEqual(joined.columns[2].values, ("Kim", "Lee", "Kim", "Lee"))
+        self.assertEqual(joined.transformations[-1]["right_worksheet_digest"], right.digest)
+
+    def test_inner_join_rejects_incompatible_keys_and_column_collisions(self) -> None:
+        left = create_worksheet(import_csv_bytes(b"part,value\nA,10\n", location="left.csv"), name="Left")
+        incompatible = create_worksheet(import_csv_bytes(b"part,operator\n1,Kim\n", location="right.csv"), name="Right")
+        collision = create_worksheet(import_csv_bytes(b"part,value\nA,20\n", location="collision.csv"), name="Collision")
+
+        with self.assertRaises(AnalysisInputError) as type_error:
+            inner_join_worksheet(left, right_worksheet=incompatible, left_column="part", right_column="part")
+        with self.assertRaises(AnalysisInputError) as collision_error:
+            inner_join_worksheet(left, right_worksheet=collision, left_column="part", right_column="part")
+
+        self.assertEqual(type_error.exception.detail.code, "incompatible_join_columns")
+        self.assertEqual(collision_error.exception.detail.code, "join_column_collision")
 
     def test_filter_requires_a_value_except_for_missingness_checks(self) -> None:
         worksheet = create_worksheet(

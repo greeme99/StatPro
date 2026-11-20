@@ -86,6 +86,7 @@ class LocalApiContractTests(unittest.TestCase):
         self.assertIn("/v1/worksheets/{worksheet_id}/sort-rows", openapi.json()["paths"])
         self.assertIn("/v1/worksheets/{worksheet_id}/derived-columns", openapi.json()["paths"])
         self.assertIn("/v1/worksheets/import-sqlite", openapi.json()["paths"])
+        self.assertIn("/v1/worksheets/{worksheet_id}/inner-join", openapi.json()["paths"])
 
     def test_runs_one_way_anova_power_plan(self) -> None:
         response = self.client.post(
@@ -2390,6 +2391,35 @@ class LocalApiContractTests(unittest.TestCase):
         self.assertEqual(payload["dataset"]["source"]["kind"], "sqlite")
         self.assertEqual(payload["dataset"]["source"]["location"], "process.sqlite#table=measurements")
         self.assertEqual(payload["worksheet"]["columns"][0]["values"], [10.5, None])
+
+    def test_worksheet_inner_join_creates_a_traced_left_revision(self) -> None:
+        left = self.client.post("/v1/worksheets/import-csv", json={
+            "file_name": "left.csv",
+            "worksheet_name": "Measurements",
+            "content_base64": base64.b64encode(b"part,value\nA,10\nB,20\n").decode("ascii"),
+        }).json()
+        right = self.client.post("/v1/worksheets/import-csv", json={
+            "file_name": "right.csv",
+            "worksheet_name": "Operators",
+            "content_base64": base64.b64encode(b"part,operator\nA,Kim\n").decode("ascii"),
+        }).json()
+
+        response = self.client.post(
+            f"/v1/worksheets/{left['worksheet_id']}/inner-join",
+            json={
+                "expected_storage_version": 1,
+                "right_worksheet_id": right["worksheet_id"],
+                "left_column": "part",
+                "right_column": "part",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        worksheet = response.json()["worksheet"]
+        self.assertEqual(worksheet["revision"], 2)
+        self.assertEqual(worksheet["columns"][-1]["name"], "operator")
+        self.assertEqual(worksheet["columns"][1]["values"], [10.0])
+        self.assertEqual(worksheet["transformations"][-1]["right_worksheet_digest"], right["worksheet"]["digest"])
 
     def test_worksheet_filter_sort_and_derived_column_create_revisions(self) -> None:
         content = base64.b64encode(
