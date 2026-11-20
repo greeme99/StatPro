@@ -6,7 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from statpro.analyses.regression import best_subsets_ols, categorical_ols, interaction_ols, linear_ols, logistic_regression, negative_binomial_regression, poisson_regression, polynomial_ols, stepwise_ols, validate_ols
+from statpro.analyses.regression import best_subsets_ols, categorical_ols, interaction_ols, linear_ols, logistic_regression, negative_binomial_regression, poisson_regression, polynomial_ols, regularized_linear_regression, stepwise_ols, validate_ols
 from statpro.analyses.descriptive import descriptive_statistics
 from statpro.analyses.hypothesis import mann_whitney_u_test
 from statpro.analyses.hypothesis import wilcoxon_signed_rank_test
@@ -100,6 +100,14 @@ class LinearOlsTests(unittest.TestCase):
         self.assertIsNone(result.diagnostics["reject_residual_normality"])
         self.assertEqual(result.diagnostics["heteroscedasticity_status"], "unavailable_zero_variation")
         self.assertIsNone(result.diagnostics["reject_constant_variance"])
+
+    def test_selects_regularized_linear_model_by_cross_validation(self) -> None:
+        result = regularized_linear_regression([2, 4, 6, 8, 10, 12, 14, 16], {"signal": list(range(1, 9)), "noise": [0, 1, 0, 1, 0, 1, 0, 1]}, method="lasso", folds=4)
+
+        self.assertEqual(result.analysis_type, "regression.regularized_linear")
+        self.assertEqual(result.parameters["method"], "lasso")
+        self.assertEqual(len(result.tables["lambda_selection"]["rows"]), 5)
+        self.assertGreaterEqual(result.diagnostics["nonzero_coefficient_count"], 1)
 
 
 class LogisticRegressionTests(unittest.TestCase):

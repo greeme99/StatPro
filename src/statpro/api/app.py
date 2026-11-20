@@ -58,7 +58,7 @@ from statpro.analyses.hypothesis import independent_tost_equivalence, independen
 from statpro.analyses.hypothesis import one_sample_t_test
 from statpro.analyses.hypothesis import paired_t_test, wilcoxon_signed_rank_test
 from statpro.analyses.hypothesis import chi_square_independence, kruskal_wallis_test, one_way_anova
-from statpro.analyses.regression import best_subsets_ols, categorical_ols, interaction_ols, linear_ols, logistic_regression, negative_binomial_regression, poisson_regression, polynomial_ols, stepwise_ols, validate_ols
+from statpro.analyses.regression import best_subsets_ols, categorical_ols, interaction_ols, linear_ols, logistic_regression, negative_binomial_regression, poisson_regression, polynomial_ols, regularized_linear_regression, stepwise_ols, validate_ols
 from statpro.analyses.spc import (
     c_chart,
     cusum_chart,
@@ -523,6 +523,11 @@ class OlsValidationRunRequest(LinearOlsRunRequest):
 class BestSubsetsOlsRunRequest(LinearOlsRunRequest):
     predictors: dict[str, list[float]] = Field(min_length=1, max_length=15)
     top_models_per_size: StrictInt = Field(default=1, ge=1, le=10)
+
+
+class RegularizedLinearRunRequest(LinearOlsRunRequest):
+    method: Literal["ridge", "lasso", "elastic_net"] = "elastic_net"
+    folds: StrictInt = Field(default=5, ge=2, le=10)
 
 
 class PoissonRegressionRunRequest(LinearOlsRunRequest):
@@ -2974,6 +2979,12 @@ def create_app(
     @app.post("/v1/analysis-runs/regression-best-subsets-ols", status_code=201, response_model=StoredRunResponse)
     def run_best_subsets_ols(request: BestSubsetsOlsRunRequest, response: Response) -> StoredRunResponse:
         stored = _save_run(repository, request.run_id, best_subsets_ols(request.response, request.predictors, response_name=request.response_name, top_models_per_size=request.top_models_per_size, alpha=request.alpha))
+        response.headers["ETag"] = f'"{stored.etag}"'
+        return _response(stored)
+
+    @app.post("/v1/analysis-runs/regression-regularized-linear", status_code=201, response_model=StoredRunResponse)
+    def run_regularized_linear_regression(request: RegularizedLinearRunRequest, response: Response) -> StoredRunResponse:
+        stored = _save_run(repository, request.run_id, regularized_linear_regression(request.response, request.predictors, response_name=request.response_name, method=request.method, folds=request.folds))
         response.headers["ETag"] = f'"{stored.etag}"'
         return _response(stored)
 

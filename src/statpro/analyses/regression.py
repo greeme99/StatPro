@@ -520,6 +520,67 @@ def best_subsets_ols(
     )
 
 
+def regularized_linear_regression(
+    response: Sequence[float],
+    predictors: Mapping[str, Sequence[float]],
+    *,
+    method: str = "elastic_net",
+    response_name: str = "Response",
+    folds: int = 5,
+) -> ResultBundle:
+    """Select a standardized Ridge, Lasso, or Elastic Net model by deterministic CV."""
+    values = finite_values(response, "response")
+    names = list(predictors)
+    columns = {name: finite_values(column, f"predictors.{name}") for name, column in predictors.items()}
+    if method not in {"ridge", "lasso", "elastic_net"}:
+        raise AnalysisInputError("invalid_regularization_method", "Use ridge, lasso, or elastic_net.", "method")
+    if not columns or any(len(column) != len(values) for column in columns.values()) or len(values) < max(folds, 4):
+        raise AnalysisInputError("insufficient_observations", "Regularized regression needs aligned predictors and at least one row per validation fold.", "response")
+    if not 2 <= folds <= min(10, len(values)) or not response_name.strip():
+        raise AnalysisInputError("invalid_regularization_options", "Use 2 to 10 folds and a response name.", "folds")
+    if any(max(column) == min(column) for column in columns.values()):
+        raise AnalysisInputError("constant_predictor", "Regularized regression does not accept constant predictors.", "predictors")
+    l1_ratio = {"ridge": 0.0, "lasso": 1.0, "elastic_net": 0.5}[method]
+    lambdas = (0.001, 0.01, 0.1, 1.0, 10.0)
+
+    def fit(indices: Sequence[int], penalty: float) -> tuple[float, list[float], dict[str, float], dict[str, float]]:
+        y_mean = fmean(values[index] for index in indices)
+        means = {name: fmean(columns[name][index] for index in indices) for name in names}
+        scales = {name: math.sqrt(sum((columns[name][index] - means[name]) ** 2 for index in indices) / len(indices)) for name in names}
+        standardized = [[(columns[name][index] - means[name]) / scales[name] for name in names] for index in indices]
+        centered_y = [values[index] - y_mean for index in indices]
+        coefficients = [0.0] * len(names)
+        for _ in range(1_000):
+            maximum_change = 0.0
+            for column_index in range(len(names)):
+                partial = [centered_y[row] - sum(standardized[row][other] * coefficients[other] for other in range(len(names)) if other != column_index) for row in range(len(indices))]
+                rho = sum(standardized[row][column_index] * partial[row] for row in range(len(indices))) / len(indices)
+                threshold = penalty * l1_ratio
+                updated = math.copysign(max(0.0, abs(rho) - threshold), rho) / (1.0 + penalty * (1.0 - l1_ratio))
+                maximum_change = max(maximum_change, abs(updated - coefficients[column_index])); coefficients[column_index] = updated
+            if maximum_change < 1e-9: break
+        original = [coefficient / scales[name] for coefficient, name in zip(coefficients, names, strict=True)]
+        intercept = y_mean - sum(original[index] * means[name] for index, name in enumerate(names))
+        return intercept, original, means, scales
+
+    curve = []
+    all_indices = list(range(len(values)))
+    for penalty in lambdas:
+        errors = []
+        for fold in range(folds):
+            test = [index for index in all_indices if index % folds == fold]; train = [index for index in all_indices if index % folds != fold]
+            intercept, coefficients, _, _ = fit(train, penalty)
+            errors.extend((values[index] - (intercept + sum(coefficients[position] * columns[name][index] for position, name in enumerate(names)))) ** 2 for index in test)
+        curve.append({"lambda": penalty, "cv_rmse": math.sqrt(sum(errors) / len(errors))})
+    selected = min(curve, key=lambda row: (row["cv_rmse"], row["lambda"]))
+    intercept, coefficients, means, scales = fit(all_indices, float(selected["lambda"]))
+    fitted = [intercept + sum(coefficients[position] * columns[name][index] for position, name in enumerate(names)) for index in all_indices]
+    residuals = [actual - prediction for actual, prediction in zip(values, fitted, strict=True)]
+    total = sum((value - fmean(values)) ** 2 for value in values)
+    coefficient_rows = [{"term": name, "coefficient": coefficient, "standardized_coefficient": coefficient * scales[name], "zeroed": abs(coefficient) < 1e-10} for name, coefficient in zip(names, coefficients, strict=True)]
+    return ResultBundle(analysis_type="regression.regularized_linear", engine_version=ENGINE_VERSION, input_digest=input_digest({"response": values, "predictors": columns, "response_name": response_name, "method": method, "folds": folds}), parameters={"response_name": response_name, "predictor_names": names, "method": method, "l1_ratio": l1_ratio, "fold_count": folds, "selected_lambda": selected["lambda"], "intercept": intercept, "standardization": {"means": means, "scales": scales}}, tables={"coefficients": {"columns": ["term", "coefficient", "standardized_coefficient", "zeroed"], "rows": coefficient_rows}, "lambda_selection": {"columns": ["lambda", "cv_rmse"], "rows": curve}, "fitted_values": {"columns": ["observation", "actual", "fitted", "residual"], "rows": [{"observation": index + 1, "actual": values[index], "fitted": fitted[index], "residual": residuals[index]} for index in all_indices]}}, plots={}, diagnostics={"r_squared": 1.0 - sum(error * error for error in residuals) / total if total else None, "cv_rmse": selected["cv_rmse"], "nonzero_coefficient_count": sum(abs(value) >= 1e-10 for value in coefficients)}, assumptions=("Rows are independent and folds preserve their input-row assignment.", "Predictors are standardized within each training fold before fitting."), warnings=("Regularization selection is predictive and does not provide OLS coefficient p-values.",), provenance=(NIST_LINEAR_LEAST_SQUARES_SOURCE,))
+
+
 def validate_ols(
     response: Sequence[float],
     predictors: Mapping[str, Sequence[float]],
