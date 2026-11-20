@@ -96,6 +96,7 @@ export function AnalysisSelectionPage() {
           <Link className="analysis-choice" to="/analyses/regression/stepwise"><strong>단계선택 회귀</strong><span>AICc 기준으로 계층성을 지키며 설명변수 후보를 탐색합니다.</span></Link>
           <Link className="analysis-choice" to="/analyses/regression/validation"><strong>회귀 모형 검증</strong><span>홀드아웃 또는 k-fold로 새 관측값에 대한 예측오차를 점검합니다.</span></Link>
           <Link className="analysis-choice" to="/analyses/regression/best-subsets"><strong>최적 부분집합 회귀</strong><span>모든 X 조합을 AICc·BIC·PRESS·Cp로 비교합니다.</span></Link>
+          <Link className="analysis-choice" to="/analyses/regression/regularized"><strong>정규화 회귀</strong><span>Ridge·Lasso·Elastic Net을 교차검증으로 비교해 공선성을 완화합니다.</span></Link>
           <Link className="analysis-choice" to="/analyses/regression/categorical-ols"><strong>범주형 OLS 회귀</strong><span>라인·설비 등 범주형 X를 기준 범주와 비교해 연속형 결과(Y)를 추정합니다.</span></Link>
           <Link className="analysis-choice" to="/analyses/regression/poisson"><strong>Poisson 회귀</strong><span>불량·고장 등 비음수 정수 건수(Y)의 발생률을 설명합니다.</span></Link>
           <Link className="analysis-choice" to="/analyses/regression/negative-binomial"><strong>음이항 회귀</strong><span>과산포가 있는 비음수 정수 건수(Y)의 발생률을 NB2 분산모형으로 추정합니다.</span></Link>

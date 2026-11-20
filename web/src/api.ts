@@ -613,6 +613,9 @@ export function createOlsValidationRun(payload: { run_id: string; response: numb
 export function createBestSubsetsOlsRun(payload: { run_id: string; response: number[]; predictors: Record<string, number[]>; response_name: string; alpha: number; top_models_per_size: number }): Promise<StoredRun> {
   return request("/v1/analysis-runs/regression-best-subsets-ols", { method: "POST", body: JSON.stringify(payload) });
 }
+export function createRegularizedLinearRun(payload: { run_id: string; response: number[]; predictors: Record<string, number[]>; response_name: string; alpha: number; method: "ridge" | "lasso" | "elastic_net"; folds: number }): Promise<StoredRun> {
+  return request("/v1/analysis-runs/regression-regularized-linear", { method: "POST", body: JSON.stringify(payload) });
+}
 
 export function createPoissonRegressionRun(payload: { run_id: string; response: number[]; predictors: Record<string, number[]>; response_name: string; alpha: number }): Promise<StoredRun> {
   return request("/v1/analysis-runs/regression-poisson", { method: "POST", body: JSON.stringify(payload) });

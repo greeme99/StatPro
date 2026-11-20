@@ -98,6 +98,7 @@ function WorkspaceRoutes() {
           <Route path="/analyses/regression/stepwise" element={<BasicAnalysisSetupPage />} />
           <Route path="/analyses/regression/validation" element={<BasicAnalysisSetupPage />} />
           <Route path="/analyses/regression/best-subsets" element={<BasicAnalysisSetupPage />} />
+          <Route path="/analyses/regression/regularized" element={<BasicAnalysisSetupPage />} />
           <Route path="/analyses/regression/categorical-ols" element={<CategoricalOlsSetupPage />} />
           <Route path="/analyses/regression/poisson" element={<BasicAnalysisSetupPage />} />
           <Route path="/analyses/regression/negative-binomial" element={<BasicAnalysisSetupPage />} />
