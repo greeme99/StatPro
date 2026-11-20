@@ -881,6 +881,29 @@ def sort_worksheet_rows(
     )
 
 
+def select_worksheet_columns(
+    worksheet: WorksheetSnapshot, *, column_names: Sequence[str]
+) -> WorksheetSnapshot:
+    """Create a revision that retains selected columns in their source order."""
+
+    requested = tuple(column_names)
+    if not requested:
+        raise AnalysisInputError("empty_column_selection", "Select at least one worksheet column.", "column_names")
+    if len(set(requested)) != len(requested):
+        raise AnalysisInputError("duplicate_selected_column", "Selected columns must be unique.", "column_names")
+    requested_names = set(requested)
+    available = {column.name for column in worksheet.columns}
+    unknown = sorted(requested_names - available)
+    if unknown:
+        raise AnalysisInputError("unknown_column", f"Unknown worksheet columns: {', '.join(unknown)}.", "column_names")
+    selected = tuple(column for column in worksheet.columns if column.name in requested_names)
+    return _revise_worksheet(
+        worksheet,
+        columns=selected,
+        transformation={"operation": "select_columns", "column_names": [column.name for column in selected]},
+    )
+
+
 def add_derived_numeric_column(
     worksheet: WorksheetSnapshot,
     *,

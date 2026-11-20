@@ -2395,6 +2395,31 @@ describe("StatPro UI", () => {
     expect(body).toMatchObject({ expected_storage_version: 1, row_index: 0, column_name: "value", value: "11.25" });
   });
 
+  it("saves a source-ordered worksheet column selection as a new revision", async () => {
+    const columns = [
+      { name: "value", data_type: "numeric", nullable: false, missing_count: 0, values: [10] },
+      { name: "part", data_type: "text", nullable: false, missing_count: 0, values: ["A"] },
+    ];
+    const worksheet = { worksheet_id: "ws-select", name: "Measurements", base_dataset_digest: "d".repeat(64), digest: "e".repeat(64), revision: 1, parent_digest: null, row_count: 1, columns, transformations: [] };
+    const selectedWorksheet = { ...worksheet, revision: 2, parent_digest: worksheet.digest, columns: [columns[0]], transformations: [{ operation: "select_columns", column_names: ["value"] }] };
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url.endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      if (url.endsWith("/select-columns") && init?.method === "POST") return new Response(JSON.stringify({ worksheet_id: "ws-select", storage_version: 2, etag: "b".repeat(64), worksheet: selectedWorksheet, dataset: null }), { status: 200 });
+      return new Response(JSON.stringify({ worksheet_id: "ws-select", storage_version: 1, etag: "a".repeat(64), worksheet, dataset: null }), { status: 200 });
+    });
+
+    render(<MemoryRouter initialEntries={["/data/ws-select"]}><App /></MemoryRouter>);
+    await screen.findByRole("heading", { name: "Measurements" });
+    await userEvent.click(screen.getByRole("checkbox", { name: "part" }));
+    await userEvent.click(screen.getByRole("button", { name: "선택 열 revision 저장" }));
+
+    expect(await screen.findByText(/revision 2/)).toBeInTheDocument();
+    const selectionCall = fetchMock.mock.calls.find(([url, init]) => String(url).endsWith("/v1/worksheets/ws-select/select-columns") && (init as RequestInit | undefined)?.method === "POST");
+    const body = JSON.parse(String((selectionCall?.[1] as RequestInit).body));
+    expect(body).toMatchObject({ expected_storage_version: 1, column_names: ["value"] });
+  });
+
   it("creates a traced left worksheet revision through the inner join form", async () => {
     const columns = [
       { name: "part", data_type: "text", nullable: false, missing_count: 0, values: ["A"] },

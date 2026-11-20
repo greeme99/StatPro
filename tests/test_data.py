@@ -26,6 +26,7 @@ from statpro.domain.data import (
     import_sqlite_bytes,
     import_xlsx_bytes,
     replace_worksheet_cell,
+    select_worksheet_columns,
     sort_worksheet_rows,
 )
 from statpro.domain.errors import AnalysisInputError
@@ -342,6 +343,28 @@ class WorksheetRevisionTests(unittest.TestCase):
 
         self.assertEqual(type_error.exception.detail.code, "incompatible_join_columns")
         self.assertEqual(collision_error.exception.detail.code, "join_column_collision")
+
+    def test_select_columns_creates_a_revision_in_source_order_and_rejects_invalid_selection(self) -> None:
+        worksheet = create_worksheet(
+            import_csv_bytes(b"value,part,accepted\n10,A,true\n", location="values.csv"),
+            name="Measurements",
+        )
+
+        selected = select_worksheet_columns(worksheet, column_names=["accepted", "value"])
+
+        self.assertEqual(selected.revision, 2)
+        self.assertEqual(selected.parent_digest, worksheet.digest)
+        self.assertEqual([column.name for column in selected.columns], ["value", "accepted"])
+        self.assertEqual(selected.transformations[-1], {"operation": "select_columns", "column_names": ["value", "accepted"]})
+        with self.assertRaises(AnalysisInputError) as empty:
+            select_worksheet_columns(worksheet, column_names=[])
+        with self.assertRaises(AnalysisInputError) as duplicate:
+            select_worksheet_columns(worksheet, column_names=["value", "value"])
+        with self.assertRaises(AnalysisInputError) as unknown:
+            select_worksheet_columns(worksheet, column_names=["missing"])
+        self.assertEqual(empty.exception.detail.code, "empty_column_selection")
+        self.assertEqual(duplicate.exception.detail.code, "duplicate_selected_column")
+        self.assertEqual(unknown.exception.detail.code, "unknown_column")
 
     def test_filter_requires_a_value_except_for_missingness_checks(self) -> None:
         worksheet = create_worksheet(

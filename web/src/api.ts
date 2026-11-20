@@ -1200,6 +1200,16 @@ export function sortWorksheetRows(worksheetId: string, payload: {
   });
 }
 
+export function selectWorksheetColumns(worksheetId: string, payload: {
+  expected_storage_version: number;
+  column_names: string[];
+}): Promise<StoredWorksheet> {
+  return request(`/v1/worksheets/${encodeURIComponent(worksheetId)}/select-columns`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function addDerivedNumericColumn(worksheetId: string, payload: {
   expected_storage_version: number;
   column_name: string;
