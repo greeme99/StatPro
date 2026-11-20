@@ -159,6 +159,7 @@ from statpro.domain.data import (
     import_sqlite_bytes,
     import_xlsx_bytes,
     replace_worksheet_cell,
+    rename_worksheet_column,
     select_worksheet_columns,
     sort_worksheet_rows,
 )
@@ -1361,6 +1362,12 @@ class SortWorksheetRowsRequest(ApiModel):
 class SelectWorksheetColumnsRequest(ApiModel):
     expected_storage_version: int = Field(ge=1)
     column_names: list[str] = Field(min_length=1, max_length=16_384)
+
+
+class RenameWorksheetColumnRequest(ApiModel):
+    expected_storage_version: int = Field(ge=1)
+    column_name: str = Field(min_length=1)
+    new_column_name: str = Field(min_length=1, max_length=255)
 
 
 class AddDerivedNumericColumnRequest(ApiModel):
@@ -4010,6 +4017,25 @@ def create_app(
     ) -> StoredWorksheetResponse:
         _stored, worksheet = _load_worksheet(repository, worksheet_id)
         revised = select_worksheet_columns(worksheet, column_names=request.column_names)
+        saved = _save_worksheet(repository, revised, expected_version=request.expected_storage_version)
+        response.headers["ETag"] = f'"{saved.etag}"'
+        return _worksheet_response(saved)
+
+    @app.post(
+        "/v1/worksheets/{worksheet_id}/rename-column",
+        response_model=StoredWorksheetResponse,
+    )
+    def rename_column(
+        worksheet_id: RunId,
+        request: RenameWorksheetColumnRequest,
+        response: Response,
+    ) -> StoredWorksheetResponse:
+        _stored, worksheet = _load_worksheet(repository, worksheet_id)
+        revised = rename_worksheet_column(
+            worksheet,
+            column_name=request.column_name,
+            new_column_name=request.new_column_name,
+        )
         saved = _save_worksheet(repository, revised, expected_version=request.expected_storage_version)
         response.headers["ETag"] = f'"{saved.etag}"'
         return _worksheet_response(saved)

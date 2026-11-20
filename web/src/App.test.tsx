@@ -2420,6 +2420,28 @@ describe("StatPro UI", () => {
     expect(body).toMatchObject({ expected_storage_version: 1, column_names: ["value"] });
   });
 
+  it("renames a worksheet column as a new revision", async () => {
+    const columns = [{ name: "part", data_type: "text", nullable: false, missing_count: 0, values: ["A"] }];
+    const worksheet = { worksheet_id: "ws-rename", name: "Measurements", base_dataset_digest: "d".repeat(64), digest: "e".repeat(64), revision: 1, parent_digest: null, row_count: 1, columns, transformations: [] };
+    const renamedWorksheet = { ...worksheet, revision: 2, parent_digest: worksheet.digest, columns: [{ ...columns[0], name: "component" }], transformations: [{ operation: "rename_column", column_name: "part", new_column_name: "component" }] };
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url.endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      if (url.endsWith("/rename-column") && init?.method === "POST") return new Response(JSON.stringify({ worksheet_id: "ws-rename", storage_version: 2, etag: "b".repeat(64), worksheet: renamedWorksheet, dataset: null }), { status: 200 });
+      return new Response(JSON.stringify({ worksheet_id: "ws-rename", storage_version: 1, etag: "a".repeat(64), worksheet, dataset: null }), { status: 200 });
+    });
+
+    render(<MemoryRouter initialEntries={["/data/ws-rename"]}><App /></MemoryRouter>);
+    await screen.findByRole("heading", { name: "Measurements" });
+    await userEvent.type(screen.getByRole("textbox", { name: "새 열 이름" }), "component");
+    await userEvent.click(screen.getByRole("button", { name: "열 이름 revision 저장" }));
+
+    expect(await screen.findByText(/revision 2/)).toBeInTheDocument();
+    const renameCall = fetchMock.mock.calls.find(([url, init]) => String(url).endsWith("/v1/worksheets/ws-rename/rename-column") && (init as RequestInit | undefined)?.method === "POST");
+    const body = JSON.parse(String((renameCall?.[1] as RequestInit).body));
+    expect(body).toMatchObject({ expected_storage_version: 1, column_name: "part", new_column_name: "component" });
+  });
+
   it("creates a traced left worksheet revision through the inner join form", async () => {
     const columns = [
       { name: "part", data_type: "text", nullable: false, missing_count: 0, values: ["A"] },

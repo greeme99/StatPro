@@ -904,6 +904,33 @@ def select_worksheet_columns(
     )
 
 
+def rename_worksheet_column(
+    worksheet: WorksheetSnapshot, *, column_name: str, new_column_name: str
+) -> WorksheetSnapshot:
+    """Create a revision that renames exactly one worksheet column."""
+
+    _worksheet_column(worksheet, column_name)
+    normalized_name = new_column_name.strip()
+    if not normalized_name:
+        raise AnalysisInputError("empty_column_name", "Renamed column needs a name.", "new_column_name")
+    if normalized_name == column_name:
+        raise AnalysisInputError("same_column_name", "Renamed column must use a different name.", "new_column_name")
+    if any(column.name == normalized_name for column in worksheet.columns):
+        raise AnalysisInputError("duplicate_column_name", "Worksheet column names must be unique.", "new_column_name")
+    return _revise_worksheet(
+        worksheet,
+        columns=tuple(
+            replace(column, name=normalized_name) if column.name == column_name else column
+            for column in worksheet.columns
+        ),
+        transformation={
+            "operation": "rename_column",
+            "column_name": column_name,
+            "new_column_name": normalized_name,
+        },
+    )
+
+
 def add_derived_numeric_column(
     worksheet: WorksheetSnapshot,
     *,

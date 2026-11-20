@@ -89,6 +89,7 @@ class LocalApiContractTests(unittest.TestCase):
         self.assertIn("/v1/worksheets/{worksheet_id}/sort-rows", openapi.json()["paths"])
         self.assertIn("/v1/worksheets/{worksheet_id}/derived-columns", openapi.json()["paths"])
         self.assertIn("/v1/worksheets/{worksheet_id}/select-columns", openapi.json()["paths"])
+        self.assertIn("/v1/worksheets/{worksheet_id}/rename-column", openapi.json()["paths"])
         self.assertIn("/v1/worksheets/import-sqlite", openapi.json()["paths"])
         self.assertIn("/v1/worksheets/import-parquet", openapi.json()["paths"])
         self.assertIn("/v1/worksheets/{worksheet_id}/inner-join", openapi.json()["paths"])
@@ -2459,6 +2460,22 @@ class LocalApiContractTests(unittest.TestCase):
         self.assertEqual(worksheet["revision"], 2)
         self.assertEqual([column["name"] for column in worksheet["columns"]], ["value", "accepted"])
         self.assertEqual(worksheet["transformations"][-1]["operation"], "select_columns")
+
+    def test_worksheet_column_rename_creates_a_revision(self) -> None:
+        created = self.client.post("/v1/worksheets/import-csv", json={
+            "file_name": "process.csv",
+            "worksheet_name": "Measurements",
+            "content_base64": base64.b64encode(b"value,part\n10,A\n").decode("ascii"),
+        }).json()
+        response = self.client.post(
+            f"/v1/worksheets/{created['worksheet_id']}/rename-column",
+            json={"expected_storage_version": 1, "column_name": "part", "new_column_name": "component"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        worksheet = response.json()["worksheet"]
+        self.assertEqual(worksheet["revision"], 2)
+        self.assertEqual([column["name"] for column in worksheet["columns"]], ["value", "component"])
 
     def test_worksheet_filter_sort_and_derived_column_create_revisions(self) -> None:
         content = base64.b64encode(

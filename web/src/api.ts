@@ -1210,6 +1210,17 @@ export function selectWorksheetColumns(worksheetId: string, payload: {
   });
 }
 
+export function renameWorksheetColumn(worksheetId: string, payload: {
+  expected_storage_version: number;
+  column_name: string;
+  new_column_name: string;
+}): Promise<StoredWorksheet> {
+  return request(`/v1/worksheets/${encodeURIComponent(worksheetId)}/rename-column`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function addDerivedNumericColumn(worksheetId: string, payload: {
   expected_storage_version: number;
   column_name: string;

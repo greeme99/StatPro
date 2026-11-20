@@ -25,6 +25,7 @@ from statpro.domain.data import (
     import_parquet_bytes,
     import_sqlite_bytes,
     import_xlsx_bytes,
+    rename_worksheet_column,
     replace_worksheet_cell,
     select_worksheet_columns,
     sort_worksheet_rows,
@@ -365,6 +366,17 @@ class WorksheetRevisionTests(unittest.TestCase):
         self.assertEqual(empty.exception.detail.code, "empty_column_selection")
         self.assertEqual(duplicate.exception.detail.code, "duplicate_selected_column")
         self.assertEqual(unknown.exception.detail.code, "unknown_column")
+
+    def test_rename_column_creates_a_revision_and_rejects_duplicate_names(self) -> None:
+        worksheet = create_worksheet(import_csv_bytes(b"value,part\n10,A\n", location="values.csv"), name="Measurements")
+        renamed = rename_worksheet_column(worksheet, column_name="part", new_column_name="component")
+
+        self.assertEqual(renamed.revision, 2)
+        self.assertEqual([column.name for column in renamed.columns], ["value", "component"])
+        self.assertEqual(renamed.transformations[-1]["operation"], "rename_column")
+        with self.assertRaises(AnalysisInputError) as duplicate:
+            rename_worksheet_column(worksheet, column_name="part", new_column_name="value")
+        self.assertEqual(duplicate.exception.detail.code, "duplicate_column_name")
 
     def test_filter_requires_a_value_except_for_missingness_checks(self) -> None:
         worksheet = create_worksheet(

@@ -13,6 +13,7 @@ from statpro.domain.data import (
     import_sqlite_bytes,
     import_xlsx_bytes,
     replace_worksheet_cell,
+    rename_worksheet_column,
     select_worksheet_columns,
 )
 from statpro.domain.errors import AnalysisInputError
@@ -34,6 +35,7 @@ __all__ = [
     "import_sqlite_bytes",
     "import_xlsx_bytes",
     "replace_worksheet_cell",
+    "rename_worksheet_column",
     "select_worksheet_columns",
     "result_bundle_schema",
 ]
