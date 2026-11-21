@@ -2904,7 +2904,11 @@ class EnterpriseApiBoundaryTests(unittest.TestCase):
         self.assertEqual(self.client.get("/health").status_code, 200)
         self.assertEqual(self.client.get("/v1/worksheets").status_code, 401)
         headers = {"Authorization": "Bearer verified"}
-        self.assertEqual(self.client.get("/v1/worksheets", headers=headers).status_code, 200)
+        listed = self.client.get("/v1/worksheets", headers=headers)
+        self.assertEqual(listed.status_code, 200)
+        self.assertEqual(listed.headers["cache-control"], "no-store")
+        self.assertEqual(listed.headers["x-content-type-options"], "nosniff")
+        self.assertEqual(listed.headers["x-frame-options"], "DENY")
         mismatch = self.client.post(
             "/v1/worksheets",
             headers=headers,

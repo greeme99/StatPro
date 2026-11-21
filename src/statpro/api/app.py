@@ -247,6 +247,18 @@ def _required_api_permission(method: str, path: str) -> str:
         return QUALITY_EDIT_PERMISSION
     return QUALITY_VIEW_PERMISSION
 
+
+def _secure_api_response(response: Response, path: str) -> Response:
+    """Prevent browsers from retaining or embedding local quality API data."""
+
+    if path.startswith("/v1/"):
+        response.headers.setdefault("Cache-Control", "no-store")
+        response.headers.setdefault("Pragma", "no-cache")
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("Referrer-Policy", "no-referrer")
+    return response
+
 ANALYSIS_RUNS = "analysis-runs"
 DATASETS = "datasets"
 WORKSHEETS = "worksheets"
@@ -2454,7 +2466,7 @@ def create_app(
                             },
                         },
                     )
-            return response
+            return _secure_api_response(response, request.url.path)
         response = await call_next(request)
         if (
             _required_api_permission(request.method, request.url.path) == QUALITY_EXPORT_PERMISSION
@@ -2462,7 +2474,7 @@ def create_app(
         ):
             response.headers["Cache-Control"] = "no-store"
             response.headers["X-StatPro-Export-Classification"] = "controlled-quality-record"
-        return response
+        return _secure_api_response(response, request.url.path)
 
     @app.exception_handler(DomainInputError)
     async def domain_error_handler(_request: object, error: DomainInputError) -> JSONResponse:
