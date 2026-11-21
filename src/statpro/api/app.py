@@ -6,6 +6,7 @@ import base64
 import binascii
 import json
 import re
+from dataclasses import replace
 from collections.abc import Mapping
 from datetime import UTC, datetime
 from pathlib import Path
@@ -433,12 +434,20 @@ class TChartRunRequest(ApiModel):
     baseline_mean_interval: float | None = Field(default=None, gt=0.0)
 
 
+class WorksheetColumnSourceRequest(ApiModel):
+    worksheet_id: RunId
+    worksheet_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    worksheet_revision: int = Field(ge=1)
+    column_name: str = Field(min_length=1, max_length=255)
+
+
 class CapabilityRunRequest(ApiModel):
     run_id: RunId
-    values: list[float]
+    values: list[float] | None = None
     lsl: float | None = None
     usl: float | None = None
     target: float | None = None
+    worksheet_source: WorksheetColumnSourceRequest | None = None
 
 
 class JarqueBeraNormalityRunRequest(ApiModel):
@@ -2295,6 +2304,36 @@ def _save_run(
     )
 
 
+def _capability_values(
+    repository: DocumentRepository, request: CapabilityRunRequest
+) -> tuple[list[float], dict[str, Any] | None]:
+    """Resolve selected worksheet values at the source-owning boundary."""
+    if request.worksheet_source is None:
+        if request.values is None:
+            raise AnalysisInputError("missing_measurements", "Provide measurement values or select a worksheet numeric column.", "values")
+        return request.values, None
+    if request.values is not None:
+        raise AnalysisInputError("ambiguous_measurements", "Provide either manual values or a worksheet source, not both.", "values")
+
+    source = request.worksheet_source
+    _stored, worksheet = _load_worksheet(repository, source.worksheet_id)
+    if worksheet.revision != source.worksheet_revision or worksheet.digest != source.worksheet_digest:
+        raise AnalysisInputError("stale_worksheet_source", "The selected worksheet revision no longer matches the requested source. Return to the worksheet and select it again.", "worksheet_source")
+    column = next((item for item in worksheet.columns if item.name == source.column_name), None)
+    if column is None or column.data_type is not DataType.NUMERIC:
+        raise AnalysisInputError("invalid_worksheet_column", "Select an existing numeric worksheet column for capability analysis.", "worksheet_source.column_name")
+    if column.missing_count:
+        raise AnalysisInputError("worksheet_column_has_missing_values", "The selected worksheet column contains missing values. Create a reviewed revision before capability analysis.", "worksheet_source.column_name")
+    values = [value for value in column.values if isinstance(value, float)]
+    return values, {"worksheet_id": worksheet.worksheet_id, "worksheet_revision": worksheet.revision, "worksheet_digest": worksheet.digest, "column_name": column.name}
+
+
+def _with_worksheet_source(result: ResultBundle, source: dict[str, Any] | None) -> ResultBundle:
+    if source is None:
+        return result
+    return replace(result, input_digest=input_digest({"analysis_input_digest": result.input_digest, "worksheet_source": source}), parameters={**result.parameters, "worksheet_source": source})
+
+
 def _load_analysis_evidence_reference(
     repository: DocumentRepository, run_id: str
 ) -> AnalysisEvidenceRef:
@@ -2925,12 +2964,13 @@ def create_app(
     def run_capability(
         request: CapabilityRunRequest, response: Response
     ) -> StoredRunResponse:
+        values, source = _capability_values(repository, request)
         stored = _save_run(
             repository,
             request.run_id,
-            normal_process_capability(
-                request.values, lsl=request.lsl, usl=request.usl, target=request.target
-            ),
+            _with_worksheet_source(normal_process_capability(
+                values, lsl=request.lsl, usl=request.usl, target=request.target
+            ), source),
         )
         response.headers["ETag"] = f'"{stored.etag}"'
         return _response(stored)
@@ -2943,12 +2983,13 @@ def create_app(
     def run_nonnormal_capability(
         request: CapabilityRunRequest, response: Response
     ) -> StoredRunResponse:
+        values, source = _capability_values(repository, request)
         stored = _save_run(
             repository,
             request.run_id,
-            nonnormal_process_capability(
-                request.values, lsl=request.lsl, usl=request.usl, target=request.target
-            ),
+            _with_worksheet_source(nonnormal_process_capability(
+                values, lsl=request.lsl, usl=request.usl, target=request.target
+            ), source),
         )
         response.headers["ETag"] = f'"{stored.etag}"'
         return _response(stored)

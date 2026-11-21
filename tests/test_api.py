@@ -2352,6 +2352,53 @@ class LocalApiContractTests(unittest.TestCase):
         self.assertEqual(stale.status_code, 409)
         self.assertEqual(stale.json()["error"]["code"], "storage_conflict")
 
+    def test_capability_run_can_use_a_numeric_worksheet_column_with_fixed_provenance(self) -> None:
+        content = base64.b64encode(b"measurement,line\n99.8,L1\n100.4,L2\n99.5,L1\n").decode("ascii")
+        created = self.client.post(
+            "/v1/worksheets/import-csv",
+            json={"file_name": "assembly.csv", "worksheet_name": "Assembly measurements", "content_base64": content},
+        )
+        self.assertEqual(created.status_code, 201)
+        worksheet = created.json()["worksheet"]
+
+        response = self.client.post(
+            "/v1/analysis-runs/capability-normal",
+            json={
+                "run_id": "cap-from-worksheet",
+                "lsl": 95,
+                "usl": 105,
+                "worksheet_source": {
+                    "worksheet_id": worksheet["worksheet_id"],
+                    "worksheet_revision": worksheet["revision"],
+                    "worksheet_digest": worksheet["digest"],
+                    "column_name": "measurement",
+                },
+            },
+        )
+
+        self.assertEqual(response.status_code, 201)
+        source = response.json()["result"]["parameters"]["worksheet_source"]
+        self.assertEqual(source["worksheet_id"], worksheet["worksheet_id"])
+        self.assertEqual(source["worksheet_revision"], 1)
+        self.assertEqual(source["column_name"], "measurement")
+        self.assertNotEqual(response.json()["result"]["input_digest"], "")
+
+        stale = self.client.post(
+            "/v1/analysis-runs/capability-normal",
+            json={
+                "run_id": "cap-from-stale-worksheet",
+                "lsl": 95,
+                "worksheet_source": {
+                    "worksheet_id": worksheet["worksheet_id"],
+                    "worksheet_revision": 2,
+                    "worksheet_digest": worksheet["digest"],
+                    "column_name": "measurement",
+                },
+            },
+        )
+        self.assertEqual(stale.status_code, 422)
+        self.assertEqual(stale.json()["error"]["code"], "stale_worksheet_source")
+
     def test_csv_worksheet_rejects_invalid_base64(self) -> None:
         response = self.client.post(
             "/v1/worksheets/import-csv",

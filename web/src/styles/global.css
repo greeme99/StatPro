@@ -272,6 +272,8 @@ svg { width: var(--icon-size); height: var(--icon-size); stroke-width: 1.8; }
 .analysis-choice.is-selected { border-color: var(--color-action); background: var(--color-bg-selected); box-shadow: inset 0 0 0 var(--border-width) var(--color-action); }
 .analysis-choice span { color: var(--color-text-secondary); font-size: var(--font-caption-size); }
 .analysis-recommendation { display: grid; gap: var(--space-5); border-color: var(--color-action); }
+.analysis-selection-page > .analysis-recommendation { order: 1; }
+.analysis-selection-page > .basic-analysis-panel { order: 2; }
 .analysis-recommendation > header { display: flex; align-items: center; gap: var(--space-4); }
 .recommendation-icon { display: grid; place-items: center; width: var(--touch-target); height: var(--touch-target); border-radius: var(--radius-lg); color: var(--color-action); background: var(--color-bg-selected); }
 .recommendation-rationale { max-width: var(--content-narrow); color: var(--color-text-secondary); }
@@ -607,6 +609,10 @@ dd { margin: var(--space-0); }
 .data-list-layout { display: grid; grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr); gap: var(--grid-gap); align-items: start; }
 .compact-form { position: sticky; top: calc(var(--header-height) + var(--space-5)); }
 .form-stack { display: grid; gap: var(--space-4); padding: var(--card-pad); }
+.import-source-note { padding: var(--space-3); border-radius: var(--radius-md); color: var(--color-text-secondary); background: var(--color-bg-subtle); font-size: var(--font-caption-size); }
+.import-file-summary { display: flex; gap: var(--space-3); align-items: flex-start; padding: var(--space-3); border-radius: var(--radius-md); color: var(--color-status-success); background: var(--color-status-success-bg); }
+.import-file-summary > div { display: grid; gap: var(--space-1); min-width: var(--space-0); }
+.import-file-summary span { color: var(--color-text-primary); overflow-wrap: anywhere; font-size: var(--font-caption-size); }
 .field select { width: 100%; min-height: var(--control-height); padding: var(--space-2) var(--space-3); color: var(--color-text-primary); background: var(--color-bg-surface); border: var(--border-width) solid var(--color-border-strong); border-radius: var(--radius-md); }
 .table-subtitle { display: block; margin-top: var(--space-1); color: var(--color-text-secondary); font: 400 12px/1.4 var(--font-mono); }
 .status-badge.status-draft { color: var(--color-status-warning); background: var(--color-status-warning-bg); }
@@ -672,14 +678,29 @@ dd { margin: var(--space-0); }
 .worksheet-table thead th:first-child { z-index: 4; }
 .worksheet-table thead button { width: 100%; min-height: var(--row-h); display: grid; gap: var(--space-1); padding: var(--space-2) var(--space-3); text-align: left; color: var(--color-text-primary); background: transparent; border: 0; cursor: pointer; }
 .worksheet-table thead button:hover { color: var(--color-action); background: var(--color-bg-hover); }
+.worksheet-table thead button.is-selected { color: var(--color-action); background: var(--color-bg-selected); box-shadow: inset 0 calc(var(--border-width) * -2) var(--color-action); }
 .worksheet-table thead small { color: var(--color-text-secondary); font-size: 11px; font-weight: 400; }
 .cell-button { width: 100%; min-height: var(--row-h); padding: var(--space-2) var(--space-3); text-align: left; color: var(--color-text-primary); background: transparent; border: 0; cursor: pointer; font-variant-numeric: tabular-nums; }
+.worksheet-table .is-numeric, .worksheet-table .is-numeric .cell-button { text-align: right; }
 .cell-button:hover, .cell-button:focus-visible { background: var(--color-bg-selected); }
 .missing-value { color: var(--color-text-muted); font-style: italic; }
 .table-limit-note { padding: var(--space-3) var(--card-pad); border-top: var(--border-width) solid var(--color-border); }
 .cell-editor form { display: grid; gap: var(--space-5); padding: var(--space-5) var(--space-0); }
 .cell-editor .method-note { display: flex; gap: var(--space-2); align-items: flex-start; }
 .page-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-3); }
+.workflow-source-context { display: grid; gap: var(--space-1); }
+.workflow-source-context p { color: var(--color-text-secondary); }
+.workflow-source-context code { color: var(--color-text-primary); font-family: var(--font-mono); overflow-wrap: anywhere; }
+.worksheet-analysis-source { padding: var(--space-0); }
+.source-value-summary { display: grid; gap: var(--space-1); padding: var(--space-3); border-radius: var(--radius-md); color: var(--color-text-secondary); background: var(--color-bg-subtle); }
+.source-value-summary strong { color: var(--color-text-primary); font-variant-numeric: tabular-nums; }
+.analysis-readiness { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: var(--space-5); padding: var(--space-4); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-bg-surface); box-shadow: var(--shadow-sm); }
+.analysis-readiness h2 { margin: var(--space-1) var(--space-0) var(--space-0); }
+.analysis-readiness ul { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-2); margin: var(--space-0); padding: var(--space-0); list-style: none; }
+.analysis-readiness li { display: grid; gap: var(--space-1); padding: var(--space-3); border-radius: var(--radius-md); background: var(--color-bg-subtle); }
+.analysis-readiness li.is-ready strong { color: var(--color-status-success); }
+.analysis-readiness li.is-pending strong { color: var(--color-status-warning); }
+.analysis-readiness span { color: var(--color-text-secondary); font-size: var(--font-caption-size); }
 .inline-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-4); }
 .factor-editor { display: grid; gap: var(--space-2); }
 .factor-editor-head, .factor-editor-row { display: grid; grid-template-columns: minmax(0, 2fr) repeat(2, minmax(0, 1fr)) var(--touch-target); gap: var(--space-2); align-items: center; }
@@ -915,6 +936,7 @@ dd { margin: var(--space-0); }
   .recommendation-details { grid-template-columns: 1fr; }
   .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .form-panel { grid-template-columns: 1fr; gap: var(--space-5); }
+  .analysis-readiness, .analysis-readiness ul { grid-template-columns: 1fr; }
   .fmea-list-layout, .data-list-layout, .fmea-workbench, .worksheet-layout { grid-template-columns: 1fr; }
   .compact-form { position: static; }
   .column-profile { position: static; }

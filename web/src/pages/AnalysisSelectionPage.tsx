@@ -1,6 +1,6 @@
 import { ArrowRight, CheckCircle2, ClipboardCheck, Route, ShieldCheck } from "lucide-react";
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { defaultSamplingFor, recommendAnalysis, type AnalysisGoal, type SamplingStructure, type StabilityDataType } from "../analysisSelection";
 
 const goals: { value: AnalysisGoal; title: string; detail: string }[] = [
@@ -33,7 +33,10 @@ const samplingOptions: Record<StabilityDataType, { value: SamplingStructure; tit
 };
 
 export function AnalysisSelectionPage() {
-  const [goal, setGoal] = useState<AnalysisGoal>("stability");
+  const [searchParams] = useSearchParams();
+  const worksheetId = searchParams.get("worksheet");
+  const worksheetRevision = searchParams.get("revision");
+  const [goal, setGoal] = useState<AnalysisGoal>(() => searchParams.get("goal") === "capability" ? "capability" : "stability");
   const [dataType, setDataType] = useState<StabilityDataType>("continuous");
   const [sampling, setSampling] = useState<SamplingStructure>("small-subgroup");
   const recommendation = useMemo(() => recommendAnalysis(goal, sampling, dataType), [dataType, goal, sampling]);
@@ -50,6 +53,8 @@ export function AnalysisSelectionPage() {
         <div><span className="eyebrow">Workspace → Workflow</span><h1>통합 분석 추천</h1><p>현장의 판단 목적과 데이터 구조를 선택하면 SPC, 공정능력, MSA, DOE, FMEA, DMAIC 작업공간과 분석 전 확인사항을 제안합니다.</p></div>
         <Route aria-hidden="true" />
       </header>
+
+      {worksheetId && <aside className="method-note workflow-source-context" aria-label="선택한 작업표 맥락"><strong>선택한 작업표</strong><p><code>{worksheetId}</code>{worksheetRevision ? ` · revision ${worksheetRevision}` : ""}에서 분석 목적을 고릅니다. 이 단계는 원본 값을 자동 전송하지 않으므로, 다음 화면에서 사용할 열과 측정값을 검토해 명시적으로 입력하세요.</p></aside>}
 
       <ol className="analysis-selection-rail" aria-label="분석 선택 단계">
         <li className="is-active"><span>1</span><strong>판단 목적</strong></li><li className={goal === "stability" ? "is-active" : ""}><span>2</span><strong>데이터 유형</strong></li><li className={goal === "stability" ? "is-active" : ""}><span>3</span><strong>수집 구조</strong></li><li className="is-active"><span>4</span><strong>추천·실행</strong></li>
@@ -77,7 +82,7 @@ export function AnalysisSelectionPage() {
         </section>
       </>}
 
-      <section className="analysis-question-panel" aria-labelledby="basic-analysis-title">
+      <section className="analysis-question-panel basic-analysis-panel" aria-labelledby="basic-analysis-title">
         <header><span className="eyebrow">기본 분석 작업공간</span><h2 id="basic-analysis-title">데이터 가정과 변수 관계를 먼저 확인합니다</h2></header>
         <div className="analysis-choice-grid is-compact">
           <Link className="analysis-choice" to="/analyses/normality"><strong>정규성 검정</strong><span>측정값의 정규성 가정을 Jarque–Bera 검정으로 점검합니다.</span></Link>
@@ -119,7 +124,7 @@ export function AnalysisSelectionPage() {
           <div><h3><CheckCircle2 aria-hidden="true" /> 필요한 입력</h3><ul>{recommendation.requiredInputs.map((item) => <li key={item}>{item}</li>)}</ul></div>
           <div><h3><ShieldCheck aria-hidden="true" /> 분석 전 확인</h3><ul>{recommendation.checks.map((item) => <li key={item}>{item}</li>)}</ul></div>
         </div>
-        <Link className="primary-link" to={recommendation.href}>{recommendation.action} <ArrowRight aria-hidden="true" /></Link>
+        <Link className="primary-link" to={worksheetId ? `${recommendation.href}?worksheet=${encodeURIComponent(worksheetId)}${worksheetRevision ? `&revision=${encodeURIComponent(worksheetRevision)}` : ""}` : recommendation.href}>{recommendation.action} <ArrowRight aria-hidden="true" /></Link>
       </section>
     </div>
   );

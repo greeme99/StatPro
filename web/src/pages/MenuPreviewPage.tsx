@@ -80,6 +80,7 @@ export function MenuPreviewPage() {
           <span className="eyebrow">현장 분석 운영 흐름</span>
           <h1 id="home-title">공정 문제에서 검증된 조치까지</h1>
           <p>현장 과제를 선택하고 전문 작업공간에서 데이터를 분석한 뒤, 결과를 보고서·관리계획·개선 프로젝트의 후속 조치로 연결합니다.</p>
+          <div className="preview-hero-actions"><Link className="button button-primary" to="/data">작업표 가져오기 <ArrowRight aria-hidden="true" /></Link><Link className="button button-secondary" to="/analyses">분석 선택</Link></div>
         </div>
         <ol className="home-operating-flow" aria-label="현장 분석 운영 단계">
           {operatingFlow.map((step, index) => <li key={step.title}><span>{index + 1}</span><div><strong>{step.title}</strong><p>{step.description}</p></div></li>)}

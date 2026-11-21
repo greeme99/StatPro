@@ -1,4 +1,4 @@
-import { AlertTriangle, ArrowRight, Database, FileUp } from "lucide-react";
+import { AlertTriangle, ArrowRight, Database, FileCheck2, FileUp } from "lucide-react";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { importCsvWorksheet, importParquetWorksheet, importSqliteWorksheet, importXlsxWorksheet, listWorksheets } from "../api";
@@ -26,6 +26,15 @@ export function DataPage() {
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [selectedSource, setSelectedSource] = useState<"none" | "csv" | "xlsx" | "parquet" | "sqlite">("none");
+  const [selectedFileName, setSelectedFileName] = useState("");
+
+  function updateSelectedSource() {
+    const fileName = fileRef.current?.files?.[0]?.name ?? "";
+    const normalized = fileName.toLowerCase();
+    setSelectedFileName(fileName);
+    setSelectedSource(normalized.endsWith(".xlsx") ? "xlsx" : /\.(db|sqlite|sqlite3)$/.test(normalized) ? "sqlite" : /\.(parquet|pq)$/.test(normalized) ? "parquet" : normalized.endsWith(".csv") ? "csv" : "none");
+  }
 
   useEffect(() => {
     let active = true;
@@ -80,9 +89,11 @@ export function DataPage() {
       </article>
       <form className="panel compact-form" onSubmit={handleImport}><header className="panel-heading"><div><span className="eyebrow">데이터 가져오기</span><h2>데이터 가져오기</h2></div><FileUp aria-hidden="true" /></header><div className="form-stack">
         <label className="field">워크시트 이름<input name="worksheet_name" required defaultValue="공정 측정값" /></label>
-        <label className="field">XLSX 시트 이름 (선택)<input name="sheet_name" placeholder="비우면 첫 번째 시트" /><small>다중 시트 XLSX는 시트 이름을 정확히 입력하세요.</small></label>
-        <label className="field">SQLite 테이블 이름 (SQLite 선택 시 필수)<input name="table_name" placeholder="예: measurements" /><small>저장된 일반 테이블 하나만 읽으며 임의 SQL과 가상 테이블은 실행하지 않습니다.</small></label>
-        <label className="field">데이터 파일 (CSV/XLSX/Parquet/SQLite)<input ref={fileRef} name="data_file" type="file" accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,.parquet,.pq,application/vnd.apache.parquet,.db,.sqlite,.sqlite3,application/vnd.sqlite3" /><small>UTF-8 CSV, 값 전용 XLSX, 평면 scalar Parquet 또는 SQLite 테이블, 최대 20MB. 결측은 보존하며 중첩 Parquet·수식·임의 SQL은 실행하지 않습니다.</small></label>
+        <label className="field">데이터 파일 (CSV/XLSX/Parquet/SQLite)<input ref={fileRef} name="data_file" type="file" onChange={updateSelectedSource} accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,.parquet,.pq,application/vnd.apache.parquet,.db,.sqlite,.sqlite3,application/vnd.sqlite3" /><small>파일을 선택하면 필요한 원본 옵션만 표시합니다. 최대 20MB까지 가져올 수 있습니다.</small></label>
+        {selectedFileName && <div className="import-file-summary" role="status"><FileCheck2 aria-hidden="true" /><div><strong>파일 선택됨</strong><span>{selectedFileName} · {selectedSource === "xlsx" ? "XLSX 시트 확인 필요" : selectedSource === "sqlite" ? "SQLite 테이블 이름 필요" : selectedSource === "parquet" ? "Parquet 평면 scalar 데이터" : selectedSource === "csv" ? "CSV 데이터" : "지원 형식을 확인하세요"}</span></div></div>}
+        {selectedSource === "xlsx" && <label className="field">XLSX 시트 이름 (선택)<input name="sheet_name" placeholder="비우면 첫 번째 시트" /><small>다중 시트 XLSX는 시트 이름을 정확히 입력하세요.</small></label>}
+        {selectedSource === "sqlite" && <label className="field">SQLite 테이블 이름 *<input name="table_name" required placeholder="예: measurements" /><small>저장된 일반 테이블 하나만 읽으며 임의 SQL과 가상 테이블은 실행하지 않습니다.</small></label>}
+        {selectedSource === "none" && <p className="import-source-note">UTF-8 CSV, 값 전용 XLSX, 평면 scalar Parquet 또는 SQLite 테이블을 지원합니다. 결측은 보존하며 중첩 Parquet·수식·임의 SQL은 실행하지 않습니다.</p>}
         <Button type="submit" variant="primary" loading={submitting} icon={<FileUp />}>가져오기</Button>
       </div></form>
     </section>

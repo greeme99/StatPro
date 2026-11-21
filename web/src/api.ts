@@ -565,11 +565,12 @@ export function createRareEventChartRun(payload: {
 
 export function createCapabilityRun(payload: {
   run_id: string;
-  values: number[];
+  values?: number[];
   lsl?: number;
   usl?: number;
   target?: number;
   model: "normal" | "nonnormal";
+  worksheet_source?: { worksheet_id: string; worksheet_digest: string; worksheet_revision: number; column_name: string };
 }): Promise<StoredRun> {
   const { model, ...body } = payload;
   return request(`/v1/analysis-runs/capability-${model}`, {
