@@ -24,6 +24,16 @@ class ExternalSqlContractTests(unittest.TestCase):
             allowed_schema="public", allowed_table="measurements",
         )
 
+    def test_public_profile_omits_connection_and_credential_metadata(self) -> None:
+        public = self.profile().to_public_dict()
+
+        self.assertEqual(public["profile_id"], "production")
+        self.assertEqual(public["allowed_table"], "measurements")
+        self.assertNotIn("host", public)
+        self.assertNotIn("user", public)
+        self.assertNotIn("database", public)
+        self.assertNotIn("credential_target", public)
+
     def test_profile_persists_a_credential_reference_not_a_secret(self) -> None:
         profile = self.profile()
         self.assertEqual(profile.to_dict()["credential_target"], "StatPro/production")

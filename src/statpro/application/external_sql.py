@@ -50,6 +50,16 @@ class PostgreSqlProfile:
     def to_dict(self) -> dict[str, object]:
         return {name: getattr(self, name) for name in self.__dataclass_fields__}
 
+    def to_public_dict(self) -> dict[str, object]:
+        """Expose only the selection contract, never connection metadata."""
+
+        return {
+            "profile_id": self.profile_id,
+            "allowed_schema": self.allowed_schema,
+            "allowed_table": self.allowed_table,
+            "row_limit": self.row_limit,
+        }
+
 
 class WindowsCredentialManager:
     """Resolves a named Generic Credential without persisting its secret elsewhere."""

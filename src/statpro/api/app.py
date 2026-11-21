@@ -2455,7 +2455,14 @@ def create_app(
                         },
                     )
             return response
-        return await call_next(request)
+        response = await call_next(request)
+        if (
+            _required_api_permission(request.method, request.url.path) == QUALITY_EXPORT_PERMISSION
+            and response.status_code < 400
+        ):
+            response.headers["Cache-Control"] = "no-store"
+            response.headers["X-StatPro-Export-Classification"] = "controlled-quality-record"
+        return response
 
     @app.exception_handler(DomainInputError)
     async def domain_error_handler(_request: object, error: DomainInputError) -> JSONResponse:
@@ -3969,7 +3976,12 @@ def create_app(
 
     @app.get("/v1/external-sql/profiles")
     def list_external_sql_profiles() -> dict[str, object]:
-        return {"items": [profile.to_dict() for _, profile in sorted(approved_external_sql_profiles.items())]}
+        return {
+            "items": [
+                profile.to_public_dict()
+                for _, profile in sorted(approved_external_sql_profiles.items())
+            ]
+        }
 
     @app.post("/v1/worksheets/import-external-postgres", status_code=201, response_model=StoredWorksheetResponse)
     def import_approved_postgres_worksheet(request: ImportExternalPostgresWorksheetRequest, response: Response) -> StoredWorksheetResponse:

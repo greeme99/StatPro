@@ -714,6 +714,10 @@ class LocalApiContractTests(unittest.TestCase):
         with zipfile.ZipFile(io.BytesIO(xlsx.content)) as workbook:
             self.assertIn("xl/workbook.xml", workbook.namelist())
         self.assertEqual(exported.headers["content-type"], "application/zip")
+        self.assertEqual(exported.headers["cache-control"], "no-store")
+        self.assertEqual(
+            exported.headers["x-statpro-export-classification"], "controlled-quality-record"
+        )
         with zipfile.ZipFile(io.BytesIO(exported.content)) as archive:
             self.assertEqual(archive.namelist()[0:2], ["report.html", "report.json"])
             self.assertIn("tables/01-design.csv", archive.namelist())
