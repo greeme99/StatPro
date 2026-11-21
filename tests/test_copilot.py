@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from statpro.api.server import load_copilot_env
+from statpro.api.server import external_copilot_enabled, load_copilot_env
 from statpro.application.copilot import (
     CopilotAction,
     CopilotGuidance,
@@ -146,6 +146,12 @@ class RateLimitedFallbackProvider:
 
 
 class RuleFirstCopilotProviderTests(unittest.TestCase):
+    def test_external_provider_flag_detects_only_enabled_network_backends(self) -> None:
+        self.assertFalse(external_copilot_enabled({}))
+        self.assertFalse(external_copilot_enabled({"STATPRO_COPILOT_EXAONE_ENABLED": "false"}))
+        self.assertTrue(external_copilot_enabled({"STATPRO_COPILOT_EXAONE_ENABLED": "true"}))
+        self.assertTrue(external_copilot_enabled({"STATPRO_COPILOT_CODEX_ENABLED": "ON"}))
+
     def test_catalog_covers_every_supported_field_domain_with_complete_rules(self) -> None:
         rule_ids = [rule.rule_id for rule in COPILOT_RULE_CATALOG]
 

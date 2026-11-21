@@ -80,6 +80,9 @@ statpro-api --storage "D:\StatProData" --enterprise-identities "D:\secure\statpr
 
 계정 마스터에는 암호·클라이언트 비밀·개인키를 넣지 않습니다. 조직의 IdP가 서명키
 회전과 토큰 발급을 소유하며, 파일 ACL과 변경승인 절차는 별도로 적용해야 합니다.
+엔터프라이즈 인증 모드에서는 EXAONE·Codex 같은 외부 Copilot 연결이 기본 거부됩니다.
+조직의 데이터 반출 승인·DPA·프록시/egress 정책을 확인한 운영자만
+`--allow-external-copilot`을 명시해 활성화할 수 있습니다.
 엔터프라이즈 모드에서 성공한 변경·반출은 `api-audit-events` 원장에 요청 digest,
 응답 ETag, 권한, 인증 사용자와 함께 해시 체인으로 남습니다. 원문 요청·측정값은
 복제하지 않으며, `/v1/audit-ledger/verify`로 보존된 체인의 무결성을 점검합니다.

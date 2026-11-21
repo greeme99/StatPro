@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import replace
 from pathlib import Path
 
@@ -126,6 +126,16 @@ def load_copilot_env(path: Path) -> None:
         os.environ.setdefault(key, value)
 
 
+def external_copilot_enabled(environ: Mapping[str, str] | None = None) -> bool:
+    """Identify enabled providers that can transmit workspace context off-host."""
+
+    source = os.environ if environ is None else environ
+    return any(
+        source.get(name, "").strip().casefold() in {"1", "true", "yes", "on"}
+        for name in ("STATPRO_COPILOT_EXAONE_ENABLED", "STATPRO_COPILOT_CODEX_ENABLED")
+    )
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="statpro-api")
     parser.add_argument("--storage", type=Path, required=True)
@@ -136,6 +146,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--external-sql-profiles", type=Path)
     parser.add_argument("--enterprise-identities", type=Path)
     parser.add_argument("--require-enterprise-auth", action="store_true")
+    parser.add_argument("--allow-external-copilot", action="store_true")
     args = parser.parse_args(argv)
     if args.host not in {"127.0.0.1", "::1", "localhost"}:
         parser.error("StatPro API is local-only; host must be a loopback address.")
@@ -143,6 +154,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.error("--require-enterprise-auth requires --enterprise-identities.")
     try:
         load_copilot_env(args.env_file)
+        if (
+            args.require_enterprise_auth
+            and external_copilot_enabled()
+            and not args.allow_external_copilot
+        ):
+            parser.error(
+                "Enterprise-authenticated deployments require --allow-external-copilot "
+                "before an external Copilot provider can receive workspace context."
+            )
         external_sql_profiles = load_external_sql_profiles(args.external_sql_profiles)
         enterprise_api_authenticator = load_enterprise_api_authenticator(args.enterprise_identities)
     except (OSError, UnicodeError, ValueError, RuntimeError) as error:
