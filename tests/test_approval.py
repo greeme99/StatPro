@@ -19,6 +19,8 @@ from statpro.application.enterprise_identity import (
     EnterpriseApprovalAuthenticator,
     EnterpriseIdentityRecord,
     EntraApprovalConfiguration,
+    QUALITY_EXPORT_PERMISSION,
+    QUALITY_VIEW_PERMISSION,
     VerifiedOidcClaims,
     provided_reference_identities,
 )
@@ -199,6 +201,19 @@ class EnterpriseApprovalIdentityTests(unittest.TestCase):
                 prior_actors=("M15082",),
                 claims=verified,
             )
+
+    def test_enterprise_api_permissions_are_verified_and_fail_closed(self) -> None:
+        authenticator = self.authenticator(self.claims())
+
+        principal = authenticator.authorize_api("Bearer verified", QUALITY_VIEW_PERMISSION)
+
+        self.assertEqual(principal.user_id, "M15082")
+        with self.assertRaisesRegex(ApprovalAuthorizationError, "quality.export"):
+            self.authenticator(
+                self.claims(user_id="M15110", roles=("ROLE_PROD_LOGI",))
+            ).authorize_api("Bearer verified", QUALITY_EXPORT_PERMISSION)
+        with self.assertRaises(ApprovalAuthenticationError):
+            authenticator.authorize_api(None, QUALITY_VIEW_PERMISSION)
 
 
 if __name__ == "__main__":

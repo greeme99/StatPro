@@ -22,6 +22,12 @@ from statpro.application.approval import (
     create_approval_identity,
 )
 from statpro.application.documents import InMemoryDocumentRepository
+from statpro.application.enterprise_identity import (
+    EnterpriseApprovalAuthenticator,
+    EntraApprovalConfiguration,
+    VerifiedOidcClaims,
+    provided_reference_identities,
+)
 
 
 class LocalApiContractTests(unittest.TestCase):
@@ -2858,3 +2864,64 @@ class LocalApiContractTests(unittest.TestCase):
         self.assertEqual(handoff["fmea_control_plan"]["control_ids"], ["CP-001"])
         self.assertEqual(handoff["analysis_evidence"][0]["run_id"], "spc-imr-control")
         self.assertEqual(handoff["reaction_plans"][0]["owner_ref"], "line.supervisor")
+
+
+class EnterpriseApiBoundaryTests(unittest.TestCase):
+    def setUp(self) -> None:
+        tenant_id = "11111111-2222-3333-4444-555555555555"
+        configuration = EntraApprovalConfiguration.for_tenant(
+            tenant_id=tenant_id,
+            client_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+            policy_version="test-policy",
+        )
+        claims = VerifiedOidcClaims(
+            tenant_id=tenant_id,
+            audience=configuration.client_id,
+            issuer=configuration.issuer,
+            subject="entra-object-qa-001",
+            user_id="M15082",
+            display_name="QA Engineer",
+            roles=("ROLE_RND_QA",),
+            authentication_methods=("mfa",),
+        )
+        authenticator = EnterpriseApprovalAuthenticator(
+            configuration,
+            provided_reference_identities(),
+            token_verifier=lambda token: claims if token == "verified" else (_ for _ in ()).throw(ValueError()),
+        )
+        self.client = TestClient(
+            create_app(
+                InMemoryDocumentRepository(), enterprise_api_authenticator=authenticator
+            ),
+            base_url="http://127.0.0.1",
+        )
+
+    def test_enterprise_boundary_requires_bearer_and_binds_actor(self) -> None:
+        self.assertEqual(self.client.get("/health").status_code, 200)
+        self.assertEqual(self.client.get("/v1/worksheets").status_code, 401)
+        headers = {"Authorization": "Bearer verified"}
+        self.assertEqual(self.client.get("/v1/worksheets", headers=headers).status_code, 200)
+        mismatch = self.client.post(
+            "/v1/worksheets",
+            headers=headers,
+            json={
+                "worksheet_id": "enterprise-boundary", "name": "Incoming", "columns": ["value"],
+                "rows": [[1]], "actor": "untrusted.actor",
+            },
+        )
+        self.assertEqual(mismatch.status_code, 403)
+        self.assertEqual(mismatch.json()["error"]["code"], "actor_identity_mismatch")
+        created = self.client.post(
+            "/v1/fmea-studies",
+            headers=headers,
+            json={
+                "study_id": "PFMEA-ENTERPRISE-AUDIT", "name": "Enterprise audit",
+                "study_type": "process", "standard_version": "customer-standard-2026",
+                "actor": "M15082", "occurred_at": "2026-11-21T09:00:00+09:00",
+            },
+        )
+        self.assertEqual(created.status_code, 201)
+        verified = self.client.get("/v1/audit-ledger/verify", headers=headers)
+        self.assertEqual(verified.status_code, 200)
+        self.assertTrue(verified.json()["valid"])
+        self.assertEqual(verified.json()["event_count"], 1)

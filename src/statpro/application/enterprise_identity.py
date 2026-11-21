@@ -19,6 +19,10 @@ from statpro.application.approval import (
 )
 
 FMEA_APPROVAL_PERMISSION = "fmea.approve"
+QUALITY_VIEW_PERMISSION = "quality.view"
+QUALITY_EDIT_PERMISSION = "quality.edit"
+QUALITY_EXPORT_PERMISSION = "quality.export"
+QUALITY_EXTERNAL_IMPORT_PERMISSION = "quality.external_import"
 
 
 @dataclass(frozen=True, slots=True)
@@ -130,15 +134,17 @@ class EntraJwtVerifier:
 ROLE_PERMISSIONS: Mapping[str, frozenset[str]] = {
     "ROLE_SYS_ADMIN": frozenset({
         "identity.configure", "identity.audit", "fmea.view", "fmea.edit",
-        "fmea.review", FMEA_APPROVAL_PERMISSION,
+        "fmea.review", FMEA_APPROVAL_PERMISSION, QUALITY_VIEW_PERMISSION,
+        QUALITY_EDIT_PERMISSION, QUALITY_EXPORT_PERMISSION, QUALITY_EXTERNAL_IMPORT_PERMISSION,
     }),
     "ROLE_RND_QA": frozenset({
         "fmea.view", "fmea.edit", "fmea.review", FMEA_APPROVAL_PERMISSION,
-        "quality.evidence.link",
+        "quality.evidence.link", QUALITY_VIEW_PERMISSION, QUALITY_EDIT_PERMISSION,
+        QUALITY_EXPORT_PERMISSION, QUALITY_EXTERNAL_IMPORT_PERMISSION,
     }),
     "ROLE_SALES_B2G": frozenset({"sales.b2g.view"}),
     "ROLE_SALES_B2B": frozenset({"sales.b2b.view"}),
-    "ROLE_PROD_LOGI": frozenset({"production.view", "logistics.view"}),
+    "ROLE_PROD_LOGI": frozenset({"production.view", "logistics.view", QUALITY_VIEW_PERMISSION}),
     "ROLE_GENERAL": frozenset({"common.view"}),
 }
 
@@ -198,8 +204,47 @@ class EnterpriseApprovalAuthenticator:
             raise ApprovalAuthenticationError("Enterprise token verification failed.") from error
         return self._principal_from_claims(claims)
 
-    def _principal_from_claims(self, claims: VerifiedOidcClaims) -> ApprovalPrincipal:
+    def authorize_api(
+        self, authorization: str | None, required_permission: str
+    ) -> ApprovalPrincipal:
+        """Authorize one API operation from a verified Entra access token.
+
+        The route boundary owns the operation-to-permission decision.  This
+        adapter only accepts claims emitted by its injected signature verifier
+        and intersects them with the local account master before authorizing.
+        """
+
+        claims = self._verified_claims(authorization)
+        identity, effective_roles, permissions = self._identity_permissions(claims)
+        if required_permission not in permissions:
+            raise ApprovalAuthorizationError(
+                f"Identity is not authorized for {required_permission}."
+            )
+        self._require_mfa(claims)
+        return ApprovalPrincipal(
+            user_id=identity.user_id,
+            display_name=claims.display_name,
+            role="enterprise_api_user",
+            authority=f"microsoft-entra:{claims.tenant_id}",
+            authentication_method="oidc_signed_token+mfa",
+        )
+
+    def _verified_claims(self, authorization: str | None) -> VerifiedOidcClaims:
+        if not authorization or not authorization.startswith("Bearer "):
+            raise ApprovalAuthenticationError("A verified enterprise bearer token is required.")
+        token = authorization.removeprefix("Bearer ").strip()
+        if not token:
+            raise ApprovalAuthenticationError("A verified enterprise bearer token is required.")
+        try:
+            claims = self._token_verifier(token)
+        except Exception as error:
+            raise ApprovalAuthenticationError("Enterprise token verification failed.") from error
         self._validate_authority(claims)
+        return claims
+
+    def _identity_permissions(
+        self, claims: VerifiedOidcClaims
+    ) -> tuple[EnterpriseIdentityRecord, set[str], set[str]]:
         identity = self._identities.get(claims.user_id)
         if identity is None:
             raise ApprovalAuthorizationError("Identity is not present in the enterprise account master.")
@@ -207,14 +252,22 @@ class EnterpriseApprovalAuthenticator:
             raise ApprovalAuthorizationError("Enterprise identity is inactive.")
         effective_roles = set(claims.roles).intersection(identity.assigned_roles)
         permissions = set().union(*(ROLE_PERMISSIONS[role] for role in effective_roles))
-        if FMEA_APPROVAL_PERMISSION not in permissions:
-            raise ApprovalAuthorizationError("Identity is not authorized to approve FMEA studies.")
+        return identity, effective_roles, permissions
+
+    def _require_mfa(self, claims: VerifiedOidcClaims) -> None:
         if (
             self.configuration.required_authentication_method
             and self.configuration.required_authentication_method
             not in claims.authentication_methods
         ):
             raise ApprovalAuthorizationError("The enterprise approval policy requires MFA.")
+
+    def _principal_from_claims(self, claims: VerifiedOidcClaims) -> ApprovalPrincipal:
+        self._validate_authority(claims)
+        identity, _effective_roles, permissions = self._identity_permissions(claims)
+        if FMEA_APPROVAL_PERMISSION not in permissions:
+            raise ApprovalAuthorizationError("Identity is not authorized to approve FMEA studies.")
+        self._require_mfa(claims)
         return ApprovalPrincipal(
             user_id=claims.user_id,
             display_name=claims.display_name,
@@ -249,13 +302,7 @@ class EnterpriseApprovalAuthenticator:
         }
 
     def verify(self, authorization: str | None) -> tuple[ApprovalPrincipal, VerifiedOidcClaims]:
-        if not authorization or not authorization.startswith("Bearer "):
-            raise ApprovalAuthenticationError("A verified enterprise bearer token is required.")
-        token = authorization.removeprefix("Bearer ").strip()
-        try:
-            claims = self._token_verifier(token)
-        except Exception as error:
-            raise ApprovalAuthenticationError("Enterprise token verification failed.") from error
+        claims = self._verified_claims(authorization)
         principal = self._principal_from_claims(claims)
         return principal, claims
 

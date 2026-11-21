@@ -49,6 +49,41 @@ npm ci
 npm run dev -- --host 127.0.0.1
 ```
 
+### 공용 현장 PC의 Entra API 경계
+
+공유 단말이나 공용 품질 데이터에서는 `--require-enterprise-auth`와 비밀이 없는 계정
+마스터를 함께 사용합니다. 이 모드의 `/v1/*` 호출은 검증된 Entra Bearer 토큰이 없으면
+거부되며, 토큰 역할과 로컬 계정 마스터의 교집합으로 조회·변경·내보내기·외부 SQL
+가져오기를 분리합니다. 변경 요청의 `actor`는 검증된 사번과 일치해야 합니다.
+
+```json
+{
+  "format": "statpro.enterprise-api-identities.v1",
+  "configuration": {
+    "tenant_id": "<Entra tenant ID>",
+    "client_id": "<StatPro API application ID>",
+    "policy_version": "2026-11-21",
+    "required_authentication_method": "mfa",
+    "user_id_claim": "employee_id",
+    "roles_claim": "roles"
+  },
+  "identities": [
+    {"user_id": "M15082", "assigned_roles": ["ROLE_RND_QA"], "active": true}
+  ]
+}
+```
+
+```powershell
+# pip install -e ".[api,identity]"
+statpro-api --storage "D:\StatProData" --enterprise-identities "D:\secure\statpro-enterprise-identities.json" --require-enterprise-auth
+```
+
+계정 마스터에는 암호·클라이언트 비밀·개인키를 넣지 않습니다. 조직의 IdP가 서명키
+회전과 토큰 발급을 소유하며, 파일 ACL과 변경승인 절차는 별도로 적용해야 합니다.
+엔터프라이즈 모드에서 성공한 변경·반출은 `api-audit-events` 원장에 요청 digest,
+응답 ETag, 권한, 인증 사용자와 함께 해시 체인으로 남습니다. 원문 요청·측정값은
+복제하지 않으며, `/v1/audit-ledger/verify`로 보존된 체인의 무결성을 점검합니다.
+
 ### AI Copilot의 선택적 생성형 AI 연결
 
 기본 상태는 외부 호출이 비활성화되어 Rulebase만 사용합니다. 저장소 루트의 `.env.example`을 `.env`로 복사한 뒤, 키를 **채팅이나 Git에 올리지 말고 로컬 `.env`에만** 입력합니다.

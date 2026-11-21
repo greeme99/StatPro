@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import binascii
+import json
 import re
 from collections.abc import Mapping
 from datetime import UTC, datetime
@@ -80,6 +81,7 @@ from statpro.application.approval import (
     ApprovalConfigurationError,
     LocalApprovalAuthenticator,
 )
+from statpro.application.audit_ledger import ApiAuditLedger, digest_request_body
 from statpro.application.copilot import (
     CopilotProvider,
     RuleFirstCopilotProvider,
@@ -97,7 +99,13 @@ from statpro.application.documents import (
     StoredDocument,
 )
 from statpro.application.dmaic_reports import build_dmaic_report, render_dmaic_report_docx
-from statpro.application.enterprise_identity import EnterpriseApprovalAuthenticator
+from statpro.application.enterprise_identity import (
+    EnterpriseApprovalAuthenticator,
+    QUALITY_EDIT_PERMISSION,
+    QUALITY_EXPORT_PERMISSION,
+    QUALITY_EXTERNAL_IMPORT_PERMISSION,
+    QUALITY_VIEW_PERMISSION,
+)
 from statpro.application.fmea_reports import project_fmea_review_report
 from statpro.application.reports import (
     build_doe_report,
@@ -226,6 +234,18 @@ def _is_loopback_authority(value: str) -> bool:
 def _is_loopback_origin(value: str) -> bool:
     parsed = urlsplit(value)
     return parsed.scheme in {"http", "https"} and _is_loopback_authority(parsed.netloc)
+
+
+def _required_api_permission(method: str, path: str) -> str:
+    """Map an HTTP operation to the smallest shared quality permission."""
+
+    if path.startswith("/v1/external-sql/"):
+        return QUALITY_EXTERNAL_IMPORT_PERMISSION
+    if path.endswith("/export") or path.endswith("/export.xlsx") or path.endswith("/export.docx"):
+        return QUALITY_EXPORT_PERMISSION
+    if method in {"POST", "PUT", "PATCH", "DELETE"}:
+        return QUALITY_EDIT_PERMISSION
+    return QUALITY_VIEW_PERMISSION
 
 ANALYSIS_RUNS = "analysis-runs"
 DATASETS = "datasets"
@@ -2321,6 +2341,7 @@ def create_app(
     repository: DocumentRepository,
     approval_authenticator: LocalApprovalAuthenticator | None = None,
     enterprise_approval_authenticator: EnterpriseApprovalAuthenticator | None = None,
+    enterprise_api_authenticator: EnterpriseApprovalAuthenticator | None = None,
     copilot_provider: CopilotProvider | None = None,
     external_sql_profiles: Mapping[str, PostgreSqlProfile] | None = None,
 ) -> FastAPI:
@@ -2328,6 +2349,7 @@ def create_app(
 
     active_copilot_provider = copilot_provider or build_default_copilot_provider()
     approved_external_sql_profiles = dict(external_sql_profiles or {})
+    audit_ledger = ApiAuditLedger(repository) if enterprise_api_authenticator is not None else None
     app = FastAPI(
         title="StatPro Local API",
         version=ENGINE_VERSION,
@@ -2361,6 +2383,78 @@ def create_app(
                     },
                 },
             )
+        if enterprise_api_authenticator is not None and request.url.path.startswith("/v1/"):
+            required_permission = _required_api_permission(request.method, request.url.path)
+            try:
+                principal = enterprise_api_authenticator.authorize_api(
+                    request.headers.get("authorization"),
+                    required_permission,
+                )
+            except ApprovalAuthenticationError:
+                return JSONResponse(
+                    status_code=401,
+                    content={
+                        "ok": False,
+                        "error": {
+                            "code": "enterprise_authentication_required",
+                            "message": "A verified enterprise bearer token is required.",
+                        },
+                    },
+                )
+            except ApprovalAuthorizationError as error:
+                return JSONResponse(
+                    status_code=403,
+                    content={
+                        "ok": False,
+                        "error": {"code": "enterprise_authorization_denied", "message": str(error)},
+                    },
+                )
+            request.state.enterprise_principal = principal
+            request_body = await request.body()
+            if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
+                try:
+                    payload = json.loads(request_body or b"null")
+                except (UnicodeDecodeError, json.JSONDecodeError):
+                    payload = None
+                if isinstance(payload, dict) and "actor" in payload and payload["actor"] != principal.user_id:
+                    return JSONResponse(
+                        status_code=403,
+                        content={
+                            "ok": False,
+                            "error": {
+                                "code": "actor_identity_mismatch",
+                                "message": "The request actor must match the verified enterprise identity.",
+                            },
+                        },
+                    )
+            response = await call_next(request)
+            should_audit = (
+                request.method in {"POST", "PUT", "PATCH", "DELETE"}
+                or required_permission in {QUALITY_EXPORT_PERMISSION, QUALITY_EXTERNAL_IMPORT_PERMISSION}
+            )
+            if audit_ledger is not None and should_audit and response.status_code < 400:
+                try:
+                    audit_ledger.append(
+                        actor=principal.user_id,
+                        permission=required_permission,
+                        method=request.method,
+                        path=request.url.path,
+                        request_digest=digest_request_body(request_body),
+                        response_status=response.status_code,
+                        response_etag=response.headers.get("etag"),
+                    )
+                except DocumentStoreError as error:
+                    return JSONResponse(
+                        status_code=503,
+                        content={
+                            "ok": False,
+                            "error": {
+                                "code": "audit_ledger_unavailable",
+                                "message": "The authenticated operation could not be recorded in the audit ledger.",
+                            },
+                        },
+                    )
+            return response
         return await call_next(request)
 
     @app.exception_handler(DomainInputError)
@@ -2462,6 +2556,12 @@ def create_app(
     @app.get("/health")
     def health() -> dict[str, object]:
         return {"ok": True, "engine_version": ENGINE_VERSION, "local_only": True}
+
+    @app.get("/v1/audit-ledger/verify")
+    def verify_audit_ledger() -> dict[str, object]:
+        if audit_ledger is None:
+            return {"configured": False, "valid": None}
+        return {"configured": True, **audit_ledger.verify()}
 
     @app.get("/v1/schemas/result-bundle")
     def get_result_bundle_schema() -> dict[str, Any]:
@@ -5448,10 +5548,19 @@ def create_app(
 
 
 def create_local_app(
-    storage_root: Path, approval_identity_file: Path | None = None, *, external_sql_profiles: Mapping[str, PostgreSqlProfile] | None = None
+    storage_root: Path,
+    approval_identity_file: Path | None = None,
+    *,
+    external_sql_profiles: Mapping[str, PostgreSqlProfile] | None = None,
+    enterprise_api_authenticator: EnterpriseApprovalAuthenticator | None = None,
 ) -> FastAPI:
     identity_file = approval_identity_file or storage_root / "approval-identities.json"
     authenticator = (
         LocalApprovalAuthenticator.from_file(identity_file) if identity_file.exists() else None
     )
-    return create_app(AtomicJsonDocumentRepository(storage_root), authenticator, external_sql_profiles=external_sql_profiles)
+    return create_app(
+        AtomicJsonDocumentRepository(storage_root),
+        authenticator,
+        enterprise_api_authenticator=enterprise_api_authenticator,
+        external_sql_profiles=external_sql_profiles,
+    )
