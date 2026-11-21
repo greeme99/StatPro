@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from statpro.api.server import external_copilot_enabled, load_copilot_env
+from statpro.api.server import external_copilot_enabled, is_network_storage_path, load_copilot_env
 from statpro.application.copilot import (
     CopilotAction,
     CopilotGuidance,
@@ -151,6 +151,10 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
         self.assertFalse(external_copilot_enabled({"STATPRO_COPILOT_EXAONE_ENABLED": "false"}))
         self.assertTrue(external_copilot_enabled({"STATPRO_COPILOT_EXAONE_ENABLED": "true"}))
         self.assertTrue(external_copilot_enabled({"STATPRO_COPILOT_CODEX_ENABLED": "ON"}))
+
+    def test_network_storage_detection_is_limited_to_unc_roots(self) -> None:
+        self.assertTrue(is_network_storage_path(Path(r"\\quality-share\statpro")))
+        self.assertFalse(is_network_storage_path(Path(r"D:\StatProData")))
 
     def test_catalog_covers_every_supported_field_domain_with_complete_rules(self) -> None:
         rule_ids = [rule.rule_id for rule in COPILOT_RULE_CATALOG]

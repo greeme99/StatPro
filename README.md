@@ -83,6 +83,9 @@ statpro-api --storage "D:\StatProData" --enterprise-identities "D:\secure\statpr
 또한 이 모드에서는 API가 시작된 저장소에 단일-작성자 잠금을 보유하므로, 같은
 저장소를 두 번째 StatPro 프로세스로 열려는 시도는 거부됩니다. 공유 파일 서버·동시
 다중 사용자 저장소는 지원 대상이 아니며 중앙 저장소 도입 전에는 사용하지 마십시오.
+UNC 네트워크 저장소는 이 모드에서 기본 거부됩니다. 예외적으로 허용하려면
+`--allow-network-storage`를 명시해야 하며, 이 옵션은 매핑 드라이브를 판별하지
+않으므로 조직의 ACL·암호화·백업 검토를 대체하지 않습니다.
 엔터프라이즈 인증 모드에서는 EXAONE·Codex 같은 외부 Copilot 연결이 기본 거부됩니다.
 조직의 데이터 반출 승인·DPA·프록시/egress 정책을 확인한 운영자만
 `--allow-external-copilot`을 명시해 활성화할 수 있습니다.

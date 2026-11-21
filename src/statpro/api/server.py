@@ -136,6 +136,13 @@ def external_copilot_enabled(environ: Mapping[str, str] | None = None) -> bool:
     )
 
 
+def is_network_storage_path(path: Path) -> bool:
+    """Reject UNC roots; mapped drives still require the deployment ACL review."""
+
+    normalized = str(path).replace("/", "\\")
+    return normalized.startswith("\\\\")
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="statpro-api")
     parser.add_argument("--storage", type=Path, required=True)
@@ -147,11 +154,21 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--enterprise-identities", type=Path)
     parser.add_argument("--require-enterprise-auth", action="store_true")
     parser.add_argument("--allow-external-copilot", action="store_true")
+    parser.add_argument("--allow-network-storage", action="store_true")
     args = parser.parse_args(argv)
     if args.host not in {"127.0.0.1", "::1", "localhost"}:
         parser.error("StatPro API is local-only; host must be a loopback address.")
     if args.require_enterprise_auth and args.enterprise_identities is None:
         parser.error("--require-enterprise-auth requires --enterprise-identities.")
+    if (
+        args.require_enterprise_auth
+        and is_network_storage_path(args.storage)
+        and not args.allow_network_storage
+    ):
+        parser.error(
+            "Enterprise-authenticated deployments reject UNC storage; use a local protected "
+            "volume or explicitly acknowledge --allow-network-storage."
+        )
     try:
         load_copilot_env(args.env_file)
         if (
