@@ -12,12 +12,25 @@ from statpro.application.documents import (
     AtomicJsonDocumentRepository,
     DocumentConflictError,
     DocumentCorruptionError,
+    DocumentStoreError,
     InMemoryDocumentRepository,
     InvalidDocumentKeyError,
+    StorageWriterLock,
 )
 
 
 class DocumentRepositoryContractTests(unittest.TestCase):
+    def test_storage_writer_lock_rejects_a_second_process_owner(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            first = StorageWriterLock.acquire(Path(directory))
+            try:
+                with self.assertRaises(DocumentStoreError):
+                    StorageWriterLock.acquire(Path(directory))
+            finally:
+                first.release()
+            second = StorageWriterLock.acquire(Path(directory))
+            second.release()
+
     def test_memory_adapter_copies_documents_and_checks_versions(self) -> None:
         repository = InMemoryDocumentRepository()
         source = {"value": [1, 2]}

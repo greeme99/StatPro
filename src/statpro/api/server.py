@@ -171,17 +171,28 @@ def main(argv: Sequence[str] | None = None) -> int:
     import uvicorn
 
     from statpro.api.app import create_local_app
+    from statpro.application.documents import DocumentStoreError, StorageWriterLock
 
-    uvicorn.run(
-        create_local_app(
-            args.storage,
-            args.approval_identities,
-            external_sql_profiles=external_sql_profiles,
-            enterprise_api_authenticator=enterprise_api_authenticator,
-        ),
-        host=args.host,
-        port=args.port,
-    )
+    storage_lock = None
+    if args.require_enterprise_auth:
+        try:
+            storage_lock = StorageWriterLock.acquire(args.storage)
+        except DocumentStoreError as error:
+            parser.error(str(error))
+    try:
+        uvicorn.run(
+            create_local_app(
+                args.storage,
+                args.approval_identities,
+                external_sql_profiles=external_sql_profiles,
+                enterprise_api_authenticator=enterprise_api_authenticator,
+            ),
+            host=args.host,
+            port=args.port,
+        )
+    finally:
+        if storage_lock is not None:
+            storage_lock.release()
     return 0
 
 

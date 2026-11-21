@@ -37,6 +37,56 @@ class DocumentCorruptionError(DocumentStoreError):
     pass
 
 
+class StorageWriterLock:
+    """An advisory process-wide lock for the local JSON storage owner."""
+
+    def __init__(self, stream: Any) -> None:
+        self._stream = stream
+
+    @classmethod
+    def acquire(cls, root: Path) -> StorageWriterLock:
+        root.mkdir(parents=True, exist_ok=True)
+        path = root / ".statpro-writer.lock"
+        stream = path.open("a+b")
+        try:
+            stream.seek(0)
+            if not stream.read(1):
+                stream.seek(0)
+                stream.write(b"0")
+                stream.flush()
+            stream.seek(0)
+            if os.name == "nt":
+                import msvcrt
+
+                msvcrt.locking(stream.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+
+                fcntl.flock(stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError as error:
+            stream.close()
+            raise DocumentStoreError(
+                "StatPro storage is already owned by another writer process."
+            ) from error
+        return cls(stream)
+
+    def release(self) -> None:
+        if self._stream.closed:
+            return
+        try:
+            self._stream.seek(0)
+            if os.name == "nt":
+                import msvcrt
+
+                msvcrt.locking(self._stream.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                import fcntl
+
+                fcntl.flock(self._stream.fileno(), fcntl.LOCK_UN)
+        finally:
+            self._stream.close()
+
+
 @dataclass(frozen=True, slots=True)
 class StoredDocument:
     collection: str
