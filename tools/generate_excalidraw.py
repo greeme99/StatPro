@@ -1126,12 +1126,12 @@ def build_integrated_workflow():
 
 if __name__ == '__main__':
   overall_data = build_overall_workflow()
-  p_overall = Path(r'D:\Workspace\StatPro\sav.loc\diagrams\statpro-overall-workflow.excalidraw')
+  p_overall = Path(r'D:\Workspace\StatPro\myStatPro\diagrams\statpro-overall-workflow.excalidraw')
   p_overall.write_text(json.dumps(overall_data, indent=2, ensure_ascii=False), encoding='utf-8')
   print(f'Written {p_overall.name} ({len(overall_data["elements"])} elements)')
 
   int_data = build_integrated_workflow()
-  p_int = Path(r'D:\Workspace\StatPro\sav.loc\diagrams\statpro-integrated-workflow.excalidraw')
+  p_int = Path(r'D:\Workspace\StatPro\myStatPro\diagrams\statpro-integrated-workflow.excalidraw')
   p_int.write_text(json.dumps(int_data, indent=2, ensure_ascii=False), encoding='utf-8')
   print(f'Written {p_int.name} ({len(int_data["elements"])} elements)')
 

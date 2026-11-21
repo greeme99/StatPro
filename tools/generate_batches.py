@@ -226,11 +226,11 @@ if %errorlevel% neq 0 (
 """
 
 files = {
-    r"D:\Workspace\StatPro\sav.loc\start.bat": START_BAT,
-    r"D:\Workspace\StatPro\sav.loc\stop.bat": STOP_BAT,
-    r"D:\Workspace\StatPro\sav.loc\run.bat": RUN_BAT,
-    r"D:\Workspace\StatPro\sav.loc\tools\run_backend.bat": RUN_BACKEND_BAT,
-    r"D:\Workspace\StatPro\sav.loc\tools\run_frontend.bat": RUN_FRONTEND_BAT,
+    r"D:\Workspace\StatPro\myStatPro\start.bat": START_BAT,
+    r"D:\Workspace\StatPro\myStatPro\stop.bat": STOP_BAT,
+    r"D:\Workspace\StatPro\myStatPro\run.bat": RUN_BAT,
+    r"D:\Workspace\StatPro\myStatPro\tools\run_backend.bat": RUN_BACKEND_BAT,
+    r"D:\Workspace\StatPro\myStatPro\tools\run_frontend.bat": RUN_FRONTEND_BAT,
 }
 
 for path_str, content in files.items():

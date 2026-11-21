@@ -965,7 +965,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
 
 def generate_docs_motion_files():
   # 1. Save in diagrams/
-  p1 = Path(r"D:\Workspace\StatPro\sav.loc\diagrams\docs_motion_workflow.html")
+  p1 = Path(r"D:\Workspace\StatPro\myStatPro\diagrams\docs_motion_workflow.html")
   p1.write_text(HTML_CONTENT, encoding="utf-8")
   print(f"Generated: {p1}")
 

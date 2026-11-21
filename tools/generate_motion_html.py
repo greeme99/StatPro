@@ -1080,7 +1080,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
 
 def generate_motion_files():
   # 1. Project directory
-  p1 = Path(r"D:\Workspace\StatPro\sav.loc\diagrams\statpro_motion_workflow.html")
+  p1 = Path(r"D:\Workspace\StatPro\myStatPro\diagrams\statpro_motion_workflow.html")
   p1.write_text(HTML_CONTENT, encoding="utf-8")
   print(f"Generated: {p1}")
 

@@ -976,7 +976,7 @@ SKETCH_HTML = r"""<!DOCTYPE html>
 
 def generate_sketch_files():
   # 1. Project diagrams folder
-  p1 = Path(r"D:\Workspace\StatPro\sav.loc\diagrams\statpro_sketch_motion_workflow.html")
+  p1 = Path(r"D:\Workspace\StatPro\myStatPro\diagrams\statpro_sketch_motion_workflow.html")
   p1.write_text(SKETCH_HTML, encoding="utf-8")
   print(f"Generated: {p1}")
 
