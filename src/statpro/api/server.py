@@ -143,6 +143,13 @@ def is_network_storage_path(path: Path) -> bool:
     return normalized.startswith("\\\\")
 
 
+def is_absolute_storage_path(path: Path) -> bool:
+    """Require an explicit volume-qualified storage destination on Windows."""
+
+    normalized = str(path).replace("/", "\\")
+    return len(normalized) >= 3 and normalized[1:3] == ":\\"
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="statpro-api")
     parser.add_argument("--storage", type=Path, required=True)
@@ -160,6 +167,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.error("StatPro API is local-only; host must be a loopback address.")
     if args.require_enterprise_auth and args.enterprise_identities is None:
         parser.error("--require-enterprise-auth requires --enterprise-identities.")
+    if args.require_enterprise_auth and not is_absolute_storage_path(args.storage):
+        parser.error("Enterprise-authenticated deployments require an absolute local storage path.")
     if (
         args.require_enterprise_auth
         and is_network_storage_path(args.storage)
