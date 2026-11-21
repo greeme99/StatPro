@@ -27,6 +27,7 @@ from statpro.application.copilot import (
     LocalKnowledgeCopilotProvider,
     RuleFirstCopilotProvider,
     UrlLibExaoneChatCompletionClient,
+    _is_complex_request,
     build_default_copilot_provider,
     copilot_runtime_status,
 )
@@ -735,9 +736,21 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
         self.assertEqual(request.get_header("Authorization"), "Bearer secret")
         self.assertEqual(body["model"], "k-exaone_v2.5")
         self.assertEqual(body["reasoning_effort"], "high")
-        self.assertEqual(body["max_tokens"], 4096)
+        self.assertEqual(body["max_tokens"], 1200)
         self.assertIn("Do not use Markdown fences", body["messages"][0]["content"])
         self.assertEqual(urlopen.call_args.kwargs["timeout"], 47)
+
+    def test_rulebase_enrichment_classifies_the_original_question_not_the_rule_text(self) -> None:
+        question = "SMT 설비의 순간정지 현상을 MES, PLC 데이터로 분석하는 방법을 설명해줘"
+        enriched_question = (
+            "다음 사용자 요청에 대해 Rulebase가 아래 내용을 이미 안내했습니다. "
+            "반복하지 말고 보완하세요.\n"
+            f"사용자 요청: {question}\n"
+            "Rulebase 안내: DMAIC 원인 분석과 FMEA를 연결합니다."
+        )
+
+        self.assertFalse(_is_complex_request(question))
+        self.assertFalse(_is_complex_request(enriched_question))
 
     def test_disabled_codex_configuration_continues_to_manual_input_when_exaone_is_disabled(self) -> None:
         with patch.dict(

@@ -51,6 +51,9 @@ describe("StatPro UI", () => {
     });
     render(<MemoryRouter initialEntries={["/doe"]}><App /></MemoryRouter>);
     expect(await screen.findByRole("heading", { name: "실험계획법(DOE) 작업공간" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "이전" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "분석 홈" })).toHaveAttribute("href", "/home");
+    expect(screen.getByRole("button", { name: "다음" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "설계 및 계획", selected: true })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "2수준 완전요인 설계 시작" })).toHaveAttribute("href", "/analyses/doe/full-factorial");
     await userEvent.click(screen.getByRole("tab", { name: "근거" }));
@@ -1324,6 +1327,9 @@ describe("StatPro UI", () => {
     expect(screen.getByRole("heading", { name: "관리이탈 지점 분석" })).toBeInTheDocument();
     expect(screen.getAllByText("NELSON-1").length).toBeGreaterThan(0);
     expect(screen.getByText("Nelson 규칙")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "분석 홈" })).toHaveAttribute("href", "/home");
+    expect(screen.getByRole("button", { name: "이전" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "다음" })).toBeInTheDocument();
   });
 
   it("renders recent analysis runs from the local API", async () => {

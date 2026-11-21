@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode } from "react";
-import { Activity, BarChart3, Bug, Calculator, Database, FileText, FileWarning, FlaskConical, Gauge, HelpCircle, Home, ListChecks, LogOut, Moon, PanelLeftClose, PanelLeftOpen, Sun } from "lucide-react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { Activity, ArrowLeft, ArrowRight, BarChart3, Bug, Calculator, Database, FileText, FileWarning, FlaskConical, Gauge, HelpCircle, Home, ListChecks, LogOut, Moon, PanelLeftClose, PanelLeftOpen, Sun } from "lucide-react";
+import { Link, NavLink, useNavigate } from "react-router-dom";
 import { signOut } from "../auth";
 import { getHealth } from "../api";
 import { CopilotPanel } from "./CopilotPanel";
@@ -24,6 +24,26 @@ const SIDEBAR_DEFAULT_WIDTH = 360;
 const SIDEBAR_MIN_WIDTH = 260;
 const SIDEBAR_MAX_WIDTH = 480;
 const SIDEBAR_COLLAPSE_THRESHOLD = 180;
+const ENGINE_HEALTH_RECHECK_MS = 10_000;
+
+function WorkspaceNavigation() {
+  const navigate = useNavigate();
+  const canGoBack = typeof window !== "undefined" && Number(window.history.state?.idx) > 0;
+  const goPrevious = () => {
+    if (canGoBack) navigate(-1);
+    else navigate("/home");
+  };
+
+  return <nav className="workspace-navigation" aria-label="화면 이동">
+    <button className="workspace-navigation-button" type="button" onClick={goPrevious} title={canGoBack ? "이전 방문 화면으로 이동" : "분석 홈으로 이동"}>
+      <ArrowLeft aria-hidden="true" /> 이전
+    </button>
+    <Link className="workspace-navigation-home" to="/home"><Home aria-hidden="true" /> 분석 홈</Link>
+    <button className="workspace-navigation-button" type="button" onClick={() => navigate(1)} title="다음 방문 화면으로 이동">
+      다음 <ArrowRight aria-hidden="true" />
+    </button>
+  </nav>;
+}
 
 export function AppShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
@@ -59,10 +79,24 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let active = true;
-    getHealth()
-      .then((health) => { if (active) setEngine({ state: "ready", version: health.engine_version ?? "0.6.0" }); })
-      .catch(() => { if (active) setEngine((current) => ({ ...current, state: "error" })); });
-    return () => { active = false; };
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    const checkEngine = () => {
+      getHealth()
+        .then((health) => {
+          if (active) setEngine({ state: "ready", version: health.engine_version ?? "0.6.0" });
+        })
+        .catch(() => {
+          if (active) setEngine((current) => ({ ...current, state: "error" }));
+        })
+        .finally(() => {
+          if (active) retryTimer = setTimeout(checkEngine, ENGINE_HEALTH_RECHECK_MS);
+        });
+    };
+    checkEngine();
+    return () => {
+      active = false;
+      if (retryTimer !== undefined) clearTimeout(retryTimer);
+    };
   }, []);
 
   function startSidebarResize(event: PointerEvent<HTMLButtonElement>) {
@@ -148,7 +182,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
         <button className="sidebar-resize-handle" type="button" aria-label="사이드 메뉴 너비 조절" aria-valuemin={SIDEBAR_MIN_WIDTH} aria-valuemax={SIDEBAR_MAX_WIDTH} aria-valuenow={sidebarCollapsed ? 0 : sidebarWidth} onPointerDown={startSidebarResize} onPointerMove={resizeSidebar} onPointerUp={finishSidebarResize} onPointerCancel={finishSidebarResize} />
       </aside>
-      <main id="main-content" className="main-content">{children}</main>
+      <main id="main-content" className="main-content"><WorkspaceNavigation />{children}</main>
       <CopilotPanel />
       <div className="viewport-warning" role="alert">
         <Activity aria-hidden="true" />

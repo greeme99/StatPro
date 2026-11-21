@@ -174,6 +174,11 @@ cd /d "%~dp0.."
 set "PY_CMD=%~dp0..\.venv\Scripts\python.exe"
 if not exist "%PY_CMD%" set "PY_CMD=py -3.12"
 
+REM The application uses a src/ layout. Make the source package importable
+REM for both the project virtual environment and the Python launcher fallback.
+set "STATPRO_SOURCE=%~dp0..\src"
+set "PYTHONPATH=%STATPRO_SOURCE%;%PYTHONPATH%"
+
 set "STORAGE_DIR=D:\StatProData"
 if not exist "%STORAGE_DIR%" set "STORAGE_DIR=%~dp0..\data"
 if not exist "%STORAGE_DIR%" mkdir "%STORAGE_DIR%"
@@ -182,6 +187,7 @@ echo ======================================================================
 echo              StatPro API Backend Server (:8765)
 echo ======================================================================
 echo  - Python     : %PY_CMD%
+echo  - Source     : %STATPRO_SOURCE%
 echo  - Storage    : %STORAGE_DIR%
 echo  - Endpoint   : http://127.0.0.1:8765
 echo  - Swagger UI : http://127.0.0.1:8765/docs

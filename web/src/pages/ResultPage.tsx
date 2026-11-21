@@ -1,4 +1,4 @@
-import { AlertTriangle, ArrowLeft, BookOpen, CheckCircle2, Download, FileSpreadsheet, FileText, X } from "lucide-react";
+import { AlertTriangle, BookOpen, CheckCircle2, Download, FileSpreadsheet, FileText, X } from "lucide-react";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ANALYSIS_REPORT_REGISTRY, analysisReportKind, analysisRunArtifactUrl, getRun, type ReportTemplate } from "../api";
@@ -104,11 +104,10 @@ export function ResultPage() {
   const closeDrawer = () => { setSearch({}); drawerTrigger.current?.focus(); };
 
   if (state === "loading") return <div className="page"><div className="skeleton page-skeleton" aria-label="결과 불러오는 중" /></div>;
-  if (state === "error" || !run || !result) return <div className="page"><div className="state-message is-error"><AlertTriangle aria-hidden="true" /><h1>결과를 불러오지 못했습니다</h1><p>Run ID를 확인하거나 로컬 API 연결 상태를 점검하세요.</p><Button onClick={() => navigate("/")}>홈으로 이동</Button></div></div>;
+  if (state === "error" || !run || !result) return <div className="page"><div className="state-message is-error"><AlertTriangle aria-hidden="true" /><h1>결과를 불러오지 못했습니다</h1><p>Run ID를 확인하거나 로컬 API 연결 상태를 점검하세요.</p><Button onClick={() => navigate("/home")}>홈으로 이동</Button></div></div>;
 
   return (
     <div className="page result-page" data-density="compact">
-      <Link className="back-link" to="/"><ArrowLeft aria-hidden="true" /> 분석 홈</Link>
       <section className="result-header">
         <div><span className="eyebrow">ANALYSIS RUN / {result.analysis_type}</span><h1>{run.run_id}</h1><p className="digest">SHA-256 · {result.input_digest}</p></div>
         <div className="result-actions"><span className="status-badge is-success"><CheckCircle2 aria-hidden="true" /> 완료</span>{reportKind && reportDescriptor && <>{reportDescriptor.supportsTemplates && <label className="report-template-control">보고서 양식<select aria-label="DOE 보고서 양식" value={reportTemplate} onChange={(event) => setReportTemplate(event.target.value as ReportTemplate)}><option value="standard">표준 분석 보고서</option><option value="customer_review">고객 검토용 보고서</option><option value="regulatory_review">규제 검토용 보고서</option></select></label>}{reportDescriptor.artifacts.includes("html") && <a className="button button-secondary" href={analysisRunArtifactUrl(run.run_id, reportKind, "html", reportTemplate)} download><FileText aria-hidden="true" /><span>HTML 보고서</span></a>}{reportDescriptor.artifacts.includes("pdf") && <ReportPdfDownload href={analysisRunArtifactUrl(run.run_id, reportKind, "pdf", reportTemplate)} filename={`${run.run_id}-${reportKind}-report.pdf`} onError={setReportDownloadError}><FileText aria-hidden="true" /><span>PDF 보고서</span></ReportPdfDownload>}{reportDescriptor.artifacts.includes("xlsx") && <a className="button button-secondary" href={analysisRunArtifactUrl(run.run_id, reportKind, "xlsx", reportTemplate)} download><FileSpreadsheet aria-hidden="true" /><span>Excel 보고서</span></a>}{reportDescriptor.artifacts.includes("zip") && <a className="button button-secondary" href={analysisRunArtifactUrl(run.run_id, reportKind, "zip", reportTemplate)} download><Download aria-hidden="true" /><span>그래프·Excel·CSV·JSON 묶음</span></a>}</>}<ResultExportMenu runId={run.run_id} result={result} /><Button ref={drawerTrigger} icon={<BookOpen />} onClick={() => setSearch({ detail: "provenance" })}>계산 근거</Button></div>

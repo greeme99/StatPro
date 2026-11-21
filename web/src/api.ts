@@ -72,7 +72,13 @@ export function listRuns(limit = 20): Promise<RunPage> {
   return request(`/v1/analysis-runs?limit=${limit}`);
 }
 
-export function getHealth(): Promise<{ status: string; engine_version: string }> {
+export type HealthResponse = {
+  ok: boolean;
+  engine_version: string;
+  local_only: boolean;
+};
+
+export function getHealth(): Promise<HealthResponse> {
   return request("/health");
 }
 

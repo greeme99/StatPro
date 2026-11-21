@@ -121,6 +121,7 @@ _ASSISTANT_REFERENCE = (
     "Laney·다변량 SPC, 혼합물·Taguchi·D-optimal DOE는 현재 제공하지 않는다. "
     "메뉴 경로·입력 점검·확인실험을 안내하되 실행 또는 승인 완료를 주장하지 않는다."
 )
+_EXAONE_GUIDANCE_MAX_TOKENS = 1200
 
 _OUT_OF_SCOPE_GUIDANCE: tuple[tuple[tuple[str, ...], str, str], ...] = (
     (("ppap", "8d", "capa"), "고객 품질·시정조치 관리", "고객 포털·QMS·CAPA/8D 시스템"),
@@ -603,7 +604,10 @@ def _enrichment_question(question: str, rule_guidance: CopilotGuidance) -> str:
 
 
 def _is_complex_request(question: str) -> bool:
-    normalized = question.casefold()
+    original_question = question
+    if "사용자 요청: " in question and "\nRulebase 안내: " in question:
+        original_question = question.split("사용자 요청: ", 1)[1].split("\nRulebase 안내: ", 1)[0]
+    normalized = original_question.casefold()
     complex_terms = (
         "복잡", "원인", "상호작용", "최적화", "다단계", "규제", "승인",
         "fmea", "dmaic", "doe", "설계", "코드", "스크립트", "api",
@@ -616,7 +620,7 @@ def _model_error_detail(error: Exception) -> str:
     if "429" in message:
         return "요청 한도(HTTP 429)에 도달했습니다."
     if "timed out" in message.casefold():
-        return "로컬 모델의 응답 생성 시간이 제한을 초과했습니다."
+        return "EXAONE API 요청의 연결 또는 응답 수신 시간이 제한을 초과했습니다."
     if "invalid JSON" in message or "invalid guidance contract" in message:
         return "모델 응답이 JSON 안내 형식과 일치하지 않습니다."
     if "empty answer" in message:
@@ -876,7 +880,7 @@ class UrlLibExaoneChatCompletionClient:
                     },
                     {"role": "user", "content": prompt},
                 ],
-                "max_tokens": 4096,
+                "max_tokens": _EXAONE_GUIDANCE_MAX_TOKENS,
                 "temperature": 0.2,
                 "stream": False,
                 "reasoning_effort": reasoning_effort,
