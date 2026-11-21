@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import subprocess
 from collections.abc import Mapping, Sequence
 from dataclasses import replace
 from pathlib import Path
@@ -150,6 +151,36 @@ def is_absolute_storage_path(path: Path) -> bool:
     return len(normalized) >= 3 and normalized[1:3] == ":\\"
 
 
+def bitlocker_status_is_protected(value: str) -> bool:
+    """Interpret the stable PowerShell ProtectionStatus value (1 = on)."""
+
+    return value.strip() == "1"
+
+
+def require_bitlocker_protection(path: Path) -> None:
+    """Fail closed when the storage volume is not BitLocker-protected."""
+
+    if os.name != "nt" or not is_absolute_storage_path(path):
+        raise RuntimeError("BitLocker protection can only be verified for an absolute Windows volume.")
+    mount_point = str(path)[:2]
+    command = (
+        "$ErrorActionPreference='Stop'; "
+        f"(Get-BitLockerVolume -MountPoint '{mount_point}').ProtectionStatus"
+    )
+    try:
+        result = subprocess.run(
+            ["powershell", "-NoProfile", "-NonInteractive", "-Command", command],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+    except (OSError, subprocess.SubprocessError) as error:
+        raise RuntimeError("BitLocker protection status could not be verified.") from error
+    if not bitlocker_status_is_protected(result.stdout):
+        raise RuntimeError("StatPro storage volume is not protected by BitLocker.")
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="statpro-api")
     parser.add_argument("--storage", type=Path, required=True)
@@ -162,6 +193,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--require-enterprise-auth", action="store_true")
     parser.add_argument("--allow-external-copilot", action="store_true")
     parser.add_argument("--allow-network-storage", action="store_true")
+    parser.add_argument("--require-bitlocker", action="store_true")
     args = parser.parse_args(argv)
     if args.host not in {"127.0.0.1", "::1", "localhost"}:
         parser.error("StatPro API is local-only; host must be a loopback address.")
@@ -169,6 +201,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.error("--require-enterprise-auth requires --enterprise-identities.")
     if args.require_enterprise_auth and not is_absolute_storage_path(args.storage):
         parser.error("Enterprise-authenticated deployments require an absolute local storage path.")
+    if args.require_bitlocker:
+        try:
+            require_bitlocker_protection(args.storage)
+        except RuntimeError as error:
+            parser.error(str(error))
     if (
         args.require_enterprise_auth
         and is_network_storage_path(args.storage)

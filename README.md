@@ -87,6 +87,9 @@ UNC 네트워크 저장소는 이 모드에서 기본 거부됩니다. 예외적
 `--allow-network-storage`를 명시해야 하며, 이 옵션은 매핑 드라이브를 판별하지
 않으므로 조직의 ACL·암호화·백업 검토를 대체하지 않습니다. 저장 경로는 반드시
 `D:\StatProData`처럼 드라이브가 명시된 절대 경로여야 합니다.
+운영 기준에서 BitLocker를 강제하려면 `--require-bitlocker`를 추가합니다. 이 옵션은
+PowerShell의 `Get-BitLockerVolume`으로 보호 상태를 확인할 수 없거나 보호가 꺼진
+볼륨에서 fail-closed로 서버 시작을 거부합니다.
 엔터프라이즈 인증 모드에서는 EXAONE·Codex 같은 외부 Copilot 연결이 기본 거부됩니다.
 조직의 데이터 반출 승인·DPA·프록시/egress 정책을 확인한 운영자만
 `--allow-external-copilot`을 명시해 활성화할 수 있습니다.
