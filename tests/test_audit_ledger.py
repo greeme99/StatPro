@@ -29,6 +29,9 @@ class ApiAuditLedgerTests(unittest.TestCase):
         self.assertEqual(second["previous_event_hash"], first["event_hash"])
         self.assertNotIn("request_body", first)
         self.assertEqual(ledger.verify()["event_count"], 2)
+        exported = ledger.export()
+        self.assertTrue(exported["verification"]["valid"])
+        self.assertEqual(len(exported["events"]), 2)
 
     def test_verify_rejects_a_tampered_event(self) -> None:
         repository = InMemoryDocumentRepository()

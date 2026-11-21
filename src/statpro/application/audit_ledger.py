@@ -114,6 +114,21 @@ class ApiAuditLedger:
             raise AuditLedgerError("API audit ledger head does not match retained events.")
         return {"valid": True, "event_count": len(ordered), "head_hash": previous_hash}
 
+    def export(self, *, limit: int = 10_000) -> dict[str, Any]:
+        """Return a verified, bounded retention artifact for authorized auditors."""
+
+        verification = self.verify(limit=limit)
+        events = tuple(
+            stored.document
+            for stored in self._repository.list_documents(AUDIT_EVENTS, after=None, limit=limit)
+            if stored.key != AUDIT_HEAD
+        )
+        return {
+            "report_type": "statpro.api_audit_ledger_export.v1",
+            "verification": verification,
+            "events": sorted(events, key=lambda event: int(event["sequence"])),
+        }
+
 
 def digest_request_body(body: bytes) -> str:
     """Return a stable request-body digest without retaining sensitive content."""

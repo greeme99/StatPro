@@ -2933,3 +2933,8 @@ class EnterpriseApiBoundaryTests(unittest.TestCase):
         self.assertEqual(verified.status_code, 200)
         self.assertTrue(verified.json()["valid"])
         self.assertEqual(verified.json()["event_count"], 1)
+        exported = self.client.get("/v1/audit-ledger/export", headers=headers)
+        self.assertEqual(exported.status_code, 200)
+        self.assertEqual(exported.json()["verification"]["event_count"], 1)
+        self.assertIn("statpro-api-audit-ledger.json", exported.headers["content-disposition"])
+        self.assertEqual(exported.headers["x-statpro-export-classification"], "controlled-audit-record")

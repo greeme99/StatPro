@@ -93,6 +93,8 @@ UNC 네트워크 저장소는 이 모드에서 기본 거부됩니다. 예외적
 엔터프라이즈 모드에서 성공한 변경·반출은 `api-audit-events` 원장에 요청 digest,
 응답 ETag, 권한, 인증 사용자와 함께 해시 체인으로 남습니다. 원문 요청·측정값은
 복제하지 않으며, `/v1/audit-ledger/verify`로 보존된 체인의 무결성을 점검합니다.
+`identity.audit` 권한의 시스템 관리자는 `/v1/audit-ledger/export`에서 검증 결과와
+해시 체인 이벤트를 보존용 JSON으로 내보낼 수 있습니다.
 
 ### AI Copilot의 선택적 생성형 AI 연결
 

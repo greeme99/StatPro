@@ -239,7 +239,7 @@ def _is_loopback_origin(value: str) -> bool:
 def _required_api_permission(method: str, path: str) -> str:
     """Map an HTTP operation to the smallest shared quality permission."""
 
-    if path == "/v1/audit-ledger/verify":
+    if path in {"/v1/audit-ledger/verify", "/v1/audit-ledger/export"}:
         return "identity.audit"
     if path.startswith("/v1/external-sql/"):
         return QUALITY_EXTERNAL_IMPORT_PERMISSION
@@ -2583,6 +2583,14 @@ def create_app(
         if audit_ledger is None:
             return {"configured": False, "valid": None}
         return {"configured": True, **audit_ledger.verify()}
+
+    @app.get("/v1/audit-ledger/export")
+    def export_audit_ledger(response: Response) -> dict[str, Any]:
+        if audit_ledger is None:
+            return {"configured": False, "events": []}
+        response.headers["Content-Disposition"] = 'attachment; filename="statpro-api-audit-ledger.json"'
+        response.headers["X-StatPro-Export-Classification"] = "controlled-audit-record"
+        return audit_ledger.export()
 
     @app.get("/v1/schemas/result-bundle")
     def get_result_bundle_schema() -> dict[str, Any]:
