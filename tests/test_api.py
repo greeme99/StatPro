@@ -2883,9 +2883,9 @@ class EnterpriseApiBoundaryTests(unittest.TestCase):
             audience=configuration.client_id,
             issuer=configuration.issuer,
             subject="entra-object-qa-001",
-            user_id="M15082",
-            display_name="QA Engineer",
-            roles=("ROLE_RND_QA",),
+            user_id="M15001",
+            display_name="Quality System Administrator",
+            roles=("ROLE_SYS_ADMIN",),
             authentication_methods=("mfa",),
         )
         authenticator = EnterpriseApprovalAuthenticator(
@@ -2925,7 +2925,7 @@ class EnterpriseApiBoundaryTests(unittest.TestCase):
             json={
                 "study_id": "PFMEA-ENTERPRISE-AUDIT", "name": "Enterprise audit",
                 "study_type": "process", "standard_version": "customer-standard-2026",
-                "actor": "M15082", "occurred_at": "2026-11-21T09:00:00+09:00",
+                "actor": "M15001", "occurred_at": "2026-11-21T09:00:00+09:00",
             },
         )
         self.assertEqual(created.status_code, 201)

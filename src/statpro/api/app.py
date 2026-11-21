@@ -239,6 +239,8 @@ def _is_loopback_origin(value: str) -> bool:
 def _required_api_permission(method: str, path: str) -> str:
     """Map an HTTP operation to the smallest shared quality permission."""
 
+    if path == "/v1/audit-ledger/verify":
+        return "identity.audit"
     if path.startswith("/v1/external-sql/"):
         return QUALITY_EXTERNAL_IMPORT_PERMISSION
     if path.endswith("/export") or path.endswith("/export.xlsx") or path.endswith("/export.docx"):
