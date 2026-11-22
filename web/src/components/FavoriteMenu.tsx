@@ -10,7 +10,7 @@ export function FavoriteMenu() {
   const close = () => { setOpen(false); triggerRef.current?.focus(); };
 
   return <div className="favorite-menu">
-    <button ref={triggerRef} className="favorite-menu-trigger" type="button" aria-label={`즐겨찾기 메뉴 ${favorites.length}개`} aria-expanded={open} aria-controls="favorite-workspace-menu" onClick={() => setOpen((current) => !current)}>
+    <button ref={triggerRef} className="favorite-menu-trigger" type="button" aria-expanded={open} aria-controls="favorite-workspace-menu" onClick={() => setOpen((current) => !current)}>
       <Star aria-hidden="true" /><span>즐겨찾기</span><small>{favorites.length}</small><ChevronDown aria-hidden="true" />
     </button>
     {open && <section id="favorite-workspace-menu" className="favorite-menu-popover" aria-label="즐겨찾기 작업공간">

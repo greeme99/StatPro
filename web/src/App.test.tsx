@@ -67,11 +67,12 @@ describe("StatPro UI", () => {
     });
     render(<MemoryRouter initialEntries={["/catalog/reports"]}><App /></MemoryRouter>);
     expect(await screen.findByRole("heading", { name: "결과 및 보고서" })).toBeInTheDocument();
-    expect(screen.queryByText("구현됨")).not.toBeInTheDocument();
+    expect(screen.getAllByText("구현됨")).toHaveLength(5);
+    expect(screen.getByRole("link", { name: "분석 실행 결과 최근 분석 실행 보기" })).toHaveAttribute("href", "/dashboard");
     expect(screen.getByRole("heading", { name: "DOE 그래프·검토 양식" })).toBeInTheDocument();
     expect(screen.getByText(/지원 Plot의 SVG와 표 XLSX·CSV·JSON/)).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "DOE PDF 검토 보고서" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "DOE PDF 검토 보고서 기능으로 이동" })).toHaveAttribute("href", "/doe");
+    expect(screen.getByRole("link", { name: "DOE PDF 검토 보고서 DOE 보고서 설정 열기" })).toHaveAttribute("href", "/doe");
     expect(screen.getByRole("link", { name: "실험계획법 (DOE)" })).toBeInTheDocument();
   });
 
@@ -125,7 +126,7 @@ describe("StatPro UI", () => {
     expect(screen.getByRole("heading", { name: "즐겨찾는 작업공간" })).toBeInTheDocument();
     expect(localStorage.getItem("statpro-favorite-workspaces")).toContain("/doe");
 
-    await user.click(screen.getByRole("button", { name: "즐겨찾기 메뉴 1개" }));
+    await user.click(screen.getByRole("button", { name: /즐겨찾기\s*1/ }));
     const menu = screen.getByRole("region", { name: "즐겨찾기 작업공간" });
     expect(within(menu).getByRole("link", { name: "실험계획법(DOE)" })).toHaveAttribute("href", "/doe");
     await user.click(within(menu).getByRole("link", { name: "실험계획법(DOE)" }));
@@ -440,11 +441,14 @@ describe("StatPro UI", () => {
   it("resizes the sidebar with the main panel and collapses it at the left limit", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 }));
     const { container } = render(<MemoryRouter initialEntries={["/home"]}><App /></MemoryRouter>);
-    const handle = await screen.findByRole("button", { name: "사이드 메뉴 너비 조절" });
+    const handle = await screen.findByRole("slider", { name: "사이드 메뉴 너비 조절" });
+    expect(handle).toHaveAttribute("aria-valuetext", "360px");
     fireEvent.pointerDown(handle, { clientX: 360, pointerId: 1 });
     fireEvent.pointerMove(handle, { clientX: 420, pointerId: 1 });
     fireEvent.pointerUp(handle, { clientX: 420, pointerId: 1 });
     expect(localStorage.getItem("statpro-sidebar-width")).toBe("420");
+    fireEvent.keyDown(handle, { key: "ArrowLeft" });
+    expect(localStorage.getItem("statpro-sidebar-width")).toBe("400");
     fireEvent.pointerDown(handle, { clientX: 420, pointerId: 2 });
     fireEvent.pointerMove(handle, { clientX: 120, pointerId: 2 });
     fireEvent.pointerUp(handle, { clientX: 120, pointerId: 2 });
@@ -2295,7 +2299,7 @@ describe("StatPro UI", () => {
     });
 
     render(<MemoryRouter initialEntries={["/data"]}><App /></MemoryRouter>);
-    expect(await screen.findByRole("heading", { name: "워크시트" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "작업표" })).toBeInTheDocument();
     expect(await screen.findByText("Process Measurements")).toBeInTheDocument();
     expect(screen.getByText("ws-001")).toBeInTheDocument();
   });
@@ -2312,8 +2316,8 @@ describe("StatPro UI", () => {
     });
 
     render(<MemoryRouter initialEntries={["/data"]}><App /></MemoryRouter>);
-    await userEvent.clear(await screen.findByRole("textbox", { name: "워크시트 이름" }));
-    await userEvent.type(screen.getByRole("textbox", { name: "워크시트 이름" }), "Incoming Data");
+    await userEvent.clear(await screen.findByRole("textbox", { name: "작업표 이름" }));
+    await userEvent.type(screen.getByRole("textbox", { name: "작업표 이름" }), "Incoming Data");
     await userEvent.upload(screen.getByLabelText(/데이터 파일/), new File(["value\n10.5\n"], "incoming.csv", { type: "text/csv" }));
     await userEvent.click(screen.getByRole("button", { name: "가져오기" }));
 
@@ -2336,8 +2340,8 @@ describe("StatPro UI", () => {
     });
 
     render(<MemoryRouter initialEntries={["/data"]}><App /></MemoryRouter>);
-    await userEvent.clear(await screen.findByRole("textbox", { name: "워크시트 이름" }));
-    await userEvent.type(screen.getByRole("textbox", { name: "워크시트 이름" }), "Incoming XLSX");
+    await userEvent.clear(await screen.findByRole("textbox", { name: "작업표 이름" }));
+    await userEvent.type(screen.getByRole("textbox", { name: "작업표 이름" }), "Incoming XLSX");
     await userEvent.upload(screen.getByLabelText(/데이터 파일/), new File(["xlsx-bytes"], "incoming.xlsx", { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
     await userEvent.click(screen.getByRole("button", { name: "가져오기" }));
 
@@ -2357,8 +2361,8 @@ describe("StatPro UI", () => {
     });
 
     render(<MemoryRouter initialEntries={["/data"]}><App /></MemoryRouter>);
-    await userEvent.clear(await screen.findByRole("textbox", { name: "워크시트 이름" }));
-    await userEvent.type(screen.getByRole("textbox", { name: "워크시트 이름" }), "Parquet Measurements");
+    await userEvent.clear(await screen.findByRole("textbox", { name: "작업표 이름" }));
+    await userEvent.type(screen.getByRole("textbox", { name: "작업표 이름" }), "Parquet Measurements");
     await userEvent.upload(screen.getByLabelText(/데이터 파일/), new File(["parquet-bytes"], "process.parquet", { type: "application/vnd.apache.parquet" }));
     await userEvent.click(screen.getByRole("button", { name: "가져오기" }));
 
@@ -2378,10 +2382,10 @@ describe("StatPro UI", () => {
     });
 
     render(<MemoryRouter initialEntries={["/data"]}><App /></MemoryRouter>);
-    await userEvent.clear(await screen.findByRole("textbox", { name: "워크시트 이름" }));
-    await userEvent.type(screen.getByRole("textbox", { name: "워크시트 이름" }), "SQLite Measurements");
-    await userEvent.type(screen.getByRole("textbox", { name: /SQLite 테이블 이름/ }), "measurements");
+    await userEvent.clear(await screen.findByRole("textbox", { name: "작업표 이름" }));
+    await userEvent.type(screen.getByRole("textbox", { name: "작업표 이름" }), "SQLite Measurements");
     await userEvent.upload(screen.getByLabelText(/데이터 파일/), new File(["sqlite-bytes"], "process.sqlite", { type: "application/vnd.sqlite3" }));
+    await userEvent.type(screen.getByRole("textbox", { name: /SQLite 테이블 이름/ }), "measurements");
     await userEvent.click(screen.getByRole("button", { name: "가져오기" }));
 
     expect(await screen.findByRole("heading", { name: "SQLite Measurements" })).toBeInTheDocument();
@@ -2483,8 +2487,8 @@ describe("StatPro UI", () => {
 
     render(<MemoryRouter initialEntries={["/data/ws-left"]}><App /></MemoryRouter>);
     await screen.findByRole("heading", { name: "Measurements" });
-    await userEvent.type(screen.getByRole("textbox", { name: "오른쪽 작업표 ID" }), "ws-right");
-    await userEvent.type(screen.getByRole("textbox", { name: "오른쪽 키 열" }), "part");
+    await userEvent.type(screen.getByRole("textbox", { name: /^오른쪽 작업표 ID/ }), "ws-right");
+    await userEvent.type(screen.getByRole("textbox", { name: /^오른쪽 키 열/ }), "part");
     await userEvent.click(screen.getByRole("button", { name: "내부 조인 revision 저장" }));
 
     expect(await screen.findByText(/revision 2/)).toBeInTheDocument();

@@ -11,8 +11,10 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "benchmark:charts": "node benchmarks/chart-engines/benchmark.mjs",
+    "capture:ux": "node scripts/capture-ux-audit.mjs",
     "test": "vitest run",
-    "check": "npm run test && npm run build"
+    "test:a11y": "playwright test",
+    "check": "npm run test && npm run build && npm run test:a11y"
   },
   "dependencies": {
     "d3-shape": "^3.2.0",
@@ -23,6 +25,8 @@
     "recharts": "3.10.1"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
+    "@playwright/test": "^1.65.1",
     "@tailwindcss/vite": "4.3.3",
     "@testing-library/jest-dom": "7.0.1",
     "@testing-library/react": "16.3.3",

@@ -1,0 +1,155 @@
+- document:
+  - link "본문 바로가기":
+    - /url: "#main-content"
+  - banner:
+    - text: StatPro LOCAL
+    - button "현재 프로젝트 프로젝트 선택":
+      - text: 현재 프로젝트
+      - strong: 프로젝트 선택
+    - button "즐겨찾기 메뉴 0개": 즐겨찾기 0
+    - text: 엔진 연결됨
+    - button "다크 테마로 전환"
+    - button "도움말 열기"
+  - complementary "주 메뉴":
+    - button "사이드 메뉴 감추기" [expanded]: 메뉴 감추기
+    - navigation:
+      - link "홈 (Home)":
+        - /url: /home
+      - link "분석 선택 (Analysis Selection)":
+        - /url: /analyses
+      - link "작업표 및 데이터 (Worksheet & Data)":
+        - /url: /data
+      - link "실험계획법 (DOE)":
+        - /url: /doe
+      - link "통계적 공정관리 (SPC)":
+        - /url: /spc
+      - link "고장 형태 및 영향 분석 (FMEA)":
+        - /url: /fmea
+      - link "품질 대시보드 (Quality Dashboard)":
+        - /url: /quality
+      - link "결함 분석 (Defect Analysis)":
+        - /url: /defects
+      - link "결과 및 보고서 (Results & Reports)":
+        - /url: /catalog/reports
+      - link "계산 및 도우미 (Calculators & Helpers)":
+        - /url: /catalog/tools
+    - text: ENGINE
+    - strong: 0.6.0
+    - button "로그아웃"
+    - button "사이드 메뉴 너비 조절"
+  - main:
+    - navigation "화면 이동":
+      - button "이전"
+      - link "분석 홈":
+        - /url: /home
+      - button "다음"
+    - navigation "경로":
+      - link "홈 (Home)":
+        - /url: /home
+    - region "공정 문제에서 검증된 조치까지":
+      - text: 현장 분석 운영 흐름
+      - heading "공정 문제에서 검증된 조치까지" [level=1]
+      - paragraph: 현장 과제를 선택하고 전문 작업공간에서 데이터를 분석한 뒤, 결과를 보고서·관리계획·개선 프로젝트의 후속 조치로 연결합니다.
+      - link "작업표 가져오기":
+        - /url: /data
+      - link "분석 선택":
+        - /url: /analyses
+      - list "현장 분석 운영 단계":
+        - listitem:
+          - text: "1"
+          - strong: 현장 과제 선택
+          - paragraph: 개선할 공정과 품질 특성을 정합니다.
+        - listitem:
+          - text: "2"
+          - strong: 작업공간 설정
+          - paragraph: DOE, SPC, FMEA 중 업무에 맞는 작업공간을 엽니다.
+        - listitem:
+          - text: "3"
+          - strong: 데이터 연결
+          - paragraph: 작업표와 기준 조건, 추적 대상을 연결합니다.
+        - listitem:
+          - text: "4"
+          - strong: 분석·검토
+          - paragraph: 분석을 실행하고 신호, 위험, 효과를 검토합니다.
+        - listitem:
+          - text: "5"
+          - strong: 표준화·추적
+          - paragraph: 보고서와 관리계획서로 조치와 변경을 이어갑니다.
+    - region "업무에 맞는 작업공간에서 시작합니다":
+      - text: 전문 작업공간 (Core Workspaces)
+      - heading "업무에 맞는 작업공간에서 시작합니다" [level=2]
+      - paragraph: 각 작업공간은 설정에서 보고까지 동일한 원칙으로 이어지고, 결과는 다음 현장 업무의 입력 근거가 됩니다.
+      - article:
+        - text: 작업공간 (Workspace)
+        - button "즐겨찾기 추가"
+        - heading "실험계획법(DOE)" [level=3]
+        - paragraph: 공정 인자의 효과를 검증하고 목표 품질을 만족하는 조건을 찾습니다.
+        - list "실험계획법(DOE) 업무 흐름":
+          - listitem: 목적·반응 정의
+          - listitem: 인자·설계 생성
+          - listitem: 실험 데이터 입력
+          - listitem: 효과 분석
+          - listitem: 조건 최적화·보고
+        - link "DOE 업무 시작":
+          - /url: /doe
+      - article:
+        - text: 작업공간 (Workspace)
+        - button "즐겨찾기 추가"
+        - heading "통계적 공정관리(SPC)" [level=3]
+        - paragraph: 공정의 안정성을 감시하고 이상 신호를 현장 조치로 연결합니다.
+        - list "통계적 공정관리(SPC) 업무 흐름":
+          - listitem: 관리도 선택
+          - listitem: 공정 데이터 입력
+          - listitem: 관리한계 설정
+          - listitem: 이상 신호 검토
+          - listitem: 조치·보고
+        - link "SPC 업무 시작":
+          - /url: /spc
+      - article:
+        - text: 작업공간 (Workspace)
+        - button "즐겨찾기 추가"
+        - heading "고장 형태 및 영향 분석(FMEA)" [level=3]
+        - paragraph: 공정 위험과 예방·검출 관리를 연결하고 조치 이후 위험을 추적합니다.
+        - list "고장 형태 및 영향 분석(FMEA) 업무 흐름":
+          - listitem: 공정·특성 연결
+          - listitem: 고장 형태 분석
+          - listitem: 위험 우선순위
+          - listitem: 예방·검출 조치
+          - listitem: 승인·관리계획
+        - link "FMEA 업무 시작":
+          - /url: /fmea
+    - region "DMAIC로 분석 결과를 개선 과제로 운영합니다":
+      - text: 개선 프로젝트 (Improvement Project)
+      - heading "DMAIC로 분석 결과를 개선 과제로 운영합니다" [level=2]
+      - paragraph: 개별 분석을 프로젝트 목표·근거·조치·관리 상태와 연결해 정의부터 관리까지 일관되게 추적합니다.
+      - link "설명 및 작업공간 열기":
+        - /url: /home/dmaic
+      - link "개발 목표 현황":
+        - /url: /home/progress
+      - list "DMAIC 단계":
+        - listitem:
+          - text: "1"
+          - strong: 정의 (Define)
+          - paragraph: 문제와 고객 요구, 범위를 합의합니다.
+          - text: 프로젝트 헌장 · VOC · SIPOC
+        - listitem:
+          - text: "2"
+          - strong: 측정 (Measure)
+          - paragraph: 기준 성과와 측정 신뢰성을 확보합니다.
+          - text: 데이터 수집 · MSA · 공정능력
+        - listitem:
+          - text: "3"
+          - strong: 분석 (Analyze)
+          - paragraph: 변동과 결함의 근본원인을 검증합니다.
+          - text: 파레토 · 특성요인도 · 5 Why
+        - listitem:
+          - text: "4"
+          - strong: 개선 (Improve)
+          - paragraph: 개선안을 시험하고 최적 조건을 확정합니다.
+          - text: DOE · 파일럿 · 개선안 선정
+        - listitem:
+          - text: "5"
+          - strong: 관리 (Control)
+          - paragraph: 성과를 감시하고 표준과 위험 관리를 유지합니다.
+          - text: SPC · FMEA · 관리계획서
+  - button "AI Assistant 보이기": AI Assistant

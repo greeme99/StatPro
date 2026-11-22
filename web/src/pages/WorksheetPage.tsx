@@ -30,7 +30,7 @@ export function WorksheetPage() {
     let active = true;
     getWorksheet(worksheetId)
       .then((value) => { if (active) { setStored(value); setSelectedColumn(value.worksheet.columns[0]?.name ?? null); } })
-      .catch((requestError) => { if (active) setError(requestError instanceof Error ? requestError.message : "워크시트를 불러오지 못했습니다."); });
+      .catch((requestError) => { if (active) setError(requestError instanceof Error ? requestError.message : "작업표를 불러오지 못했습니다."); });
     return () => { active = false; };
   }, [worksheetId]);
 
@@ -180,13 +180,13 @@ export function WorksheetPage() {
     }));
   }
 
-  if (!stored) return <div className="page" data-density="compact">{error ? <div className="error-banner" role="alert"><AlertTriangle aria-hidden="true" /><p>{error}</p></div> : <div className="skeleton page-skeleton" aria-label="워크시트 불러오는 중" />}</div>;
+  if (!stored) return <div className="page" data-density="compact">{error ? <div className="error-banner" role="alert"><AlertTriangle aria-hidden="true" /><p>{error}</p></div> : <div className="skeleton page-skeleton" aria-label="작업표 불러오는 중" />}</div>;
   const { worksheet } = stored;
   const visibleRows = Math.min(worksheet.row_count, 200);
   const numericColumns = worksheet.columns.filter((column) => column.data_type === "numeric");
 
   return <div className="page worksheet-page" data-density="compact">
-    <Link className="back-link" to="/data"><ArrowLeft aria-hidden="true" /> 워크시트 목록</Link>
+    <Link className="back-link" to="/data"><ArrowLeft aria-hidden="true" /> 작업표 목록</Link>
     <section className="result-header"><div><span className="eyebrow">WORKSHEET</span><h1>{worksheet.name}</h1><p>{worksheet.worksheet_id} · revision {worksheet.revision} · {worksheet.row_count}행 × {worksheet.columns.length}열</p></div><div className="result-actions"><Link className="button button-primary" to={`/analyses?worksheet=${encodeURIComponent(worksheet.worksheet_id)}&revision=${worksheet.revision}&goal=capability`}>분석 선택 <ArrowRight aria-hidden="true" /></Link><Button type="button" icon={<Download />} onClick={() => downloadWorksheetCsv(worksheet)}>현재 revision CSV 저장</Button><span className="status-badge status-approved">저장됨</span></div></section>
     {error && <div className="error-banner" role="alert"><AlertTriangle aria-hidden="true" /><p>{error}</p></div>}
     <section className="worksheet-layout">

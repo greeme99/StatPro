@@ -1,8 +1,8 @@
-import { CircleDashed, ExternalLink, ShieldAlert } from "lucide-react";
+import { CheckCircle2, CircleDashed, ExternalLink, ShieldAlert } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 
 type Delivery = "구현됨" | "개발 예정" | "외부 정책 필요";
-type Item = { name: string; detail: string; status: Delivery; to?: string };
+type Item = { name: string; detail: string; status: Delivery; to?: string; action?: string };
 type Catalog = { title: string; description: string; items: Item[] };
 
 const catalogs: Record<string, Catalog> = {
@@ -10,11 +10,11 @@ const catalogs: Record<string, Catalog> = {
     title: "결과 및 보고서",
     description: "분석 실행의 결과, 입력 근거, 경고와 내보내기 파일을 같은 기록에서 확인합니다.",
     items: [
-      { name: "분석 실행 결과", detail: "저장된 분석 실행의 표, 차트, 진단과 근거를 확인합니다.", status: "구현됨", to: "/" },
-      { name: "DOE 표준 보고서", detail: "HTML, PDF, XLSX, JSON, CSV·SVG ZIP 내보내기를 제공합니다.", status: "구현됨", to: "/analyses/doe/full-factorial" },
-      { name: "분석 결과 출력", detail: "모든 분석 실행은 Run ID·입력 digest·결과·근거를 포함한 브라우저 PDF 인쇄와 JSON·CSV를 제공합니다. I-MR·Xbar-R·Xbar-S는 Excel·PNG·SVG 차트도 제공합니다.", status: "구현됨", to: "/spc" },
-      { name: "DOE 그래프·검토 양식", detail: "지원 Plot의 SVG와 표 XLSX·CSV·JSON을 묶어 내보내고 표준·고객·규제 검토용 양식을 선택합니다.", status: "구현됨", to: "/doe" },
-      { name: "DOE PDF 검토 보고서", detail: "표준·고객·규제 검토 양식을 Pretendard·Noto Sans KR·나눔 font stack으로 PDF 생성합니다. 전자서명·조직별 승인 양식은 운영 정책이 필요합니다.", status: "구현됨", to: "/doe" },
+      { name: "분석 실행 결과", detail: "저장된 분석 실행의 표, 차트, 진단과 근거를 확인합니다.", status: "구현됨", to: "/dashboard", action: "최근 분석 실행 보기" },
+      { name: "DOE 표준 보고서", detail: "HTML, PDF, XLSX, JSON, CSV·SVG ZIP 내보내기를 제공합니다.", status: "구현됨", to: "/analyses/doe/full-factorial", action: "DOE 보고서 만들기" },
+      { name: "분석 결과 출력", detail: "모든 분석 실행은 Run ID·입력 digest·결과·근거를 포함한 브라우저 PDF 인쇄와 JSON·CSV를 제공합니다. I-MR·Xbar-R·Xbar-S는 Excel·PNG·SVG 차트도 제공합니다.", status: "구현됨", to: "/spc", action: "SPC 결과 보기" },
+      { name: "DOE 그래프·검토 양식", detail: "지원 Plot의 SVG와 표 XLSX·CSV·JSON을 묶어 내보내고 표준·고객·규제 검토용 양식을 선택합니다.", status: "구현됨", to: "/doe", action: "DOE 작업공간 열기" },
+      { name: "DOE PDF 검토 보고서", detail: "표준·고객·규제 검토 양식을 Pretendard·Noto Sans KR·나눔 font stack으로 PDF 생성합니다. 전자서명·조직별 승인 양식은 운영 정책이 필요합니다.", status: "구현됨", to: "/doe", action: "DOE 보고서 설정 열기" },
     ],
   },
   tools: {
@@ -43,22 +43,23 @@ const catalogs: Record<string, Catalog> = {
   },
 };
 
-const iconFor = (status: Exclude<Delivery, "구현됨">) => status === "외부 정책 필요" ? ShieldAlert : CircleDashed;
+const iconFor = (status: Delivery) => status === "구현됨" ? CheckCircle2 : status === "외부 정책 필요" ? ShieldAlert : CircleDashed;
 
 export function FeatureCatalogPage() {
   const { section = "help" } = useParams();
   const catalog = catalogs[section] ?? catalogs.help;
   return (
     <div className="page" data-density="comfortable">
+      <nav className="breadcrumb" aria-label="경로"><Link to="/home">홈 (Home)</Link><span>{catalog.title}</span></nav>
       <section className="page-heading"><div><span className="eyebrow">STATPRO CATALOG</span><h1>{catalog.title}</h1><p>{catalog.description}</p></div></section>
       <section className="feature-catalog" aria-label={`${catalog.title} 기능 목록`}>
         {catalog.items.map((item) => {
-          const status = item.status === "구현됨" ? null : item.status;
-          const Icon = status ? iconFor(status) : CircleDashed;
+          const Icon = iconFor(item.status);
+          const action = item.action ?? "기능으로 이동";
           return <article className="feature-item" key={item.name}>
-            {status && <header><Icon aria-hidden="true" /><span className={`delivery-status status-${status.replaceAll(" ", "-")}`}>{status}</span></header>}
+            <header><Icon aria-hidden="true" /><span className={`delivery-status status-${item.status.replaceAll(" ", "-")}`}>{item.status}</span></header>
             <h2>{item.name}</h2><p>{item.detail}</p>
-            {item.to ? <Link className="text-link" to={item.to} aria-label={`${item.name} 기능으로 이동`}>기능으로 이동 <ExternalLink aria-hidden="true" /></Link> : <p className="catalog-note">현재 분석을 실행할 수 없습니다. 제공 범위가 확정되면 이 메뉴에서 시작합니다.</p>}
+            {item.to ? <Link className="text-link" to={item.to} aria-label={`${item.name} ${action}`}>{action} <ExternalLink aria-hidden="true" /></Link> : <p className="catalog-note">현재 분석을 실행할 수 없습니다. 제공 범위가 확정되면 이 메뉴에서 시작합니다.</p>}
           </article>;
         })}
       </section>

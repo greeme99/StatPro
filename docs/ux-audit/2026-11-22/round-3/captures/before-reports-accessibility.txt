@@ -1,0 +1,88 @@
+- link "본문 바로가기":
+  - /url: "#main-content"
+- banner:
+  - text: StatPro LOCAL
+  - button "현재 프로젝트 프로젝트 선택":
+    - text: 현재 프로젝트
+    - strong: 프로젝트 선택
+  - button "즐겨찾기 메뉴 0개": 즐겨찾기 0
+  - text: 엔진 연결됨
+  - button "다크 테마로 전환"
+  - button "도움말 열기"
+- complementary "주 메뉴":
+  - button "사이드 메뉴 감추기" [expanded]: 메뉴 감추기
+  - navigation:
+    - link "홈 (Home)":
+      - /url: /home
+    - link "분석 선택 (Analysis Selection)":
+      - /url: /analyses
+    - link "작업표 및 데이터 (Worksheet & Data)":
+      - /url: /data
+    - link "실험계획법 (DOE)":
+      - /url: /doe
+    - link "통계적 공정관리 (SPC)":
+      - /url: /spc
+    - link "고장 형태 및 영향 분석 (FMEA)":
+      - /url: /fmea
+    - link "품질 대시보드 (Quality Dashboard)":
+      - /url: /quality
+    - link "결함 분석 (Defect Analysis)":
+      - /url: /defects
+    - link "결과 및 보고서 (Results & Reports)":
+      - /url: /catalog/reports
+    - link "계산 및 도우미 (Calculators & Helpers)":
+      - /url: /catalog/tools
+  - text: ENGINE
+  - strong: ux-audit
+  - button "로그아웃"
+  - button "사이드 메뉴 너비 조절"
+- main:
+  - navigation "화면 이동":
+    - button "이전"
+    - link "분석 홈":
+      - /url: /home
+    - button "다음"
+  - navigation "경로":
+    - link "홈 (Home)":
+      - /url: /home
+    - text: 결과 및 보고서
+  - text: STATPRO CATALOG
+  - heading "결과 및 보고서" [level=1]
+  - paragraph: 분석 실행의 결과, 입력 근거, 경고와 내보내기 파일을 같은 기록에서 확인합니다.
+  - region "결과 및 보고서 기능 목록":
+    - article:
+      - text: 구현됨
+      - heading "분석 실행 결과" [level=2]
+      - paragraph: 저장된 분석 실행의 표, 차트, 진단과 근거를 확인합니다.
+      - link "분석 실행 결과 최근 분석 실행 보기":
+        - /url: /dashboard
+        - text: 최근 분석 실행 보기
+    - article:
+      - text: 구현됨
+      - heading "DOE 표준 보고서" [level=2]
+      - paragraph: HTML, PDF, XLSX, JSON, CSV·SVG ZIP 내보내기를 제공합니다.
+      - link "DOE 표준 보고서 DOE 보고서 만들기":
+        - /url: /analyses/doe/full-factorial
+        - text: DOE 보고서 만들기
+    - article:
+      - text: 구현됨
+      - heading "분석 결과 출력" [level=2]
+      - paragraph: 모든 분석 실행은 Run ID·입력 digest·결과·근거를 포함한 브라우저 PDF 인쇄와 JSON·CSV를 제공합니다. I-MR·Xbar-R·Xbar-S는 Excel·PNG·SVG 차트도 제공합니다.
+      - link "분석 결과 출력 SPC 결과 보기":
+        - /url: /spc
+        - text: SPC 결과 보기
+    - article:
+      - text: 구현됨
+      - heading "DOE 그래프·검토 양식" [level=2]
+      - paragraph: 지원 Plot의 SVG와 표 XLSX·CSV·JSON을 묶어 내보내고 표준·고객·규제 검토용 양식을 선택합니다.
+      - link "DOE 그래프·검토 양식 DOE 작업공간 열기":
+        - /url: /doe
+        - text: DOE 작업공간 열기
+    - article:
+      - text: 구현됨
+      - heading "DOE PDF 검토 보고서" [level=2]
+      - paragraph: 표준·고객·규제 검토 양식을 Pretendard·Noto Sans KR·나눔 font stack으로 PDF 생성합니다. 전자서명·조직별 승인 양식은 운영 정책이 필요합니다.
+      - link "DOE PDF 검토 보고서 DOE 보고서 설정 열기":
+        - /url: /doe
+        - text: DOE 보고서 설정 열기
+- button "AI Assistant 보이기": AI Assistant

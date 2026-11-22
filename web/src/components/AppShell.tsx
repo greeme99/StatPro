@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import { Activity, ArrowLeft, ArrowRight, BarChart3, Bug, Calculator, Database, FileText, FileWarning, FlaskConical, Gauge, HelpCircle, Home, ListChecks, LogOut, Moon, PanelLeftClose, PanelLeftOpen, Sun } from "lucide-react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { signOut } from "../auth";
@@ -123,6 +123,23 @@ export function AppShell({ children }: { children: ReactNode }) {
     setIsResizingSidebar(false);
   }
 
+  function resizeSidebarWithKeyboard(event: KeyboardEvent<HTMLButtonElement>) {
+    const step = 20;
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    if (event.key === "Home" || (event.key === "ArrowLeft" && (sidebarCollapsed || sidebarWidth <= SIDEBAR_MIN_WIDTH))) {
+      setSidebarCollapsed(true);
+      return;
+    }
+    const nextWidth = event.key === "End"
+      ? SIDEBAR_MAX_WIDTH
+      : sidebarCollapsed
+        ? SIDEBAR_MIN_WIDTH
+        : Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, sidebarWidth + (event.key === "ArrowRight" ? step : -step)));
+    setSidebarCollapsed(false);
+    setSidebarWidth(nextWidth);
+  }
+
   return (
     <div className={`app-frame${sidebarCollapsed ? " is-sidebar-collapsed" : ""}${isResizingSidebar ? " is-sidebar-resizing" : ""}`} style={{ "--sidebar-current-width": `${sidebarWidth}px` } as CSSProperties}>
       <a className="skip-link" href="#main-content">본문 바로가기</a>
@@ -180,7 +197,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <LogOut aria-hidden="true" /><span className="nav-label">로그아웃</span>
           </button>
         </div>
-        <button className="sidebar-resize-handle" type="button" aria-label="사이드 메뉴 너비 조절" aria-valuemin={SIDEBAR_MIN_WIDTH} aria-valuemax={SIDEBAR_MAX_WIDTH} aria-valuenow={sidebarCollapsed ? 0 : sidebarWidth} onPointerDown={startSidebarResize} onPointerMove={resizeSidebar} onPointerUp={finishSidebarResize} onPointerCancel={finishSidebarResize} />
+        <button className="sidebar-resize-handle" type="button" role="slider" aria-label="사이드 메뉴 너비 조절" aria-orientation="horizontal" aria-valuemin={0} aria-valuemax={SIDEBAR_MAX_WIDTH} aria-valuenow={sidebarCollapsed ? 0 : sidebarWidth} aria-valuetext={sidebarCollapsed ? "접힘" : `${sidebarWidth}px`} onKeyDown={resizeSidebarWithKeyboard} onPointerDown={startSidebarResize} onPointerMove={resizeSidebar} onPointerUp={finishSidebarResize} onPointerCancel={finishSidebarResize} />
       </aside>
       <main id="main-content" className="main-content"><WorkspaceNavigation />{children}</main>
       <CopilotPanel />

@@ -13,6 +13,8 @@ htmlcov/
 node_modules/
 .vite/
 coverage/
+web/playwright-report/
+web/test-results/
 .statpro-browser-data/
 *.tsbuildinfo
 web/vite.config.js
