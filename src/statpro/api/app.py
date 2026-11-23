@@ -304,7 +304,7 @@ class CopilotGuidanceRequest(ApiModel):
     pathname: str = Field(min_length=1, max_length=500)
     workspace: str = Field(min_length=1, max_length=200)
     evidence_context: str | None = Field(default=None, max_length=2000)
-    model_preference: Literal["auto", "rulebase", "exaone", "codex"] = "auto"
+    model_preference: Literal["auto", "rulebase", "codex"] = "auto"
 
 
 class CopilotSourceResponse(ApiModel):
@@ -2648,7 +2648,7 @@ def create_app(
                     limitations=["사용자 문서에서 저장한 Rule입니다. 현장 적용 전 근거를 검토하세요."],
                     action=CopilotActionResponse(label="사용자 Rule 보기", href="/home"), guidance_mode="rulebase", rule_id=rule["rule_id"],
                     recommended_tool=rule["recommended_tool"], menu_path=rule["menu_path"], checklist=rule["checklist"], workflow_steps=rule["workflow_steps"],
-                    fallback_steps=[CopilotFallbackStepResponse(stage="Rulebase", status="answered", detail="사용자 보완 Rule로 답변했습니다."), CopilotFallbackStepResponse(stage="EXAONE API", status="skipped", detail="사용자 Rule이 매칭되었습니다."), CopilotFallbackStepResponse(stage="Codex SDK", status="skipped", detail="사용자 Rule이 매칭되었습니다.")],
+                    fallback_steps=[CopilotFallbackStepResponse(stage="Rulebase", status="answered", detail="사용자 보완 Rule로 답변했습니다."), CopilotFallbackStepResponse(stage="Codex SDK", status="skipped", detail="사용자 Rule이 매칭되었습니다.")],
                 )
         if request.model_preference != "auto" and isinstance(active_copilot_provider, RuleFirstCopilotProvider):
             guidance = active_copilot_provider.answer_selected_model(

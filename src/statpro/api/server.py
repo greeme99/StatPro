@@ -11,13 +11,6 @@ from dataclasses import replace
 from pathlib import Path
 
 _COPILOT_ENV_KEYS = {
-    "STATPRO_COPILOT_EXAONE_ENABLED",
-    "EXAONE_API_KEY",
-    "STATPRO_COPILOT_EXAONE_URL",
-    "STATPRO_COPILOT_EXAONE_MODEL",
-    "STATPRO_COPILOT_EXAONE_SIMPLE_REASONING_EFFORT",
-    "STATPRO_COPILOT_EXAONE_COMPLEX_REASONING_EFFORT",
-    "STATPRO_COPILOT_EXAONE_TIMEOUT_SECONDS",
     "STATPRO_COPILOT_CODEX_ENABLED",
     "STATPRO_COPILOT_CODEX_MODEL",
 }
@@ -133,7 +126,7 @@ def external_copilot_enabled(environ: Mapping[str, str] | None = None) -> bool:
     source = os.environ if environ is None else environ
     return any(
         source.get(name, "").strip().casefold() in {"1", "true", "yes", "on"}
-        for name in ("STATPRO_COPILOT_EXAONE_ENABLED", "STATPRO_COPILOT_CODEX_ENABLED")
+        for name in ("STATPRO_COPILOT_CODEX_ENABLED",)
     )
 
 

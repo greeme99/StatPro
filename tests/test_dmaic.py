@@ -33,9 +33,37 @@ from statpro.dmaic import (
     save_voice_of_customer,
 )
 from statpro.application.dmaic_reports import build_dmaic_report, render_dmaic_report_docx
+from statpro.domain.identity import input_digest
 
 
 class DmaicProjectTests(unittest.TestCase):
+    def test_project_accepts_pre_measure_historical_digest(self) -> None:
+        payload = create_project(
+            project_id="DMAIC-LEGACY", title="Legacy project", owner_ref="owner"
+        ).to_dict()
+        for field in (
+            "stakeholder_assessment",
+            "problem_definition",
+            "measurement_plan",
+            "root_cause_analysis",
+            "solution_selection",
+            "pilot_plan",
+            "control_handoff",
+        ):
+            payload.pop(field)
+        payload["digest"] = input_digest(
+            {key: value for key, value in payload.items() if key != "digest"}
+        )
+
+        restored = DmaicProject.from_dict(payload)
+
+        self.assertEqual(restored.project_id, "DMAIC-LEGACY")
+        self.assertEqual(DmaicProject.from_dict(restored.to_dict()), restored)
+        tampered = restored.to_dict()
+        tampered["title"] = "Tampered project"
+        with self.assertRaisesRegex(DmaicInputError, "digest does not match"):
+            DmaicProject.from_dict(tampered)
+
     def test_project_report_retains_revision_and_generates_word_document(self) -> None:
         project = create_project(project_id="DMAIC-REPORT", title="Yield", owner_ref="owner")
         report = build_dmaic_report(project=project.to_dict(), storage_version=1, etag="etag")

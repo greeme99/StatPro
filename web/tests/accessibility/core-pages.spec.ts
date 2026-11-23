@@ -4,9 +4,26 @@ import { expect, test } from "@playwright/test";
 const pages = [
   ["홈", "/home"],
   ["작업표 및 데이터", "/data"],
+  ["실제 데이터 작업표", "/data/ux-audit"],
   ["분석 선택", "/analyses"],
   ["결과 및 보고서", "/catalog/reports"],
 ] as const;
+
+const worksheet = {
+  worksheet_id: "ux-audit",
+  name: "SMT 순간정지 측정",
+  base_dataset_digest: "d".repeat(64),
+  digest: "e".repeat(64),
+  revision: 3,
+  parent_digest: "c".repeat(64),
+  row_count: 3,
+  columns: [
+    { name: "설비", data_type: "text", nullable: false, missing_count: 0, values: ["M01", "M02", "M03"] },
+    { name: "순간정지_초", data_type: "numeric", nullable: true, missing_count: 1, values: [4.2, null, 12.4] },
+    { name: "상태", data_type: "text", nullable: false, missing_count: 0, values: ["복구", "점검", "조치 필요"] },
+  ],
+  transformations: [],
+};
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
@@ -18,6 +35,8 @@ test.beforeEach(async ({ page }) => {
     const pathname = new URL(route.request().url()).pathname;
     const body = pathname === "/api/health"
       ? { ok: true, engine_version: "wcag-test", local_only: true }
+      : pathname === "/api/v1/worksheets/ux-audit"
+        ? { worksheet_id: worksheet.worksheet_id, storage_version: 3, etag: "f".repeat(64), worksheet, dataset: null }
       : pathname === "/api/v1/worksheets"
         ? { items: [], next_cursor: null }
         : { items: [], next_cursor: null };

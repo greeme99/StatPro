@@ -23,11 +23,8 @@ from statpro.application.copilot import (
     CopilotSource,
     CodexSdkCopilotProvider,
     FallbackChainCopilotProvider,
-    ExaoneCopilotProvider,
     LocalKnowledgeCopilotProvider,
     RuleFirstCopilotProvider,
-    UrlLibExaoneChatCompletionClient,
-    _is_complex_request,
     build_default_copilot_provider,
     copilot_runtime_status,
 )
@@ -120,7 +117,7 @@ class RecordingFallbackProvider:
         self.questions.append(question)
         return CopilotGuidance(
             answer="LLM 보완 안내",
-            provider="k-exaone_v2.5",
+            provider="codex-sdk:test",
             sources=(CopilotSource("사용자 질문", "copilot://question", "user_context"),),
             limitations=("생성형 AI 응답은 사용자가 검토해야 합니다.",),
             action=CopilotAction("분석 선택 열기", "/analyses"),
@@ -155,8 +152,7 @@ class RateLimitedFallbackProvider:
 class RuleFirstCopilotProviderTests(unittest.TestCase):
     def test_external_provider_flag_detects_only_enabled_network_backends(self) -> None:
         self.assertFalse(external_copilot_enabled({}))
-        self.assertFalse(external_copilot_enabled({"STATPRO_COPILOT_EXAONE_ENABLED": "false"}))
-        self.assertTrue(external_copilot_enabled({"STATPRO_COPILOT_EXAONE_ENABLED": "true"}))
+        self.assertFalse(external_copilot_enabled({"STATPRO_COPILOT_CODEX_ENABLED": "false"}))
         self.assertTrue(external_copilot_enabled({"STATPRO_COPILOT_CODEX_ENABLED": "ON"}))
 
     def test_network_storage_detection_is_limited_to_unc_roots(self) -> None:
@@ -248,11 +244,6 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             env_file = Path(directory) / ".env"
             env_file.write_text(
-                "STATPRO_COPILOT_EXAONE_ENABLED=true\n"
-                "EXAONE_API_KEY=local-secret\n"
-                "STATPRO_COPILOT_EXAONE_MODEL=k-exaone_v2.5\n"
-                "STATPRO_COPILOT_EXAONE_SIMPLE_REASONING_EFFORT=low\n"
-                "STATPRO_COPILOT_EXAONE_COMPLEX_REASONING_EFFORT=high\n"
                 "STATPRO_COPILOT_CODEX_ENABLED=true\n"
                 "STATPRO_COPILOT_CODEX_ENABLED=true\n"
                 "STATPRO_COPILOT_CODEX_MODEL=gpt-test\n"
@@ -261,14 +252,11 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
             )
             with patch.dict(
                 os.environ,
-                {"EXAONE_API_KEY": "process-secret"},
+                {},
                 clear=True,
             ):
                 load_copilot_env(env_file)
 
-                self.assertEqual(os.environ["STATPRO_COPILOT_EXAONE_ENABLED"], "true")
-                self.assertEqual(os.environ["EXAONE_API_KEY"], "process-secret")
-                self.assertEqual(os.environ["STATPRO_COPILOT_EXAONE_SIMPLE_REASONING_EFFORT"], "low")
                 self.assertEqual(os.environ["STATPRO_COPILOT_CODEX_MODEL"], "gpt-test")
                 self.assertNotIn("UNRELATED_SECRET", os.environ)
     def test_rule_match_never_calls_the_llm_fallback(self) -> None:
@@ -326,7 +314,7 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
         self.assertEqual(guidance.rule_id, "dmaic-equipment-downtime")
         self.assertIn("추가 분석 가이드", guidance.answer)
 
-    def test_unmatched_question_calls_exaone_once(self) -> None:
+    def test_unmatched_question_calls_codex_once(self) -> None:
         fallback = RecordingFallbackProvider()
         provider = RuleFirstCopilotProvider(LocalKnowledgeCopilotProvider(), fallback)
 
@@ -338,18 +326,12 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
         )
 
         self.assertEqual(fallback.questions, ["사내 신규 열처리 장비의 고유 진단 코드를 해석해줘"])
-        self.assertEqual(guidance.provider, "k-exaone_v2.5")
+        self.assertEqual(guidance.provider, "codex-sdk:test")
         self.assertEqual(guidance.guidance_mode, "llm_fallback")
 
-    def test_fallback_chain_uses_light_exaone_for_a_simple_question(self) -> None:
-        simple = RecordingFallbackProvider()
-        complex_provider = RecordingFallbackProvider()
+    def test_fallback_chain_calls_codex_once(self) -> None:
         codex = RecordingFallbackProvider()
-        chain = FallbackChainCopilotProvider(
-            exaone_simple=simple,
-            exaone_complex=complex_provider,
-            codex=codex,
-        )
+        chain = FallbackChainCopilotProvider(codex=codex)
 
         guidance = chain.answer(
             question="작업표 열 이름을 설명해줘",
@@ -358,117 +340,11 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
             evidence_context=None,
         )
 
-        self.assertEqual(simple.questions, ["작업표 열 이름을 설명해줘"])
-        self.assertEqual(complex_provider.questions, [])
         self.assertEqual(codex.questions, ["작업표 열 이름을 설명해줘"])
-        self.assertEqual(guidance.guidance_mode, "llm_fallback")
-        self.assertEqual([(step.stage, step.status) for step in guidance.fallback_steps], [("EXAONE API", "answered"), ("Codex SDK", "answered")])
-
-    def test_selected_exaone_bypasses_codex(self) -> None:
-        exaone = RecordingFallbackProvider()
-        codex = RecordingFallbackProvider()
-        chain = FallbackChainCopilotProvider(
-            exaone_simple=RecordingFallbackProvider(),
-            exaone_complex=exaone,
-            codex=codex,
-        )
-
-        guidance = chain.answer_selected_model(
-            model_preference="exaone",
-            question="EXAONE API로 답변해줘",
-            pathname="/home",
-            workspace="홈 (Home)",
-            evidence_context=None,
-        )
-
-        self.assertEqual(exaone.questions, ["EXAONE API로 답변해줘"])
-        self.assertEqual(codex.questions, [])
-        self.assertEqual([(step.stage, step.status) for step in guidance.fallback_steps], [("EXAONE API", "answered"), ("Codex SDK", "skipped")])
-
-    def test_fallback_chain_uses_codex_after_complex_exaone_failure(self) -> None:
-        codex = RecordingFallbackProvider()
-        chain = FallbackChainCopilotProvider(
-            exaone_simple=RecordingFallbackProvider(),
-            exaone_complex=FailingFallbackProvider(),
-            codex=codex,
-        )
-
-        chain.answer(
-            question="SPC 이상 신호를 정리하는 Python 코드를 만들어줘",
-            pathname="/spc",
-            workspace="통계적 공정관리 (SPC)",
-            evidence_context=None,
-        )
-
-        self.assertEqual(codex.questions, ["SPC 이상 신호를 정리하는 Python 코드를 만들어줘"])
-
-    def test_fallback_chain_uses_codex_after_simple_exaone_failure(self) -> None:
-        codex = RecordingFallbackProvider()
-        chain = FallbackChainCopilotProvider(
-            exaone_simple=FailingFallbackProvider(),
-            exaone_complex=RecordingFallbackProvider(),
-            codex=codex,
-        )
-
-        chain.answer(
-            question="현장 작업표 열 이름을 설명해줘",
-            pathname="/data",
-            workspace="작업표 및 데이터 (Worksheet & Data)",
-            evidence_context=None,
-        )
-
-        self.assertEqual(codex.questions, ["현장 작업표 열 이름을 설명해줘"])
-
-    def test_malformed_exaone_response_falls_through_to_codex(self) -> None:
-        codex_client = FakeCodexClient()
-        chain = FallbackChainCopilotProvider(
-            exaone_simple=ExaoneCopilotProvider(
-                "test-key",
-                model="k-exaone_v2.5",
-                client=MalformedExaoneClient(),
-            ),
-            exaone_complex=None,
-            codex=CodexSdkCopilotProvider(model="gpt-test", client=codex_client),
-        )
-
-        guidance = chain.answer(
-            question="현장 작업표 열 이름을 설명해줘",
-            pathname="/data",
-            workspace="작업표 및 데이터 (Worksheet & Data)",
-            evidence_context=None,
-        )
-
-        self.assertEqual(guidance.provider, "codex-sdk:gpt-test")
-        self.assertEqual(len(codex_client.calls), 1)
-
-    def test_incomplete_exaone_contract_falls_through_to_codex(self) -> None:
-        codex_client = FakeCodexClient()
-        chain = FallbackChainCopilotProvider(
-            exaone_simple=ExaoneCopilotProvider(
-                "test-key",
-                model="k-exaone_v2.5",
-                client=IncompleteGuidanceExaoneClient(),
-            ),
-            exaone_complex=None,
-            codex=CodexSdkCopilotProvider(model="gpt-test", client=codex_client),
-        )
-
-        guidance = chain.answer(
-            question="현장 작업표 열 이름을 설명해줘",
-            pathname="/data",
-            workspace="작업표 및 데이터 (Worksheet & Data)",
-            evidence_context=None,
-        )
-
-        self.assertEqual(guidance.provider, "codex-sdk:gpt-test")
-        self.assertEqual(len(codex_client.calls), 1)
+        self.assertEqual([(step.stage, step.status) for step in guidance.fallback_steps], [("Codex SDK", "answered")])
 
     def test_malformed_codex_response_returns_manual_guidance(self) -> None:
-        chain = FallbackChainCopilotProvider(
-            exaone_simple=None,
-            exaone_complex=None,
-            codex=CodexSdkCopilotProvider(model="gpt-test", client=MalformedCodexClient()),
-        )
+        chain = FallbackChainCopilotProvider(codex=CodexSdkCopilotProvider(model="gpt-test", client=MalformedCodexClient()))
 
         guidance = chain.answer(
             question="현장 작업표 열 이름을 설명해줘",
@@ -478,42 +354,7 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
         )
 
         self.assertEqual(guidance.provider, "statpro-fallback-unavailable")
-
-    def test_fallback_chain_requests_manual_input_after_all_models_fail(self) -> None:
-        chain = FallbackChainCopilotProvider(
-            exaone_simple=FailingFallbackProvider(),
-            exaone_complex=FailingFallbackProvider(),
-            codex=FailingFallbackProvider(),
-        )
-
-        guidance = chain.answer(
-            question="현장 특수 문제를 도와줘",
-            pathname="/home",
-            workspace="홈 (Home)",
-            evidence_context=None,
-        )
-
-        self.assertEqual(guidance.provider, "statpro-fallback-unavailable")
-        self.assertEqual(guidance.guidance_mode, "manual_guidance")
-        self.assertTrue(guidance.answer)
-        self.assertEqual([(step.stage, step.status) for step in guidance.fallback_steps], [("EXAONE API", "failed"), ("Codex SDK", "failed")])
-
-    def test_exaone_rate_limit_is_reported_without_a_false_connection_error(self) -> None:
-        chain = FallbackChainCopilotProvider(
-            exaone_simple=RateLimitedFallbackProvider(),
-            exaone_complex=None,
-            codex=None,
-        )
-
-        guidance = chain.answer(
-            question="현장 특수 문제를 도와줘",
-            pathname="/home",
-            workspace="홈 (Home)",
-            evidence_context=None,
-        )
-
-        self.assertIn("요청 한도", guidance.answer)
-        self.assertIn("EXAONE: HTTP 429", guidance.limitations[1])
+        self.assertEqual([(step.stage, step.status) for step in guidance.fallback_steps], [("Codex SDK", "failed")])
 
     def test_general_symptom_cause_action_request_uses_local_workflow(self) -> None:
         fallback = RecordingFallbackProvider()
@@ -678,26 +519,6 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
         self.assertEqual(guidance.recommended_tool, "MES·FDC·APC/R2R 플랫폼")
         self.assertIn("자동 실행하지 않습니다", guidance.limitations[2])
 
-    def test_exaone_fallback_uses_structured_contract(self) -> None:
-        client = FakeExaoneClient()
-        provider = ExaoneCopilotProvider("test-key", client=client)
-
-        guidance = provider.answer(
-            question="사내 열처리 장비 코드 E97은 무엇인가요?",
-            pathname="/home",
-            workspace="홈 (Home)",
-            evidence_context=None,
-        )
-
-        self.assertEqual(len(client.calls), 1)
-        self.assertEqual(client.calls[0][0], "test-key")
-        self.assertEqual(client.calls[0][2], "k-exaone_v2.5")
-        self.assertEqual(client.calls[0][4], "low")
-        self.assertIn("열처리 장비 코드 E97", client.calls[0][3])
-        self.assertEqual(guidance.guidance_mode, "llm_fallback")
-        self.assertEqual(guidance.checklist, ("설비 매뉴얼 확보",))
-        self.assertEqual(guidance.workflow_steps, ("코드 발생 시점 확인",))
-
     def test_codex_sdk_fallback_uses_read_only_thread_and_the_guidance_contract(self) -> None:
         client = FakeCodexClient()
         provider = CodexSdkCopilotProvider(model="gpt-test", client=client)
@@ -715,50 +536,11 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
         self.assertEqual(guidance.provider, "codex-sdk:gpt-test")
         self.assertEqual(guidance.guidance_mode, "llm_fallback")
 
-    def test_local_openai_client_requests_a_single_non_streaming_json_response(self) -> None:
-        with patch(
-            "statpro.application.copilot.urllib.request.urlopen",
-            return_value=FakeHttpResponse(),
-        ) as urlopen:
-            client = UrlLibExaoneChatCompletionClient(timeout_seconds=47)
-            client.complete(
-                api_key="secret",
-                endpoint="https://api.exaone.ai/v1/chat/completions",
-                model="k-exaone_v2.5",
-                prompt="JSON only",
-                reasoning_effort="high",
-            )
-
-        request = urlopen.call_args.args[0]
-        body = json.loads(request.data.decode("utf-8"))
-        self.assertFalse(body["stream"])
-        self.assertEqual(request.full_url, "https://api.exaone.ai/v1/chat/completions")
-        self.assertEqual(request.get_header("Authorization"), "Bearer secret")
-        self.assertEqual(body["model"], "k-exaone_v2.5")
-        self.assertEqual(body["reasoning_effort"], "high")
-        self.assertEqual(body["max_tokens"], 1200)
-        self.assertIn("Do not use Markdown fences", body["messages"][0]["content"])
-        self.assertEqual(urlopen.call_args.kwargs["timeout"], 47)
-
-    def test_rulebase_enrichment_classifies_the_original_question_not_the_rule_text(self) -> None:
-        question = "SMT 설비의 순간정지 현상을 MES, PLC 데이터로 분석하는 방법을 설명해줘"
-        enriched_question = (
-            "다음 사용자 요청에 대해 Rulebase가 아래 내용을 이미 안내했습니다. "
-            "반복하지 말고 보완하세요.\n"
-            f"사용자 요청: {question}\n"
-            "Rulebase 안내: DMAIC 원인 분석과 FMEA를 연결합니다."
-        )
-
-        self.assertFalse(_is_complex_request(question))
-        self.assertFalse(_is_complex_request(enriched_question))
-
-    def test_disabled_codex_configuration_continues_to_manual_input_when_exaone_is_disabled(self) -> None:
+    def test_disabled_codex_configuration_continues_to_manual_input(self) -> None:
         with patch.dict(
             os.environ,
             {
                 "STATPRO_COPILOT_CODEX_ENABLED": "false",
-                "STATPRO_COPILOT_EXAONE_ENABLED": "false",
-                "EXAONE_API_KEY": "",
             },
             clear=True,
         ):
@@ -771,17 +553,12 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
 
         self.assertEqual(guidance.provider, "statpro-fallback-unavailable")
         self.assertEqual(guidance.guidance_mode, "manual_guidance")
-        self.assertIn("EXAONE API 및 Codex SDK", guidance.limitations[1])
-        self.assertIn("EXAONE: 미설정", guidance.limitations[1])
-        self.assertIn("Codex SDK: 미설정", guidance.limitations[1])
+        self.assertIn("Codex SDK", guidance.limitations[1])
 
     def test_runtime_status_reports_readiness_without_exposing_the_api_key(self) -> None:
         with patch.dict(
             os.environ,
             {
-                "STATPRO_COPILOT_EXAONE_ENABLED": "true",
-                "EXAONE_API_KEY": "must-not-appear",
-                "STATPRO_COPILOT_EXAONE_MODEL": "k-exaone_v2.5",
                 "STATPRO_COPILOT_CODEX_ENABLED": "true",
                 "STATPRO_COPILOT_CODEX_MODEL": "gpt-test",
             },
@@ -790,9 +567,7 @@ class RuleFirstCopilotProviderTests(unittest.TestCase):
             status = copilot_runtime_status()
 
         self.assertTrue(status["rulebase"]["configured"])
-        self.assertTrue(status["exaone"]["ready"])
         self.assertTrue(status["codex"]["ready"])
-        self.assertFalse(status["exaone"]["live_verified"])
         self.assertFalse(status["codex"]["live_verified"])
         self.assertNotIn("must-not-appear", repr(status))
 

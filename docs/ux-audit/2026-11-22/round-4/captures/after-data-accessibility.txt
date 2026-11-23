@@ -1,0 +1,81 @@
+- link "본문 바로가기":
+  - /url: "#main-content"
+- banner:
+  - text: StatPro LOCAL
+  - button "현재 프로젝트 프로젝트 선택":
+    - text: 현재 프로젝트
+    - strong: 프로젝트 선택
+  - button "즐겨찾기 0"
+  - text: 엔진 연결됨
+  - button "다크 테마로 전환"
+  - button "도움말 열기"
+- complementary "주 메뉴":
+  - button "사이드 메뉴 감추기" [expanded]: 메뉴 감추기
+  - navigation:
+    - link "홈 (Home)":
+      - /url: /home
+    - link "분석 선택 (Analysis Selection)":
+      - /url: /analyses
+    - link "작업표 및 데이터 (Worksheet & Data)":
+      - /url: /data
+    - link "실험계획법 (DOE)":
+      - /url: /doe
+    - link "통계적 공정관리 (SPC)":
+      - /url: /spc
+    - link "고장 형태 및 영향 분석 (FMEA)":
+      - /url: /fmea
+    - link "품질 대시보드 (Quality Dashboard)":
+      - /url: /quality
+    - link "결함 분석 (Defect Analysis)":
+      - /url: /defects
+    - link "결과 및 보고서 (Results & Reports)":
+      - /url: /catalog/reports
+    - link "계산 및 도우미 (Calculators & Helpers)":
+      - /url: /catalog/tools
+  - text: ENGINE
+  - strong: ux-audit
+  - button "로그아웃"
+  - slider "사이드 메뉴 너비 조절"
+- main:
+  - navigation "화면 이동":
+    - button "이전"
+    - link "분석 홈":
+      - /url: /home
+    - button "다음"
+  - text: 공유 데이터
+  - heading "작업표" [level=1]
+  - paragraph: CSV, XLSX, Parquet 또는 SQLite 원본의 타입·결측 정보를 보존하고 모든 셀 변경을 새 개정으로 기록합니다.
+  - article:
+    - text: 작업표 목록
+    - heading "저장된 작업표" [level=2]
+    - text: 1개
+    - table "저장된 작업표 목록":
+      - caption: 저장된 작업표 목록
+      - rowgroup:
+        - row "이름 Revision 행 열 열기":
+          - columnheader "이름"
+          - columnheader "Revision"
+          - columnheader "행"
+          - columnheader "열"
+          - columnheader "열기"
+      - rowgroup:
+        - row "SMT 순간정지 측정 ux-audit 3 6 4 열기":
+          - cell "SMT 순간정지 측정 ux-audit":
+            - strong: SMT 순간정지 측정
+            - text: ux-audit
+          - cell "3"
+          - cell "6"
+          - cell "4"
+          - cell "열기":
+            - link "열기":
+              - /url: /data/ux-audit
+  - text: 데이터 가져오기
+  - heading "데이터 가져오기" [level=2]
+  - text: 작업표 이름
+  - textbox "작업표 이름": 공정 측정값
+  - text: 데이터 파일 (CSV/XLSX/Parquet/SQLite)
+  - button "데이터 파일 (CSV/XLSX/Parquet/SQLite) 파일을 선택하면 필요한 원본 옵션만 표시합니다. 최대 20MB까지 가져올 수 있습니다."
+  - text: 파일을 선택하면 필요한 원본 옵션만 표시합니다. 최대 20MB까지 가져올 수 있습니다.
+  - paragraph: UTF-8 CSV, 값 전용 XLSX, 평면 scalar Parquet 또는 SQLite 테이블을 지원합니다. 결측은 보존하며 중첩 Parquet·수식·임의 SQL은 실행하지 않습니다.
+  - button "가져오기"
+- button "AI Assistant 보이기": AI Assistant

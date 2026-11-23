@@ -1,0 +1,37 @@
+[
+  {
+    "name": "home",
+    "path": "/home",
+    "finalUrl": "http://127.0.0.1:5173/home",
+    "pageErrors": [],
+    "consoleErrors": []
+  },
+  {
+    "name": "data",
+    "path": "/data",
+    "finalUrl": "http://127.0.0.1:5173/data",
+    "pageErrors": [],
+    "consoleErrors": []
+  },
+  {
+    "name": "worksheet",
+    "path": "/data/ux-audit",
+    "finalUrl": "http://127.0.0.1:5173/data/ux-audit",
+    "pageErrors": [],
+    "consoleErrors": []
+  },
+  {
+    "name": "analyses",
+    "path": "/analyses",
+    "finalUrl": "http://127.0.0.1:5173/analyses",
+    "pageErrors": [],
+    "consoleErrors": []
+  },
+  {
+    "name": "reports",
+    "path": "/catalog/reports",
+    "finalUrl": "http://127.0.0.1:5173/catalog/reports",
+    "pageErrors": [],
+    "consoleErrors": []
+  }
+]

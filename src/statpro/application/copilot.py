@@ -9,8 +9,6 @@ from __future__ import annotations
 
 import json
 import os
-import urllib.error
-import urllib.request
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from typing import Any, Protocol
@@ -73,18 +71,6 @@ class CopilotProvider(Protocol):
     ) -> CopilotGuidance: ...
 
 
-class ExaoneChatCompletionClient(Protocol):
-    def complete(
-        self,
-        *,
-        api_key: str,
-        endpoint: str,
-        model: str,
-        prompt: str,
-        reasoning_effort: str,
-    ) -> Mapping[str, Any]: ...
-
-
 class CodexSdkClient(Protocol):
     """Minimal boundary over the official local Codex Python SDK."""
 
@@ -121,8 +107,6 @@ _ASSISTANT_REFERENCE = (
     "Laney·다변량 SPC, 혼합물·Taguchi·D-optimal DOE는 현재 제공하지 않는다. "
     "메뉴 경로·입력 점검·확인실험을 안내하되 실행 또는 승인 완료를 주장하지 않는다."
 )
-_EXAONE_GUIDANCE_MAX_TOKENS = 1200
-
 _OUT_OF_SCOPE_GUIDANCE: tuple[tuple[tuple[str, ...], str, str], ...] = (
     (("ppap", "8d", "capa"), "고객 품질·시정조치 관리", "고객 포털·QMS·CAPA/8D 시스템"),
     (("fdc", "apc", "r2r"), "설비 데이터 수집·제어", "MES·FDC·APC/R2R 플랫폼"),
@@ -512,7 +496,6 @@ class RuleFirstCopilotProvider:
                 rule_guidance,
                 fallback_steps=(
                     CopilotFallbackStep("Rulebase", "answered", "검토된 규칙으로 답변을 생성했습니다."),
-                    CopilotFallbackStep("EXAONE API", "skipped", "Rulebase 답변이 있어 호출하지 않았습니다."),
                     CopilotFallbackStep("Codex SDK", "skipped", "Rulebase 답변이 있어 호출하지 않았습니다."),
                 ),
             )
@@ -521,7 +504,6 @@ class RuleFirstCopilotProvider:
                 rule_guidance,
                 fallback_steps=(
                     CopilotFallbackStep("Rulebase", "unmatched", "직접 대응하는 검토 규칙을 찾지 못했습니다."),
-                    CopilotFallbackStep("EXAONE API", "unavailable", "모델 연결이 설정되지 않았습니다."),
                     CopilotFallbackStep("Codex SDK", "unavailable", "모델 연결이 설정되지 않았습니다."),
                 ),
             )
@@ -543,8 +525,7 @@ class RuleFirstCopilotProvider:
                 + ("생성형 AI 보완을 사용할 수 없어 검토된 로컬 안내만 제공합니다.",),
                 fallback_steps=(
                     CopilotFallbackStep("Rulebase", "unmatched", "직접 대응하는 검토 규칙을 찾지 못했습니다."),
-                    CopilotFallbackStep("EXAONE API", "failed", "Fallback 체인을 시작하지 못했습니다."),
-                    CopilotFallbackStep("Codex SDK", "skipped", "이전 단계 오류로 호출하지 못했습니다."),
+                    CopilotFallbackStep("Codex SDK", "failed", "Codex SDK 폴백을 시작하지 못했습니다."),
                 ),
             )
 
@@ -564,11 +545,10 @@ class RuleFirstCopilotProvider:
                 ),
                 fallback_steps=(
                     CopilotFallbackStep("Rulebase", "answered", "사용자가 Rulebase를 지정해 답변을 생성했습니다."),
-                    CopilotFallbackStep("EXAONE API", "skipped", "사용자가 Rulebase를 지정했습니다."),
                     CopilotFallbackStep("Codex SDK", "skipped", "사용자가 Rulebase를 지정했습니다."),
                 ),
             )
-        if isinstance(self._fallback_provider, FallbackChainCopilotProvider):
+        if isinstance(self._fallback_provider, FallbackChainCopilotProvider) and model_preference == "codex":
             return self._fallback_provider.answer_selected_model(
                 model_preference=model_preference,
                 question=question,
@@ -577,11 +557,6 @@ class RuleFirstCopilotProvider:
                 evidence_context=evidence_context,
             )
         raise ValueError("The selected Copilot model is not available")
-
-
-def _is_code_generation_request(question: str) -> bool:
-    normalized = question.casefold()
-    return any(token in normalized for token in ("코드", "스크립트", "python", "sql", "api", "자동화", "구현"))
 
 
 def _requires_model_enrichment(question: str) -> bool:
@@ -603,24 +578,12 @@ def _enrichment_question(question: str, rule_guidance: CopilotGuidance) -> str:
     )
 
 
-def _is_complex_request(question: str) -> bool:
-    original_question = question
-    if "사용자 요청: " in question and "\nRulebase 안내: " in question:
-        original_question = question.split("사용자 요청: ", 1)[1].split("\nRulebase 안내: ", 1)[0]
-    normalized = original_question.casefold()
-    complex_terms = (
-        "복잡", "원인", "상호작용", "최적화", "다단계", "규제", "승인",
-        "fmea", "dmaic", "doe", "설계", "코드", "스크립트", "api",
-    )
-    return len(normalized) >= 180 or _is_code_generation_request(question) or any(term in normalized for term in complex_terms)
-
-
 def _model_error_detail(error: Exception) -> str:
     message = str(error)
     if "429" in message:
         return "요청 한도(HTTP 429)에 도달했습니다."
     if "timed out" in message.casefold():
-        return "EXAONE API 요청의 연결 또는 응답 수신 시간이 제한을 초과했습니다."
+        return "모델 요청의 연결 또는 응답 수신 시간이 제한을 초과했습니다."
     if "invalid JSON" in message or "invalid guidance contract" in message:
         return "모델 응답이 JSON 안내 형식과 일치하지 않습니다."
     if "empty answer" in message:
@@ -629,17 +592,13 @@ def _model_error_detail(error: Exception) -> str:
 
 
 class FallbackChainCopilotProvider:
-    """Use EXAONE first, then the read-only Codex SDK for unmatched questions."""
+    """Use the read-only Codex SDK for questions outside the Rulebase."""
 
     def __init__(
         self,
         *,
-        exaone_simple: CopilotProvider | None,
-        exaone_complex: CopilotProvider | None,
         codex: CopilotProvider | None,
     ) -> None:
-        self._exaone_simple = exaone_simple
-        self._exaone_complex = exaone_complex
         self._codex = codex
 
     def answer(
@@ -650,68 +609,38 @@ class FallbackChainCopilotProvider:
         workspace: str,
         evidence_context: str | None,
     ) -> CopilotGuidance:
-        cloud_provider = self._exaone_complex if _is_complex_request(question) else self._exaone_simple
-        failures: list[str] = []
-        steps: list[CopilotFallbackStep] = []
-        answers: list[tuple[str, CopilotGuidance]] = []
-        for tier, failure_name, provider in (("EXAONE API", "EXAONE", cloud_provider), ("Codex SDK", "Codex SDK", self._codex)):
-            if provider is None:
-                failures.append(f"{failure_name}: 미설정")
-                steps.append(CopilotFallbackStep(tier, "unavailable", "사용 가능한 연결 또는 모델이 설정되지 않았습니다."))
-                continue
-            try:
-                guidance = provider.answer(
-                    question=question,
-                    pathname=pathname,
-                    workspace=workspace,
-                    evidence_context=evidence_context,
-                )
-                steps.append(CopilotFallbackStep(tier, "answered", "답변을 생성했습니다."))
-                answers.append((tier, guidance))
-            except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError) as error:
-                rate_limited = "429" in str(error)
-                failures.append(
-                    f"{failure_name}: HTTP 429" if rate_limited else f"{failure_name}: {type(error).__name__}"
-                )
-                detail = _model_error_detail(error)
-                steps.append(CopilotFallbackStep(tier, "failed", detail))
-                continue
-        if answers:
-            selected_tier, selected_guidance = next(
-                (answer for answer in answers if answer[0] == "EXAONE API"),
-                answers[0],
+        if self._codex is None:
+            return self._manual_guidance("unavailable", "사용 가능한 연결 또는 모델이 설정되지 않았습니다.")
+        try:
+            guidance = self._codex.answer(
+                question=question,
+                pathname=pathname,
+                workspace=workspace,
+                evidence_context=evidence_context,
             )
-            selected_steps = tuple(
-                replace(
-                    step,
-                    detail=("답변을 생성했고 사용자에게 표시했습니다." if step.stage == selected_tier else "답변을 생성했으며 EXAONE API 답변을 우선 표시했습니다.")
-                    if step.status == "answered"
-                    else step.detail,
-                )
-                for step in steps
-            )
-            return replace(selected_guidance, fallback_steps=selected_steps)
-        rate_limited = any(failure.endswith("HTTP 429") for failure in failures)
+        except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError) as error:
+            return self._manual_guidance("failed", _model_error_detail(error))
+        return replace(
+            guidance,
+            fallback_steps=(CopilotFallbackStep("Codex SDK", "answered", "답변을 생성했습니다."),),
+        )
+
+    @staticmethod
+    def _manual_guidance(status: str, detail: str) -> CopilotGuidance:
         return CopilotGuidance(
-            answer=(
-                "EXAONE API 요청 한도에 도달했습니다. 잠시 후 다시 시도하거나, "
-                if rate_limited
-                else "자동 안내 모델에 연결할 수 없습니다. 잠시 후 같은 질문을 다시 시도하거나, "
-            ) + (
-                "분석 목적·결과 변수·데이터 구조·현재 제약을 직접 입력해 주세요."
-            ),
+            answer="자동 안내 모델에 연결할 수 없습니다. 잠시 후 같은 질문을 다시 시도하거나, 분석 목적·결과 변수·데이터 구조·현재 제약을 직접 입력해 주세요.",
             provider="statpro-fallback-unavailable",
             sources=(_SELECTION_SOURCE,),
             limitations=(
                 "Rulebase에 직접 대응하는 규칙을 찾지 못했습니다.",
-                "EXAONE API 및 Codex SDK 폴백 응답을 사용할 수 없었습니다 (" + ", ".join(failures) + ").",
+                "Codex SDK 폴백 응답을 사용할 수 없었습니다.",
                 "분석 설정이나 저장 문서는 자동으로 변경하지 않습니다.",
             ),
             action=CopilotAction("분석 선택 시작", "/analyses"),
             guidance_mode="manual_guidance",
             checklist=("분석 목표 입력", "결과 변수의 데이터형 입력", "수집 구조와 표본 수 입력", "현장 제약·안전 범위 입력"),
             workflow_steps=("필수 입력 보완", "분석 선택 도우미에서 방법 검토", "사용자가 설정을 검토·실행"),
-            fallback_steps=tuple(steps),
+            fallback_steps=(CopilotFallbackStep("Codex SDK", status, detail),),
         )
 
     def answer_selected_model(
@@ -723,45 +652,19 @@ class FallbackChainCopilotProvider:
         workspace: str,
         evidence_context: str | None,
     ) -> CopilotGuidance:
-        providers = {
-            "exaone": ("EXAONE API", self._exaone_complex if _is_complex_request(question) else self._exaone_simple),
-            "codex": ("Codex SDK", self._codex),
-        }
-        tier, provider = providers[model_preference]
-        skipped = "Codex SDK" if tier == "EXAONE API" else "EXAONE API"
-        if provider is None:
-            return CopilotGuidance(
-                answer=f"지정한 {tier} 모델이 설정되지 않았습니다.",
-                provider="statpro-selected-model-unavailable",
-                sources=(_SELECTION_SOURCE,),
-                limitations=("다른 모델로 자동 전환하지 않았습니다. 모델 지정을 해제하거나 설정을 확인하세요.",),
-                guidance_mode="manual_guidance",
-                fallback_steps=(
-                    CopilotFallbackStep(tier, "unavailable", "사용 가능한 연결 또는 모델이 설정되지 않았습니다."),
-                    CopilotFallbackStep(skipped, "skipped", "사용자가 특정 모델을 지정했습니다."),
-                ),
-            )
-        try:
-            guidance = provider.answer(question=question, pathname=pathname, workspace=workspace, evidence_context=evidence_context)
-        except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError) as error:
-            detail = _model_error_detail(error)
-            return CopilotGuidance(
-                answer=f"지정한 {tier}에서 답변을 생성하지 못했습니다. {detail}",
-                provider="statpro-selected-model-unavailable",
-                sources=(_SELECTION_SOURCE,),
-                limitations=("사용자 지정 모델만 호출했으며 다른 모델로 자동 전환하지 않았습니다.",),
-                guidance_mode="manual_guidance",
-                fallback_steps=(
-                    CopilotFallbackStep(tier, "failed", detail),
-                    CopilotFallbackStep(skipped, "skipped", "사용자가 특정 모델을 지정했습니다."),
-                ),
-            )
+        if model_preference != "codex":
+            raise ValueError("The selected Copilot model is not available")
+        guidance = self.answer(
+            question=question,
+            pathname=pathname,
+            workspace=workspace,
+            evidence_context=evidence_context,
+        )
+        if guidance.provider == "statpro-fallback-unavailable":
+            return guidance
         return replace(
             guidance,
-            fallback_steps=(
-                CopilotFallbackStep(tier, "answered", "사용자가 지정한 모델로 답변을 생성했습니다."),
-                CopilotFallbackStep(skipped, "skipped", "사용자가 특정 모델을 지정했습니다."),
-            ),
+            fallback_steps=(CopilotFallbackStep("Codex SDK", "answered", "사용자가 지정한 모델로 답변을 생성했습니다."),),
         )
 
 
@@ -851,114 +754,6 @@ def _guidance_from_provider_text(
         raise ValueError(f"{provider_name} returned an invalid guidance contract") from error
 
 
-class UrlLibExaoneChatCompletionClient:
-    """Dependency-free OpenAI-compatible client for the EXAONE endpoint."""
-
-    def __init__(self, *, timeout_seconds: int = 20) -> None:
-        self._timeout_seconds = timeout_seconds
-
-    def complete(
-        self,
-        *,
-        api_key: str,
-        endpoint: str,
-        model: str,
-        prompt: str,
-        reasoning_effort: str,
-    ) -> Mapping[str, Any]:
-        body = json.dumps(
-            {
-                "model": model,
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": (
-                            "Return only one JSON object with this exact shape: "
-                            '{"answer":string,"recommended_tool":string|null,"menu_path":string[],"checklist":string[],"workflow_steps":string[]}. '
-                            "Do not use Markdown fences or add prose outside JSON."
-                        ),
-                    },
-                    {"role": "user", "content": prompt},
-                ],
-                "max_tokens": _EXAONE_GUIDANCE_MAX_TOKENS,
-                "temperature": 0.2,
-                "stream": False,
-                "reasoning_effort": reasoning_effort,
-            }
-        ).encode("utf-8")
-        request = urllib.request.Request(
-            endpoint,
-            data=body,
-            headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
-            method="POST",
-        )
-        try:
-            with urllib.request.urlopen(request, timeout=self._timeout_seconds) as response:
-                return json.loads(response.read().decode("utf-8"))
-        except urllib.error.HTTPError as error:
-            raise OSError(f"EXAONE request failed with HTTP {error.code}") from error
-
-
-class ExaoneCopilotProvider:
-    """Constrained EXAONE 2.5 fallback for questions outside the rulebase."""
-
-    def __init__(
-        self,
-        api_key: str,
-        *,
-        endpoint: str = "https://api.exaone.ai/v1/chat/completions",
-        model: str = "k-exaone_v2.5",
-        reasoning_effort: str = "low",
-        timeout_seconds: int = 60,
-        client: ExaoneChatCompletionClient | None = None,
-    ) -> None:
-        if reasoning_effort not in {"low", "high", "max"}:
-            raise ValueError("EXAONE reasoning_effort must be low, high, or max")
-        if not 1 <= timeout_seconds <= 120:
-            raise ValueError("EXAONE timeout_seconds must be between 1 and 120")
-        self._api_key = api_key
-        self._endpoint = endpoint
-        self._model = model
-        self._reasoning_effort = reasoning_effort
-        self._client = client or UrlLibExaoneChatCompletionClient(timeout_seconds=timeout_seconds)
-
-    def answer(
-        self,
-        *,
-        question: str,
-        pathname: str,
-        workspace: str,
-        evidence_context: str | None,
-    ) -> CopilotGuidance:
-        prompt = (
-            "당신은 제조·품질 통계 소프트웨어 StatPro의 한국어 업무 가이드입니다. "
-            "검증되지 않은 수치나 기능을 만들지 말고, 초보자가 검토 후 실행할 수 있도록 설명하세요. "
-            "분석 설정을 자동 변경했다고 말하지 마세요.\n"
-            f"제품 참조: {_ASSISTANT_REFERENCE}\n"
-            f"현재 작업공간: {workspace}\n현재 경로: {pathname}\n"
-            f"사용자 질문: {question}\n"
-            f"사용자가 선택한 근거 문맥: {evidence_context or '없음'}"
-        )
-        try:
-            raw = self._client.complete(
-                api_key=self._api_key,
-                endpoint=self._endpoint,
-                model=self._model,
-                prompt=prompt,
-                reasoning_effort=self._reasoning_effort,
-            )
-            text = raw["choices"][0]["message"]["content"]
-        except (KeyError, IndexError, TypeError) as error:
-            raise ValueError("EXAONE returned an invalid guidance response") from error
-        return _guidance_from_provider_text(
-            text,
-            provider_name="EXAONE",
-            provider=self._model,
-            source=CopilotSource("사용자 질문과 선택 문맥", "copilot://question", "user_context"),
-            local_only=False,
-        )
-
-
 class OpenAICodexSdkClient:
     """Run one Copilot turn through the local Codex app-server.
 
@@ -1019,29 +814,7 @@ class CodexSdkCopilotProvider:
 
 
 def build_default_copilot_provider() -> CopilotProvider:
-    """Build Rulebase → EXAONE 2.5 → read-only Codex SDK → manual guidance."""
-
-    exaone_enabled = os.getenv("STATPRO_COPILOT_EXAONE_ENABLED", "").casefold() == "true"
-    api_key = os.getenv("EXAONE_API_KEY", "")
-    exaone_endpoint = os.getenv("STATPRO_COPILOT_EXAONE_URL", "") or "https://api.exaone.ai/v1/chat/completions"
-    exaone_model = os.getenv("STATPRO_COPILOT_EXAONE_MODEL", "") or "k-exaone_v2.5"
-    exaone_simple = None
-    exaone_complex = None
-    if exaone_enabled and api_key:
-        exaone_simple = ExaoneCopilotProvider(
-            api_key,
-            endpoint=exaone_endpoint,
-            model=exaone_model,
-            reasoning_effort=os.getenv("STATPRO_COPILOT_EXAONE_SIMPLE_REASONING_EFFORT", "") or "low",
-            timeout_seconds=_exaone_timeout_seconds(),
-        )
-        exaone_complex = ExaoneCopilotProvider(
-            api_key,
-            endpoint=exaone_endpoint,
-            model=exaone_model,
-            reasoning_effort=os.getenv("STATPRO_COPILOT_EXAONE_COMPLEX_REASONING_EFFORT", "") or "high",
-            timeout_seconds=_exaone_timeout_seconds(),
-        )
+    """Build Rulebase → read-only Codex SDK → manual guidance."""
 
     codex_enabled = os.getenv("STATPRO_COPILOT_CODEX_ENABLED", "").casefold() == "true"
     codex_model = os.getenv("STATPRO_COPILOT_CODEX_MODEL", "").strip() or None
@@ -1050,34 +823,18 @@ def build_default_copilot_provider() -> CopilotProvider:
     return RuleFirstCopilotProvider(
         LocalKnowledgeCopilotProvider(),
         FallbackChainCopilotProvider(
-            exaone_simple=exaone_simple,
-            exaone_complex=exaone_complex,
             codex=codex,
         ),
     )
-
-
-def _exaone_timeout_seconds() -> int:
-    raw_value = os.getenv("STATPRO_COPILOT_EXAONE_TIMEOUT_SECONDS", "60")
-    try:
-        timeout_seconds = int(raw_value)
-    except ValueError:
-        return 60
-    return timeout_seconds if 1 <= timeout_seconds <= 120 else 60
 
 
 def copilot_runtime_status() -> dict[str, object]:
     """Describe configured fallback readiness without exposing credentials.
 
     This is configuration evidence only.  It intentionally does not probe a
-    remote EXAONE service or local Codex app-server, because a status request
-    must not transmit a user's context or create an unexpected model call.
+    local Codex app-server, because a status request must not transmit a
+    user's context or create an unexpected model call.
     """
-
-    exaone_enabled = os.getenv("STATPRO_COPILOT_EXAONE_ENABLED", "").casefold() == "true"
-    exaone_key_present = bool(os.getenv("EXAONE_API_KEY", ""))
-    exaone_endpoint = os.getenv("STATPRO_COPILOT_EXAONE_URL", "") or "https://api.exaone.ai/v1/chat/completions"
-    exaone_model = os.getenv("STATPRO_COPILOT_EXAONE_MODEL", "") or "k-exaone_v2.5"
     codex_enabled = os.getenv("STATPRO_COPILOT_CODEX_ENABLED", "").casefold() == "true"
     codex_model = os.getenv("STATPRO_COPILOT_CODEX_MODEL", "").strip() or None
     try:
@@ -1092,16 +849,6 @@ def copilot_runtime_status() -> dict[str, object]:
             "rule_count": len(COPILOT_RULE_CATALOG),
             "live_verified": True,
         },
-        "exaone": {
-            "enabled": exaone_enabled,
-            "credential_present": exaone_key_present,
-            "ready": exaone_enabled and exaone_key_present,
-            "endpoint_configured": bool(exaone_endpoint),
-            "model": exaone_model,
-            "simple_reasoning_effort": os.getenv("STATPRO_COPILOT_EXAONE_SIMPLE_REASONING_EFFORT", "") or "low",
-            "complex_reasoning_effort": os.getenv("STATPRO_COPILOT_EXAONE_COMPLEX_REASONING_EFFORT", "") or "high",
-            "live_verified": False,
-        },
         "codex": {
             "enabled": codex_enabled,
             "sdk_installed": codex_sdk_installed,
@@ -1112,7 +859,7 @@ def copilot_runtime_status() -> dict[str, object]:
         },
         "manual_input_available": True,
         "limitations": (
-            "이 상태는 설정만 확인하며 EXAONE API 또는 Codex SDK에 요청하지 않습니다. "
+            "이 상태는 설정만 확인하며 Codex SDK에 요청하지 않습니다. "
             "실제 연결·모델 가용성은 사용자가 명시적으로 활성화한 환경에서 별도로 검증해야 합니다."
         ),
     }

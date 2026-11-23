@@ -42,7 +42,7 @@ type RuleProposal = {
   checklist: string[];
   workflowSteps: string[];
 };
-type ModelPreference = "auto" | "rulebase" | "exaone" | "codex";
+type ModelPreference = "auto" | "rulebase" | "codex";
 
 const commandStarters = [
   { label: "사용법", text: "현재 작업공간의 사용법과 시작 순서를 안내해줘." },
@@ -109,7 +109,7 @@ export function CopilotPanel() {
   const [question, setQuestion] = useState("");
   const [modelPreferenceSetting, setModelPreferenceSetting] = useState<ModelPreference>(() => {
     const saved = localStorage.getItem("statpro-copilot-model-preference");
-    return saved === "rulebase" || saved === "exaone" || saved === "codex" ? saved : "auto";
+    return saved === "rulebase" || saved === "codex" ? saved : "auto";
   });
   const [commandMenuOpen, setCommandMenuOpen] = useState(false);
   const [showCases, setShowCases] = useState(false);
@@ -246,15 +246,15 @@ export function CopilotPanel() {
     setMessages((current) => [...current, { id: messageId, role: "user", text }]);
     setQuestion("");
     setAnswerLoading(true);
-    const modelPreference = /(?:^|\s)\/?model\s+(rulebase|exaone|codex)\b/i.exec(text)?.[1]?.toLowerCase()
-      ?? (/(?:\bexaone\b|엑사원)/i.test(text) ? "exaone" : /(?:\bcodex\b|\bsdk\b|코덱스|에스디케이)/i.test(text) ? "codex" : modelPreferenceSetting);
+    const modelPreference = /(?:^|\s)\/?model\s+(rulebase|codex)\b/i.exec(text)?.[1]?.toLowerCase()
+      ?? (/(?:\bcodex\b|\bsdk\b|코덱스|에스디케이)/i.test(text) ? "codex" : modelPreferenceSetting);
     try {
       const guidance = await getCopilotGuidance({
         question: text,
         pathname: location.pathname,
         workspace: context.name,
         evidence_context: guidanceContext(evidence, messages),
-        model_preference: modelPreference as "auto" | "rulebase" | "exaone" | "codex",
+        model_preference: modelPreference as "auto" | "rulebase" | "codex",
       });
       const assistantMessage: CopilotMessage = {
         id: messageId + 1,
@@ -405,7 +405,7 @@ export function CopilotPanel() {
           <div><h2>AI Assistant</h2></div>
           <div className="copilot-header-actions"><button className="button-secondary" type="button" aria-expanded={showCases} onClick={() => setShowCases((current) => !current)}>{showCases ? "대화 보기" : "분석 Case 보기"}</button><button className="icon-button" type="button" aria-label="대화 초기화" disabled={answerLoading} onClick={resetConversation}><RotateCcw aria-hidden="true" /></button><button className="icon-button" type="button" aria-label="AI Assistant 닫기" onClick={() => setOpen(false)}><X aria-hidden="true" /></button></div>
         </header>
-        <section className="copilot-route-summary" aria-label="AI 응답 경로 설정"><div><strong>응답 경로</strong><p>기본 순서는 Rulebase → EXAONE → Codex SDK입니다.</p></div><label><span className="sr-only">AI 응답 경로</span><select aria-label="AI 응답 경로" value={modelPreferenceSetting} onChange={(event) => setModelPreferenceSetting(event.target.value as ModelPreference)} disabled={answerLoading}><option value="auto">모델 선택</option><option value="rulebase">Rulebase만</option><option value="exaone">EXAONE만</option><option value="codex">Codex SDK만</option></select></label></section>
+        <section className="copilot-route-summary" aria-label="AI 응답 경로 설정"><div><strong>응답 경로</strong><p>기본 순서는 Rulebase → Codex SDK입니다.</p></div><label><span className="sr-only">AI 응답 경로</span><select aria-label="AI 응답 경로" value={modelPreferenceSetting} onChange={(event) => setModelPreferenceSetting(event.target.value as ModelPreference)} disabled={answerLoading}><option value="auto">모델 선택</option><option value="rulebase">Rulebase만</option><option value="codex">Codex SDK만</option></select></label></section>
         <div className="copilot-content">
         {showCases ? <section className="copilot-catalog" aria-label="등록된 분석 Case">
           <header><div><strong>등록된 분석 Case</strong><small>{visibleCases.length}건 · 검토된 Rulebase</small></div><button type="button" className="button-secondary" aria-expanded={ruleEditorOpen} onClick={() => setRuleEditorOpen((current) => !current)}>{ruleEditorOpen ? "Rule 추가 닫기" : "Rule 추가·보완"}</button></header>

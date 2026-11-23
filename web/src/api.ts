@@ -15,7 +15,7 @@ export type CopilotGuidanceResponse = {
   checklist: string[];
   workflow_steps: string[];
   fallback_steps: Array<{
-    stage: "Rulebase" | "EXAONE API" | "Codex SDK";
+    stage: "Rulebase" | "Codex SDK";
     status: "answered" | "unmatched" | "failed" | "unavailable" | "skipped";
     detail: string;
   }>;
@@ -36,7 +36,6 @@ export type CopilotRule = {
 
 export type CopilotRuntimeStatus = {
   rulebase: { configured: boolean; rule_count: number; live_verified: boolean };
-  exaone: { enabled: boolean; credential_present: boolean; ready: boolean; endpoint_configured: boolean; model: string; simple_reasoning_effort: string; complex_reasoning_effort: string; live_verified: boolean };
   codex: { enabled: boolean; sdk_installed: boolean; ready: boolean; model: string | null; sandbox: "read_only"; live_verified: boolean };
   manual_input_available: boolean;
   limitations: string;
@@ -87,7 +86,7 @@ export async function getCopilotGuidance(payload: {
   pathname: string;
   workspace: string;
   evidence_context?: string | null;
-  model_preference?: "auto" | "rulebase" | "exaone" | "codex";
+  model_preference?: "auto" | "rulebase" | "codex";
 }): Promise<CopilotGuidanceResponse> {
   const guidance = await request<CopilotGuidanceResponse>("/v1/copilot/guidance", {
     method: "POST",

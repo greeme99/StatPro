@@ -157,9 +157,7 @@ class LocalApiContractTests(unittest.TestCase):
         self.assertTrue(status["rulebase"]["configured"])
         self.assertIn("rule_count", status["rulebase"])
         self.assertTrue(status["manual_input_available"])
-        self.assertFalse(status["exaone"]["live_verified"])
         self.assertFalse(status["codex"]["live_verified"])
-        self.assertNotIn("EXAONE_API_KEY", status)
 
     def test_approved_copilot_rule_reuses_the_saved_answer(self) -> None:
         created = self.client.post(

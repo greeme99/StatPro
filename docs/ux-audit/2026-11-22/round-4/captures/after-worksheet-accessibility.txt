@@ -1,0 +1,250 @@
+- link "본문 바로가기":
+  - /url: "#main-content"
+- banner:
+  - text: StatPro LOCAL
+  - button "현재 프로젝트 프로젝트 선택":
+    - text: 현재 프로젝트
+    - strong: 프로젝트 선택
+  - button "즐겨찾기 0"
+  - text: 엔진 연결됨
+  - button "다크 테마로 전환"
+  - button "도움말 열기"
+- complementary "주 메뉴":
+  - button "사이드 메뉴 감추기" [expanded]: 메뉴 감추기
+  - navigation:
+    - link "홈 (Home)":
+      - /url: /home
+    - link "분석 선택 (Analysis Selection)":
+      - /url: /analyses
+    - link "작업표 및 데이터 (Worksheet & Data)":
+      - /url: /data
+    - link "실험계획법 (DOE)":
+      - /url: /doe
+    - link "통계적 공정관리 (SPC)":
+      - /url: /spc
+    - link "고장 형태 및 영향 분석 (FMEA)":
+      - /url: /fmea
+    - link "품질 대시보드 (Quality Dashboard)":
+      - /url: /quality
+    - link "결함 분석 (Defect Analysis)":
+      - /url: /defects
+    - link "결과 및 보고서 (Results & Reports)":
+      - /url: /catalog/reports
+    - link "계산 및 도우미 (Calculators & Helpers)":
+      - /url: /catalog/tools
+  - text: ENGINE
+  - strong: ux-audit
+  - button "로그아웃"
+  - slider "사이드 메뉴 너비 조절"
+- main:
+  - navigation "화면 이동":
+    - button "이전"
+    - link "분석 홈":
+      - /url: /home
+    - button "다음"
+  - link "작업표 목록":
+    - /url: /data
+  - text: WORKSHEET
+  - heading "SMT 순간정지 측정" [level=1]
+  - paragraph: ux-audit · revision 3 · 6행 × 4열
+  - link "분석 선택":
+    - /url: /analyses?worksheet=ux-audit&revision=3&goal=capability
+  - button "현재 revision CSV 저장"
+  - text: 저장됨
+  - complementary:
+    - text: COLUMN PROFILE
+    - heading "설비" [level=2]
+    - term: 타입
+    - definition: text
+    - term: 결측
+    - definition: "0"
+  - article:
+    - text: DATA GRID
+    - heading "데이터" [level=2]
+    - text: 최대 200행 표시
+    - table "SMT 순간정지 측정 데이터, 6행 4열":
+      - caption: SMT 순간정지 측정 데이터, 6행 4열
+      - rowgroup:
+        - row "행 설비 text · 결측 0 순간정지_초 numeric · 결측 1 발생시각 datetime · 결측 0 상태 text · 결측 0":
+          - columnheader "행"
+          - columnheader "설비 text · 결측 0":
+            - button "설비 text · 결측 0" [pressed]
+          - columnheader "순간정지_초 numeric · 결측 1":
+            - button "순간정지_초 numeric · 결측 1"
+          - columnheader "발생시각 datetime · 결측 0":
+            - button "발생시각 datetime · 결측 0"
+          - columnheader "상태 text · 결측 0":
+            - button "상태 text · 결측 0"
+      - rowgroup:
+        - row "1 행 1, 열 설비, 값 M01 편집 행 1, 열 순간정지_초, 값 4.2 편집 행 1, 열 발생시각, 값 2026-11-21T08:10:00 편집 행 1, 열 상태, 값 복구 편집":
+          - rowheader "1"
+          - cell "행 1, 열 설비, 값 M01 편집":
+            - button "행 1, 열 설비, 값 M01 편집": M01
+          - cell "행 1, 열 순간정지_초, 값 4.2 편집":
+            - button "행 1, 열 순간정지_초, 값 4.2 편집": "4.2"
+          - cell "행 1, 열 발생시각, 값 2026-11-21T08:10:00 편집":
+            - button "행 1, 열 발생시각, 값 2026-11-21T08:10:00 편집": 2026-11-21 08:10:00
+          - cell "행 1, 열 상태, 값 복구 편집":
+            - button "행 1, 열 상태, 값 복구 편집": 복구
+        - row "2 행 2, 열 설비, 값 M01 편집 행 2, 열 순간정지_초, 값 7.1 편집 행 2, 열 발생시각, 값 2026-11-21T09:25:00 편집 행 2, 열 상태, 값 점검 편집":
+          - rowheader "2"
+          - cell "행 2, 열 설비, 값 M01 편집":
+            - button "행 2, 열 설비, 값 M01 편집": M01
+          - cell "행 2, 열 순간정지_초, 값 7.1 편집":
+            - button "행 2, 열 순간정지_초, 값 7.1 편집": "7.1"
+          - cell "행 2, 열 발생시각, 값 2026-11-21T09:25:00 편집":
+            - button "행 2, 열 발생시각, 값 2026-11-21T09:25:00 편집": 2026-11-21 09:25:00
+          - cell "행 2, 열 상태, 값 점검 편집":
+            - button "행 2, 열 상태, 값 점검 편집": 점검
+        - row "3 행 3, 열 설비, 값 M02 편집 행 3, 열 순간정지_초, 값 3.8 편집 행 3, 열 발생시각, 값 2026-11-21T10:40:00 편집 행 3, 열 상태, 값 복구 편집":
+          - rowheader "3"
+          - cell "행 3, 열 설비, 값 M02 편집":
+            - button "행 3, 열 설비, 값 M02 편집": M02
+          - cell "행 3, 열 순간정지_초, 값 3.8 편집":
+            - button "행 3, 열 순간정지_초, 값 3.8 편집": "3.8"
+          - cell "행 3, 열 발생시각, 값 2026-11-21T10:40:00 편집":
+            - button "행 3, 열 발생시각, 값 2026-11-21T10:40:00 편집": 2026-11-21 10:40:00
+          - cell "행 3, 열 상태, 값 복구 편집":
+            - button "행 3, 열 상태, 값 복구 편집": 복구
+        - row "4 행 4, 열 설비, 값 M02 편집 행 4, 열 순간정지_초, 값 결측 편집 행 4, 열 발생시각, 값 2026-11-21T11:55:00 편집 행 4, 열 상태, 값 점검 편집":
+          - rowheader "4"
+          - cell "행 4, 열 설비, 값 M02 편집":
+            - button "행 4, 열 설비, 값 M02 편집": M02
+          - cell "행 4, 열 순간정지_초, 값 결측 편집":
+            - button "행 4, 열 순간정지_초, 값 결측 편집": — 결측
+          - cell "행 4, 열 발생시각, 값 2026-11-21T11:55:00 편집":
+            - button "행 4, 열 발생시각, 값 2026-11-21T11:55:00 편집": 2026-11-21 11:55:00
+          - cell "행 4, 열 상태, 값 점검 편집":
+            - button "행 4, 열 상태, 값 점검 편집": 점검
+        - row "5 행 5, 열 설비, 값 M03 편집 행 5, 열 순간정지_초, 값 12.4 편집 행 5, 열 발생시각, 값 2026-11-21T13:10:00 편집 행 5, 열 상태, 값 조치 필요 편집":
+          - rowheader "5"
+          - cell "행 5, 열 설비, 값 M03 편집":
+            - button "행 5, 열 설비, 값 M03 편집": M03
+          - cell "행 5, 열 순간정지_초, 값 12.4 편집":
+            - button "행 5, 열 순간정지_초, 값 12.4 편집": "12.4"
+          - cell "행 5, 열 발생시각, 값 2026-11-21T13:10:00 편집":
+            - button "행 5, 열 발생시각, 값 2026-11-21T13:10:00 편집": 2026-11-21 13:10:00
+          - cell "행 5, 열 상태, 값 조치 필요 편집":
+            - button "행 5, 열 상태, 값 조치 필요 편집": 조치 필요
+        - row "6 행 6, 열 설비, 값 M03 편집 행 6, 열 순간정지_초, 값 5.6 편집 행 6, 열 발생시각, 값 2026-11-21T14:25:00 편집 행 6, 열 상태, 값 복구 편집":
+          - rowheader "6"
+          - cell "행 6, 열 설비, 값 M03 편집":
+            - button "행 6, 열 설비, 값 M03 편집": M03
+          - cell "행 6, 열 순간정지_초, 값 5.6 편집":
+            - button "행 6, 열 순간정지_초, 값 5.6 편집": "5.6"
+          - cell "행 6, 열 발생시각, 값 2026-11-21T14:25:00 편집":
+            - button "행 6, 열 발생시각, 값 2026-11-21T14:25:00 편집": 2026-11-21 14:25:00
+          - cell "행 6, 열 상태, 값 복구 편집":
+            - button "행 6, 열 상태, 값 복구 편집": 복구
+  - region "작업표 변환":
+    - article:
+      - text: FILTER ROWS
+      - heading "행 필터" [level=2]
+      - paragraph: 조건에 맞는 행만 남긴 새 revision을 만듭니다. 원본 데이터와 이전 revision은 바뀌지 않습니다.
+      - text: 열
+      - combobox "열":
+        - option "설비" [selected]
+        - option "순간정지_초"
+        - option "발생시각"
+        - option "상태"
+      - text: 조건
+      - combobox "조건":
+        - option "같음" [selected]
+        - option "같지 않음"
+        - option "초과 (숫자)"
+        - option "이상 (숫자)"
+        - option "미만 (숫자)"
+        - option "이하 (숫자)"
+        - option "포함 (텍스트)"
+        - option "결측값임"
+        - option "결측값 아님"
+      - text: 값
+      - textbox "필터 값"
+      - text: 선택한 열 타입에 맞는 값을 입력하세요.
+      - button "필터 revision 저장"
+    - article:
+      - text: SORT ROWS
+      - heading "행 정렬" [level=2]
+      - paragraph: 결측값은 항상 마지막에 유지하며, 같은 값은 기존 순서를 보존합니다.
+      - text: 정렬 열
+      - combobox "정렬 열":
+        - option "설비" [selected]
+        - option "순간정지_초"
+        - option "발생시각"
+        - option "상태"
+      - checkbox "내림차순"
+      - text: 내림차순
+      - button "정렬 revision 저장"
+    - article:
+      - text: SELECT COLUMNS
+      - heading "열 선택" [level=2]
+      - paragraph: 선택한 열만 원래 순서대로 새 revision에 보존합니다. 하나 이상을 선택해야 합니다.
+      - group "보존할 열":
+        - text: 보존할 열
+        - checkbox "설비" [checked]
+        - text: 설비
+        - checkbox "순간정지_초" [checked]
+        - text: 순간정지_초
+        - checkbox "발생시각" [checked]
+        - text: 발생시각
+        - checkbox "상태" [checked]
+        - text: 상태
+      - button "선택 열 revision 저장"
+    - article:
+      - text: RENAME COLUMN
+      - heading "열 이름 변경" [level=2]
+      - paragraph: 열 값과 순서는 유지하고, 고유한 새 이름을 가진 revision을 만듭니다.
+      - text: 현재 열
+      - combobox "현재 열":
+        - option "설비" [selected]
+        - option "순간정지_초"
+        - option "발생시각"
+        - option "상태"
+      - text: 새 열 이름
+      - textbox "새 열 이름"
+      - button "열 이름 revision 저장"
+    - article:
+      - text: DERIVED NUMERIC COLUMN
+      - heading "파생 숫자 열" [level=2]
+      - paragraph: 임의 수식은 실행하지 않습니다. 숫자 열의 복사·사칙연산만 새 열로 저장합니다.
+      - text: 새 열 이름
+      - textbox "새 열 이름"
+      - text: 기준 열
+      - combobox "기준 열":
+        - option "순간정지_초" [selected]
+      - text: 연산
+      - combobox "연산":
+        - option "복사" [selected]
+        - option "더하기"
+        - option "빼기"
+        - option "곱하기"
+        - option "나누기"
+      - text: 피연산자 유형
+      - combobox "피연산자 유형":
+        - option "숫자 열" [selected]
+        - option "상수"
+      - text: 피연산자 열
+      - combobox "피연산자 열":
+        - option "순간정지_초" [selected]
+      - text: 피연산자 상수
+      - spinbutton "피연산자 상수": "1"
+      - button "파생 열 revision 저장"
+    - article:
+      - text: 작업표 조인
+      - heading "단일 키 내부 조인" [level=2]
+      - paragraph: 현재 작업표를 왼쪽으로 유지하고, 일치한 비결측 키 행만 새 revision에 저장합니다. 오른쪽 작업표 ID와 digest가 변환 이력에 고정됩니다.
+      - text: 왼쪽 키 열
+      - combobox "왼쪽 키 열":
+        - option "설비" [selected]
+        - option "순간정지_초"
+        - option "발생시각"
+        - option "상태"
+      - text: 오른쪽 작업표 ID
+      - textbox "오른쪽 작업표 ID 작업표 목록에 표시된 ID를 입력하세요.":
+        - /placeholder: "예: ws_1234567890abcdef"
+      - text: 작업표 목록에 표시된 ID를 입력하세요. 오른쪽 키 열
+      - textbox "오른쪽 키 열 키 타입이 같아야 하며, 키 이외의 중복 열 이름은 허용하지 않습니다.":
+        - /placeholder: "예: part"
+      - text: 키 타입이 같아야 하며, 키 이외의 중복 열 이름은 허용하지 않습니다.
+      - button "내부 조인 revision 저장"
+- button "AI Assistant 보이기": AI Assistant

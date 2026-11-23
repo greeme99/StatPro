@@ -167,6 +167,14 @@ describe("StatPro UI", () => {
     expect(await screen.findByRole("heading", { name: "통합 분석 추천" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /정규성 검정/ })).toHaveAttribute("href", "/analyses/normality");
     expect(screen.getByRole("link", { name: /선형회귀 분석/ })).toHaveAttribute("href", "/analyses/regression/linear");
+    const finder = screen.getByRole("searchbox", { name: "분석 항목 검색" });
+    await userEvent.type(finder, "음이항");
+    expect(screen.getByText("전체 29개 중 1개 표시")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /음이항 회귀/ })).toHaveAttribute("href", "/analyses/regression/negative-binomial");
+    expect(screen.queryByRole("link", { name: /선형회귀 분석/ })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "검색 초기화" }));
+    expect(finder).toHaveValue("");
+    expect(screen.getByText("전체 29개 중 29개 표시")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Xbar-R 관리도" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Xbar-R 분석 설정 열기/ })).toHaveAttribute("href", "/analyses/spc/xbar-r");
 
@@ -629,7 +637,7 @@ describe("StatPro UI", () => {
     expect(within(panel).getByRole("link", { name: "p 관리도 설정 열기" })).toHaveAttribute("href", "/analyses/spc/attribute?chart=p");
   });
 
-  it("bypasses the default sequence when an EXAONE or SDK alias is named", async () => {
+  it("bypasses the default sequence when a Codex SDK alias is named", async () => {
     const requests: unknown[] = [];
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
       if (String(input).endsWith("/v1/copilot/guidance")) {
@@ -644,14 +652,10 @@ describe("StatPro UI", () => {
     await user.click(await screen.findByRole("button", { name: "AI Assistant 보이기" }));
     const panel = screen.getByRole("complementary", { name: "AI Assistant" });
     const input = within(panel).getByLabelText("문의 및 작업 요청 · Text to Work");
-    await user.type(input, "엑사원으로 이 설비 데이터를 설명해줘");
-    await user.click(within(panel).getByRole("button", { name: "작업 명령 보내기" }));
-    await waitFor(() => expect(requests).toHaveLength(1));
-    expect(requests[0]).toMatchObject({ model_preference: "exaone" });
     await user.type(input, "에스디케이로 이 작업표를 검토해줘");
     await user.click(within(panel).getByRole("button", { name: "작업 명령 보내기" }));
-    await waitFor(() => expect(requests).toHaveLength(2));
-    expect(requests[1]).toMatchObject({ model_preference: "codex" });
+    await waitFor(() => expect(requests).toHaveLength(1));
+    expect(requests[0]).toMatchObject({ model_preference: "codex" });
   });
 
   it("uses the saved AI Assistant provider setting for prompts without an explicit alias", async () => {
@@ -669,7 +673,7 @@ describe("StatPro UI", () => {
     await user.click(await screen.findByRole("button", { name: "AI Assistant 보이기" }));
     const panel = screen.getByRole("complementary", { name: "AI Assistant" });
     expect(within(panel).getByText("응답 경로")).toBeInTheDocument();
-    expect(within(panel).getByText("기본 순서는 Rulebase → EXAONE → Codex SDK입니다.")).toBeInTheDocument();
+    expect(within(panel).getByText("기본 순서는 Rulebase → Codex SDK입니다.")).toBeInTheDocument();
     await user.selectOptions(within(panel).getByRole("combobox", { name: "AI 응답 경로" }), "codex");
     await user.type(within(panel).getByLabelText("문의 및 작업 요청 · Text to Work"), "이 작업표를 검토해줘");
     await user.click(within(panel).getByRole("button", { name: "작업 명령 보내기" }));
@@ -2416,6 +2420,28 @@ describe("StatPro UI", () => {
     const patchCall = fetchMock.mock.calls.find(([, init]) => (init as RequestInit | undefined)?.method === "PATCH");
     const body = JSON.parse(String((patchCall?.[1] as RequestInit).body));
     expect(body).toMatchObject({ expected_storage_version: 1, row_index: 0, column_name: "value", value: "11.25" });
+  });
+
+  it("filters missing worksheet values without requiring a filter value", async () => {
+    const column = { name: "value", data_type: "numeric", nullable: true, missing_count: 1, values: [10.5, null] };
+    const worksheet = { worksheet_id: "ws-filter", name: "Process Measurements", base_dataset_digest: "d".repeat(64), digest: "e".repeat(64), revision: 1, parent_digest: null, row_count: 2, columns: [column], transformations: [] };
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url.endsWith("/health")) return new Response(JSON.stringify({ ok: true, engine_version: "0.6.0", local_only: true }), { status: 200 });
+      if (url.endsWith("/filter-rows") && init?.method === "POST") return new Response(JSON.stringify({ worksheet_id: "ws-filter", storage_version: 2, etag: "b".repeat(64), worksheet: { ...worksheet, revision: 2, row_count: 1, columns: [{ ...column, values: [null] }] }, dataset: null }), { status: 200 });
+      return new Response(JSON.stringify({ worksheet_id: "ws-filter", storage_version: 1, etag: "a".repeat(64), worksheet, dataset: null }), { status: 200 });
+    });
+
+    render(<MemoryRouter initialEntries={["/data/ws-filter"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("table", { name: "Process Measurements 데이터, 2행 1열" })).toBeInTheDocument();
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "조건" }), "is_missing");
+    expect(screen.getByRole("textbox", { name: "필터 값" })).toBeDisabled();
+    expect(screen.getByText("이 조건은 값을 입력하지 않습니다.")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "필터 revision 저장" }));
+
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => String(url).endsWith("/filter-rows") && (init as RequestInit | undefined)?.method === "POST")).toBe(true));
+    const call = fetchMock.mock.calls.find(([url, init]) => String(url).endsWith("/filter-rows") && (init as RequestInit | undefined)?.method === "POST");
+    expect(JSON.parse(String((call?.[1] as RequestInit).body))).toEqual({ expected_storage_version: 1, column_name: "value", operator: "is_missing" });
   });
 
   it("saves a source-ordered worksheet column selection as a new revision", async () => {

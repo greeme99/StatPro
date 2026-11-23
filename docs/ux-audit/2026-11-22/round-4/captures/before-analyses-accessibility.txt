@@ -1,0 +1,249 @@
+- link "본문 바로가기":
+  - /url: "#main-content"
+- banner:
+  - text: StatPro LOCAL
+  - button "현재 프로젝트 프로젝트 선택":
+    - text: 현재 프로젝트
+    - strong: 프로젝트 선택
+  - button "즐겨찾기 0"
+  - text: 엔진 연결됨
+  - button "다크 테마로 전환"
+  - button "도움말 열기"
+- complementary "주 메뉴":
+  - button "사이드 메뉴 감추기" [expanded]: 메뉴 감추기
+  - navigation:
+    - link "홈 (Home)":
+      - /url: /home
+    - link "분석 선택 (Analysis Selection)":
+      - /url: /analyses
+    - link "작업표 및 데이터 (Worksheet & Data)":
+      - /url: /data
+    - link "실험계획법 (DOE)":
+      - /url: /doe
+    - link "통계적 공정관리 (SPC)":
+      - /url: /spc
+    - link "고장 형태 및 영향 분석 (FMEA)":
+      - /url: /fmea
+    - link "품질 대시보드 (Quality Dashboard)":
+      - /url: /quality
+    - link "결함 분석 (Defect Analysis)":
+      - /url: /defects
+    - link "결과 및 보고서 (Results & Reports)":
+      - /url: /catalog/reports
+    - link "계산 및 도우미 (Calculators & Helpers)":
+      - /url: /catalog/tools
+  - text: ENGINE
+  - strong: ux-audit
+  - button "로그아웃"
+  - slider "사이드 메뉴 너비 조절"
+- main:
+  - navigation "화면 이동":
+    - button "이전"
+    - link "분석 홈":
+      - /url: /home
+    - button "다음"
+  - navigation "경로":
+    - link "홈 (Home)":
+      - /url: /home
+    - text: 분석 선택 (Analysis Selection)
+  - text: Workspace → Workflow
+  - heading "통합 분석 추천" [level=1]
+  - paragraph: 현장의 판단 목적과 데이터 구조를 선택하면 SPC, 공정능력, MSA, DOE, FMEA, DMAIC 작업공간과 분석 전 확인사항을 제안합니다.
+  - list "분석 선택 단계":
+    - listitem:
+      - text: "1"
+      - strong: 판단 목적
+    - listitem:
+      - text: "2"
+      - strong: 데이터 유형
+    - listitem:
+      - text: "3"
+      - strong: 수집 구조
+    - listitem:
+      - text: "4"
+      - strong: 추천·실행
+  - region "지금 내려야 할 판단은 무엇입니까?":
+    - text: 질문 1
+    - heading "지금 내려야 할 판단은 무엇입니까?" [level=2]
+    - button "공정 안정성 감시 시간에 따른 변동과 이상 신호를 관리도로 확인" [pressed]:
+      - strong: 공정 안정성 감시
+      - text: 시간에 따른 변동과 이상 신호를 관리도로 확인
+    - button "규격 충족 능력 평가 규격 대비 산포·중심·불량 PPM을 평가":
+      - strong: 규격 충족 능력 평가
+      - text: 규격 대비 산포·중심·불량 PPM을 평가
+    - button "측정시스템 신뢰성 평가 측정 변동이 공정 판단에 적합한지 확인":
+      - strong: 측정시스템 신뢰성 평가
+      - text: 측정 변동이 공정 판단에 적합한지 확인
+    - button "중요 인자 선별 많은 후보 인자에서 영향이 큰 인자를 좁힘":
+      - strong: 중요 인자 선별
+      - text: 많은 후보 인자에서 영향이 큰 인자를 좁힘
+    - button "조건 최적화 곡률과 상호작용을 모델링해 목표 조건 탐색":
+      - strong: 조건 최적화
+      - text: 곡률과 상호작용을 모델링해 목표 조건 탐색
+    - button "공정 위험 관리 고장 형태와 예방·검출 조치를 추적":
+      - strong: 공정 위험 관리
+      - text: 고장 형태와 예방·검출 조치를 추적
+    - button "개선 프로젝트 운영 분석과 조치를 DMAIC 단계로 연결":
+      - strong: 개선 프로젝트 운영
+      - text: 분석과 조치를 DMAIC 단계로 연결
+  - region "어떤 데이터를 감시합니까?":
+    - text: 질문 2
+    - heading "어떤 데이터를 감시합니까?" [level=2]
+    - button "연속형 측정값 치수, 중량, 온도, 시간 등" [pressed]:
+      - strong: 연속형 측정값
+      - text: 치수, 중량, 온도, 시간 등
+    - button "부적합품 단위별 합격·불합격 판정":
+      - strong: 부적합품
+      - text: 단위별 합격·불합격 판정
+    - button "결점 수 한 단위에 여러 결점이 발생 가능":
+      - strong: 결점 수
+      - text: 한 단위에 여러 결점이 발생 가능
+    - button "희귀 사건 간격 고장·사고 사이 기회 수 또는 시간":
+      - strong: 희귀 사건 간격
+      - text: 고장·사고 사이 기회 수 또는 시간
+  - region "데이터는 어떤 구조로 수집됩니까?":
+    - text: 질문 3
+    - heading "데이터는 어떤 구조로 수집됩니까?" [level=2]
+    - button "개별값(부분군 없음)":
+      - strong: 개별값(부분군 없음)
+    - button "작은 부분군(2~10)" [pressed]:
+      - strong: 작은 부분군(2~10)
+    - button "큰 부분군(9 이상)":
+      - strong: 큰 부분군(9 이상)
+    - button "작은 평균 이동 탐지":
+      - strong: 작은 평균 이동 탐지
+  - region "데이터 가정과 변수 관계를 먼저 확인합니다":
+    - text: 기본 분석 작업공간
+    - heading "데이터 가정과 변수 관계를 먼저 확인합니다" [level=2]
+    - link "정규성 검정 측정값의 정규성 가정을 Jarque–Bera 검정으로 점검합니다.":
+      - /url: /analyses/normality
+      - strong: 정규성 검정
+      - text: 측정값의 정규성 가정을 Jarque–Bera 검정으로 점검합니다.
+    - link "기초통계 연속형 데이터의 중심·산포·사분위수와 평균 신뢰구간을 요약합니다.":
+      - /url: /analyses/descriptive-statistics
+      - strong: 기초통계
+      - text: 연속형 데이터의 중심·산포·사분위수와 평균 신뢰구간을 요약합니다.
+    - link "단일 표본 t-검정 공정 평균을 사전 정의한 목표값과 비교합니다.":
+      - /url: /analyses/hypothesis/one-sample-t
+      - strong: 단일 표본 t-검정
+      - text: 공정 평균을 사전 정의한 목표값과 비교합니다.
+    - link "단일 비율 검정 불량률을 목표 불량률과 비교하고 Wilson 신뢰구간을 확인합니다.":
+      - /url: /analyses/hypothesis/one-sample-proportion
+      - strong: 단일 비율 검정
+      - text: 불량률을 목표 불량률과 비교하고 Wilson 신뢰구간을 확인합니다.
+    - link "두 비율 비교 두 생산라인 또는 개선 전후의 불량률 차이를 검증합니다.":
+      - /url: /analyses/hypothesis/two-sample-proportion
+      - strong: 두 비율 비교
+      - text: 두 생산라인 또는 개선 전후의 불량률 차이를 검증합니다.
+    - link "표본크기 계획 독립 두 집단 평균 비교에 필요한 표본 수를 사전에 산정합니다.":
+      - /url: /analyses/power/two-sample-mean
+      - strong: 표본크기 계획
+      - text: 독립 두 집단 평균 비교에 필요한 표본 수를 사전에 산정합니다.
+    - link "두 비율 표본수 계획 두 생산라인의 예상 불량률 차이를 검출할 검사 수를 사전에 산정합니다.":
+      - /url: /analyses/power/two-sample-proportion
+      - strong: 두 비율 표본수 계획
+      - text: 두 생산라인의 예상 불량률 차이를 검출할 검사 수를 사전에 산정합니다.
+    - link "단일 비율 표본수 계획 목표 불량률과 검출하려는 불량률 차이에 필요한 검사 수를 산정합니다.":
+      - /url: /analyses/power/one-sample-proportion
+      - strong: 단일 비율 표본수 계획
+      - text: 목표 불량률과 검출하려는 불량률 차이에 필요한 검사 수를 산정합니다.
+    - link "대응 평균 표본수 계획 같은 설비·제품의 개선 전후 차이를 검출할 필요한 쌍 수를 산정합니다.":
+      - /url: /analyses/power/paired-mean
+      - strong: 대응 평균 표본수 계획
+      - text: 같은 설비·제품의 개선 전후 차이를 검출할 필요한 쌍 수를 산정합니다.
+    - link "ANOVA 검정력·표본수 계획 세 집단 이상 평균의 전체 차이를 검출할 균형 표본 수를 산정합니다.":
+      - /url: /analyses/power/one-way-anova
+      - strong: ANOVA 검정력·표본수 계획
+      - text: 세 집단 이상 평균의 전체 차이를 검출할 균형 표본 수를 산정합니다.
+    - link "선형회귀 분석 연속형 결과(Y)와 하나 이상의 설명변수(X) 관계를 추정합니다.":
+      - /url: /analyses/regression/linear
+      - strong: 선형회귀 분석
+      - text: 연속형 결과(Y)와 하나 이상의 설명변수(X) 관계를 추정합니다.
+    - link "다항회귀 분석 관측 범위 안에서 곡선형 X–Y 관계를 2차 또는 3차 항으로 추정합니다.":
+      - /url: /analyses/regression/polynomial
+      - strong: 다항회귀 분석
+      - text: 관측 범위 안에서 곡선형 X–Y 관계를 2차 또는 3차 항으로 추정합니다.
+    - link "교호작용 회귀 분석 두 X의 결합 효과가 연속형 결과(Y)에 미치는 변화를 추정합니다.":
+      - /url: /analyses/regression/interaction
+      - strong: 교호작용 회귀 분석
+      - text: 두 X의 결합 효과가 연속형 결과(Y)에 미치는 변화를 추정합니다.
+    - link "단계선택 회귀 AICc 기준으로 계층성을 지키며 설명변수 후보를 탐색합니다.":
+      - /url: /analyses/regression/stepwise
+      - strong: 단계선택 회귀
+      - text: AICc 기준으로 계층성을 지키며 설명변수 후보를 탐색합니다.
+    - link "회귀 모형 검증 홀드아웃 또는 k-fold로 새 관측값에 대한 예측오차를 점검합니다.":
+      - /url: /analyses/regression/validation
+      - strong: 회귀 모형 검증
+      - text: 홀드아웃 또는 k-fold로 새 관측값에 대한 예측오차를 점검합니다.
+    - link "최적 부분집합 회귀 모든 X 조합을 AICc·BIC·PRESS·Cp로 비교합니다.":
+      - /url: /analyses/regression/best-subsets
+      - strong: 최적 부분집합 회귀
+      - text: 모든 X 조합을 AICc·BIC·PRESS·Cp로 비교합니다.
+    - link "정규화 회귀 Ridge·Lasso·Elastic Net을 교차검증으로 비교해 공선성을 완화합니다.":
+      - /url: /analyses/regression/regularized
+      - strong: 정규화 회귀
+      - text: Ridge·Lasso·Elastic Net을 교차검증으로 비교해 공선성을 완화합니다.
+    - link "범주형 OLS 회귀 라인·설비 등 범주형 X를 기준 범주와 비교해 연속형 결과(Y)를 추정합니다.":
+      - /url: /analyses/regression/categorical-ols
+      - strong: 범주형 OLS 회귀
+      - text: 라인·설비 등 범주형 X를 기준 범주와 비교해 연속형 결과(Y)를 추정합니다.
+    - link "Poisson 회귀 불량·고장 등 비음수 정수 건수(Y)의 발생률을 설명합니다.":
+      - /url: /analyses/regression/poisson
+      - strong: Poisson 회귀
+      - text: 불량·고장 등 비음수 정수 건수(Y)의 발생률을 설명합니다.
+    - link "음이항 회귀 과산포가 있는 비음수 정수 건수(Y)의 발생률을 NB2 분산모형으로 추정합니다.":
+      - /url: /analyses/regression/negative-binomial
+      - strong: 음이항 회귀
+      - text: 과산포가 있는 비음수 정수 건수(Y)의 발생률을 NB2 분산모형으로 추정합니다.
+    - link "로지스틱 회귀 합격·불합격 등 0/1 결과(Y)의 발생확률을 추정합니다.":
+      - /url: /analyses/regression/logistic
+      - strong: 로지스틱 회귀
+      - text: 합격·불합격 등 0/1 결과(Y)의 발생확률을 추정합니다.
+    - link "독립표본 t-검정 독립 두 집단의 평균차를 Welch 방법으로 비교합니다.":
+      - /url: /analyses/hypothesis/independent-welch-t
+      - strong: 독립표본 t-검정
+      - text: 독립 두 집단의 평균차를 Welch 방법으로 비교합니다.
+    - link "등가성 검정 (TOST) 사전 정의한 허용차 안에서 두 집단 평균이 실질적으로 같은지 확인합니다.":
+      - /url: /analyses/hypothesis/independent-tost-equivalence
+      - strong: 등가성 검정 (TOST)
+      - text: 사전 정의한 허용차 안에서 두 집단 평균이 실질적으로 같은지 확인합니다.
+    - link "Mann–Whitney U 검정 정규성 가정이 어려운 독립 두 집단을 순위로 비교합니다.":
+      - /url: /analyses/hypothesis/mann-whitney-u
+      - strong: Mann–Whitney U 검정
+      - text: 정규성 가정이 어려운 독립 두 집단을 순위로 비교합니다.
+    - link "대응표본 t-검정 같은 대상의 전후 또는 짝지어진 두 측정값 차이를 비교합니다.":
+      - /url: /analyses/hypothesis/paired-t
+      - strong: 대응표본 t-검정
+      - text: 같은 대상의 전후 또는 짝지어진 두 측정값 차이를 비교합니다.
+    - link "Kruskal–Wallis 검정 세 집단 이상을 순위로 비교하는 비모수 검정입니다.":
+      - /url: /analyses/hypothesis/kruskal-wallis
+      - strong: Kruskal–Wallis 검정
+      - text: 세 집단 이상을 순위로 비교하는 비모수 검정입니다.
+    - link "Wilcoxon 부호순위 검정 정규성 가정이 어려운 대응 측정값을 순위로 비교합니다.":
+      - /url: /analyses/hypothesis/wilcoxon-signed-rank
+      - strong: Wilcoxon 부호순위 검정
+      - text: 정규성 가정이 어려운 대응 측정값을 순위로 비교합니다.
+    - link "카이제곱 독립성 검정 두 범주형 변수의 연관성을 분할표로 확인합니다.":
+      - /url: /analyses/hypothesis/chi-square-independence
+      - strong: 카이제곱 독립성 검정
+      - text: 두 범주형 변수의 연관성을 분할표로 확인합니다.
+    - link "일원 분산분석 세 개 이상 독립 집단의 평균을 비교합니다.":
+      - /url: /analyses/hypothesis/one-way-anova
+      - strong: 일원 분산분석
+      - text: 세 개 이상 독립 집단의 평균을 비교합니다.
+  - region "Xbar-R 관리도":
+    - text: 추천 작업공간
+    - heading "Xbar-R 관리도" [level=2]
+    - paragraph: 통계적 공정관리 (SPC)
+    - paragraph: 크기 2~10의 작은 부분군에서 평균과 범위를 함께 감시합니다.
+    - heading "필요한 입력" [level=3]
+    - list:
+      - listitem: 시간 순서의 부분군
+      - listitem: 부분군별 연속형 측정값
+    - heading "분석 전 확인" [level=3]
+    - list:
+      - listitem: 부분군 내 조건을 최대한 동일하게 유지
+      - listitem: 부분군 크기와 관리도 상수 확인
+    - link "Xbar-R 분석 설정 열기":
+      - /url: /analyses/spc/xbar-r
+- button "AI Assistant 보이기": AI Assistant

@@ -216,7 +216,10 @@ class DmaicProject:
                 else DmaicDocumentReference(**control_handoff)
             ),
         )
-        if project.digest != _project_digest(project):
+        if project.digest not in {
+            _project_digest(project),
+            _historical_project_digest(project),
+        }:
             raise DmaicInputError("project_digest_mismatch", "Stored DMAIC project digest does not match.", "digest")
         return project
 
@@ -809,6 +812,25 @@ class DmaicControlHandoff:
 def _project_digest(project: DmaicProject) -> str:
     payload = project.to_dict()
     payload.pop("digest")
+    return input_digest(payload)
+
+
+def _historical_project_digest(project: DmaicProject) -> str:
+    """Verify projects saved before the post-SIPOC references were introduced."""
+
+    payload = project.to_dict()
+    payload.pop("digest")
+    for field in (
+        "stakeholder_assessment",
+        "problem_definition",
+        "measurement_plan",
+        "root_cause_analysis",
+        "solution_selection",
+        "pilot_plan",
+        "control_handoff",
+    ):
+        if payload.get(field) is None:
+            payload.pop(field, None)
     return input_digest(payload)
 
 

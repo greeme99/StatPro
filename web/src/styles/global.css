@@ -274,6 +274,15 @@ svg { width: var(--icon-size); height: var(--icon-size); stroke-width: 1.8; }
 .analysis-recommendation { display: grid; gap: var(--space-5); border-color: var(--color-action); }
 .analysis-selection-page > .analysis-recommendation { order: 1; }
 .analysis-selection-page > .basic-analysis-panel { order: 2; }
+.analysis-finder { display: grid; grid-template-columns: minmax(240px, 1fr) auto auto; align-items: end; gap: var(--space-3); margin-bottom: var(--space-6); }
+.analysis-finder p { align-self: center; margin: var(--space-0); color: var(--color-text-secondary); }
+.analysis-groups { display: grid; gap: var(--space-6); }
+.analysis-group { display: grid; gap: var(--space-4); }
+.analysis-group > header { padding-bottom: var(--space-3); border-bottom: var(--border-width) solid var(--color-border); }
+.analysis-group > header > button { width: 100%; display: flex; align-items: start; justify-content: space-between; gap: var(--space-4); padding: var(--space-0); color: var(--color-text-primary); background: transparent; border: 0; text-align: left; cursor: pointer; }
+.analysis-group h3, .analysis-group p { margin: var(--space-0); }
+.analysis-group p, .analysis-group > header > span, .analysis-empty > span { color: var(--color-text-secondary); }
+.analysis-empty { min-height: auto; border-radius: var(--radius-lg); background: var(--color-bg-subtle); }
 .analysis-recommendation > header { display: flex; align-items: center; gap: var(--space-4); }
 .recommendation-icon { display: grid; place-items: center; width: var(--touch-target); height: var(--touch-target); border-radius: var(--radius-lg); color: var(--color-action); background: var(--color-bg-selected); }
 .recommendation-rationale { max-width: var(--content-narrow); color: var(--color-text-secondary); }
@@ -624,6 +633,8 @@ dd { margin: var(--space-0); }
 .status-badge.status-draft { color: var(--color-status-warning); background: var(--color-status-warning-bg); }
 .status-badge.status-in_review { color: var(--color-action); background: var(--color-bg-selected); }
 .status-badge.status-approved { color: var(--color-status-success); background: var(--color-status-success-bg); }
+.worksheet-page .back-link { color: var(--color-text-primary); }
+.worksheet-page .status-badge.status-approved { color: var(--color-text-primary); border: var(--border-width) solid var(--color-status-success); }
 .status-badge.status-archived { color: var(--color-text-secondary); background: var(--color-bg-subtle); }
 .failure-form { margin-bottom: var(--space-5); }
 .failure-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-4); padding: var(--card-pad); }
@@ -674,6 +685,7 @@ dd { margin: var(--space-0); }
 .action-complete-form { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-3); padding-top: var(--space-3); border-top: var(--border-width) solid var(--color-border); }
 .action-complete-form .field-wide, .action-complete-form .form-actions { grid-column: 1 / -1; }
 .worksheet-layout { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(0, 4fr); gap: var(--grid-gap); align-items: start; }
+.worksheet-tools-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--grid-gap); align-items: start; }
 .column-profile { position: sticky; top: calc(var(--header-height) + var(--space-5)); }
 .column-profile dl { padding: var(--card-pad); }
 .worksheet-scroll { max-height: calc(100vh - 270px); overflow: auto; }
@@ -684,7 +696,7 @@ dd { margin: var(--space-0); }
 .worksheet-table thead th:first-child { z-index: 4; }
 .worksheet-table thead button { width: 100%; min-height: var(--row-h); display: grid; gap: var(--space-1); padding: var(--space-2) var(--space-3); text-align: left; color: var(--color-text-primary); background: transparent; border: 0; cursor: pointer; }
 .worksheet-table thead button:hover { color: var(--color-action); background: var(--color-bg-hover); }
-.worksheet-table thead button.is-selected { color: var(--color-action); background: var(--color-bg-selected); box-shadow: inset 0 calc(var(--border-width) * -2) var(--color-action); }
+.worksheet-table thead button.is-selected { color: var(--color-text-primary); background: var(--color-bg-selected); box-shadow: inset 0 calc(var(--border-width) * -2) var(--color-action); }
 .worksheet-table thead small { color: var(--color-text-secondary); font-size: 11px; font-weight: 400; }
 .cell-button { width: 100%; min-height: var(--row-h); padding: var(--space-2) var(--space-3); text-align: left; color: var(--color-text-primary); background: transparent; border: 0; cursor: pointer; font-variant-numeric: tabular-nums; }
 .worksheet-table .is-numeric, .worksheet-table .is-numeric .cell-button { text-align: right; }
@@ -695,6 +707,8 @@ dd { margin: var(--space-0); }
 .cell-editor .method-note { display: flex; gap: var(--space-2); align-items: flex-start; }
 .page-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-3); }
 .workflow-source-context { display: grid; gap: var(--space-1); }
+.transformation-summary { display: grid; gap: var(--space-1); }
+.transformation-summary p { margin: var(--space-0); color: var(--color-text-secondary); }
 .workflow-source-context p { color: var(--color-text-secondary); }
 .workflow-source-context code { color: var(--color-text-primary); font-family: var(--font-mono); overflow-wrap: anywhere; }
 .worksheet-analysis-source { padding: var(--space-0); }
@@ -943,7 +957,8 @@ dd { margin: var(--space-0); }
   .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .form-panel { grid-template-columns: 1fr; gap: var(--space-5); }
   .analysis-readiness, .analysis-readiness ul { grid-template-columns: 1fr; }
-  .fmea-list-layout, .data-list-layout, .fmea-workbench, .worksheet-layout { grid-template-columns: 1fr; }
+  .fmea-list-layout, .data-list-layout, .fmea-workbench, .worksheet-layout, .worksheet-tools-grid { grid-template-columns: 1fr; }
+  .analysis-finder { grid-template-columns: 1fr; align-items: stretch; }
   .compact-form { position: static; }
   .column-profile { position: static; }
   .failure-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
